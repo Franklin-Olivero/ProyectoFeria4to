@@ -1,12 +1,15 @@
-"""Lógica y dibujo de un cuarto de mazmorra: puertas y enemigos placeholder.
+"""Lógica y dibujo de un cuarto de mazmorra: puertas y enemigos.
 
-Todavía no hay IA de enemigos, movimiento de jugador ni ataques. El
-único comportamiento real es: mientras existan enemigos en el cuarto,
-las 4 puertas (N, S, E, W) permanecen bloqueadas; cuando la lista de
-enemigos queda vacía, las puertas se abren.
+Comportamiento real: mientras existan enemigos VIVOS en el cuarto, las
+4 puertas (N, S, E, W) permanecen bloqueadas; en cuanto el último
+enemigo muere, las puertas se abren. Los enemigos traen su propia IA
+(árbol de comportamiento, ver src/entities/enemy.py); este módulo solo
+los posiciona y decide el estado de las puertas.
 """
 
 import pygame
+
+from src.entities.enemy import Enemigo
 
 ANCHO_CUARTO = 500
 ALTO_CUARTO = 400
@@ -18,9 +21,6 @@ ANCHO_PUERTA = 80
 GROSOR_PUERTA = 20
 COLOR_PUERTA_BLOQUEADA = (200, 30, 30)
 COLOR_PUERTA_ABIERTA = (30, 180, 60)
-
-TAMANIO_ENEMIGO = 40
-COLOR_ENEMIGO = (230, 160, 20)
 
 TECLA_DEBUG_ELIMINAR_ENEMIGO = pygame.K_k
 
@@ -37,19 +37,11 @@ class Puerta:
         return COLOR_PUERTA_BLOQUEADA if self.bloqueada else COLOR_PUERTA_ABIERTA
 
 
-class Enemigo:
-    """Enemigo placeholder: solo un cuadrado en una posición fija."""
-
-    def __init__(self, x, y):
-        self.rect = pygame.Rect(0, 0, TAMANIO_ENEMIGO, TAMANIO_ENEMIGO)
-        self.rect.center = (x, y)
-
-
 class Cuarto:
     """Un cuarto con 4 puertas y una lista de enemigos.
 
-    Las puertas están bloqueadas mientras `enemigos` no esté vacía, y se
-    abren automáticamente en cuanto se vacía.
+    Las puertas están bloqueadas mientras queden enemigos vivos, y se
+    abren automáticamente en cuanto el último muere.
     """
 
     def __init__(self):
@@ -98,6 +90,20 @@ class Cuarto:
         for puerta in self.puertas.values():
             puerta.bloqueada = bloqueadas
 
+    def actualizar(self, dt, jugador, proyectiles_enemigos):
+        """Corre un tick de IA para cada enemigo vivo y refresca las puertas.
+
+        `proyectiles_enemigos` es la lista de salida donde los enemigos
+        agregan los proyectiles que disparan (ver Enemigo._disparar_a_jugador).
+        """
+        for enemigo in self.enemigos:
+            enemigo.actualizar(dt, jugador, proyectiles_enemigos)
+
+        cantidad_antes = len(self.enemigos)
+        self.enemigos = [enemigo for enemigo in self.enemigos if enemigo.vivo]
+        if len(self.enemigos) != cantidad_antes:
+            self._actualizar_estado_puertas()
+
     def eliminar_un_enemigo(self):
         """Debug: quita un enemigo de la lista y refresca el estado de las puertas."""
         if self.enemigos:
@@ -115,4 +121,4 @@ class Cuarto:
             pygame.draw.rect(pantalla, puerta.color(), puerta.rect)
 
         for enemigo in self.enemigos:
-            pygame.draw.rect(pantalla, COLOR_ENEMIGO, enemigo.rect)
+            enemigo.dibujar(pantalla)
