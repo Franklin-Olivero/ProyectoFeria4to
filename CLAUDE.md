@@ -51,6 +51,14 @@ No mezclar responsabilidades entre carpetas. `structures/` no debe importar `pyg
 - Un módulo, una responsabilidad. No implementar varias piezas del MVP en un mismo archivo/commit si no se pidió así.
 - Priorizar código explicable sobre código optimizado en exceso — se sustenta en voz alta ante la profesora.
 - Todo árbol/grafo debe exponer sus operaciones de forma que se puedan probar de forma aislada (sin Pygame).
+- Todo elemento visual (cuartos, personajes, enemigos, proyectiles)
+  debe referenciar una constante o ruta de sprite definida en un solo
+  lugar (ej. src/core/assets.py), nunca un color hardcodeado disperso
+  en la lógica del juego.
+- La versión actual usa placeholders (rectángulos de color) de forma
+  intencional mientras se valida la mecánica. Cuando se agregue arte
+  real, el cambio debe limitarse a reemplazar la ruta del sprite en
+  ese archivo central — no debe requerir tocar la lógica de juego.
 
 ## Fechas relevantes
 - Entrega 1 (árboles): propuesta del equipo — 22 sep 2026
