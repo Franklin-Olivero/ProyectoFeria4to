@@ -1,18 +1,36 @@
+"""Punto de entrada del juego."""
+
 import sys
+
 import pygame
 
-pygame.init()
-pantalla = pygame.display.set_mode((800, 600))
-pygame.display.set_caption("Alcalde Digital - Test")
+from src.core.config import COLOR_FONDO, FPS, crear_pantalla, crear_reloj
+from src.dungeon.cuarto import Cuarto
 
-ejecutando = True
-while ejecutando:
-    for evento in pygame.event.get():
-        if evento.type == pygame.QUIT:
-            ejecutando = False
 
-    pantalla.fill((40, 44, 52))
-    pygame.display.flip()
+def main():
+    pygame.init()
+    pantalla = crear_pantalla()
+    reloj = crear_reloj()
+    cuarto = Cuarto()
 
-pygame.quit()
-sys.exit()
+    ejecutando = True
+    while ejecutando:
+        for evento in pygame.event.get():
+            if evento.type == pygame.QUIT:
+                ejecutando = False
+            else:
+                cuarto.manejar_evento(evento)
+
+        pantalla.fill(COLOR_FONDO)
+        cuarto.dibujar(pantalla)
+        pygame.display.flip()
+
+        reloj.tick(FPS)
+
+    pygame.quit()
+    sys.exit()
+
+
+if __name__ == "__main__":
+    main()
