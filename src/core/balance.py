@@ -17,6 +17,10 @@ VELOCIDAD_BASE = 220  # píxeles por segundo
 VIDA_BASE = 5
 DANIO_BASE = 1
 
+# Invulnerabilidad tras recibir un golpe (todos los roles, cuarto y
+# arena). Un golpe dentro de la ventana no resta vida ni la reinicia.
+INVULNERABILIDAD_DURACION = 0.6  # segundos
+
 # Límites de la cadencia efectiva (con o sin buff)
 CADENCIA_MINIMA_INTERVALO = 0.08  # segundos: piso del tiempo entre disparos
 CADENCIA_MAXIMA = 12  # volleys por segundo: tope
@@ -105,6 +109,9 @@ def stats_normalizadas():
 
 VIDA_JEFE = 120
 VELOCIDAD_MOVIMIENTO_JEFE = 40  # px/s, solo en fase 3 ("se mueve lento")
+# Perilla principal de dificultad de la pelea: con los i-frames de
+# 0.6 s, 0.5 deja aguantar unos 10 golpes. Si la pelea queda muy fácil
+# súbelo (p. ej. 0.75 o 1.0); si queda muy difícil bájalo.
 DANIO_PROYECTIL_JEFE = 0.5
 
 # Fase según la fracción de vida restante: > 60% fase 1, > 30% fase 2,

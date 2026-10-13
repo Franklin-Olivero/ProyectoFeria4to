@@ -23,6 +23,9 @@ activa un buff temporal de cadencia.
 
 Habilidad activa: no tiene cooldown por tiempo. Se carga matando
 enemigos (registrar_kill) y se gasta completa al usarla.
+
+Invulnerabilidad: tras un golpe, INVULNERABILIDAD_DURACION segundos sin
+perder vida, con el sprite parpadeando.
 """
 
 import pygame
@@ -36,6 +39,7 @@ from src.core.balance import (
     VIDA_BASE,
     intervalo_disparo,
 )
+from src.entities.invulnerabilidad import Invulnerabilidad
 from src.entities.projectile import Proyectil
 
 ANGULO_ABANICO_GRADOS = 30
@@ -62,6 +66,7 @@ class JugadorBase:
         self.velocidad = VELOCIDAD_BASE * self.stats.velocidad_mult
         self.vida_maxima = VIDA_BASE * self.stats.vida_mult
         self.vida = self.vida_maxima
+        self.invulnerabilidad = Invulnerabilidad()
         self.danio = DANIO_BASE * self.stats.danio_mult
         self.carga_maxima = self.stats.carga_maxima
         # Dirección hacia la que "mira" el jugador: se usa para apuntar
@@ -182,11 +187,21 @@ class JugadorBase:
         self.carga_habilidad = 0.0
         return True
 
-    def recibir_dano(self, danio):
-        self.vida -= danio
+    def recibir_dano(self, danio, inicia_invulnerabilidad=True):
+        """Resta vida salvo durante la invulnerabilidad (ver
+        src/entities/invulnerabilidad.py). Los charcos pasan
+        inicia_invulnerabilidad=False: respetan la ventana pero no la abren."""
+        self.vida = self.invulnerabilidad.aplicar_golpe(
+            self.vida, danio, inicia=inicia_invulnerabilidad
+        )
+
+    def actualizar_invulnerabilidad(self, dt):
+        self.invulnerabilidad.actualizar(dt)
 
     def dibujar(self, pantalla):
-        pygame.draw.rect(pantalla, self.COLOR, self.rect)
+        # Parpadeo durante la invulnerabilidad.
+        if self.invulnerabilidad.visible:
+            pygame.draw.rect(pantalla, self.COLOR, self.rect)
 
 
 class Ciudadano(JugadorBase):

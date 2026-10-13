@@ -8,6 +8,8 @@ reemplazar los valores de este archivo por rutas de sprite, sin tocar
 la lógica de juego.
 """
 
+COLOR_FONDO = (40, 44, 52)
+
 # Jugador (comunes a los 4 roles). Velocidad, vida, daño, cadencia y
 # carga de cada rol viven en src/core/balance.py.
 TAMANIO_JUGADOR = 36
@@ -127,6 +129,24 @@ COLOR_MENSAJE_DERROTA = (255, 110, 110)
 DURACION_MENSAJE = 2.5  # s que se muestra "Bloqueada" o la derrota
 POSICION_MENSAJE_BLOQUEADA = (10, 70)  # mismo lugar que "Resultado": nunca coinciden
 ESPACIADO_ESTELA_JEFE = 9  # px entre posiciones guardadas de la estela
-COLOR_MURO_ARENA = (200, 200, 210)
-GROSOR_MURO_ARENA = 4
 SEPARACION_INVOCACION = 70  # px a cada lado del jefe donde aparecen súbditos
+
+# Muros y puertas (cuarto normal y arena del jefe)
+COLOR_MURO = (200, 200, 210)
+GROSOR_MURO = 4
+ANCHO_PUERTA = 80
+GROSOR_PUERTA = 20
+COLOR_PUERTA_BLOQUEADA = (200, 30, 30)
+COLOR_PUERTA_ABIERTA = (30, 180, 60)
+
+# Invulnerabilidad del jugador tras un golpe
+PERIODO_PARPADEO_INVULNERABLE = 0.08  # s entre visible/invisible
+
+# Pantalla de victoria del jefe final
+COLOR_VELO_VICTORIA = (10, 12, 16, 170)  # RGBA: oscurece la arena detrás del panel
+RECT_PANEL_VICTORIA = (150, 200, 500, 200)  # x, y, ancho, alto (bajo el HUD superior)
+COLOR_FONDO_PANEL_VICTORIA = (24, 28, 36)
+COLOR_BORDE_PANEL_VICTORIA = (120, 255, 160)
+GROSOR_BORDE_PANEL_VICTORIA = 3
+TAMANIO_FUENTE_TITULO_VICTORIA = 44
+SEPARACION_LINEAS_VICTORIA = 44

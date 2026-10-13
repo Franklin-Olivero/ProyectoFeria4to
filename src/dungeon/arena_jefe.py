@@ -75,6 +75,7 @@ class ArenaJefe:
             self.subditos.clear()
             proyectiles_enemigos.clear()
             jugador.vida = jugador.vida_maxima
+            jugador.invulnerabilidad.reiniciar()
             self.colocar_jugador(jugador)
             return
 
@@ -117,7 +118,7 @@ class ArenaJefe:
     # ------------------------------------------------------------------
 
     def dibujar(self, pantalla):
-        pygame.draw.rect(pantalla, assets.COLOR_MURO_ARENA, self.rect, assets.GROSOR_MURO_ARENA)
+        pygame.draw.rect(pantalla, assets.COLOR_MURO, self.rect, assets.GROSOR_MURO)
         for charco in self.mazmorra.charcos:
             self._dibujar_charco(pantalla, charco)
         for subdito in self.subditos:
@@ -182,12 +183,9 @@ class ArenaJefe:
             assets.POSICION_TEXTO_TIEMPO_JEFE,
         )
 
+        # La victoria tiene su propia pantalla (src/ui/pantalla_victoria.py);
+        # aquí solo se avisa la derrota.
         mensaje = self.mazmorra.texto_mensaje()
-        if mensaje is not None:
-            color = (
-                assets.COLOR_MENSAJE_VICTORIA
-                if self.mazmorra.estado == VICTORIA
-                else assets.COLOR_MENSAJE_DERROTA
-            )
-            superficie = fuente.render(mensaje, True, color)
+        if mensaje is not None and self.mazmorra.estado != VICTORIA:
+            superficie = fuente.render(mensaje, True, assets.COLOR_MENSAJE_DERROTA)
             pantalla.blit(superficie, superficie.get_rect(center=assets.POSICION_MENSAJE_CENTRAL))

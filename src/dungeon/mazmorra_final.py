@@ -100,7 +100,8 @@ class MazmorraFinal:
             danio += charco.danio_para(jugador.posicion.x, jugador.posicion.y, dt)
         self.charcos = [charco for charco in self.charcos if charco.vivo]
         if danio > 0:
-            jugador.recibir_dano(danio)
+            # Respeta la invulnerabilidad pero no la abre (daño continuo).
+            jugador.recibir_dano(danio, inicia_invulnerabilidad=False)
 
     def _derrota(self):
         self.colapso.sumar_fallo()

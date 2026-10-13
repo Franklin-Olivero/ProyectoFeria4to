@@ -31,14 +31,6 @@ from src.ui.terminal_decision import TerminalDecision, construir_arbol_publicaci
 ANCHO_CUARTO = 500
 ALTO_CUARTO = 400
 
-GROSOR_MURO = 4
-COLOR_MURO = (200, 200, 210)
-
-ANCHO_PUERTA = 80
-GROSOR_PUERTA = 20
-COLOR_PUERTA_BLOQUEADA = (200, 30, 30)
-COLOR_PUERTA_ABIERTA = (30, 180, 60)
-
 TECLA_DEBUG_ELIMINAR_ENEMIGO = pygame.K_k
 
 SEPARACION_VERTICAL_ENEMIGOS = 60
@@ -70,7 +62,7 @@ class Puerta:
         self.bloqueada = True
 
     def color(self):
-        return COLOR_PUERTA_BLOQUEADA if self.bloqueada else COLOR_PUERTA_ABIERTA
+        return assets.COLOR_PUERTA_BLOQUEADA if self.bloqueada else assets.COLOR_PUERTA_ABIERTA
 
 
 class Cuarto:
@@ -102,16 +94,16 @@ class Cuarto:
     def _crear_puertas(self):
         r = self.rect
 
-        rect_n = pygame.Rect(0, 0, ANCHO_PUERTA, GROSOR_PUERTA)
+        rect_n = pygame.Rect(0, 0, assets.ANCHO_PUERTA, assets.GROSOR_PUERTA)
         rect_n.center = (r.centerx, r.top)
 
-        rect_s = pygame.Rect(0, 0, ANCHO_PUERTA, GROSOR_PUERTA)
+        rect_s = pygame.Rect(0, 0, assets.ANCHO_PUERTA, assets.GROSOR_PUERTA)
         rect_s.center = (r.centerx, r.bottom)
 
-        rect_e = pygame.Rect(0, 0, GROSOR_PUERTA, ANCHO_PUERTA)
+        rect_e = pygame.Rect(0, 0, assets.GROSOR_PUERTA, assets.ANCHO_PUERTA)
         rect_e.center = (r.right, r.centery)
 
-        rect_w = pygame.Rect(0, 0, GROSOR_PUERTA, ANCHO_PUERTA)
+        rect_w = pygame.Rect(0, 0, assets.GROSOR_PUERTA, assets.ANCHO_PUERTA)
         rect_w.center = (r.left, r.centery)
 
         return {
@@ -176,7 +168,7 @@ class Cuarto:
             self.eliminar_un_enemigo()
 
     def dibujar(self, pantalla):
-        pygame.draw.rect(pantalla, COLOR_MURO, self.rect, GROSOR_MURO)
+        pygame.draw.rect(pantalla, assets.COLOR_MURO, self.rect, assets.GROSOR_MURO)
 
         for puerta in self.puertas.values():
             pygame.draw.rect(pantalla, puerta.color(), puerta.rect)

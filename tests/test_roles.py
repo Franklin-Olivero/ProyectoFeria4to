@@ -313,3 +313,22 @@ def test_otros_roles_solo_restan_un_impacto_al_escudo():
     ProyectilEmpuje((0, 0), (1, 0), 99).al_impactar(jefe)
     assert jefe.vida_escudo == ESCUDO_VIDA - 3
     assert jefe.vida == vida
+
+
+# ----------------------------------------------------------------------
+# Invulnerabilidad en los jugadores reales (los 4 roles)
+# ----------------------------------------------------------------------
+
+
+@pytest.mark.parametrize("clase", ROLES)
+def test_rol_tiene_invulnerabilidad_tras_un_golpe(clase):
+    from src.core.balance import INVULNERABILIDAD_DURACION
+
+    jugador = clase(0, 0)
+    vida = jugador.vida
+    jugador.recibir_dano(1)
+    jugador.recibir_dano(1)  # dentro de la ventana: no resta
+    assert jugador.vida == pytest.approx(vida - 1)
+    jugador.actualizar_invulnerabilidad(INVULNERABILIDAD_DURACION)
+    jugador.recibir_dano(1)
+    assert jugador.vida == pytest.approx(vida - 2)

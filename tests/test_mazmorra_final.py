@@ -52,7 +52,7 @@ class JugadorFalso:
     def vivo(self):
         return self.vida > 0
 
-    def recibir_dano(self, danio):
+    def recibir_dano(self, danio, inicia_invulnerabilidad=True):
         self.vida -= danio
 
 

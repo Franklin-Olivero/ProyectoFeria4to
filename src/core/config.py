@@ -6,9 +6,7 @@ ANCHO_PANTALLA = 800
 ALTO_PANTALLA = 600
 FPS = 60
 
-TITULO_VENTANA = "Civitas - Cuarto de prueba"
-
-COLOR_FONDO = (40, 44, 52)
+TITULO_VENTANA = "Civitas"
 
 
 def crear_pantalla():
