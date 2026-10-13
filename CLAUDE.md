@@ -77,11 +77,11 @@ No mezclar responsabilidades entre carpetas. `structures/` no debe importar `pyg
 4. `docs/ARQUITECTURA.md` — completado
 5. Clasificador de toxicidad (`src/dungeon/clasificador_toxicidad.py`) conectado al spawn del cuarto — completado
 6. Variable de colapso en pantalla (`src/core/colapso.py`) — completado
-7. Minijuego de decisión (Verificar/Compartir/Reportar/Ignorar) al final de mazmorra normal, usando `tree.py` como segunda estructura — **pendiente, siguiente paso**
-8. Carga de habilidad por kills (reemplaza cooldown por tiempo) — **pendiente**
-9. Mazmorra final frenética sin decisiones — fuera de alcance del MVP actual, se hace más adelante
+7. Minijuego de decisión (Verificar/Compartir/Reportar/Ignorar) al final de mazmorra normal, usando `tree.py` como segunda estructura — completado
+8. Carga de habilidad por kills (reemplaza cooldown por tiempo) — completado
+9. Mazmorra final frenética sin decisiones (jefe "Servidor Central": `src/entities/jefe.py`, `src/dungeon/mazmorra_final.py`, `src/dungeon/arena_jefe.py`, `src/dungeon/charco.py`; se entra con B si está desbloqueada) — completado
 
-No agregues código de Influencer, Periodista, Candidato, Ciudad Nova, sockets, mazmorra final, ni `graph.py` salvo que se te pida explícitamente — son alcance de entregas futuras.
+No agregues código de Ciudad Nova, sockets ni `graph.py` salvo que se te pida explícitamente — son alcance de entregas futuras.
 
 ## Convenciones de código
 

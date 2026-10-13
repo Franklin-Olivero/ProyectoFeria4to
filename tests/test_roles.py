@@ -277,3 +277,39 @@ def test_carga_compartida_real_no_pasa_del_maximo_del_rol():
         registrar_kill_equipo(asesino, [asesino, aliado])
     assert aliado.carga_habilidad == aliado.carga_maxima
     assert not aliado.buff_kill_activo  # el buff es solo para la kill propia
+
+
+# ----------------------------------------------------------------------
+# Roles contra el escudo del jefe final (rayos reales, con pygame)
+# ----------------------------------------------------------------------
+
+
+def _jefe_con_escudo():
+    import random
+
+    from src.entities.jefe import Jefe
+
+    jefe = Jefe(400, 240, (20, 120, 780, 590), random.Random(0))
+    jefe.recibir_dano(jefe.vida_maxima * 0.4)  # entra a fase 2 -> escudo
+    assert jefe.escudo_anonimato
+    return jefe
+
+
+def test_fact_checking_real_rompe_escudo_del_jefe_de_golpe():
+    jefe = _jefe_con_escudo()
+    vida = jefe.vida
+    RayoPerforante((0, 0), (1, 0), DANIO, quita_escudo=True).al_impactar(jefe)
+    assert not jefe.escudo_anonimato
+    assert jefe.vida == vida - DANIO  # el mismo impacto ya daña la vida
+
+
+def test_otros_roles_solo_restan_un_impacto_al_escudo():
+    from src.core.balance import ESCUDO_VIDA
+
+    jefe = _jefe_con_escudo()
+    vida = jefe.vida
+    RayoPerforante((0, 0), (1, 0), 99).al_impactar(jefe)
+    OndaExpansiva((0, 0), 99).al_impactar(jefe)
+    ProyectilEmpuje((0, 0), (1, 0), 99).al_impactar(jefe)
+    assert jefe.vida_escudo == ESCUDO_VIDA - 3
+    assert jefe.vida == vida

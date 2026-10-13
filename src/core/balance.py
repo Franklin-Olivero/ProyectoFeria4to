@@ -95,3 +95,53 @@ def stats_normalizadas():
         }
         for rol, stats in STATS_POR_ROL.items()
     }
+
+
+# ----------------------------------------------------------------------
+# Jefe final: "Servidor Central" (src/entities/jefe.py)
+# ----------------------------------------------------------------------
+# Patrones legibles: muchos proyectiles LENTOS, nunca rápidos e
+# inesquivables. Todo intervalo está en segundos.
+
+VIDA_JEFE = 120
+VELOCIDAD_MOVIMIENTO_JEFE = 40  # px/s, solo en fase 3 ("se mueve lento")
+DANIO_PROYECTIL_JEFE = 0.5
+
+# Fase según la fracción de vida restante: > 60% fase 1, > 30% fase 2,
+# el resto fase 3. Justo en 60% ya es fase 2 y justo en 30% ya es fase 3.
+UMBRAL_FASE_2 = 0.60
+UMBRAL_FASE_3 = 0.30
+PAUSA_CAMBIO_FASE = 0.8  # sin atacar, parpadeando, al cambiar de fase
+DURACION_DESTELLO_DANIO = 0.08
+
+# Fase 1: ráfaga radial + invocar súbditos
+RAFAGA_INTERVALO = 2.0
+RAFAGA_CANTIDAD = 16  # proyectiles por círculo
+RAFAGA_VELOCIDAD = 130
+INVOCACION_INTERVALO = 8.0
+INVOCACION_CANTIDAD = 2
+
+# Fase 2: escudo de anonimato + espiral continua + disparo dirigido
+ESCUDO_VIDA = 15  # impactos para romperlo (el daño no importa)
+ESPIRAL_INTERVALO = 0.15
+ESPIRAL_BRAZOS = 2  # brazos opuestos de la espiral
+ESPIRAL_PASO_GRADOS = 13  # giro de la espiral entre disparos
+ESPIRAL_VELOCIDAD = 120
+DIRIGIDO_INTERVALO = 1.5
+DIRIGIDO_VELOCIDAD = 190
+
+# Fase 3: ráfaga + espiral con intervalos 30% más cortos + charcos
+FACTOR_INTERVALO_FASE_3 = 0.7
+CHARCO_INTERVALO = 4.0
+
+# Charcos tóxicos (src/dungeon/charco.py)
+CHARCO_AVISO = 1.0  # solo contorno, sin daño
+CHARCO_DURACION = 5.0  # fase activa, con daño
+CHARCO_RADIO = 45  # px
+CHARCO_DANIO_POR_SEGUNDO = 1.0
+
+# Mazmorra final (src/dungeon/mazmorra_final.py)
+TIEMPO_LIMITE_JEFE = 180.0
+NIVEL_TOXICIDAD_FINAL = 100.0  # siempre el máximo
+COLAPSO_DESBLOQUEO = 80.0  # colapso > esto desbloquea la mazmorra final
+MAZMORRAS_PARA_DESBLOQUEO = 1

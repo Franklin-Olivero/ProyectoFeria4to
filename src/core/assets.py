@@ -92,3 +92,41 @@ COLOR_PROYECTIL_REBOTANTE = (255, 120, 40)
 ANGULOS_DEBATE_REBOTANTE = (-20, 0, 20)  # grados respecto a la mirada
 MAXIMO_REBOTES = 3
 TIEMPO_VIDA_REBOTANTE = 4.0  # segundos
+
+# Mazmorra final: arena, jefe, charcos y "juice"
+ANCHO_ARENA = 760
+ALTO_ARENA = 470
+CENTRO_ARENA = (400, 355)  # deja libre la franja superior para la barra del jefe
+TAMANIO_JEFE = 90
+COLOR_JEFE = (150, 60, 200)
+COLOR_DESTELLO_JEFE = (255, 255, 255)
+COLOR_ESCUDO_JEFE = (90, 230, 255)
+GROSOR_ESCUDO_JEFE = 4
+MARGEN_ESCUDO_JEFE = 8
+PERIODO_PARPADEO_JEFE = 0.1  # s entre visible/invisible durante el cambio de fase
+COLOR_PROYECTIL_JEFE = (255, 90, 160)
+TAMANIO_PROYECTIL_JEFE = 12
+ALFAS_ESTELA_JEFE = (150, 90, 40)  # de la posición más reciente a la más vieja
+COLOR_CHARCO = (110, 210, 60)
+ALFA_CHARCO_ACTIVO = 110
+GROSOR_CONTORNO_CHARCO = 2
+SHAKE_DURACION = 0.25
+SHAKE_INTENSIDAD = 5  # px máximos de desplazamiento
+
+# Barra de vida del jefe y textos de la mazmorra final
+RECT_BARRA_JEFE = (220, 14, 360, 16)  # x, y, ancho, alto
+COLOR_BARRA_JEFE = (200, 50, 90)
+COLOR_FONDO_BARRA_JEFE = (60, 60, 70)
+COLOR_MARCA_FASE = (255, 255, 255)
+ANCHO_MARCA_FASE = 2
+POSICION_TEXTO_FASE = (220, 36)
+POSICION_TEXTO_TIEMPO_JEFE = (620, 10)
+POSICION_MENSAJE_CENTRAL = (400, 90)  # centro del texto de victoria/derrota
+COLOR_MENSAJE_VICTORIA = (120, 255, 160)
+COLOR_MENSAJE_DERROTA = (255, 110, 110)
+DURACION_MENSAJE = 2.5  # s que se muestra "Bloqueada" o la derrota
+POSICION_MENSAJE_BLOQUEADA = (10, 70)  # mismo lugar que "Resultado": nunca coinciden
+ESPACIADO_ESTELA_JEFE = 9  # px entre posiciones guardadas de la estela
+COLOR_MURO_ARENA = (200, 200, 210)
+GROSOR_MURO_ARENA = 4
+SEPARACION_INVOCACION = 70  # px a cada lado del jefe donde aparecen súbditos

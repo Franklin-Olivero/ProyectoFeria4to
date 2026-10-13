@@ -8,7 +8,9 @@ from src.core import assets
 from src.core.colapso import ColapsoElectoral
 from src.core.config import COLOR_FONDO, FPS, crear_pantalla, crear_reloj
 from src.core.equipo import registrar_kill_equipo
+from src.dungeon.arena_jefe import ArenaJefe
 from src.dungeon.cuarto import FASE_DECISION, FASE_RESUELTO, Cuarto
+from src.dungeon.mazmorra_final import esta_desbloqueada
 from src.entities.candidato import Candidato
 from src.entities.influencer import Influencer
 from src.entities.periodista import Periodista
@@ -25,6 +27,7 @@ from src.ui.terminal_decision_render import dibujar_terminal
 
 TECLA_DISPARAR = pygame.K_SPACE
 TECLA_HABILIDAD = pygame.K_f
+TECLA_MAZMORRA_FINAL = pygame.K_b
 
 # Teclas de la pantalla de selección -> clase del rol a instanciar.
 ROLES_POR_TECLA = {
@@ -59,62 +62,96 @@ def main():
     # repartir la carga compartida de equipo en cada kill.
     jugadores = [jugador]
 
+    # Escena activa: el cuarto normal o la arena del jefe. Ambas exponen
+    # rect, enemigos, actualizar, dibujar y manejar_evento, así el loop
+    # de combate es el mismo. Solo el cuarto normal tiene decisión.
+    escena = cuarto
+    arena = None
+    mazmorras_completadas = 0
+    tiempo_mensaje_bloqueada = 0.0
+    # Se dibuja el mundo aquí y se copia a la pantalla con la sacudida;
+    # el HUD va directo a la pantalla para que no tiemble.
+    lienzo = pygame.Surface(pantalla.get_size())
+
     proyectiles_jugador = []
     proyectiles_enemigos = []
 
     ejecutando = True
     while ejecutando:
         dt = reloj.tick(FPS) / 1000
+        en_decision = escena is cuarto and cuarto.fase == FASE_DECISION
+        tiempo_mensaje_bloqueada = max(0.0, tiempo_mensaje_bloqueada - dt)
 
         for evento in pygame.event.get():
             if evento.type == pygame.QUIT:
                 ejecutando = False
-            elif cuarto.fase == FASE_DECISION:
+            elif en_decision:
                 # Durante la decisión el input va a la terminal, no al jugador.
                 if evento.type == pygame.KEYDOWN and evento.key in TECLAS_TERMINAL:
                     cuarto.terminal.navegar(TECLAS_TERMINAL[evento.key])
             elif evento.type == pygame.KEYDOWN and evento.key == TECLA_HABILIDAD:
                 if jugador.puede_usar_habilidad():
-                    jugador.usar_habilidad(cuarto.enemigos, proyectiles_jugador)
+                    jugador.usar_habilidad(escena.enemigos, proyectiles_jugador)
+            elif evento.type == pygame.KEYDOWN and evento.key == TECLA_MAZMORRA_FINAL:
+                if escena is cuarto:
+                    if esta_desbloqueada(colapso, mazmorras_completadas):
+                        arena = ArenaJefe(colapso, jugador)
+                        escena = arena
+                        proyectiles_jugador.clear()
+                        proyectiles_enemigos.clear()
+                    else:
+                        tiempo_mensaje_bloqueada = assets.DURACION_MENSAJE
             else:
-                cuarto.manejar_evento(evento)
+                escena.manejar_evento(evento)
 
         jugador.actualizar_habilidad(dt)
 
-        if cuarto.fase == FASE_DECISION:
+        if en_decision:
             # El combate terminó: se descartan los proyectiles en vuelo.
             proyectiles_jugador.clear()
             proyectiles_enemigos.clear()
             cuarto.terminal.actualizar(dt)
-            _aplicar_resultado_decision(cuarto, colapso)
+            if _aplicar_resultado_decision(cuarto, colapso):
+                mazmorras_completadas += 1
         else:
             teclas = pygame.key.get_pressed()
-            jugador.manejar_movimiento(teclas, dt, cuarto.rect)
+            jugador.manejar_movimiento(teclas, dt, escena.rect)
             # Disparo sostenido: el jugador decide cuántos volleys salen
             # según su cooldown (cadencia del rol + buff por kill).
             proyectiles_jugador.extend(
                 jugador.actualizar_disparo(dt, teclas[TECLA_DISPARAR])
             )
-            cuarto.actualizar(dt, jugador, proyectiles_enemigos)
+            escena.actualizar(dt, jugador, proyectiles_enemigos)
 
-            _actualizar_proyectiles(proyectiles_jugador, dt, cuarto.rect)
-            _actualizar_proyectiles(proyectiles_enemigos, dt, cuarto.rect)
+            _actualizar_proyectiles(proyectiles_jugador, dt, escena.rect)
+            _actualizar_proyectiles(proyectiles_enemigos, dt, escena.rect)
 
             _resolver_colisiones_contra_enemigos(
-                proyectiles_jugador, cuarto.enemigos, jugador, jugadores
+                proyectiles_jugador, escena.enemigos, jugador, jugadores
             )
             _resolver_colision_contra_jugador(proyectiles_enemigos, jugador)
 
-        pantalla.fill(COLOR_FONDO)
-        cuarto.dibujar(pantalla)
-        jugador.dibujar(pantalla)
+        lienzo.fill(COLOR_FONDO)
+        escena.dibujar(lienzo)
+        jugador.dibujar(lienzo)
         for proyectil in proyectiles_jugador:
-            proyectil.dibujar(pantalla)
+            proyectil.dibujar(lienzo)
         for proyectil in proyectiles_enemigos:
-            proyectil.dibujar(pantalla)
-        if cuarto.fase == FASE_DECISION:
+            proyectil.dibujar(lienzo)
+        sacudida = arena.mazmorra.desplazamiento_sacudida() if escena is arena else (0, 0)
+        pantalla.fill(COLOR_FONDO)
+        pantalla.blit(lienzo, sacudida)
+
+        if en_decision:
             dibujar_terminal(pantalla, cuarto.terminal, fuente_hud)
         _dibujar_hud(pantalla, fuente_hud, colapso, jugador, cuarto)
+        if escena is arena:
+            arena.dibujar_hud(pantalla, fuente_hud)
+        if tiempo_mensaje_bloqueada > 0:
+            texto = fuente_hud.render(
+                "Mazmorra final: Bloqueada", True, assets.COLOR_MENSAJE_DERROTA
+            )
+            pantalla.blit(texto, assets.POSICION_MENSAJE_BLOQUEADA)
         pygame.display.flip()
 
     pygame.quit()
@@ -141,15 +178,17 @@ def _elegir_rol(pantalla, reloj, fuente):
 
 def _aplicar_resultado_decision(cuarto, colapso):
     """Cuando la terminal llega a una hoja (o se acaba el tiempo), aplica
-    el efecto sobre el Colapso Electoral y cierra la fase de decisión."""
+    el efecto sobre el Colapso Electoral y cierra la fase de decisión.
+    Retorna True el frame en que la mazmorra queda completada."""
     resultado = cuarto.terminal.resultado
     if resultado is None:
-        return
+        return False
     if resultado == PURIFICACION_EXITOSA:
         colapso.restar_exito()
     elif resultado == DETONACION:
         colapso.sumar_fallo()
     cuarto.fase = FASE_RESUELTO
+    return True
 
 
 def _dibujar_hud(pantalla, fuente, colapso, jugador, cuarto):
