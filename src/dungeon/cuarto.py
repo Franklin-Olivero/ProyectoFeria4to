@@ -11,10 +11,16 @@ cuarto se clasifican los reportes de toxicidad de la zona con el árbol
 N-ario (ver src/dungeon/clasificador_toxicidad.py) y el nivel
 resultante decide la dificultad.
 
+Dentro de una mazmorra de varios cuartos (src/dungeon/mazmorra.py)
+cada cuarto recibe además qué puertas existen (solo donde el grafo
+tiene pasillo), su toxicidad/dificultad ya calculadas y si es el
+cuarto final.
+
 Fases del cuarto: "combate" mientras queden enemigos; al morir el
-último pasa a "decision" e instancia el minijuego de decisión
-(src/ui/terminal_decision.py); el loop principal lo pasa a "resuelto"
-cuando la terminal da un resultado.
+último, el cuarto final pasa a "decision" e instancia el minijuego de
+decisión (src/ui/terminal_decision.py) y un cuarto intermedio pasa a
+"limpio". El loop principal pasa el final a "resuelto" cuando la
+terminal da un resultado.
 """
 
 import pygame
@@ -38,6 +44,9 @@ SEPARACION_VERTICAL_ENEMIGOS = 60
 FASE_COMBATE = "combate"
 FASE_DECISION = "decision"
 FASE_RESUELTO = "resuelto"
+FASE_LIMPIO = "limpio"  # cuarto intermedio sin enemigos: no hay decisión
+
+DIRECCIONES = ("N", "S", "E", "W")
 
 # Reportes simulados de la zona del cuarto de prueba (un colegio con
 # ciberbullying). Hardcodeados a propósito: el resultado es determinista
@@ -66,32 +75,45 @@ class Puerta:
 
 
 class Cuarto:
-    """Un cuarto con 4 puertas y una lista de enemigos.
+    """Un cuarto con hasta 4 puertas y una lista de enemigos.
 
     Las puertas están bloqueadas mientras queden enemigos vivos, y se
     abren automáticamente en cuanto el último muere. La cantidad y
-    velocidad de los enemigos sale del nivel de toxicidad de `reportes`.
+    velocidad de los enemigos sale del nivel de toxicidad de `reportes`,
+    salvo que se pasen `nivel_toxicidad` y/o `dificultad` ya calculados
+    (lo hace la mazmorra multi-cuarto). `direcciones_puertas` dice qué
+    puertas existen; `es_final` si al limpiarlo aparece la decisión.
     """
 
-    def __init__(self, reportes=REPORTES_ZONA_EJEMPLO, nombre_zona=NOMBRE_ZONA_EJEMPLO):
+    def __init__(
+        self,
+        reportes=REPORTES_ZONA_EJEMPLO,
+        nombre_zona=NOMBRE_ZONA_EJEMPLO,
+        direcciones_puertas=DIRECCIONES,
+        nivel_toxicidad=None,
+        dificultad=None,
+        es_final=True,
+    ):
         ancho_ventana = pygame.display.get_surface().get_width()
         alto_ventana = pygame.display.get_surface().get_height()
 
         self.rect = pygame.Rect(0, 0, ANCHO_CUARTO, ALTO_CUARTO)
         self.rect.center = (ancho_ventana // 2, alto_ventana // 2)
 
-        arbol_reportes = construir_arbol_reportes(reportes, nombre_zona)
-        self.nivel_toxicidad = calcular_nivel_toxicidad(arbol_reportes)
-        self.dificultad = nivel_a_dificultad(self.nivel_toxicidad)
+        if nivel_toxicidad is None:
+            nivel_toxicidad = calcular_nivel_toxicidad(construir_arbol_reportes(reportes, nombre_zona))
+        self.nivel_toxicidad = nivel_toxicidad
+        self.dificultad = dificultad if dificultad is not None else nivel_a_dificultad(nivel_toxicidad)
+        self.es_final = es_final
 
         self.fase = FASE_COMBATE
         self.terminal = None
 
-        self.puertas = self._crear_puertas()
+        self.puertas = self._crear_puertas(direcciones_puertas)
         self.enemigos = self._crear_enemigos_iniciales()
         self._actualizar_estado_puertas()
 
-    def _crear_puertas(self):
+    def _crear_puertas(self, direcciones):
         r = self.rect
 
         rect_n = pygame.Rect(0, 0, assets.ANCHO_PUERTA, assets.GROSOR_PUERTA)
@@ -106,12 +128,8 @@ class Cuarto:
         rect_w = pygame.Rect(0, 0, assets.GROSOR_PUERTA, assets.ANCHO_PUERTA)
         rect_w.center = (r.left, r.centery)
 
-        return {
-            "N": Puerta("N", rect_n),
-            "S": Puerta("S", rect_s),
-            "E": Puerta("E", rect_e),
-            "W": Puerta("W", rect_w),
-        }
+        rects = {"N": rect_n, "S": rect_s, "E": rect_e, "W": rect_w}
+        return {direccion: Puerta(direccion, rects[direccion]) for direccion in direcciones}
 
     def _crear_enemigos_iniciales(self):
         """Reparte `cantidad_enemigos` a lo ancho del cuarto, en zigzag.
@@ -136,8 +154,12 @@ class Cuarto:
         self._verificar_fin_combate()
 
     def _verificar_fin_combate(self):
-        """Sin enemigos en fase de combate -> arranca el minijuego de decisión."""
+        """Sin enemigos en fase de combate: el cuarto final arranca el
+        minijuego de decisión; uno intermedio solo queda limpio."""
         if self.fase == FASE_COMBATE and not self.enemigos:
+            if not self.es_final:
+                self.fase = FASE_LIMPIO
+                return
             self.fase = FASE_DECISION
             self.terminal = TerminalDecision(construir_arbol_publicacion())
             self.terminal.iniciar()

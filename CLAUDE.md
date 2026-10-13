@@ -9,17 +9,25 @@
 
 ## Visión completa del juego
 
-Civitas es un action-RPG top-down **cooperativo, de 1 a 4 jugadores** (soporta solitario, online más adelante). Inspirado en *The Binding of Isaac*: el jugador recorre una ciudad y entra a distintas mazmorras repartidas por ella. (Hoy: 1 jugador local, un cuarto normal y la mazmorra final; la ciudad recorrible y el multijugador son visión futura.)
+Civitas es un action-RPG top-down **cooperativo, de 1 a 4 jugadores** (soporta solitario, online más adelante). Inspirado en *The Binding of Isaac*: el jugador recorre una ciudad y entra a distintas mazmorras repartidas por ella. (Hoy: 1 jugador local; la ciudad es un **mapa de selección** sobre un grafo ponderado — Plaza, Colegio, Hospital, Empresa de Medios y Alcaldía — desde donde se viaja a 3 mazmorras normales de varios cuartos y a la mazmorra final. Ciudad Nova como mundo abierto caminable y el multijugador son visión futura.)
 
 Cada mazmorra tiene un **nivel de toxicidad por mal uso de redes** propio de su contexto (ciberbullying, acoso, desinformación posteada, etc.) — ese nivel determina su dificultad (más/menos enemigos, más/menos agresivos). Dentro de la mazmorra: cuartos con enemigos que el jugador limpia con sus poderes, al estilo Isaac.
 
+## Mapa de la ciudad (grafo ponderado)
+
+`src/dungeon/grafo_ciudad.py`: cada zona es un nodo y cada calle una arista cuyo peso es su saturación (pesos iniciales en `balance.PESOS_INICIALES_CIUDAD`; Plaza → Empresa de Medios directo pesa 6, por el Hospital 3 + 2 = 5). En la escena MAPA_CIUDAD las flechas izquierda/derecha eligen zona, se resalta la ruta más segura (Dijkstra con `MinHeap` manual) desde la ubicación actual y su costo; ENTER viaja: el colapso sube `COSTO_VIAJE_COLAPSO` (0.02) por unidad de costo y la ubicación pasa a ser esa zona. Pesos dinámicos: tras la decisión de una mazmorra, Purificación Exitosa baja en 1 las calles de esa zona (mínimo 1) y Detonación las sube en 1 (máximo 10). Colegio tiene reportes de gravedad alta, Hospital media y Empresa de Medios baja; la Plaza es solo el inicio y la Alcaldía es la mazmorra final.
+
+## Mazmorras normales de varios cuartos (grafo de cuartos)
+
+`src/dungeon/mazmorra.py` (pura) + `src/dungeon/mazmorra_jugable.py` (cuerpo Pygame): 6 cuartos generados con DFS aleatorio sobre una cuadrícula 3x3 (aristas del DFS = pasillos, +1 arista extra para crear un ciclo si existe). Puertas solo donde hay arista; al cruzar una puerta abierta se aparece junto a la puerta opuesta del cuarto vecino. Entrada = primer cuarto (sin enemigos); cuarto final = el más lejano por BFS (desempate: menor id). Cada cuarto se genera al entrar por primera vez con `nivel_a_dificultad(toxicidad_local)`; los limpiados quedan limpios. Propagación: cada 15 s en un cuarto con enemigos vivos, BFS desde ahí y cada cuarto aún no generado a distancia d suma 10/d de toxicidad (tope 100). Minimapa con la tecla M (`src/ui/mapa_render.py`): color por toxicidad, visitados vs no visitados, cuarto actual, final marcado al descubrirlo y la ruta BFS al final.
+
 ## Minijuego de decisión (fin de cada mazmorra normal)
 
-Al matar a todos los monstruos de una mazmorra **normal** (no la final), aparece un minijuego de decisión contra reloj: una situación de redes sociales (ej. publicación de desinformación) y el jugador debe decidir qué hacer — reportar, ignorar, u otra opción según la situación. Esto SÍ es una interfaz que el jugador navega activamente, gobernada por el árbol N-ario:
+Al matar a todos los monstruos del **cuarto final** de una mazmorra **normal** (no en los cuartos intermedios ni en la mazmorra final), aparece un minijuego de decisión contra reloj: una situación de redes sociales (ej. publicación de desinformación) y el jugador debe decidir qué hacer — reportar, ignorar, u otra opción según la situación. Esto SÍ es una interfaz que el jugador navega activamente, gobernada por el árbol N-ario:
 
 Árbol actual (`construir_arbol_publicacion()` en `src/ui/terminal_decision.py`): raíz "Publicación Viral" → Verificar / Compartir / Reportar / Ignorar → cada opción lleva directo a su hoja: Verificar y Reportar → Purificación Exitosa; Compartir e Ignorar → Detonación. Contra reloj (10 s); si se acaba el tiempo, Detonación. (Un nivel intermedio tipo "Contrastar con fuente oficial / Creer rumor" es idea de diseño, no está implementado.)
 
-Purificación Exitosa resta Colapso Electoral; Detonación (o no decidir a tiempo) lo suma.
+Purificación Exitosa resta Colapso Electoral; Detonación (o no decidir a tiempo) lo suma. Al resolverse, se ajustan los pesos de las calles de esa zona y se vuelve al mapa de la ciudad.
 
 **Regla de desbloqueo:** una mazmorra normal cuenta como *completada* SOLO si su decisión termina en Purificación Exitosa. Una Detonación suma colapso pero no cuenta como completada (`src/dungeon/progreso.py`).
 
@@ -27,12 +35,12 @@ Purificación Exitosa resta Colapso Electoral; Detonación (o no decidir a tiemp
 
 La mazmorra final tiene el nivel de toxicidad más alto del juego y es deliberadamente **frenética** (lo más parecido a bullet hell que el tiempo permita) para enganchar al jugador. **No hay ningún minijuego de decisión aquí** — se gana únicamente peleando. Es el cierre de la demo en la Feria.
 
-Como está implementada: jefe "Servidor Central" en un solo cuarto grande, con 3 fases según su vida (>60%, >30%, resto), escudo de anonimato en fase 2 (15 impactos; el Fact-Checking lo rompe de golpe), charcos tóxicos en fase 3 y límite de 180 s. Tiempo agotado o jugador muerto → derrota: suma colapso y la pelea se reinicia. Jefe muerto → resta colapso y pantalla de victoria: ENTER vuelve a una mazmorra normal nueva (colapso y progreso se conservan), ESC cierra el juego.
+Como está implementada: jefe "Servidor Central" en un solo cuarto grande, con 3 fases según su vida (>60%, >30%, resto), escudo de anonimato en fase 2 (15 impactos; el Fact-Checking lo rompe de golpe), charcos tóxicos en fase 3 y límite de 180 s. Tiempo agotado o jugador muerto → derrota: suma colapso y la pelea se reinicia. Jefe muerto → resta colapso y pantalla de victoria: ENTER vuelve al mapa de la ciudad (colapso y progreso se conservan), ESC cierra el juego.
 
-**Regla de desbloqueo:** se entra con la tecla B desde la mazmorra normal, solo si el colapso es mayor a 80% o si hay al menos 1 mazmorra completada (con Purificación Exitosa). Si no, se muestra "Bloqueada".
+**Regla de desbloqueo:** se entra eligiendo la Alcaldía en el mapa de la ciudad, solo si el colapso es mayor a 80% o si hay al menos 1 mazmorra completada (con Purificación Exitosa). Si no, se muestra "Alcaldía: Bloqueada" y no se viaja.
 
 ## Colapso Electoral
-Barra 0.0%-100.0%: +0.2 por cada fallo (Detonación o derrota contra el jefe), -0.1 por cada éxito (Purificación Exitosa o jefe derrotado). Diseño pendiente de implementar: si llega a 100%, el jugador pierde y reinicia (hoy la barra solo se acota en 100%).
+Barra 0.0%-100.0%: +0.2 por cada fallo (Detonación o derrota contra el jefe), -0.1 por cada éxito (Purificación Exitosa o jefe derrotado), y +0.02 por unidad de costo de cada viaje por la ciudad. **Derrota global:** si llega a 100% (en cualquier escena), la escena DERROTA muestra "Colapso total" con el input de combate desactivado; ENTER reinicia la partida completa (colapso 0, progreso 0, ubicación en la Plaza, pesos de la ciudad restablecidos, mismo rol) y ESC sale.
 
 ## Los 4 roles jugables
 Influencer, Periodista, Ciudadano, Candidato — los 4 están implementados y se eligen con las teclas 1-4 al empezar. Cada uno: ataque básico con disparo sostenido (SPACE mantenida, limitado por la cadencia del rol) + habilidad activa (F) que **se carga matando enemigos dentro de la mazmorra** (no por temporizador) — una barra de carga que se llena con kills y se gasta completa al usar la habilidad. Sinergia: Influencer agrupa, Periodista expone, Candidato remata, Ciudadano sostiene.
@@ -69,14 +77,14 @@ PruebaPythonGame/
 │-- assets/             # (aún no existe: llegará con el arte real)
 │-- src/
 │   │-- core/          # constantes, balance, configuración de pantalla, reloj
-│   │-- structures/     # árboles y grafos puros, sin dependencias de Pygame
+│   │-- structures/     # árbol N-ario, grafo y min-heap puros, sin dependencias de Pygame
 │   │-- ai/             # behavior tree genérico, sin dependencias de Pygame
 │   │-- entities/       # jugadores (roles), proyectiles, enemigos, jefe
-│   │-- dungeon/        # cuartos, puertas, spawners, clasificador de toxicidad, mazmorra final
-│   │-- ui/             # minijuego de decisión, selección de rol, pantalla de victoria
+│   │-- dungeon/        # cuartos, mazmorra multi-cuarto, grafo de la ciudad, partida, clasificador, mazmorra final
+│   │-- ui/             # minijuego de decisión, selección de rol, mapa de ciudad, minimapa, victoria/derrota
 │   └-- network/        # (aún no existe) protocolo sockets, serialización, server/client
 ```
-No mezclar responsabilidades entre carpetas. `structures/` y `ai/` no deben importar `pygame`. La lógica de jefe, charcos, mazmorra final, invulnerabilidad, progreso, balance y terminal de decisión también es pura (sin `pygame`) para poder probarse en aislado; su dibujo vive en módulos aparte.
+No mezclar responsabilidades entre carpetas. `structures/` y `ai/` no deben importar `pygame`. La lógica de jefe, charcos, mazmorra final, invulnerabilidad, progreso, balance, terminal de decisión, mazmorra multi-cuarto, grafo de la ciudad, partida, escenas y selector del mapa también es pura (sin `pygame`) para poder probarse en aislado; su dibujo vive en módulos aparte.
 
 ## Estado real del MVP
 
@@ -88,13 +96,18 @@ No mezclar responsabilidades entre carpetas. `structures/` y `ai/` no deben impo
 6. Variable de colapso en pantalla (`src/core/colapso.py`) — completado
 7. Minijuego de decisión (Verificar/Compartir/Reportar/Ignorar) al final de mazmorra normal, usando `tree.py` como segunda estructura — completado
 8. Carga de habilidad por kills (reemplaza cooldown por tiempo) — completado
-9. Mazmorra final frenética sin decisiones (jefe "Servidor Central": `src/entities/jefe.py`, `src/dungeon/mazmorra_final.py`, `src/dungeon/arena_jefe.py`, `src/dungeon/charco.py`; se entra con B si está desbloqueada) — completado
+9. Mazmorra final frenética sin decisiones (jefe "Servidor Central": `src/entities/jefe.py`, `src/dungeon/mazmorra_final.py`, `src/dungeon/arena_jefe.py`, `src/dungeon/charco.py`; se entra desde la Alcaldía del mapa si está desbloqueada) — completado
 10. Los 4 roles (Ciudadano, Influencer, Periodista, Candidato) sobre `JugadorBase`, con selección 1-4 — completado (la Burbuja Comunitaria del Ciudadano aún no frena proyectiles ni cura)
 11. Balance por rol en `src/core/balance.py`, disparo sostenido y carga compartida de equipo — completado
 12. Invulnerabilidad tras un golpe, pantalla de victoria (ENTER/ESC) y máquina de estados de escena en `Main.py` — completado
-13. Derrota global al llegar el colapso a 100% — **pendiente**
+13. Derrota global al llegar el colapso a 100% (escena DERROTA, `src/ui/pantalla_derrota.py`, reinicio en `src/dungeon/partida.py`) — completado
+14. `MinHeap` binario manual (`src/structures/min_heap.py`) — completado
+15. `Grafo` con lista de adyacencia, CRUD, BFS, DFS iterativo, `es_conexo`, `camino` y Dijkstra (`src/structures/graph.py`) — completado
+16. Mazmorra normal de 6 cuartos sobre el grafo: generación DFS 3x3 con un ciclo, cuarto final por BFS, generación perezosa y propagación de toxicidad por BFS (`src/dungeon/mazmorra.py`, `mazmorra_jugable.py`) — completado
+17. Mapa de la ciudad con Dijkstra, costo de viaje en colapso y pesos dinámicos (`src/dungeon/grafo_ciudad.py`, escena MAPA_CIUDAD, `src/ui/mapa_ciudad*.py`); reemplaza la tecla B — completado
+18. Minimapa de la mazmorra con la tecla M (`src/ui/mapa_render.py`) — completado
 
-No agregues código de Ciudad Nova, sockets ni `graph.py` salvo que se te pida explícitamente — son alcance de entregas futuras.
+No agregues código de Ciudad Nova como mundo abierto caminable (la ciudad hoy es solo el mapa de selección) ni sockets / `src/network/` salvo que se te pida explícitamente — son alcance de entregas futuras.
 
 ## Convenciones de código
 

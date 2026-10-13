@@ -5,10 +5,10 @@ no el diseño aspiracional completo del juego. Se regenera manualmente
 cada vez que la estructura de `src/` cambia de forma significativa.
 
 **Lo que todavía no existe** (y por eso no aparece aquí): `src/network/`
-(sockets, Entrega Final), la ciudad recorrible y cualquier grafo
-(`graph.py`, un grafo de ciudad o su render de mapa: Entrega 2), ni un
-módulo de mazmorra multi-cuarto. Hoy hay un único cuarto normal y la
-mazmorra final de un solo cuarto.
+(sockets, Entrega Final) y Ciudad Nova como mundo abierto caminable. La
+ciudad hoy es un mapa de selección sobre un grafo ponderado, desde el
+que se viaja a 3 mazmorras normales de 6 cuartos (grafo de cuartos) y a
+la mazmorra final de un solo cuarto.
 
 ## 1. Árbol de carpetas
 
@@ -24,9 +24,12 @@ PruebaPythonGame/
 │   │   ├── assets.py               # TODAS las constantes visuales (colores, tamaños, posiciones del HUD).
 │   │   ├── balance.py              # Números de balance: stats por rol, jefe, charcos, i-frames. Puro.
 │   │   ├── colapso.py              # ColapsoElectoral: porcentaje 0-100 que sube/baja. Puro.
-│   │   └── equipo.py               # Carga compartida de habilidad entre aliados. Puro.
+│   │   ├── equipo.py               # Carga compartida de habilidad entre aliados. Puro.
+│   │   └── escenas.py              # Enum Escena + transición a DERROTA por colapso. Puro.
 │   ├── structures/
-│   │   └── tree.py                 # Árbol N-ario manual (CRUD + 4 recorridos). Puro.
+│   │   ├── tree.py                 # Árbol N-ario manual (CRUD + 4 recorridos). Puro.
+│   │   ├── min_heap.py             # Montículo binario de mínimos manual (cola de prioridad). Puro.
+│   │   └── graph.py                # Grafo ponderado: CRUD, BFS, DFS, es_conexo, camino, Dijkstra. Puro.
 │   ├── entities/
 │   │   ├── projectile.py           # Proyectil base y ProyectilConEstela (jefe).
 │   │   ├── player.py               # JugadorBase (común a los 4 roles) y el rol Ciudadano.
@@ -38,7 +41,11 @@ PruebaPythonGame/
 │   │   └── jefe.py                 # Jefe "Servidor Central": fases, escudo, patrones. Puro.
 │   ├── dungeon/
 │   │   ├── clasificador_toxicidad.py # Árbol de reportes -> nivel de toxicidad -> dificultad. Puro.
-│   │   ├── cuarto.py               # Cuarto normal: puertas, enemigos, fases combate/decisión/resuelto.
+│   │   ├── cuarto.py               # Un cuarto: puertas existentes, enemigos, fases combate/limpio/decisión/resuelto.
+│   │   ├── mazmorra.py             # Mazmorra de 6 cuartos sobre un Grafo: layout, final, propagación. Puro.
+│   │   ├── mazmorra_jugable.py     # Cuerpo Pygame de la mazmorra: un Cuarto por nodo, cruzar puertas.
+│   │   ├── grafo_ciudad.py         # Mapa de la ciudad: Dijkstra y pesos dinámicos. Puro.
+│   │   ├── partida.py              # Colapso + progreso + ciudad + ubicación; viajar, reiniciar. Puro.
 │   │   ├── progreso.py             # Mazmorras completadas (solo Purificación Exitosa). Puro.
 │   │   ├── charco.py               # Charco tóxico: aviso + fase activa con daño. Puro.
 │   │   ├── mazmorra_final.py       # Reglas de la pelea final, tiempo, victoria/derrota, desbloqueo. Puro.
@@ -47,8 +54,12 @@ PruebaPythonGame/
 │       ├── terminal_decision.py    # Minijuego de decisión sobre el árbol N-ario. Puro.
 │       ├── terminal_decision_render.py # Dibujo de la terminal.
 │       ├── seleccion_rol.py        # Dibujo de la pantalla de selección con barras de stats.
-│       └── pantalla_victoria.py    # Dibujo de la pantalla de victoria (ENTER / ESC).
-└── tests/                          # pytest; la mayoría sin abrir ventana (ver sección 4).
+│       ├── mapa_ciudad.py          # SelectorZona (flechas izq/der). Puro.
+│       ├── mapa_ciudad_render.py   # Dibujo del mapa: zonas, calles con peso, ruta más segura y costo.
+│       ├── mapa_render.py          # Minimapa de la mazmorra (tecla M).
+│       ├── pantalla_victoria.py    # Dibujo de la pantalla de victoria + panel final reutilizable.
+│       └── pantalla_derrota.py     # Dibujo de la derrota global "Colapso total".
+└── tests/                          # pytest; la mayoría sin abrir ventana (ver sección 5).
 ```
 
 Responsabilidad y límites de cada carpeta, según el código real:
@@ -57,19 +68,22 @@ Responsabilidad y límites de cada carpeta, según el código real:
   lo visual, `balance.py` para los números de juego) y dos reglas
   globales puras (`colapso.py`, `equipo.py`). Solo se importa a sí
   misma: nunca importa `entities/`, `dungeon/` ni `ui/`.
-- **`src/structures/`** — estructuras de datos académicas puras (el
-  árbol N-ario). No importa `pygame` ni nada del proyecto.
+- **`src/structures/`** — estructuras de datos académicas puras (árbol
+  N-ario, grafo y min-heap). No importa `pygame`; solo `graph` importa a
+  `min_heap`.
 - **`src/ai/`** — el behavior tree genérico, igual de puro que
   `structures/`. No estaba en la lista original de carpetas de
   `CLAUDE.md`; hoy sí está documentada allí.
 - **`src/entities/`** — jugadores, enemigos, jefe y proyectiles, cada uno
   con su estado y su `dibujar()`. El jefe y la invulnerabilidad son
   lógica pura; el resto usa `pygame.Rect`/`Vector2`.
-- **`src/dungeon/`** — los lugares donde se pelea (cuarto normal y
-  arena del jefe) y sus reglas: clasificación de toxicidad, progreso,
-  charcos y la mazmorra final.
-- **`src/ui/`** — el minijuego de decisión (lógica pura) y el dibujo de
-  pantallas que no son mundo de juego (terminal, selección, victoria).
+- **`src/dungeon/`** — los lugares donde se pelea (cuartos, mazmorra
+  multi-cuarto y arena del jefe), el mapa de la ciudad y sus reglas:
+  clasificación de toxicidad, progreso, partida, charcos y la mazmorra
+  final.
+- **`src/ui/`** — el minijuego de decisión y el selector del mapa
+  (lógica pura) y el dibujo de pantallas que no son mundo de juego
+  (terminal, selección, mapa de ciudad, minimapa, victoria, derrota).
 
 ## 2. Módulos, clases y dependencias
 
@@ -100,7 +114,15 @@ de habilidades).
 *Depende de:* nada del proyecto.
 
 **`colapso.py`** — puro. **`ColapsoElectoral`**: `valor` acotado a
-[0, 100]; `sumar_fallo()` (+0.2), `restar_exito()` (-0.1), `texto()`.
+[0, 100]; `sumar_fallo()` (+0.2), `restar_exito()` (-0.1),
+`sumar(cantidad)` (costo de viaje), `esta_colapsado()` (redondea a un
+decimal para tolerar el error de float), `texto()`.
+*Depende de:* nada.
+
+**`escenas.py`** — puro. **`Escena`** (Enum): `MAPA_CIUDAD`,
+`MAZMORRA`, `DECISION`, `JEFE`, `VICTORIA`, `DERROTA`;
+`ESCENAS_DE_COMBATE`; `escena_tras_colapso(escena, colapso)` →
+`DERROTA` si la barra llegó al 100%.
 *Depende de:* nada.
 
 **`equipo.py`** — puro. `registrar_kill_equipo(asesino, aliados)`: kill
@@ -114,6 +136,27 @@ Puro. **`NodoArbol`** (`id`, `etiqueta`, `hijos`) y **`ArbolDecision`**
 `postorden`, `por_niveles`, todas O(n)). Gobierna dos mecánicas: el
 clasificador de toxicidad y la terminal de decisión.
 *Depende de:* `collections.deque`.
+
+### `src/structures/min_heap.py`
+
+Puro. **`MinHeap`** sobre una lista (hijos en 2i+1 y 2i+2):
+`insertar(prioridad, valor)` y `extraer_minimo()` en O(log n),
+`esta_vacio()` en O(1). Desempata prioridades iguales por orden de
+llegada. Lo usa `Grafo.dijkstra` como cola de prioridad.
+*Depende de:* nada.
+
+### `src/structures/graph.py`
+
+Puro. **`Grafo`** con lista de adyacencia `{nodo: {vecino: peso}}`
+(memoria O(V + E)): `agregar_nodo`, `eliminar_nodo` (O(V)),
+`agregar_arista(a, b, peso=1, dirigida=False)`, `eliminar_arista`,
+`existe_arista`, `peso`, `cambiar_peso`, `vecinos`, `nodos`;
+`bfs(origen)` → (orden, distancias en saltos, predecesores),
+`dfs(origen)` iterativo con pila explícita, `es_conexo()`,
+`camino(predecesores, origen, destino)` y `dijkstra(origen)` →
+(distancias, predecesores). Ver la sección 4 para qué usa el juego
+cada algoritmo.
+*Depende de:* `collections.deque`, `min_heap`.
 
 ### `src/ai/behavior_tree.py`
 
@@ -197,11 +240,51 @@ escudo), `empujar`, `mantener_dentro`, `dibujar`.
 `nivel_a_dificultad(nivel)` → `{cantidad_enemigos, multiplicador_velocidad}`.
 *Depende de:* `structures/tree`.
 
-**`cuarto.py`** — **`Puerta`** y **`Cuarto`** (`rect`, `puertas`,
-`enemigos`, `fase` combate/decision/resuelto, `terminal`). Al morir el
-último enemigo pasa a `"decision"` y crea la `TerminalDecision`.
+**`cuarto.py`** — **`Puerta`** y **`Cuarto`** (`rect`, `puertas` solo
+en `direcciones_puertas`, `enemigos`, `es_final`, `fase`
+combate/limpio/decision/resuelto, `terminal`). Acepta `nivel_toxicidad`
+y `dificultad` ya calculados (si no, los saca de `reportes`). Al morir
+el último enemigo, el cuarto final pasa a `"decision"` y crea la
+`TerminalDecision`; uno intermedio pasa a `"limpio"`. Los valores por
+defecto (4 puertas, `es_final=True`) conservan el comportamiento del
+cuarto único original.
 *Depende de:* `pygame`, `assets`, `clasificador_toxicidad`, `enemy`,
 `ui/terminal_decision`.
+
+**`mazmorra.py`** — puro. **`Mazmorra(reportes, nombre_zona,
+cantidad_cuartos=6, semilla=None)`**: `grafo` de cuartos, `celdas`
+(`{cuarto: (x, y)}` en la cuadrícula 3x3), `entrada`, `cuarto_final`,
+`actual`, `toxicidad`, `dificultad` (solo cuartos generados),
+`visitados`, `limpiados`, `tiempo_en_cuarto`. Métodos: `puertas(cuarto)`
+→ `{dirección: vecino}`, `mover(dirección)`, `entrar(cuarto)`
+(generación perezosa), `actualizar(dt, hay_enemigos_vivos)`,
+`propagar_desde(cuarto)`, `ruta_al_final()`, `final_descubierto`.
+*Depende de:* `random`, `balance`, `clasificador_toxicidad`,
+`structures/graph`.
+
+**`mazmorra_jugable.py`** — **`MazmorraJugable`**: misma interfaz que
+`Cuarto`/`ArenaJefe`. Crea un `Cuarto` por nodo la primera vez que se
+entra (puertas, toxicidad, dificultad y `es_final` del grafo) y los
+guarda (un cuarto limpio sigue limpio). Si el jugador toca una puerta
+abierta, llama a `Mazmorra.mover` y lo ubica junto a la puerta opuesta;
+`cambio_de_cuarto` avisa a `Main.py` para descartar proyectiles.
+*Depende de:* `assets`, `cuarto`, `mazmorra`.
+
+**`grafo_ciudad.py`** — puro. `ZONAS`, `ZONA_INICIO` (Plaza),
+`ZONA_FINAL` (Alcaldía) y **`GrafoCiudad`**: `restablecer()`,
+`zonas()`, `tiene_mazmorra_normal(zona)`, `reportes(zona)`,
+`ruta_mas_segura(origen, destino)` → (camino, costo),
+`actualizar_tras_mazmorra(zona, exito)` (±1, acotado a [1, 10]),
+`calles()`.
+*Depende de:* `balance`, `structures/graph`.
+
+**`partida.py`** — puro. **`Partida`**: `colapso`, `progreso`,
+`ciudad`, `ubicacion`; `reiniciar()`, `alcaldia_desbloqueada()`,
+`ruta_hasta(destino)`, `viajar(destino)` (cobra
+`COSTO_VIAJE_COLAPSO` × costo), `registrar_decision(zona, resultado)`,
+`hay_derrota_global()`.
+*Depende de:* `balance`, `colapso`, `grafo_ciudad`, `mazmorra_final`,
+`progreso`, `ui/terminal_decision`.
 
 **`progreso.py`** — puro. **`ProgresoPartida`**:
 `mazmorras_completadas`; `registrar_decision(resultado, colapso)` (solo
@@ -236,20 +319,33 @@ tramo de toxicidad máximo) y dibuja jefe, charcos, barra y tiempo.
 `resultado`).
 *Depende de:* `structures/tree`.
 
+**`mapa_ciudad.py`** — puro. **`SelectorZona`**: `seleccionada`,
+`mover(dirección)` (da la vuelta en los extremos).
+*Depende de:* `ui/terminal_decision` (constantes de dirección).
+
 **`terminal_decision_render.py`**, **`seleccion_rol.py`**,
-**`pantalla_victoria.py`** — funciones de dibujo
-(`dibujar_terminal`, `dibujar_seleccion`, `dibujar_victoria`).
-*Dependen de:* `pygame`, `assets` (y `balance` en el caso de
-`seleccion_rol`).
+**`pantalla_victoria.py`** (`dibujar_victoria` y
+`dibujar_panel_final`, reutilizable), **`pantalla_derrota.py`**,
+**`mapa_ciudad_render.py`** (`dibujar_mapa_ciudad`: calles con su peso,
+zonas con nombre y toxicidad, ruta más segura resaltada y su costo) y
+**`mapa_render.py`** (`dibujar_minimapa`, `color_toxicidad`) — funciones
+de dibujo.
+*Dependen de:* `pygame`, `assets` (y `balance` en `seleccion_rol`,
+`mapa_ciudad_render` y `mapa_render`).
 
 ### `Main.py`
 
-- **`Escena`** (Enum): `MAZMORRA`, `DECISION`, `JEFE`, `VICTORIA`.
-- `main()` — selección de rol, luego el loop con la máquina de estados:
-  el input, la actualización y el dibujo dependen de la escena.
-- `_frame_de_combate(...)` — un frame de combate idéntico en el cuarto y
-  en la arena.
-- `_elegir_rol`, `_colocar_en_cuarto`, `_dibujar_hud`,
+- `main()` — selección de rol, luego el loop con la máquina de estados
+  (`Escena`, en `core/escenas.py`): el input, la actualización y el
+  dibujo dependen de la escena. Flujo: `MAPA_CIUDAD` → (ENTER en una
+  zona) `MAZMORRA` → `DECISION` → `MAPA_CIUDAD`; `MAPA_CIUDAD` → (ENTER
+  en la Alcaldía, si está desbloqueada) `JEFE` → `VICTORIA` → (ENTER)
+  `MAPA_CIUDAD`; desde cualquier escena, colapso al 100% → `DERROTA` →
+  (ENTER) partida nueva. M alterna el minimapa.
+- `_frame_de_combate(...)` — un frame de combate idéntico en la
+  mazmorra y en la arena.
+- `_escenario_activo`, `_nuevo_selector`, `_curar`, `_elegir_rol`,
+  `_dibujar_hud`, `_dibujar_hud_mapa`,
   `_actualizar_proyectiles`, `_resolver_colisiones_contra_enemigos`
   (delega en `al_impactar` y reparte carga con `registrar_kill_equipo`),
   `_resolver_colision_contra_jugador`.
@@ -271,10 +367,13 @@ graph TD
         Balance["balance"]
         Colapso["colapso"]
         Equipo["equipo"]
+        Escenas["escenas"]
     end
 
     subgraph puros["structures / ai"]
         Tree["structures/tree"]
+        Heap["structures/min_heap"]
+        Graph["structures/graph"]
         BT["ai/behavior_tree"]
     end
 
@@ -292,6 +391,10 @@ graph TD
     subgraph dungeon
         Clasif["clasificador_toxicidad"]
         Cuarto["cuarto"]
+        Mazmorra["mazmorra"]
+        MJugable["mazmorra_jugable"]
+        Ciudad["grafo_ciudad"]
+        Partida["partida"]
         Progreso["progreso"]
         Charco["charco"]
         MFinal["mazmorra_final"]
@@ -303,11 +406,17 @@ graph TD
         TermRender["terminal_decision_render"]
         Seleccion["seleccion_rol"]
         Victoria["pantalla_victoria"]
+        Derrota["pantalla_derrota"]
+        Selector["mapa_ciudad"]
+        MapaRender["mapa_ciudad_render"]
+        Minimapa["mapa_render"]
     end
 
-    Main --> Config & Colapso & Equipo & Cuarto & Arena & MFinal & Progreso
+    Main --> Config & Equipo & Escenas & Cuarto & Arena & MFinal
+    Main --> Mazmorra & MJugable & Ciudad & Partida
     Main --> Player & Infl & Peri & Cand
-    Main --> Terminal & TermRender & Seleccion & Victoria
+    Main --> Terminal & TermRender & Seleccion & Victoria & Derrota
+    Main --> Selector & MapaRender & Minimapa
 
     Equipo --> Balance
     Invul --> Balance
@@ -320,15 +429,24 @@ graph TD
 
     Clasif --> Tree
     Terminal --> Tree
+    Graph --> Heap
     Cuarto --> Clasif & Enemigo & Terminal
+    Mazmorra --> Graph & Clasif & Balance
+    MJugable --> Mazmorra & Cuarto
+    Ciudad --> Graph & Balance
+    Partida --> Colapso & Progreso & Ciudad & MFinal & Terminal
     Progreso --> Terminal
     Charco --> Balance
     MFinal --> Jefe & Clasif & Balance
     Arena --> MFinal & Enemigo & Proyectil
     Seleccion --> Balance
+    Selector --> Terminal
+    Derrota --> Victoria
+    MapaRender --> Clasif & Ciudad & Balance
+    Minimapa --> Balance
 
     classDef puro fill:#d6f5d6,stroke:#2e7d32,color:#000
-    class Tree,BT,Balance,Colapso,Equipo,Invul,Jefe,Clasif,Progreso,Charco,MFinal,Terminal puro
+    class Tree,Heap,Graph,BT,Balance,Colapso,Equipo,Escenas,Invul,Jefe,Clasif,Mazmorra,Ciudad,Partida,Progreso,Charco,MFinal,Terminal,Selector puro
 ```
 
 Para no saturar el diagrama no se dibujan las flechas hacia
@@ -339,6 +457,8 @@ Notas:
 - **Dos usos del árbol N-ario**: `clasificador_toxicidad` (lógica de
   fondo que decide la dificultad) y `terminal_decision` (el jugador
   navega el árbol nodo a nodo).
+- **Dos usos del grafo**: `mazmorra` (grafo de cuartos, sin pesos) y
+  `grafo_ciudad` (calles ponderadas por saturación). Ver sección 4.
 - **Dos usos del behavior tree**: `Enemigo` (aggro forzado / en rango /
   quieto) y `Jefe` (una Sequence por fase).
 - **Dependencias entre carpetas que conviene conocer**:
@@ -347,9 +467,29 @@ Notas:
   decisión vive en `ui/` porque es una interfaz que el jugador navega).
 - **Lógica pura + cuerpo Pygame**: `MazmorraFinal`/`Jefe`/`Charco` no
   conocen Pygame; `ArenaJefe` les da rects, proyectiles reales y dibujo.
-  Lo mismo hacen `TerminalDecision` / `terminal_decision_render`.
+  Lo mismo hacen `Mazmorra` / `MazmorraJugable` + `mapa_render`,
+  `GrafoCiudad` + `Partida` / `mapa_ciudad_render` y `TerminalDecision`
+  / `terminal_decision_render`.
 
-## 4. Convenciones actuales
+## 4. Para qué usa el juego cada algoritmo de grafo
+
+V = nodos, E = aristas. La mazmorra tiene 6 cuartos sobre una
+cuadrícula 3x3; la ciudad, 5 zonas y 7 calles.
+
+| Algoritmo | Dónde | Mecánica que gobierna | Complejidad | Por qué este y no otro |
+|---|---|---|---|---|
+| DFS aleatorio (pila explícita) | `Mazmorra._generar_layout` | Genera el layout: cada celda nueva se une con un pasillo a la del tope de la pila; sin vecinas libres, se desapila. | O(C), C = 9 celdas | Produce pasillos largos y ramificados (estilo Isaac) y un árbol conexo por construcción; la arista extra agrega un ciclo. |
+| DFS (`Grafo.dfs`) + `es_conexo` | `Mazmorra.__init__` (y tests) | Valida al generar que toda mazmorra se puede recorrer completa; si no, falla en vez de dejar cuartos inalcanzables. | O(V + E) | Solo importa la alcanzabilidad, no la distancia; iterativo para no depender del límite de recursión. |
+| BFS | `Mazmorra._elegir_cuarto_final` | El cuarto final es el más lejano (en cuartos) desde la entrada. | O(V + E) | Los pasillos no tienen peso: BFS da la distancia en saltos exacta, más simple y barato que Dijkstra. |
+| BFS | `Mazmorra.propagar_desde` | Cada 15 s con enemigos vivos, los cuartos no generados a distancia d suben 10/d de toxicidad. | O(V + E) por propagación | Necesita la distancia de todos los cuartos al actual, justo lo que devuelve un BFS. |
+| BFS + `camino` | `Mazmorra.ruta_al_final`, minimapa | Resalta el camino más corto del cuarto actual al final. | O(V + E) | Igual que arriba: camino más corto en un grafo sin pesos. |
+| Dijkstra (con `MinHeap`) + `camino` | `GrafoCiudad.ruta_mas_segura`, mapa | Ruta de menor saturación total y su costo, que se cobra en colapso al viajar. | O((V + E) log V) | Las calles tienen pesos distintos y la ruta con menos calles puede ser la más saturada (Plaza → Empresa de Medios: directo 6, por el Hospital 5); BFS contaría calles, Dijkstra suma pesos. |
+| `cambiar_peso` | `GrafoCiudad.actualizar_tras_mazmorra` | Purificación Exitosa baja 1 las calles de la zona, Detonación las sube 1 (rango [1, 10]); las rutas óptimas cambian según las decisiones del jugador. | O(grado) | Lista de adyacencia: cambiar un peso es O(1). |
+
+El `MinHeap` existe para Dijkstra: sacar el nodo con menor distancia
+tentativa cuesta O(log V) en vez de O(V) recorriendo todos los nodos.
+
+## 5. Convenciones actuales
 
 Reglas que ya están aplicadas en el código, no solo declaradas en
 `CLAUDE.md`:
@@ -367,8 +507,9 @@ Reglas que ya están aplicadas en el código, no solo declaradas en
   `Main.py`), en vez de banderas sueltas.
 - **Lógica separada del dibujo donde se necesita probar sin ventana.**
   Son puros: `structures/`, `ai/`, `balance`, `colapso`, `equipo`,
-  `invulnerabilidad`, `jefe`, `clasificador_toxicidad`, `progreso`,
-  `charco`, `mazmorra_final` y `terminal_decision`. Los tests de
+  `escenas`, `invulnerabilidad`, `jefe`, `clasificador_toxicidad`,
+  `progreso`, `charco`, `mazmorra_final`, `mazmorra`, `grafo_ciudad`,
+  `partida`, `mapa_ciudad` y `terminal_decision`. Los tests de
   `terminal_decision`, `balance`/`equipo`, `invulnerabilidad` y
   `jefe`/`charco`/`mazmorra_final` verifican además, en un proceso
   aparte, que importarlos no carga `pygame`.
@@ -385,6 +526,9 @@ Reglas que ya están aplicadas en el código, no solo declaradas en
   frame.
 - **Tests** (`tests/`, pytest): `test_tree`, `test_behavior_tree`,
   `test_clasificador_toxicidad`, `test_terminal_decision`,
-  `test_balance`, `test_mazmorra_final`, `test_invulnerabilidad` y
-  `test_progreso` no usan `pygame`; `test_player_habilidad` y
+  `test_balance`, `test_mazmorra_final`, `test_invulnerabilidad`,
+  `test_progreso`, `test_min_heap`, `test_graph`, `test_mazmorra`,
+  `test_grafo_ciudad` y `test_partida` (derrota global y reinicio) no
+  usan `pygame` (`test_graph` verifica en un proceso aparte que los
+  módulos de grafos, mazmorra, ciudad, partida y escenas no lo cargan); `test_player_habilidad` y
   `test_roles` usan `pygame.Rect`/`Vector2` sin abrir ventana.

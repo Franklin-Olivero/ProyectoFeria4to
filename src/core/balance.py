@@ -152,3 +152,71 @@ TIEMPO_LIMITE_JEFE = 180.0
 NIVEL_TOXICIDAD_FINAL = 100.0  # siempre el máximo
 COLAPSO_DESBLOQUEO = 80.0  # colapso > esto desbloquea la mazmorra final
 MAZMORRAS_PARA_DESBLOQUEO = 1
+
+# ----------------------------------------------------------------------
+# Mazmorra multi-cuarto (src/dungeon/mazmorra.py)
+# ----------------------------------------------------------------------
+CANTIDAD_CUARTOS_MAZMORRA = 6
+LADO_CUADRICULA_MAZMORRA = 3  # la mazmorra se genera sobre una cuadrícula 3x3
+# El cuarto de entrada empieza vacío: sin enemigos.
+DIFICULTAD_ENTRADA = {"cantidad_enemigos": 0, "multiplicador_velocidad": 1.0}
+
+# Propagación de toxicidad: cada PROPAGACION_INTERVALO segundos que el
+# jugador pasa en un cuarto con enemigos vivos, los cuartos aún no
+# generados a distancia d (BFS) suben PROPAGACION_INCREMENTO / d.
+PROPAGACION_INTERVALO = 15.0  # segundos
+PROPAGACION_INCREMENTO = 10.0  # puntos de toxicidad a distancia 1
+TOXICIDAD_MAXIMA_CUARTO = 100.0
+
+# ----------------------------------------------------------------------
+# Mapa de la ciudad (src/dungeon/grafo_ciudad.py)
+# ----------------------------------------------------------------------
+ZONA_PLAZA = "Plaza"
+ZONA_COLEGIO = "Colegio"
+ZONA_HOSPITAL = "Hospital"
+ZONA_EMPRESA_MEDIOS = "Empresa de Medios"
+ZONA_ALCALDIA = "Alcaldía"
+
+# Calles (zona, zona, saturación). Ruta corta y peligrosa: Plaza ->
+# Empresa de Medios directo (1 calle, peso 6). Ruta larga y segura:
+# Plaza -> Hospital -> Empresa de Medios (2 calles, peso 3 + 2 = 5).
+PESOS_INICIALES_CIUDAD = [
+    (ZONA_PLAZA, ZONA_COLEGIO, 2),
+    (ZONA_PLAZA, ZONA_HOSPITAL, 3),
+    (ZONA_PLAZA, ZONA_EMPRESA_MEDIOS, 6),
+    (ZONA_COLEGIO, ZONA_HOSPITAL, 4),
+    (ZONA_HOSPITAL, ZONA_EMPRESA_MEDIOS, 2),
+    (ZONA_COLEGIO, ZONA_ALCALDIA, 5),
+    (ZONA_EMPRESA_MEDIOS, ZONA_ALCALDIA, 3),
+]
+PESO_MINIMO_CIUDAD = 1
+PESO_MAXIMO_CIUDAD = 10
+AJUSTE_PESO_CIUDAD = 1  # Purificación Exitosa baja, Detonación sube
+COSTO_VIAJE_COLAPSO = 0.02  # puntos de colapso por unidad de costo de la ruta
+
+# Reportes de toxicidad de cada zona con mazmorra (la Alcaldía es la
+# mazmorra final y no usa reportes). Gravedad promedio -> nivel:
+#   Colegio 4.4 -> 85.0 (tramo alto), Hospital 3.0 -> 50.0 (medio),
+#   Empresa de Medios 1.6 -> 15.0 (bajo).
+REPORTES_POR_ZONA = {
+    ZONA_COLEGIO: [
+        {"id": 1, "tipo": "comentario", "gravedad": 4},
+        {"id": 2, "tipo": "publicacion_viral", "gravedad": 5},
+        {"id": 3, "tipo": "denuncia", "gravedad": 5},
+        {"id": 4, "tipo": "comentario", "gravedad": 3},
+        {"id": 5, "tipo": "publicacion_viral", "gravedad": 5},
+    ],
+    ZONA_HOSPITAL: [
+        {"id": 1, "tipo": "comentario", "gravedad": 2},
+        {"id": 2, "tipo": "publicacion_viral", "gravedad": 4},
+        {"id": 3, "tipo": "denuncia", "gravedad": 3},
+        {"id": 4, "tipo": "comentario", "gravedad": 3},
+    ],
+    ZONA_EMPRESA_MEDIOS: [
+        {"id": 1, "tipo": "comentario", "gravedad": 1},
+        {"id": 2, "tipo": "publicacion_viral", "gravedad": 2},
+        {"id": 3, "tipo": "comentario", "gravedad": 1},
+        {"id": 4, "tipo": "denuncia", "gravedad": 2},
+        {"id": 5, "tipo": "comentario", "gravedad": 2},
+    ],
+}

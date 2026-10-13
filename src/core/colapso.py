@@ -2,7 +2,11 @@
 
 Barra 0.0%-100.0%: sube +0.2 por cada incursión fallida o muerte del
 equipo en una mazmorra y baja -0.1 por cada mazmorra purificada.
-Todavía no persiste entre ejecuciones.
+Viajar por la ciudad también lo sube (`sumar`, costo de la ruta; ver
+src/dungeon/partida.py). Si llega a 100% la partida se pierde
+(`esta_colapsado()`): Main.py muestra la derrota global "Colapso total"
+y ENTER reinicia la partida completa. Todavía no persiste entre
+ejecuciones.
 """
 
 COLAPSO_MINIMO = 0.0
@@ -28,6 +32,18 @@ class ColapsoElectoral:
     def restar_exito(self):
         """Mazmorra purificada: -0.1 (sin bajar de 0)."""
         self.valor = self._acotar(self.valor - DECREMENTO_POR_EXITO)
+
+    def sumar(self, cantidad):
+        """Suma una cantidad arbitraria (p. ej. el costo de un viaje), acotada."""
+        self.valor = self._acotar(self.valor + cantidad)
+
+    def esta_colapsado(self):
+        """True si la barra llegó al 100%: derrota global de la partida.
+
+        Se compara con un decimal (el que muestra el HUD) porque sumar
+        +0.2 en float puede dejar el valor en 99.9999... y no en 100.0.
+        """
+        return round(self.valor, 1) >= COLAPSO_MAXIMO
 
     def texto(self):
         return f"Colapso: {self.valor:.1f}%"

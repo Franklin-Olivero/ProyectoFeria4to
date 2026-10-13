@@ -35,7 +35,6 @@ COLOR_TEXTO_HUD = (235, 235, 235)
 TAMANIO_FUENTE_HUD = 28
 POSICION_TEXTO_COLAPSO = (10, 10)
 POSICION_TEXTO_CARGA = (10, 40)
-POSICION_TEXTO_RESULTADO = (10, 70)
 
 # Habilidad del Ciudadano: Burbuja Comunitaria
 COLOR_BURBUJA = (120, 220, 200)
@@ -126,8 +125,7 @@ POSICION_TEXTO_TIEMPO_JEFE = (620, 10)
 POSICION_MENSAJE_CENTRAL = (400, 90)  # centro del texto de victoria/derrota
 COLOR_MENSAJE_VICTORIA = (120, 255, 160)
 COLOR_MENSAJE_DERROTA = (255, 110, 110)
-DURACION_MENSAJE = 2.5  # s que se muestra "Bloqueada" o la derrota
-POSICION_MENSAJE_BLOQUEADA = (10, 70)  # mismo lugar que "Resultado": nunca coinciden
+DURACION_MENSAJE = 2.5  # s que se muestra la derrota contra el jefe
 ESPACIADO_ESTELA_JEFE = 9  # px entre posiciones guardadas de la estela
 SEPARACION_INVOCACION = 70  # px a cada lado del jefe donde aparecen súbditos
 
@@ -150,3 +148,71 @@ COLOR_BORDE_PANEL_VICTORIA = (120, 255, 160)
 GROSOR_BORDE_PANEL_VICTORIA = 3
 TAMANIO_FUENTE_TITULO_VICTORIA = 44
 SEPARACION_LINEAS_VICTORIA = 44
+
+# Pantalla de derrota global (Colapso Electoral al 100%)
+COLOR_VELO_COLAPSO = (30, 6, 10, 190)  # RGBA: tiñe de rojo oscuro la escena detrás del panel
+RECT_PANEL_COLAPSO = (150, 200, 500, 200)  # x, y, ancho, alto (mismo hueco que la victoria)
+COLOR_FONDO_PANEL_COLAPSO = (36, 20, 24)
+COLOR_BORDE_PANEL_COLAPSO = (255, 110, 110)
+GROSOR_BORDE_PANEL_COLAPSO = 3
+
+# Mazmorra multi-cuarto: al cruzar una puerta el jugador aparece a esta
+# distancia (px) de la puerta opuesta, hacia dentro del cuarto nuevo
+# (más que medio jugador + media puerta, para no volver a cruzarla).
+DISTANCIA_APARICION_PUERTA = 50
+
+# Minimapa de la mazmorra (tecla M), esquina superior derecha: no tapa
+# el cuarto (x 150-650) ni el HUD de la izquierda.
+ORIGEN_MINIMAPA = (668, 14)  # esquina superior izquierda de la celda (0, 0)
+TAMANIO_CELDA_MINIMAPA = 30
+PASO_CELDA_MINIMAPA = 44  # distancia entre celdas vecinas (celda + pasillo)
+COLOR_FONDO_MINIMAPA = (24, 26, 32)
+MARGEN_FONDO_MINIMAPA = 8
+COLOR_PASILLO_MINIMAPA = (110, 115, 125)
+GROSOR_PASILLO_MINIMAPA = 3
+COLOR_RUTA_MINIMAPA = (255, 220, 80)
+GROSOR_RUTA_MINIMAPA = 5
+GROSOR_BORDE_RUTA_MINIMAPA = 2  # contorno de los cuartos que están en la ruta
+COLOR_TOXICIDAD_BAJA = (60, 200, 90)  # verde: toxicidad 0
+COLOR_TOXICIDAD_ALTA = (220, 50, 50)  # rojo: toxicidad 100
+FACTOR_OSCURO_NO_VISITADO = 0.35  # brillo de un cuarto aún no visitado
+COLOR_CUARTO_ACTUAL = (255, 255, 255)
+GROSOR_CUARTO_ACTUAL = 3
+COLOR_MARCA_FINAL = (20, 20, 24)
+TAMANIO_FUENTE_MINIMAPA = 20
+
+# Mapa de la ciudad (escena MAPA_CIUDAD)
+POSICIONES_MAPA_CIUDAD = {  # centro de cada zona en pantalla
+    "Plaza": (120, 300),
+    "Colegio": (370, 175),
+    "Hospital": (260, 410),
+    "Empresa de Medios": (560, 375),
+    "Alcaldía": (680, 195),
+}
+# Zonas con nombre y detalle debajo del círculo (las de abajo del mapa,
+# para que las calles que suben hacia ellas no crucen el nombre).
+ZONAS_ETIQUETA_ABAJO = ("Hospital", "Empresa de Medios")
+MARGEN_FONDO_ETIQUETA = 3  # px de fondo alrededor de cada texto del mapa
+RADIO_ZONA_MAPA = 26
+COLOR_ZONA_MAPA = (90, 110, 150)
+COLOR_ZONA_ALCALDIA = (150, 60, 200)  # mismo morado que el jefe
+COLOR_ZONA_ACTUAL = (60, 140, 220)
+COLOR_ZONA_SELECCIONADA = (255, 220, 80)
+GROSOR_ZONA_SELECCIONADA = 4
+COLOR_CALLE = (110, 115, 125)
+GROSOR_CALLE = 3
+COLOR_RUTA_SEGURA = (255, 220, 80)
+GROSOR_RUTA_SEGURA = 7
+RADIO_ETIQUETA_PESO = 13
+GROSOR_BORDE_ETIQUETA_PESO = 2
+COLOR_FONDO_ETIQUETA_PESO = (24, 26, 32)
+SEPARACION_NOMBRE_ZONA = 16  # px entre el borde del círculo y su nombre
+TAMANIO_FUENTE_MAPA = 22
+POSICION_TITULO_MAPA = (400, 26)  # centro
+POSICION_TEXTO_UBICACION = (10, 40)
+POSICION_TEXTO_COMPLETADAS = (10, 70)
+POSICION_TEXTO_RUTA = (20, 520)
+POSICION_TEXTO_COSTO = (20, 546)
+POSICION_TEXTO_AYUDA_MAPA = (20, 572)
+POSICION_MENSAJE_MAPA = (400, 70)  # centro del mensaje del último resultado
+DURACION_MENSAJE_MAPA = 4.0  # s que se muestra el resultado al volver al mapa

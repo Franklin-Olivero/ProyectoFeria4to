@@ -1,34 +1,43 @@
 """Punto de entrada del juego.
 
-El flujo de la partida es una máquina de estados explícita (Escena):
+El flujo de la partida es una máquina de estados explícita (Escena,
+src/core/escenas.py):
 
-    MAZMORRA --(último enemigo muere)--> DECISION --(resultado)--> MAZMORRA
-    MAZMORRA --(B, si está desbloqueada)--> JEFE --(jefe muere)--> VICTORIA
-    VICTORIA --(ENTER)--> MAZMORRA nueva       VICTORIA --(ESC)--> salir
+    MAPA_CIUDAD --(ENTER en una zona)--> MAZMORRA --(cuarto final limpio)--> DECISION
+    DECISION --(resultado)--> MAPA_CIUDAD
+    MAPA_CIUDAD --(ENTER en Alcaldía, si está desbloqueada)--> JEFE --(jefe muere)--> VICTORIA
+    VICTORIA --(ENTER)--> MAPA_CIUDAD           VICTORIA --(ESC)--> salir
+    cualquiera --(colapso al 100%)--> DERROTA --(ENTER)--> partida nueva en MAPA_CIUDAD
 
-El combate (MAZMORRA y JEFE) usa el mismo loop: el cuarto normal y la
-arena del jefe exponen rect, enemigos, actualizar, dibujar y
-manejar_evento. Solo el cuarto normal tiene minijuego de decisión.
+El combate (MAZMORRA y JEFE) usa el mismo loop: la mazmorra de varios
+cuartos y la arena del jefe exponen rect, enemigos, actualizar,
+dibujar y manejar_evento. Solo el cuarto final de una mazmorra normal
+tiene minijuego de decisión.
 """
 
 import sys
-from enum import Enum
 
 import pygame
 
 from src.core import assets
-from src.core.colapso import ColapsoElectoral
 from src.core.config import FPS, crear_pantalla, crear_reloj
 from src.core.equipo import registrar_kill_equipo
+from src.core.escenas import ESCENAS_DE_COMBATE, Escena, escena_tras_colapso
 from src.dungeon.arena_jefe import ArenaJefe
-from src.dungeon.cuarto import FASE_DECISION, FASE_RESUELTO, Cuarto
+from src.dungeon.cuarto import FASE_DECISION, FASE_RESUELTO
+from src.dungeon.grafo_ciudad import ZONA_FINAL, ZONAS
+from src.dungeon.mazmorra import Mazmorra
 from src.dungeon.mazmorra_final import VICTORIA as MAZMORRA_FINAL_GANADA
-from src.dungeon.mazmorra_final import esta_desbloqueada
-from src.dungeon.progreso import ProgresoPartida
+from src.dungeon.mazmorra_jugable import MazmorraJugable
+from src.dungeon.partida import Partida
 from src.entities.candidato import Candidato
 from src.entities.influencer import Influencer
 from src.entities.periodista import Periodista
 from src.entities.player import Ciudadano
+from src.ui.mapa_ciudad import SelectorZona
+from src.ui.mapa_ciudad_render import dibujar_mapa_ciudad
+from src.ui.mapa_render import dibujar_minimapa
+from src.ui.pantalla_derrota import dibujar_derrota
 from src.ui.pantalla_victoria import dibujar_victoria
 from src.ui.seleccion_rol import dibujar_seleccion
 from src.ui.terminal_decision import CONFIRMAR, DERECHA, IZQUIERDA
@@ -36,11 +45,9 @@ from src.ui.terminal_decision_render import dibujar_terminal
 
 TECLA_DISPARAR = pygame.K_SPACE
 TECLA_HABILIDAD = pygame.K_f
-TECLA_MAZMORRA_FINAL = pygame.K_b
+TECLA_MINIMAPA = pygame.K_m
 TECLAS_CONFIRMAR = (pygame.K_RETURN, pygame.K_KP_ENTER)
 TECLA_SALIR = pygame.K_ESCAPE
-
-DISTANCIA_INICIO_JUGADOR = 40  # px desde el borde inferior del cuarto
 
 # Teclas de la pantalla de selección -> clase del rol a instanciar.
 ROLES_POR_TECLA = {
@@ -58,15 +65,11 @@ TECLAS_TERMINAL = {
     pygame.K_KP_ENTER: CONFIRMAR,
 }
 
-
-class Escena(Enum):
-    MAZMORRA = "mazmorra"  # combate en el cuarto normal (y paseo tras resolverlo)
-    DECISION = "decision"  # terminal de decisión: input solo para la terminal
-    JEFE = "jefe"  # combate en la arena del jefe final
-    VICTORIA = "victoria"  # jefe derrotado: ENTER o ESC, sin combate
-
-
-ESCENAS_DE_COMBATE = (Escena.MAZMORRA, Escena.JEFE)
+# Teclas del mapa de la ciudad -> dirección para cambiar de zona.
+TECLAS_MAPA = {
+    pygame.K_LEFT: IZQUIERDA,
+    pygame.K_RIGHT: DERECHA,
+}
 
 
 def main():
@@ -75,22 +78,26 @@ def main():
     reloj = crear_reloj()
     fuente_hud = pygame.font.Font(None, assets.TAMANIO_FUENTE_HUD)
     fuente_titulo = pygame.font.Font(None, assets.TAMANIO_FUENTE_TITULO_VICTORIA)
-    colapso = ColapsoElectoral()
-    progreso = ProgresoPartida()
+    fuente_mapa = pygame.font.Font(None, assets.TAMANIO_FUENTE_MAPA)
+    fuente_minimapa = pygame.font.Font(None, assets.TAMANIO_FUENTE_MINIMAPA)
+    partida = Partida()
     clase_rol = _elegir_rol(pantalla, reloj, fuente_hud)
     if clase_rol is None:
         pygame.quit()
         sys.exit()
-    cuarto = Cuarto()
     jugador = clase_rol(0, 0)
-    _colocar_en_cuarto(jugador, cuarto)
     # Todos los jugadores de la partida (por ahora solo uno); se usa para
     # repartir la carga compartida de equipo en cada kill.
     jugadores = [jugador]
+    selector = _nuevo_selector(partida)
 
-    escena = Escena.MAZMORRA
+    escena = Escena.MAPA_CIUDAD
+    mazmorra = None  # MazmorraJugable de la zona que se está recorriendo
     arena = None
-    tiempo_mensaje_bloqueada = 0.0
+    mostrar_minimapa = True
+    # Mensaje central del mapa: (texto, color) del último resultado o "Bloqueada".
+    mensaje_mapa = None
+    tiempo_mensaje_mapa = 0.0
     # Se dibuja el mundo aquí y se copia a la pantalla con la sacudida;
     # el HUD va directo a la pantalla para que no tiemble.
     lienzo = pygame.Surface(pantalla.get_size())
@@ -101,9 +108,7 @@ def main():
     ejecutando = True
     while ejecutando:
         dt = reloj.tick(FPS) / 1000
-        tiempo_mensaje_bloqueada = max(0.0, tiempo_mensaje_bloqueada - dt)
-        # Lugar físico activo: la arena mientras dure la pelea final.
-        escenario = arena if escena in (Escena.JEFE, Escena.VICTORIA) else cuarto
+        tiempo_mensaje_mapa = max(0.0, tiempo_mensaje_mapa - dt)
 
         # --- Input, según la escena ------------------------------------
         for evento in pygame.event.get():
@@ -111,61 +116,108 @@ def main():
                 ejecutando = False
             elif evento.type != pygame.KEYDOWN:
                 continue
+            elif escena == Escena.MAPA_CIUDAD:
+                if evento.key in TECLAS_MAPA:
+                    selector.mover(TECLAS_MAPA[evento.key])
+                elif evento.key in TECLAS_CONFIRMAR:
+                    destino = selector.seleccionada
+                    if destino == ZONA_FINAL and not partida.alcaldia_desbloqueada():
+                        mensaje_mapa = (f"{ZONA_FINAL}: Bloqueada", assets.COLOR_MENSAJE_DERROTA)
+                        tiempo_mensaje_mapa = assets.DURACION_MENSAJE_MAPA
+                        continue
+                    partida.viajar(destino)
+                    proyectiles_jugador.clear()
+                    proyectiles_enemigos.clear()
+                    _curar(jugador)
+                    if destino == ZONA_FINAL:
+                        arena = ArenaJefe(partida.colapso, jugador)
+                        escena = Escena.JEFE
+                    elif partida.ciudad.tiene_mazmorra_normal(destino):
+                        mazmorra = MazmorraJugable(
+                            Mazmorra(partida.ciudad.reportes(destino), destino)
+                        )
+                        mazmorra.colocar_en_entrada(jugador)
+                        escena = Escena.MAZMORRA
+                    # La Plaza no tiene mazmorra: solo se viaja hasta ella.
             elif escena == Escena.DECISION:
                 if evento.key in TECLAS_TERMINAL:
-                    cuarto.terminal.navegar(TECLAS_TERMINAL[evento.key])
-            elif escena == Escena.VICTORIA:
+                    mazmorra.cuarto.terminal.navegar(TECLAS_TERMINAL[evento.key])
+            elif escena in (Escena.VICTORIA, Escena.DERROTA):
                 if evento.key in TECLAS_CONFIRMAR:
-                    # Nuevo ciclo: mazmorra nueva, colapso y progreso se conservan.
-                    cuarto = Cuarto()
+                    if escena == Escena.DERROTA:
+                        # Partida completa nueva, con el mismo rol.
+                        partida.reiniciar()
+                        jugador = type(jugador)(0, 0)
+                        jugadores = [jugador]
+                        selector = _nuevo_selector(partida)
+                        mensaje_mapa = None
                     arena = None
-                    escena = Escena.MAZMORRA
-                    escenario = cuarto
-                    jugador.vida = jugador.vida_maxima
-                    jugador.invulnerabilidad.reiniciar()
-                    _colocar_en_cuarto(jugador, cuarto)
+                    mazmorra = None
+                    escena = Escena.MAPA_CIUDAD
                     proyectiles_jugador.clear()
                     proyectiles_enemigos.clear()
                 elif evento.key == TECLA_SALIR:
                     ejecutando = False
             elif evento.key == TECLA_HABILIDAD:
                 if jugador.puede_usar_habilidad():
+                    escenario = _escenario_activo(escena, arena, mazmorra)
                     jugador.usar_habilidad(escenario.enemigos, proyectiles_jugador)
-            elif evento.key == TECLA_MAZMORRA_FINAL and escena == Escena.MAZMORRA:
-                if esta_desbloqueada(colapso, progreso.mazmorras_completadas):
-                    arena = ArenaJefe(colapso, jugador)
-                    escena = Escena.JEFE
-                    escenario = arena
-                    proyectiles_jugador.clear()
-                    proyectiles_enemigos.clear()
-                else:
-                    tiempo_mensaje_bloqueada = assets.DURACION_MENSAJE
+            elif evento.key == TECLA_MINIMAPA and escena == Escena.MAZMORRA:
+                mostrar_minimapa = not mostrar_minimapa
             else:
-                escenario.manejar_evento(evento)
+                _escenario_activo(escena, arena, mazmorra).manejar_evento(evento)
 
         # --- Actualización, según la escena ----------------------------
+        escenario = _escenario_activo(escena, arena, mazmorra)
         jugador.actualizar_habilidad(dt)
 
         if escena in ESCENAS_DE_COMBATE:
             _frame_de_combate(
                 dt, jugador, jugadores, escenario, proyectiles_jugador, proyectiles_enemigos
             )
-            if escena == Escena.MAZMORRA and cuarto.fase == FASE_DECISION:
-                escena = Escena.DECISION
+            if escena == Escena.MAZMORRA:
+                if mazmorra.cambio_de_cuarto:
+                    proyectiles_jugador.clear()
+                if mazmorra.cuarto.fase == FASE_DECISION:
+                    escena = Escena.DECISION
             elif escena == Escena.JEFE and arena.mazmorra.estado == MAZMORRA_FINAL_GANADA:
                 escena = Escena.VICTORIA
         elif escena == Escena.DECISION:
             # El combate terminó: se descartan los proyectiles en vuelo.
             proyectiles_jugador.clear()
             proyectiles_enemigos.clear()
-            cuarto.terminal.actualizar(dt)
-            if cuarto.terminal.resultado is not None:
-                progreso.registrar_decision(cuarto.terminal.resultado, colapso)
-                cuarto.fase = FASE_RESUELTO
-                escena = Escena.MAZMORRA
-        # Escena.VICTORIA: el mundo queda quieto hasta ENTER o ESC.
+            terminal = mazmorra.cuarto.terminal
+            terminal.actualizar(dt)
+            if terminal.resultado is not None:
+                partida.registrar_decision(partida.ubicacion, terminal.resultado)
+                mazmorra.cuarto.fase = FASE_RESUELTO
+                mazmorra = None
+                mensaje_mapa = (
+                    f"{partida.ubicacion}: {terminal.resultado}",
+                    assets.COLOR_TEXTO_HUD,
+                )
+                tiempo_mensaje_mapa = assets.DURACION_MENSAJE_MAPA
+                escena = Escena.MAPA_CIUDAD
+        # VICTORIA y DERROTA: el mundo queda quieto hasta ENTER o ESC.
+
+        if escena != Escena.DERROTA:
+            escena = escena_tras_colapso(escena, partida.colapso)
 
         # --- Dibujo ----------------------------------------------------
+        pantalla.fill(assets.COLOR_FONDO)
+        if escena in (Escena.MAPA_CIUDAD, Escena.DERROTA):
+            dibujar_mapa_ciudad(pantalla, partida, selector.seleccionada, fuente_hud, fuente_mapa)
+            _dibujar_hud_mapa(pantalla, fuente_hud, partida)
+            if tiempo_mensaje_mapa > 0 and mensaje_mapa is not None and escena == Escena.MAPA_CIUDAD:
+                texto, color = mensaje_mapa
+                superficie = fuente_hud.render(texto, True, color)
+                pantalla.blit(superficie, superficie.get_rect(center=assets.POSICION_MENSAJE_MAPA))
+            if escena == Escena.DERROTA:
+                dibujar_derrota(pantalla, fuente_titulo, fuente_hud)
+            pygame.display.flip()
+            continue
+
+        escenario = _escenario_activo(escena, arena, mazmorra)
         lienzo.fill(assets.COLOR_FONDO)
         escenario.dibujar(lienzo)
         jugador.dibujar(lienzo)
@@ -174,23 +226,17 @@ def main():
         for proyectil in proyectiles_enemigos:
             proyectil.dibujar(lienzo)
         sacudida = arena.mazmorra.desplazamiento_sacudida() if escena == Escena.JEFE else (0, 0)
-        pantalla.fill(assets.COLOR_FONDO)
         pantalla.blit(lienzo, sacudida)
 
         if escena == Escena.DECISION:
-            dibujar_terminal(pantalla, cuarto.terminal, fuente_hud)
+            dibujar_terminal(pantalla, mazmorra.cuarto.terminal, fuente_hud)
         if escena == Escena.VICTORIA:
             dibujar_victoria(pantalla, fuente_titulo, fuente_hud)
-        # El resultado de la decisión solo tiene sentido en su propio cuarto,
-        # y la barra del jefe solo mientras se pelea (no en la victoria).
-        _dibujar_hud(pantalla, fuente_hud, colapso, jugador, cuarto, escenario is cuarto)
+        _dibujar_hud(pantalla, fuente_hud, partida.colapso, jugador)
+        if escena in (Escena.MAZMORRA, Escena.DECISION) and mostrar_minimapa:
+            dibujar_minimapa(pantalla, mazmorra.mazmorra, fuente_minimapa)
         if escena == Escena.JEFE:
             arena.dibujar_hud(pantalla, fuente_hud)
-        if tiempo_mensaje_bloqueada > 0:
-            texto = fuente_hud.render(
-                "Mazmorra final: Bloqueada", True, assets.COLOR_MENSAJE_DERROTA
-            )
-            pantalla.blit(texto, assets.POSICION_MENSAJE_BLOQUEADA)
         pygame.display.flip()
 
     pygame.quit()
@@ -198,7 +244,7 @@ def main():
 
 
 def _frame_de_combate(dt, jugador, jugadores, escenario, proyectiles_jugador, proyectiles_enemigos):
-    """Un frame de combate, igual en el cuarto normal y en la arena."""
+    """Un frame de combate, igual en la mazmorra y en la arena."""
     jugador.actualizar_invulnerabilidad(dt)
     teclas = pygame.key.get_pressed()
     jugador.manejar_movimiento(teclas, dt, escenario.rect)
@@ -216,9 +262,23 @@ def _frame_de_combate(dt, jugador, jugadores, escenario, proyectiles_jugador, pr
     _resolver_colision_contra_jugador(proyectiles_enemigos, jugador)
 
 
-def _colocar_en_cuarto(jugador, cuarto):
-    jugador.rect.center = (cuarto.rect.centerx, cuarto.rect.bottom - DISTANCIA_INICIO_JUGADOR)
-    jugador.posicion.update(jugador.rect.center)
+def _escenario_activo(escena, arena, mazmorra):
+    """Lugar físico activo: la arena mientras dure la pelea final; si no,
+    la mazmorra normal (None en el mapa)."""
+    return arena if escena in (Escena.JEFE, Escena.VICTORIA) else mazmorra
+
+
+def _nuevo_selector(partida):
+    """Selector del mapa apuntando a la primera zona después de la ubicación."""
+    selector = SelectorZona(ZONAS, partida.ubicacion)
+    selector.mover(DERECHA)
+    return selector
+
+
+def _curar(jugador):
+    """Cada mazmorra (normal o final) se empieza con la vida llena."""
+    jugador.vida = jugador.vida_maxima
+    jugador.invulnerabilidad.reiniciar()
 
 
 def _elegir_rol(pantalla, reloj, fuente):
@@ -239,7 +299,7 @@ def _elegir_rol(pantalla, reloj, fuente):
         reloj.tick(FPS)
 
 
-def _dibujar_hud(pantalla, fuente, colapso, jugador, cuarto, mostrar_resultado):
+def _dibujar_hud(pantalla, fuente, colapso, jugador):
     texto_colapso = fuente.render(colapso.texto(), True, assets.COLOR_TEXTO_HUD)
     pantalla.blit(texto_colapso, assets.POSICION_TEXTO_COLAPSO)
 
@@ -250,11 +310,18 @@ def _dibujar_hud(pantalla, fuente, colapso, jugador, cuarto, mostrar_resultado):
     )
     pantalla.blit(texto_carga, assets.POSICION_TEXTO_CARGA)
 
-    if mostrar_resultado and cuarto.fase == FASE_RESUELTO:
-        texto_resultado = fuente.render(
-            f"Resultado: {cuarto.terminal.resultado}", True, assets.COLOR_TEXTO_HUD
-        )
-        pantalla.blit(texto_resultado, assets.POSICION_TEXTO_RESULTADO)
+
+def _dibujar_hud_mapa(pantalla, fuente, partida):
+    lineas = [
+        (partida.colapso.texto(), assets.POSICION_TEXTO_COLAPSO),
+        (f"Ubicación: {partida.ubicacion}", assets.POSICION_TEXTO_UBICACION),
+        (
+            f"Completadas: {partida.progreso.mazmorras_completadas}",
+            assets.POSICION_TEXTO_COMPLETADAS,
+        ),
+    ]
+    for texto, posicion in lineas:
+        pantalla.blit(fuente.render(texto, True, assets.COLOR_TEXTO_HUD), posicion)
 
 
 def _actualizar_proyectiles(proyectiles, dt, limites):
