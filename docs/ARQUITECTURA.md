@@ -227,8 +227,10 @@ misma interfaz que `Proyectil` por duck typing),
 *Depende de:* `pygame`, `assets`, `player`, `projectile`.
 
 **`enemy.py`** — **`Enemigo`**: `vida`, `velocidad`, `escudo_anonimato`,
-`objetivo_forzado`, `arbol` (Selector: aggro forzado → en rango →
-quieto). `actualizar`, `forzar_objetivo`, `recibir_dano` (ignorado con
+`objetivo_forzado`, `agro_permanente` (True por defecto: el nodo de
+detección siempre tiene éxito, agresividad absoluta; con False usa
+`RANGO_DISPARO_ENEMIGO`), `arbol` (Selector: aggro forzado → jugador
+detectado → quieto). `actualizar`, `forzar_objetivo`, `recibir_dano` (ignorado con
 escudo), `empujar`, `mantener_dentro`, `dibujar`.
 *Depende de:* `pygame`, `behavior_tree`, `assets`, `projectile`.
 
@@ -237,7 +239,14 @@ escudo), `empujar`, `mantener_dentro`, `dibujar`.
 - **`DisparoJefe`** y **`SalidaJefe`** (dataclasses): lo que el jefe
   produce en un frame (disparos como datos, charcos, invocaciones).
 - **`Jefe`** — behavior tree propio (Selector: cambio de fase → fase 3
-  → fase 2 → fase 1), `vida`, `fase`, `escudo_anonimato` (propiedad: 15
+  → fase 2 → fase 1). Todo patrón es esquivable: ráfaga radial con
+  hueco de `JEFE_RADIAL_HUECO` balas que salta > 60° y evita muros
+  (`elegir_hueco`), espiral de 2 brazos lenta, fase 3 como ciclo de 8 s
+  (`tiempo_ciclo`: ráfagas → espiral → descanso sin emisiones),
+  dirigido lejos de las ráfagas, tope `MAX_PROYECTILES_JEFE` (recibe
+  `balas_vivas` en `actualizar`) y charcos con máximo 2 vivos y
+  distancia mínima al jugador. `ultimo_hueco` queda expuesto para los
+  tests; `vida`, `fase`, `escudo_anonimato` (propiedad: 15
   impactos; asignar `False` lo rompe de golpe), `eventos` (para la
   sacudida). Se comporta como enemigo ante los ataques (`vivo`, `rect`
   asignado por la arena, `recibir_dano`, `empujar` y `forzar_objetivo`
@@ -341,7 +350,8 @@ importa ni crea `TerminalDecision`.
 **`arena_jefe.py`** — **`ArenaJefe`**: misma interfaz que `Cuarto`
 (`rect`, `enemigos`, `actualizar`, `dibujar`, `manejar_evento`) más
 `dibujar_hud`. Da `rect` al jefe, convierte cada `DisparoJefe` en
-`ProyectilConEstela`, crea súbditos `Enemigo` (tope y velocidad del
+`ProyectilConEstela`, le informa al jefe cuántas de esas balas siguen
+vivas (tope), crea súbditos `Enemigo` con `agro_permanente` (tope y velocidad del
 tramo de toxicidad máximo) y dibuja jefe, charcos, barra y tiempo.
 *Depende de:* `pygame`, `assets`, `balance`, `mazmorra_final`, `enemy`,
 `projectile`.
@@ -572,8 +582,9 @@ Reglas que ya están aplicadas en el código, no solo declaradas en
   `test_clasificador_toxicidad`, `test_terminal_decision`,
   `test_balance`, `test_mazmorra_final`, `test_invulnerabilidad`,
   `test_progreso`, `test_min_heap`, `test_graph`, `test_mazmorra`,
-  `test_grafo_ciudad` y `test_partida` (derrota global y reinicio) no
-  usan `pygame`; `test_apuntado` prueba la función pura sin `pygame` y
+  `test_grafo_ciudad`, `test_partida` (derrota global y reinicio) y
+  `test_jefe_esquivable` (simula las balas del jefe y mide el pasillo
+  libre en radios 120/180/240 px) no usan `pygame`; `test_apuntado` prueba la función pura sin `pygame` y
   el apuntado de los roles con `Vector2` (`test_graph` verifica en un proceso aparte que los
   módulos de grafos, mazmorra, ciudad, partida y escenas no lo cargan); `test_player_habilidad` y
   `test_roles` usan `pygame.Rect`/`Vector2` sin abrir ventana.

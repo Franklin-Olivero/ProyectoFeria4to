@@ -108,7 +108,8 @@ def test_live_stream_fuerza_aggro_de_enemigos_vivos():
 
 def test_aggro_forzado_persigue_fuera_de_rango_y_expira():
     influencer = Influencer(0, 0)
-    enemigo = Enemigo(2000, 0)  # muy fuera de RANGO_DISPARO_ENEMIGO
+    # Sin agresividad absoluta, para probar el rango de detección.
+    enemigo = Enemigo(2000, 0, agro_permanente=False)  # muy fuera de RANGO_DISPARO_ENEMIGO
     enemigo.forzar_objetivo(influencer, 1.0)
     enemigo.actualizar(0.5, influencer, [])
     assert enemigo.posicion.x < 2000  # se acercó pese a estar lejos

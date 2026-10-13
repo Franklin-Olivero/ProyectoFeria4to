@@ -67,7 +67,10 @@ class ArenaJefe:
                 subdito.mantener_dentro(self.rect)
             self.subditos = [subdito for subdito in self.subditos if subdito.vivo]
 
-        self.mazmorra.actualizar(dt, jugador)
+        # El jefe respeta MAX_PROYECTILES_JEFE: se le pasa cuántas balas
+        # suyas siguen vivas (las de los súbditos no cuentan).
+        balas_jefe = sum(isinstance(p, ProyectilConEstela) for p in proyectiles_enemigos)
+        self.mazmorra.actualizar(dt, jugador, balas_jefe)
         self._vincular_cuerpo_jefe()
 
         if self.mazmorra.reinicio_pendiente:
@@ -109,7 +112,11 @@ class ArenaJefe:
             if len(self.subditos) >= tope:
                 break
             lado = -1 if i % 2 == 0 else 1
-            subdito = Enemigo(self.jefe.x + lado * assets.SEPARACION_INVOCACION, self.jefe.y, velocidad)
+            # Agresividad absoluta: persiguen y disparan desde cualquier distancia.
+            subdito = Enemigo(
+                self.jefe.x + lado * assets.SEPARACION_INVOCACION, self.jefe.y, velocidad,
+                agro_permanente=True,
+            )
             subdito.mantener_dentro(self.rect)
             self.subditos.append(subdito)
 

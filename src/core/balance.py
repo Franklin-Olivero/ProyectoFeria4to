@@ -126,9 +126,16 @@ UMBRAL_FASE_3 = 0.30
 PAUSA_CAMBIO_FASE = 0.8  # sin atacar, parpadeando, al cambiar de fase
 DURACION_DESTELLO_DANIO = 0.08
 
-# Fase 1: ráfaga radial + invocar súbditos
+# Regla de diseño: TODO patrón del jefe, en las 3 fases, deja un pasillo
+# esquivable (ver tests/test_jefe_esquivable.py).
+MAX_PROYECTILES_JEFE = 40  # balas del jefe vivas a la vez; con el tope lleno omite emitir
+
+# Fase 1: ráfaga radial con hueco + invocar súbditos
 RAFAGA_INTERVALO = 2.0
-RAFAGA_CANTIDAD = 16  # proyectiles por círculo
+JEFE_RADIAL_BALAS = 16  # posiciones del círculo (separadas 22.5°)
+JEFE_RADIAL_HUECO = 3  # balas consecutivas que faltan: el pasillo de escape
+JEFE_RADIAL_SEPARACION_HUECO = 60  # grados mínimos entre el hueco nuevo y el anterior
+JEFE_HUECO_DISTANCIA_MURO = 250  # px libres hasta el muro en la dirección del hueco (si se puede)
 RAFAGA_VELOCIDAD = 130
 INVOCACION_INTERVALO = 8.0
 INVOCACION_CANTIDAD = 2
@@ -136,15 +143,23 @@ INVOCACION_CANTIDAD = 2
 # Fase 2: escudo de anonimato + espiral continua + disparo dirigido
 ESCUDO_VIDA = 15  # impactos para romperlo (el daño no importa)
 ESPIRAL_INTERVALO = 0.15
-ESPIRAL_BRAZOS = 2  # brazos opuestos de la espiral
-ESPIRAL_PASO_GRADOS = 13  # giro de la espiral entre disparos
-ESPIRAL_VELOCIDAD = 120
+JEFE_ESPIRAL_BRAZOS = 2  # brazos opuestos de la espiral (máximo 2 para que se lea)
+JEFE_ESPIRAL_VEL_ANGULAR = 50  # grados por segundo que gira la espiral (lento)
+ESPIRAL_VELOCIDAD = RAFAGA_VELOCIDAD  # misma velocidad de bala que la fase 1, en todas las fases
 DIRIGIDO_INTERVALO = 1.5
 DIRIGIDO_VELOCIDAD = 190
 
-# Fase 3: ráfaga + espiral con intervalos 30% más cortos + charcos
-FACTOR_INTERVALO_FASE_3 = 0.7
-CHARCO_INTERVALO = 4.0
+# Fase 3: ciclo de FASE3_CICLO s con descanso, en vez de todo a la vez:
+#   0.0 y 1.2 s ráfagas con hueco | 4.0-6.5 s espiral | 6.5-8.0 s descanso
+FASE3_CICLO = 8.0  # duración de un ciclo completo
+FASE3_RAFAGAS = (0.0, 1.2)  # segundos del ciclo en que sale cada ráfaga radial
+FASE3_ESPIRAL_INICIO = 4.0  # la espiral empieza cuando los anillos ya salieron de la arena
+FASE3_ESPIRAL_DURACION = 2.5  # segundos de espiral por ciclo
+FASE3_DESCANSO = 1.5  # sin ninguna emisión al final del ciclo: ventana para castigar
+DIRIGIDO_MARGEN_RAFAGA = 0.8  # s tras una ráfaga sin disparo dirigido (no alcanza ni tapa el hueco)
+CHARCO_INTERVALO = 6.0  # un charco nuevo cada 6 s en fase 3
+CHARCO_MAXIMO_ACTIVOS = 2  # charcos vivos a la vez como máximo
+CHARCO_DISTANCIA_MIN_JUGADOR = 90  # px mínimos entre el borde del charco nuevo y el jugador
 
 # Charcos tóxicos (src/dungeon/charco.py)
 CHARCO_AVISO = 1.0  # solo contorno, sin daño

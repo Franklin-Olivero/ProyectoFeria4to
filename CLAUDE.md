@@ -35,9 +35,19 @@ Purificación Exitosa resta Colapso Electoral; Detonación (o no decidir a tiemp
 
 La mazmorra final tiene el nivel de toxicidad más alto del juego y es deliberadamente **frenética** (lo más parecido a bullet hell que el tiempo permita) para enganchar al jugador. **No hay ningún minijuego de decisión aquí** — se gana únicamente peleando. Es el cierre de la demo en la Feria.
 
-Como está implementada: jefe "Servidor Central" en un solo cuarto grande, con 3 fases según su vida (>60%, >30%, resto), escudo de anonimato en fase 2 (15 impactos; el Fact-Checking lo rompe de golpe), charcos tóxicos en fase 3 y límite de 180 s. Tiempo agotado o jugador muerto → derrota: suma colapso y la pelea se reinicia. Jefe muerto → resta colapso y pantalla de victoria: ENTER vuelve al mapa de la ciudad (colapso y progreso se conservan), ESC cierra el juego.
+Como está implementada: jefe "Servidor Central" en un solo cuarto grande, con 3 fases según su vida (>60%, >30%, resto), escudo de anonimato en fase 2 (15 impactos; el Fact-Checking lo rompe de golpe), charcos tóxicos en fase 3 y límite de 180 s.
+
+**Regla de diseño: TODO patrón del jefe, en las 3 fases, debe ser esquivable** (lo verifica `tests/test_jefe_esquivable.py`: siempre queda un pasillo de al menos 3 anchos de jugador en radios 120/180/240 px).
+* Fase 1: ráfaga radial de 16 posiciones con un hueco de 3 balas consecutivas; el hueco salta a más de 60° del anterior y evita apuntar contra un muro cercano. Invoca súbditos.
+* Fase 2: espiral de 2 brazos que gira lento (50°/s), con balas a la velocidad de la fase 1, + disparo dirigido.
+* Fase 3: ciclo de 8 s en vez de todo junto: ráfagas con hueco en 0 y 1.2 s, espiral de 4.0 a 6.5 s y 1.5 s de descanso sin ataques (ventana para castigar). El disparo dirigido nunca sale junto a una ráfaga (espera 0.8 s). Charcos: uno cada 6 s, máximo 2 vivos, nunca a menos de 90 px del jugador ni sobre el jefe.
+* Nunca hay más de `MAX_PROYECTILES_JEFE` = 40 balas del jefe vivas: con el tope lleno omite emitir.
+* Todas estas constantes viven en `balance.py`. Tiempo agotado o jugador muerto → derrota: suma colapso y la pelea se reinicia. Jefe muerto → resta colapso y pantalla de victoria: ENTER vuelve al mapa de la ciudad (colapso y progreso se conservan), ESC cierra el juego.
 
 **Regla de desbloqueo:** se entra eligiendo la Alcaldía en el mapa de la ciudad, solo si el colapso es mayor a 80% o si hay al menos 1 mazmorra completada (con Purificación Exitosa). Si no, se muestra "Alcaldía: Bloqueada" y no se viaja.
+
+## Enemigos: agresividad absoluta
+Los enemigos nunca se quedan quietos ni huyen: con `agro_permanente = True` (por defecto, en los cuartos normales y en los súbditos del jefe) el nodo de detección del behavior tree siempre tiene éxito y persiguen y disparan desde cualquier distancia. `RANGO_DISPARO_ENEMIGO` se conserva para el caso `agro_permanente = False`.
 
 ## Colapso Electoral
 Barra 0.0%-100.0%: +0.2 por cada fallo (Detonación o derrota contra el jefe), -0.1 por cada éxito (Purificación Exitosa o jefe derrotado), y +0.02 por unidad de costo de cada viaje por la ciudad. **Derrota global:** si llega a 100% (en cualquier escena), la escena DERROTA muestra "Colapso total" con el input de combate desactivado; ENTER reinicia la partida completa (colapso 0, progreso 0, ubicación en la Plaza, pesos de la ciudad restablecidos, mismo rol) y ESC sale.
@@ -118,6 +128,7 @@ No mezclar responsabilidades entre carpetas. `structures/` y `ai/` no deben impo
 18. Minimapa de la mazmorra con la tecla M (`src/ui/mapa_render.py`) — completado
 19. Apuntado con mouse para Ciudadano, Influencer y Periodista (`src/core/apuntado.py`, `JugadorBase.apuntar_a`, mira en `Main.py`) y click izquierdo como segundo gatillo; el Candidato sigue apuntando al caminar — completado
 20. Sello del cuarto final: solo se entra con todos los demás cuartos limpios (también por el ciclo), el final nunca es punto de corte y la decisión cierra la mazmorra una sola vez — completado
+21. Jefe esquivable (ráfaga con hueco, espiral lenta, fase 3 por ciclos con descanso, tope de 40 balas, charcos justos) y agresividad absoluta de enemigos y súbditos (`agro_permanente`) — completado
 
 No agregues código de Ciudad Nova como mundo abierto caminable (la ciudad hoy es solo el mapa de selección) ni sockets / `src/network/` salvo que se te pida explícitamente — son alcance de entregas futuras.
 

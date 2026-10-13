@@ -6,14 +6,20 @@ lista de salida de proyectiles) y hace tick() al árbol raíz, que es:
 
     Selector
     ├── Sequence: "¿aggro forzado?" -> "perseguir" -> "disparar"
-    ├── Sequence: "¿jugador en rango?" -> "perseguir" -> "disparar"
+    ├── Sequence: "¿jugador detectado?" -> "perseguir" -> "disparar"
     └── Action: "quedarse quieto" (siempre EXITO)
 
 Es decir: si alguien le forzó el aggro (Live Stream Viral del
 Influencer), persigue y dispara a ese objetivo sin importar la
-distancia; si no, y el jugador está en rango de disparo, lo persigue y
-le dispara; si no, se queda quieto (patrulla mínima viable para el
-MVP, más simple de sustentar que un recorrido de puntos).
+distancia; si no, y el jugador está detectado, lo persigue y le
+dispara; si no, se queda quieto.
+
+Regla de diseño: agresividad absoluta. Con `agro_permanente` (True por
+defecto, en los cuartos normales y en los súbditos del jefe) el nodo de
+detección siempre tiene éxito: el enemigo persigue y dispara sin
+importar la distancia y nunca llega a "quedarse quieto". Con
+agro_permanente = False vuelve a usar RANGO_DISPARO_ENEMIGO (se
+conserva para poder desactivarlo en un enemigo concreto).
 """
 
 import pygame
@@ -24,7 +30,7 @@ from src.entities.projectile import Proyectil
 
 
 class Enemigo:
-    def __init__(self, x, y, velocidad=assets.VELOCIDAD_ENEMIGO):
+    def __init__(self, x, y, velocidad=assets.VELOCIDAD_ENEMIGO, agro_permanente=True):
         self.rect = pygame.Rect(0, 0, assets.TAMANIO_ENEMIGO, assets.TAMANIO_ENEMIGO)
         self.rect.center = (x, y)
         # Posición en punto flotante: pygame.Rect solo guarda enteros,
@@ -46,6 +52,8 @@ class Enemigo:
         # árbol persigue mientras `tiempo_objetivo_forzado` sea > 0.
         self.objetivo_forzado = None
         self.tiempo_objetivo_forzado = 0.0
+        # True: detecta al jugador a cualquier distancia (agresividad absoluta).
+        self.agro_permanente = agro_permanente
 
         # Contexto del frame actual; lo llena `actualizar` antes del
         # tick para que las acciones del árbol (sin argumentos, por
@@ -65,7 +73,7 @@ class Enemigo:
                 ),
                 Sequence(
                     [
-                        Action(self._en_rango_de_disparo),
+                        Action(self._jugador_detectado),
                         Action(self._perseguir_objetivo),
                         Action(self._disparar_a_objetivo),
                     ]
@@ -110,7 +118,10 @@ class Enemigo:
     def _aggro_forzado(self):
         return EXITO if self.objetivo_forzado is not None else FALLO
 
-    def _en_rango_de_disparo(self):
+    def _jugador_detectado(self):
+        """Con agro_permanente, siempre; si no, solo dentro del rango."""
+        if self.agro_permanente:
+            return EXITO
         distancia = pygame.Vector2(self.rect.center).distance_to(self._jugador.rect.center)
         return EXITO if distancia <= assets.RANGO_DISPARO_ENEMIGO else FALLO
 

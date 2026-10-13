@@ -69,8 +69,9 @@ class MazmorraFinal:
         self.estado = EN_COMBATE
         self.salida = SalidaJefe()
 
-    def actualizar(self, dt, jugador):
-        """Un frame de la pelea. `jugador` necesita posicion.x/.y, vivo y recibir_dano()."""
+    def actualizar(self, dt, jugador, balas_vivas=0):
+        """Un frame de la pelea. `jugador` necesita posicion.x/.y, vivo y
+        recibir_dano(); `balas_vivas` = proyectiles del jefe en la arena."""
         self.tiempo_mensaje_derrota = max(0.0, self.tiempo_mensaje_derrota - dt)
         self.tiempo_sacudida = max(0.0, self.tiempo_sacudida - dt)
         self.salida = SalidaJefe()
@@ -78,7 +79,9 @@ class MazmorraFinal:
             return
 
         self.tiempo_restante = max(0.0, self.tiempo_restante - dt)
-        self.jefe.actualizar(dt, (jugador.posicion.x, jugador.posicion.y), self.salida)
+        self.jefe.actualizar(
+            dt, (jugador.posicion.x, jugador.posicion.y), self.salida, balas_vivas
+        )
         if self.jefe.eventos:
             # Cambio de fase o escudo roto: sacudida corta de pantalla.
             self.tiempo_sacudida = assets.SHAKE_DURACION

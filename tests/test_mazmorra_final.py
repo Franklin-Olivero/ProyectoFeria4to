@@ -16,9 +16,11 @@ from src.core.balance import (  # noqa: E402
     CHARCO_AVISO,
     CHARCO_DANIO_POR_SEGUNDO,
     CHARCO_DURACION,
+    CHARCO_INTERVALO,
     ESCUDO_VIDA,
     PAUSA_CAMBIO_FASE,
-    RAFAGA_CANTIDAD,
+    JEFE_RADIAL_BALAS,
+    JEFE_RADIAL_HUECO,
     RAFAGA_INTERVALO,
     TIEMPO_LIMITE_JEFE,
 )
@@ -106,7 +108,7 @@ def test_fase_1_rafaga_radial_e_invocacion():
     jefe = crear_jefe()
     salida = SalidaJefe()
     jefe.actualizar(RAFAGA_INTERVALO, (400, 550), salida)
-    assert len(salida.disparos) == RAFAGA_CANTIDAD
+    assert len(salida.disparos) == JEFE_RADIAL_BALAS - JEFE_RADIAL_HUECO
     for _ in range(8 * 60):
         jefe.actualizar(1 / 60, (400, 550), salida)
     assert salida.invocaciones >= 2
@@ -119,7 +121,7 @@ def test_fase_3_se_acerca_al_jugador_y_suelta_charcos():
     jefe.actualizar(1 / 60, (400, 550), salida)
     assert jefe.fase == 3
     y_inicial = jefe.y
-    for _ in range(5 * 60):
+    for _ in range(int((PAUSA_CAMBIO_FASE + CHARCO_INTERVALO + 0.5) * 60)):
         jefe.actualizar(1 / 60, (400, 550), salida)
     assert jefe.y > y_inicial
     assert salida.charcos
