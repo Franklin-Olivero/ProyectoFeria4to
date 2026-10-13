@@ -5,12 +5,15 @@ Cada frame, `actualizar` guarda el contexto del frame (jugador, dt,
 lista de salida de proyectiles) y hace tick() al árbol raíz, que es:
 
     Selector
+    ├── Sequence: "¿aggro forzado?" -> "perseguir" -> "disparar"
     ├── Sequence: "¿jugador en rango?" -> "perseguir" -> "disparar"
     └── Action: "quedarse quieto" (siempre EXITO)
 
-Es decir: si el jugador está en rango de disparo, el enemigo lo
-persigue y le dispara; si no, se queda quieto (patrulla mínima viable
-para el MVP, más simple de sustentar que un recorrido de puntos).
+Es decir: si alguien le forzó el aggro (Live Stream Viral del
+Influencer), persigue y dispara a ese objetivo sin importar la
+distancia; si no, y el jugador está en rango de disparo, lo persigue y
+le dispara; si no, se queda quieto (patrulla mínima viable para el
+MVP, más simple de sustentar que un recorrido de puntos).
 """
 
 import pygame
@@ -35,6 +38,14 @@ class Enemigo:
         # la zona (ver src/dungeon/clasificador_toxicidad.py).
         self.velocidad = velocidad
         self.cooldown_disparo = 0.0
+        # Escudo de anonimato: mientras esté activo el enemigo ignora
+        # el daño. Lo quita el Fact-Checking del Periodista. Ningún
+        # enemigo lo trae activo todavía.
+        self.escudo_anonimato = False
+        # Aggro forzado (Live Stream Viral): objetivo con `.rect` que el
+        # árbol persigue mientras `tiempo_objetivo_forzado` sea > 0.
+        self.objetivo_forzado = None
+        self.tiempo_objetivo_forzado = 0.0
 
         # Contexto del frame actual; lo llena `actualizar` antes del
         # tick para que las acciones del árbol (sin argumentos, por
@@ -47,9 +58,16 @@ class Enemigo:
             [
                 Sequence(
                     [
+                        Action(self._aggro_forzado),
+                        Action(self._perseguir_objetivo),
+                        Action(self._disparar_a_objetivo),
+                    ]
+                ),
+                Sequence(
+                    [
                         Action(self._en_rango_de_disparo),
-                        Action(self._perseguir_jugador),
-                        Action(self._disparar_a_jugador),
+                        Action(self._perseguir_objetivo),
+                        Action(self._disparar_a_objetivo),
                     ]
                 ),
                 Action(self._quedarse_quieto),
@@ -69,21 +87,42 @@ class Enemigo:
         if self.cooldown_disparo > 0:
             self.cooldown_disparo -= dt
 
+        if self.tiempo_objetivo_forzado > 0:
+            self.tiempo_objetivo_forzado -= dt
+            if self.tiempo_objetivo_forzado <= 0:
+                self.objetivo_forzado = None
+
         self.arbol.tick()
+
+    def forzar_objetivo(self, objetivo, duracion):
+        """Fija el aggro hacia `objetivo` (cualquier cosa con `.rect`)
+        durante `duracion` segundos, ignorando el rango de disparo."""
+        self.objetivo_forzado = objetivo
+        self.tiempo_objetivo_forzado = duracion
+
+    def _objetivo(self):
+        """A quién persigue/dispara este frame: el objetivo forzado si
+        está activo, si no el jugador."""
+        if self.objetivo_forzado is not None:
+            return self.objetivo_forzado
+        return self._jugador
+
+    def _aggro_forzado(self):
+        return EXITO if self.objetivo_forzado is not None else FALLO
 
     def _en_rango_de_disparo(self):
         distancia = pygame.Vector2(self.rect.center).distance_to(self._jugador.rect.center)
         return EXITO if distancia <= assets.RANGO_DISPARO_ENEMIGO else FALLO
 
-    def _perseguir_jugador(self):
-        direccion = pygame.Vector2(self._jugador.rect.center) - self.posicion
+    def _perseguir_objetivo(self):
+        direccion = pygame.Vector2(self._objetivo().rect.center) - self.posicion
         if direccion.length_squared() > 0:
             direccion = direccion.normalize()
             self.posicion += direccion * self.velocidad * self._dt
             self.rect.center = (round(self.posicion.x), round(self.posicion.y))
         return EXITO
 
-    def _disparar_a_jugador(self):
+    def _disparar_a_objetivo(self):
         # Este nodo siempre retorna EXITO, incluso en cooldown: el
         # cooldown solo bloquea la creación del proyectil, no el
         # resultado del nodo. Si retornara FALLO durante el cooldown,
@@ -92,7 +131,7 @@ class Enemigo:
         # el enemigo no puede disparar. Así, perseguir nunca se
         # interrumpe por el cooldown de disparo.
         if self.cooldown_disparo <= 0:
-            direccion = pygame.Vector2(self._jugador.rect.center) - pygame.Vector2(
+            direccion = pygame.Vector2(self._objetivo().rect.center) - pygame.Vector2(
                 self.rect.center
             )
             if direccion.length_squared() > 0:
@@ -111,7 +150,19 @@ class Enemigo:
         return EXITO
 
     def recibir_dano(self, danio):
+        if self.escudo_anonimato:
+            return
         self.vida -= danio
+
+    def empujar(self, impulso):
+        """Desplaza al enemigo `impulso` (Vector2, en píxeles) de golpe."""
+        self.posicion += impulso
+        self.rect.center = (round(self.posicion.x), round(self.posicion.y))
+
+    def mantener_dentro(self, limites):
+        """Evita que un empujón lo saque del cuarto."""
+        self.rect.clamp_ip(limites)
+        self.posicion.update(self.rect.center)
 
     def dibujar(self, pantalla):
         pygame.draw.rect(pantalla, assets.COLOR_ENEMIGO, self.rect)

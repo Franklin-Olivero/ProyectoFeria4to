@@ -7,8 +7,11 @@ import pygame
 from src.core import assets
 from src.core.colapso import ColapsoElectoral
 from src.core.config import COLOR_FONDO, FPS, crear_pantalla, crear_reloj
-from src.dungeon.cuarto import FASE_COMBATE, FASE_DECISION, FASE_RESUELTO, Cuarto
-from src.entities.player import Jugador
+from src.dungeon.cuarto import FASE_DECISION, FASE_RESUELTO, Cuarto
+from src.entities.candidato import Candidato
+from src.entities.influencer import Influencer
+from src.entities.periodista import Periodista
+from src.entities.player import Ciudadano
 from src.ui.terminal_decision import (
     CONFIRMAR,
     DERECHA,
@@ -20,6 +23,14 @@ from src.ui.terminal_decision_render import dibujar_terminal
 
 TECLA_DISPARAR = pygame.K_SPACE
 TECLA_HABILIDAD = pygame.K_f
+
+# Teclas de la pantalla de selección -> clase del rol a instanciar.
+ROLES_POR_TECLA = {
+    pygame.K_1: Ciudadano,
+    pygame.K_2: Influencer,
+    pygame.K_3: Periodista,
+    pygame.K_4: Candidato,
+}
 
 # Teclas de la terminal de decisión -> dirección de navegación.
 TECLAS_TERMINAL = {
@@ -36,8 +47,12 @@ def main():
     reloj = crear_reloj()
     fuente_hud = pygame.font.Font(None, assets.TAMANIO_FUENTE_HUD)
     colapso = ColapsoElectoral()
+    clase_rol = _elegir_rol(pantalla, reloj, fuente_hud)
+    if clase_rol is None:
+        pygame.quit()
+        sys.exit()
     cuarto = Cuarto()
-    jugador = Jugador(cuarto.rect.centerx, cuarto.rect.bottom - 40)
+    jugador = clase_rol(cuarto.rect.centerx, cuarto.rect.bottom - 40)
 
     proyectiles_jugador = []
     proyectiles_enemigos = []
@@ -54,10 +69,10 @@ def main():
                 if evento.type == pygame.KEYDOWN and evento.key in TECLAS_TERMINAL:
                     cuarto.terminal.navegar(TECLAS_TERMINAL[evento.key])
             elif evento.type == pygame.KEYDOWN and evento.key == TECLA_DISPARAR:
-                proyectiles_jugador.extend(jugador.disparar_abanico())
+                proyectiles_jugador.extend(jugador.ataque_basico())
             elif evento.type == pygame.KEYDOWN and evento.key == TECLA_HABILIDAD:
                 if jugador.puede_usar_habilidad():
-                    jugador.usar_habilidad()
+                    jugador.usar_habilidad(cuarto.enemigos, proyectiles_jugador)
             else:
                 cuarto.manejar_evento(evento)
 
@@ -94,6 +109,27 @@ def main():
 
     pygame.quit()
     sys.exit()
+
+
+def _elegir_rol(pantalla, reloj, fuente):
+    """Pantalla previa al loop: espera 1-4 y retorna la clase elegida
+    (None si se cierra la ventana)."""
+    while True:
+        for evento in pygame.event.get():
+            if evento.type == pygame.QUIT:
+                return None
+            if evento.type == pygame.KEYDOWN and evento.key in ROLES_POR_TECLA:
+                return ROLES_POR_TECLA[evento.key]
+
+        pantalla.fill(COLOR_FONDO)
+        titulo = fuente.render("Elige tu personaje (1-4):", True, assets.COLOR_TEXTO_HUD)
+        pantalla.blit(titulo, assets.POSICION_TITULO_SELECCION)
+        x, y = assets.POSICION_OPCIONES_SELECCION
+        for numero, clase in enumerate(ROLES_POR_TECLA.values(), start=1):
+            opcion = fuente.render(f"{numero}. {clase.NOMBRE}", True, clase.COLOR)
+            pantalla.blit(opcion, (x, y + (numero - 1) * assets.SEPARACION_OPCIONES_SELECCION))
+        pygame.display.flip()
+        reloj.tick(FPS)
 
 
 def _aplicar_resultado_decision(cuarto, colapso):
@@ -134,18 +170,18 @@ def _actualizar_proyectiles(proyectiles, dt, limites):
 
 
 def _resolver_colisiones_contra_enemigos(proyectiles, enemigos, jugador):
-    """Aplica daño de los proyectiles del jugador; cada enemigo que muere
-    por un impacto suma un kill a la carga de habilidad del jugador."""
+    """Delega cada choque en `proyectil.al_impactar(enemigo)`, que cada
+    tipo de proyectil del rol define (destruirse, perforar, empujar,
+    área...). Cada enemigo que muere suma un kill a la carga de
+    habilidad del jugador."""
     for proyectil in proyectiles:
-        if not proyectil.vivo:
-            continue
         for enemigo in enemigos:
+            if not proyectil.vivo:
+                break
             if enemigo.vivo and proyectil.colisiona_con(enemigo.rect):
-                enemigo.recibir_dano(proyectil.danio)
-                proyectil.vivo = False
+                proyectil.al_impactar(enemigo)
                 if not enemigo.vivo:
                     jugador.registrar_kill()
-                break
 
 
 def _resolver_colision_contra_jugador(proyectiles, jugador):

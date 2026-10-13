@@ -1,14 +1,19 @@
-"""Ciudadano: personaje jugable base del MVP.
+"""Jugadores: clase base común y el rol Ciudadano.
 
-Se deja como clase base extensible a propósito: los otros 3 roles
-(Influencer, Periodista, Candidato) deberán heredar de `Jugador` y
-sobreescribir `disparar_abanico` (u otros métodos de ataque) sin
-necesidad de reescribir el movimiento ni la vida.
+`JugadorBase` concentra todo lo que comparten los 4 roles: movimiento,
+vida, dirección de mirada, carga de habilidad por kills y dibujo
+básico. Cada rol hereda de ella y solo sobreescribe:
+
+    ataque_basico()      -> lista de proyectiles/efectos nuevos
+    usar_habilidad(...)  -> True si se usó, False si faltaba carga
+
+Gracias a esa interfaz común, el loop principal (Main.py) trata a
+cualquier rol igual: agrega lo que devuelve ataque_basico() a sus
+proyectiles y resuelve colisiones con `proyectil.al_impactar(enemigo)`,
+que cada tipo de proyectil define a su manera.
 
 Habilidad activa: no tiene cooldown por tiempo. Se carga matando
-enemigos (registrar_kill) y se gasta completa al usarla. La del
-Ciudadano es la Burbuja Comunitaria: por ahora solo activa un flag con
-duración y radio; las colisiones del domo se conectan más adelante.
+enemigos (registrar_kill) y se gasta completa al usarla.
 """
 
 import pygame
@@ -19,8 +24,10 @@ from src.entities.projectile import Proyectil
 ANGULO_ABANICO_GRADOS = 30
 
 
-class Jugador:
+class JugadorBase:
     CARGA_MAXIMA_HABILIDAD = 5  # kills necesarios para usar la habilidad
+    COLOR = assets.COLOR_CIUDADANO  # cada rol lo sobreescribe
+    NOMBRE = "Jugador"
 
     def __init__(self, x, y):
         self.rect = pygame.Rect(0, 0, assets.TAMANIO_JUGADOR, assets.TAMANIO_JUGADOR)
@@ -33,16 +40,13 @@ class Jugador:
         self.posicion = pygame.Vector2(self.rect.center)
         self.vida = assets.VIDA_JUGADOR
         # Dirección hacia la que "mira" el jugador: se usa para apuntar
-        # el abanico de proyectiles. El proyecto es 100% teclado (sin
-        # mouse en ningún otro sistema), así que se define como la
-        # última dirección de movimiento en vez de apuntar al mouse,
-        # para mantener consistencia con el resto de la mecánica.
+        # los ataques. El proyecto es 100% teclado (sin mouse en ningún
+        # otro sistema), así que se define como la última dirección de
+        # movimiento en vez de apuntar al mouse, para mantener
+        # consistencia con el resto de la mecánica.
         self.direccion_mirada = pygame.Vector2(0, -1)
 
         self.carga_habilidad = 0
-        self.burbuja_activa = False
-        self.tiempo_burbuja = 0.0
-        self.radio_burbuja = assets.RADIO_BURBUJA
 
     @property
     def vivo(self):
@@ -68,13 +72,74 @@ class Jugador:
             self.rect.clamp_ip(limites)
             self.posicion.update(self.rect.center)
 
-    def disparar_abanico(self):
-        """Dispara 3 proyectiles en abanico (~30° entre ellos) en la
-        dirección hacia la que mira el jugador.
+    # ------------------------------------------------------------------
+    # Interfaz que cada rol sobreescribe
+    # ------------------------------------------------------------------
 
-        Retorna la lista de los 3 Proyectil recién creados; quien llama
-        es responsable de agregarlos a la lista de proyectiles activos.
+    def ataque_basico(self):
+        """Retorna la lista de proyectiles/efectos que crea el ataque.
+
+        Quien llama es responsable de agregarlos a los proyectiles activos.
         """
+        raise NotImplementedError
+
+    def usar_habilidad(self, enemigos=(), proyectiles_salida=None):
+        """Activa la habilidad del rol si la carga está completa.
+
+        `enemigos` son los enemigos vivos del cuarto (para habilidades
+        que los afectan directamente) y `proyectiles_salida` la lista
+        donde se agregan los proyectiles que la habilidad dispare.
+        Retorna True si se usó, False si faltaba carga.
+        """
+        raise NotImplementedError
+
+    def actualizar_habilidad(self, dt):
+        """Avanza los efectos con duración de la habilidad (si los hay)."""
+
+    # ------------------------------------------------------------------
+    # Carga de habilidad por kills
+    # ------------------------------------------------------------------
+
+    def registrar_kill(self):
+        """Suma 1 a la carga de la habilidad, sin pasar del máximo."""
+        self.carga_habilidad = min(self.carga_habilidad + 1, self.CARGA_MAXIMA_HABILIDAD)
+
+    def puede_usar_habilidad(self):
+        return self.carga_habilidad >= self.CARGA_MAXIMA_HABILIDAD
+
+    def _gastar_carga(self):
+        """Helper para usar_habilidad(): si la carga está completa la
+        resetea a 0 y retorna True; si no, no toca nada y retorna False."""
+        if not self.puede_usar_habilidad():
+            return False
+        self.carga_habilidad = 0
+        return True
+
+    def recibir_dano(self, danio):
+        self.vida -= danio
+
+    def dibujar(self, pantalla):
+        pygame.draw.rect(pantalla, self.COLOR, self.rect)
+
+
+class Ciudadano(JugadorBase):
+    """Ataque: abanico frontal de 3 proyectiles.
+    Habilidad: Burbuja Comunitaria. Por ahora solo activa un flag con
+    duración y radio; las colisiones del domo se conectan más adelante.
+    """
+
+    COLOR = assets.COLOR_CIUDADANO
+    NOMBRE = "Ciudadano"
+
+    def __init__(self, x, y):
+        super().__init__(x, y)
+        self.burbuja_activa = False
+        self.tiempo_burbuja = 0.0
+        self.radio_burbuja = assets.RADIO_BURBUJA
+
+    def ataque_basico(self):
+        """Dispara 3 proyectiles en abanico (~30° entre ellos) en la
+        dirección hacia la que mira el jugador."""
         angulos = [-ANGULO_ABANICO_GRADOS, 0, ANGULO_ABANICO_GRADOS]
         proyectiles = []
         for angulo in angulos:
@@ -90,21 +155,10 @@ class Jugador:
             )
         return proyectiles
 
-    def registrar_kill(self):
-        """Suma 1 a la carga de la habilidad, sin pasar del máximo."""
-        self.carga_habilidad = min(self.carga_habilidad + 1, self.CARGA_MAXIMA_HABILIDAD)
-
-    def puede_usar_habilidad(self):
-        return self.carga_habilidad >= self.CARGA_MAXIMA_HABILIDAD
-
-    def usar_habilidad(self):
-        """Gasta toda la carga y activa la Burbuja Comunitaria.
-
-        Retorna True si se usó, False si la carga no estaba completa.
-        """
-        if not self.puede_usar_habilidad():
+    def usar_habilidad(self, enemigos=(), proyectiles_salida=None):
+        """Gasta toda la carga y activa la Burbuja Comunitaria."""
+        if not self._gastar_carga():
             return False
-        self.carga_habilidad = 0
         self.burbuja_activa = True
         self.tiempo_burbuja = assets.DURACION_BURBUJA
         return True
@@ -118,11 +172,8 @@ class Jugador:
             self.tiempo_burbuja = 0.0
             self.burbuja_activa = False
 
-    def recibir_dano(self, danio):
-        self.vida -= danio
-
     def dibujar(self, pantalla):
-        pygame.draw.rect(pantalla, assets.COLOR_JUGADOR, self.rect)
+        super().dibujar(pantalla)
         if self.burbuja_activa:
             pygame.draw.circle(
                 pantalla,

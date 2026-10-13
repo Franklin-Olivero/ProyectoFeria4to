@@ -12,7 +12,7 @@ sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")
 import pytest  # noqa: E402
 
 from src.core import assets  # noqa: E402
-from src.entities.player import Jugador  # noqa: E402
+from src.entities.player import Ciudadano as Jugador  # noqa: E402
 
 MAXIMO = Jugador.CARGA_MAXIMA_HABILIDAD
 

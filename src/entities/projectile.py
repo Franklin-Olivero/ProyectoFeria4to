@@ -2,9 +2,10 @@
 enemigos.
 
 Se mueve en línea recta a velocidad constante y se marca a sí mismo
-como `vivo = False` cuando sale de los límites del cuarto. Quien lo
-usa (el loop principal) decide cuándo marcarlo como no vivo por
-impacto, usando `colisiona_con`.
+como `vivo = False` cuando sale de los límites del cuarto. El loop
+principal detecta el choque con `colisiona_con` y delega el efecto en
+`al_impactar(enemigo)`: por defecto daña y se destruye, y cada rol
+define subclases que lo sobreescriben (empujar, perforar, área...).
 """
 
 import pygame
@@ -42,6 +43,11 @@ class Proyectil:
 
     def colisiona_con(self, otro_rect):
         return self.vivo and self.rect.colliderect(otro_rect)
+
+    def al_impactar(self, enemigo):
+        """Efecto al chocar con un enemigo: lo daña y se destruye."""
+        enemigo.recibir_dano(self.danio)
+        self.vivo = False
 
     def dibujar(self, pantalla):
         pygame.draw.rect(pantalla, self.color, self.rect)

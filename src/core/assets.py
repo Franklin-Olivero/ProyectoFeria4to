@@ -8,9 +8,9 @@ reemplazar los valores de este archivo por rutas de sprite, sin tocar
 la lógica de juego.
 """
 
-# Jugador (Ciudadano)
+# Jugador (comunes a los 4 roles)
 TAMANIO_JUGADOR = 36
-COLOR_JUGADOR = (60, 140, 220)
+COLOR_CIUDADANO = (60, 140, 220)
 VELOCIDAD_JUGADOR = 220  # píxeles por segundo
 VIDA_JUGADOR = 5
 
@@ -54,3 +54,36 @@ ALTO_TERMINAL = 220
 GROSOR_BORDE_TERMINAL = 3
 MARGEN_TERMINAL = 20
 SEPARACION_LINEAS_TERMINAL = 50
+
+# Selección de personaje
+POSICION_TITULO_SELECCION = (60, 180)
+POSICION_OPCIONES_SELECCION = (60, 240)
+SEPARACION_OPCIONES_SELECCION = 40
+
+# Influencer: cono de sonido (proyectil ancho que empuja) / Live Stream Viral
+COLOR_INFLUENCER = (220, 80, 200)
+COLOR_PROYECTIL_INFLUENCER = (250, 150, 240)
+TAMANIO_PROYECTIL_INFLUENCER = 26
+VELOCIDAD_PROYECTIL_INFLUENCER = 300  # píxeles por segundo
+IMPULSO_EMPUJE_INFLUENCER = 30  # píxeles que retrocede el enemigo golpeado
+DURACION_LIVE_STREAM = 3.0  # segundos de aggro forzado
+
+# Periodista: rayo perforante / Fact-Checking
+COLOR_PERIODISTA = (240, 240, 240)
+COLOR_RAYO_PERIODISTA = (140, 220, 255)
+COLOR_RAYO_FACT_CHECK = (90, 255, 140)
+TAMANIO_RAYO = 10
+VELOCIDAD_RAYO = 900  # píxeles por segundo
+LARGO_ESTELA_RAYO = 40  # píxeles de la línea dibujada detrás del rayo
+GROSOR_ESTELA_RAYO = 4
+
+# Candidato: onda expansiva radial / Debate Rebotante
+COLOR_CANDIDATO = (240, 170, 60)
+COLOR_ONDA_CANDIDATO = (255, 200, 90)
+GROSOR_ONDA = 3
+RADIO_MAXIMO_ONDA = 90  # píxeles
+DURACION_ONDA = 0.3  # segundos que tarda en expandirse
+COLOR_PROYECTIL_REBOTANTE = (255, 120, 40)
+ANGULOS_DEBATE_REBOTANTE = (-20, 0, 20)  # grados respecto a la mirada
+MAXIMO_REBOTES = 3
+TIEMPO_VIDA_REBOTANTE = 4.0  # segundos

@@ -162,7 +162,7 @@ Constante: `ANGULO_ABANICO_GRADOS = 30`.
   - `recibir_dano(danio)` — resta `danio` a `vida`.
   - `dibujar(pantalla)` — pinta su `rect` con `assets.COLOR_ENEMIGO`.
   - Métodos privados que son las hojas (`Action`) del árbol:
-    `_en_rango_de_disparo`, `_perseguir_jugador`, `_disparar_a_jugador`
+    `_en_rango_de_disparo`, `_perseguir_objetivo`, `_disparar_a_objetivo`
     (respeta `cooldown_disparo` pero siempre retorna `EXITO`),
     `_quedarse_quieto`.
 
@@ -277,11 +277,11 @@ Reglas que ya están aplicadas en el código, no solo declaradas en
 - **La IA del enemigo no tiene `if`s de estado a mano.** Todo el
   comportamiento de `Enemigo` pasa por un único `Selector` (atributo
   `arbol`); los métodos privados (`_en_rango_de_disparo`,
-  `_perseguir_jugador`, etc.) son solo hojas `Action` sin lógica de
+  `_perseguir_objetivo`, etc.) son solo hojas `Action` sin lógica de
   combinación entre sí — esa lógica vive exclusivamente en
   `Selector`/`Sequence`.
 - **Un nodo de "intentar algo con cooldown" siempre retorna éxito.**
-  `Enemigo._disparar_a_jugador` retorna `EXITO` incluso si el cooldown
+  `Enemigo._disparar_a_objetivo` retorna `EXITO` incluso si el cooldown
   se lo impide, para que el `Selector` no confunda "no puede disparar
   todavía" con "debería dejar de perseguir".
 - **Cada estructura de datos pura tiene su test en aislado.**

@@ -154,10 +154,11 @@ class Cuarto:
         """Corre un tick de IA para cada enemigo vivo y refresca las puertas.
 
         `proyectiles_enemigos` es la lista de salida donde los enemigos
-        agregan los proyectiles que disparan (ver Enemigo._disparar_a_jugador).
+        agregan los proyectiles que disparan (ver Enemigo._disparar_a_objetivo).
         """
         for enemigo in self.enemigos:
             enemigo.actualizar(dt, jugador, proyectiles_enemigos)
+            enemigo.mantener_dentro(self.rect)
 
         cantidad_antes = len(self.enemigos)
         self.enemigos = [enemigo for enemigo in self.enemigos if enemigo.vivo]
