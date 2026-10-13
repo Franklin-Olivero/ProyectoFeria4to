@@ -267,18 +267,37 @@ cuarto único original.
 cantidad_cuartos=6, semilla=None)`**: `grafo` de cuartos, `celdas`
 (`{cuarto: (x, y)}` en la cuadrícula 3x3), `entrada`, `cuarto_final`,
 `actual`, `toxicidad`, `dificultad` (solo cuartos generados),
-`visitados`, `limpiados`, `tiempo_en_cuarto`. Métodos: `puertas(cuarto)`
-→ `{dirección: vecino}`, `mover(dirección)`, `entrar(cuarto)`
-(generación perezosa), `actualizar(dt, hay_enemigos_vivos)`,
-`propagar_desde(cuarto)`, `ruta_al_final()`, `final_descubierto`.
+`visitados`, `limpiados` (la entrada desde el inicio; un cuarto nunca
+visitado no está limpio), `completada`, `tiempo_en_cuarto`. Métodos:
+`puertas(cuarto)` → `{dirección: vecino}`, `mover(dirección)` (devuelve
+None si no hay pasillo o si el destino es el final sellado),
+`entrar(cuarto)` (generación perezosa), `actualizar(dt,
+hay_enemigos_vivos)`, `propagar_desde(cuarto)`, `ruta_al_final()`,
+`final_descubierto`.
+- **Garantía de conectividad:** el cuarto final es el más lejano por BFS
+  cuya eliminación deja el resto conexo (`resto_conexo_sin`: copia del
+  grafo + `eliminar_nodo` + `es_conexo`); si el más lejano no cumpliera
+  se prueba el siguiente. Así todos los demás cuartos se recorren sin
+  pasar por el final.
+- **Sello del cuarto final:** `cuartos_pendientes()` (no finales sin
+  limpiar), `final_desbloqueado()`, `puede_entrar(cuarto)` (el final
+  solo con todo limpio, aunque el ciclo le dé dos puertas),
+  `marcar_limpiado(cuarto)` (True cuando desbloquea el final),
+  `cuartos_limpios()` → (X, N) para el HUD.
+- **Cierre:** `puede_iniciar_decision()` (en el final, sello cumplido y
+  sin completar; el `Cuarto` final la consulta antes de abrir la
+  terminal) y `completar()` (True solo la primera vez).
 *Depende de:* `random`, `balance`, `clasificador_toxicidad`,
 `structures/graph`.
 
 **`mazmorra_jugable.py`** — **`MazmorraJugable`**: misma interfaz que
 `Cuarto`/`ArenaJefe`. Crea un `Cuarto` por nodo la primera vez que se
 entra (puertas, toxicidad, dificultad y `es_final` del grafo) y los
-guarda (un cuarto limpio sigue limpio). Si el jugador toca una puerta
-abierta, llama a `Mazmorra.mover` y lo ubica junto a la puerta opuesta;
+guarda (un cuarto limpio sigue limpio). Sella (`Puerta.sellada`) las
+puertas cuyo vecino no se puede pisar todavía y guarda un `mensaje`
+breve ("Limpia todos los cuartos primero" / "Cuarto final
+desbloqueado"). Si el jugador toca una puerta sin enemigos y sin sello,
+llama a `Mazmorra.mover` y lo ubica junto a la puerta opuesta;
 `cambio_de_cuarto` avisa a `Main.py` para descartar proyectiles.
 *Depende de:* `assets`, `cuarto`, `mazmorra`.
 
@@ -293,7 +312,10 @@ abierta, llama a `Mazmorra.mover` y lo ubica junto a la puerta opuesta;
 **`partida.py`** — puro. **`Partida`**: `colapso`, `progreso`,
 `ciudad`, `ubicacion`; `reiniciar()`, `alcaldia_desbloqueada()`,
 `ruta_hasta(destino)`, `viajar(destino)` (cobra
-`COSTO_VIAJE_COLAPSO` × costo), `registrar_decision(zona, resultado)`,
+`COSTO_VIAJE_COLAPSO` × costo), `cerrar_mazmorra(mazmorra, resultado)`
+(única vía que usa `Main.py`: aplica la decisión solo si
+`mazmorra.completar()` acepta, una vez por mazmorra),
+`registrar_decision(zona, resultado)`,
 `hay_derrota_global()`.
 *Depende de:* `balance`, `colapso`, `grafo_ciudad`, `mazmorra_final`,
 `progreso`, `ui/terminal_decision`.
@@ -502,6 +524,7 @@ cuadrícula 3x3; la ciudad, 5 zonas y 7 calles.
 | DFS aleatorio (pila explícita) | `Mazmorra._generar_layout` | Genera el layout: cada celda nueva se une con un pasillo a la del tope de la pila; sin vecinas libres, se desapila. | O(C), C = 9 celdas | Produce pasillos largos y ramificados (estilo Isaac) y un árbol conexo por construcción; la arista extra agrega un ciclo. |
 | DFS (`Grafo.dfs`) + `es_conexo` | `Mazmorra.__init__` (y tests) | Valida al generar que toda mazmorra se puede recorrer completa; si no, falla en vez de dejar cuartos inalcanzables. | O(V + E) | Solo importa la alcanzabilidad, no la distancia; iterativo para no depender del límite de recursión. |
 | BFS | `Mazmorra._elegir_cuarto_final` | El cuarto final es el más lejano (en cuartos) desde la entrada. | O(V + E) | Los pasillos no tienen peso: BFS da la distancia en saltos exacta, más simple y barato que Dijkstra. |
+| `copia` + `eliminar_nodo` + DFS (`es_conexo`) | `Mazmorra.resto_conexo_sin` | El final nunca es punto de corte: sellado, no deja cuartos inalcanzables. | O(V + E) por candidato | Quitar el nodo y preguntar si el resto es conexo es la definición directa de punto de corte, fácil de explicar. |
 | BFS | `Mazmorra.propagar_desde` | Cada 15 s con enemigos vivos, los cuartos no generados a distancia d suben 10/d de toxicidad. | O(V + E) por propagación | Necesita la distancia de todos los cuartos al actual, justo lo que devuelve un BFS. |
 | BFS + `camino` | `Mazmorra.ruta_al_final`, minimapa | Resalta el camino más corto del cuarto actual al final. | O(V + E) | Igual que arriba: camino más corto en un grafo sin pesos. |
 | Dijkstra (con `MinHeap`) + `camino` | `GrafoCiudad.ruta_mas_segura`, mapa | Ruta de menor saturación total y su costo, que se cobra en colapso al viajar. | O((V + E) log V) | Las calles tienen pesos distintos y la ruta con menos calles puede ser la más saturada (Plaza → Empresa de Medios: directo 6, por el Hospital 5); BFS contaría calles, Dijkstra suma pesos. |

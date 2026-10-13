@@ -105,6 +105,13 @@ class Grafo:
         """Lista de nodos en orden de inserción. O(V)."""
         return list(self._adyacencia)
 
+    def copia(self):
+        """Grafo nuevo con los mismos nodos y aristas (los diccionarios
+        se copian; los nodos se comparten). O(V + E)."""
+        nuevo = Grafo()
+        nuevo._adyacencia = {nodo: dict(vecinos) for nodo, vecinos in self._adyacencia.items()}
+        return nuevo
+
     def __contains__(self, nodo):
         return nodo in self._adyacencia
 

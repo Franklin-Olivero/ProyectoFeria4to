@@ -200,7 +200,8 @@ def main():
             terminal = mazmorra.cuarto.terminal
             terminal.actualizar(dt)
             if terminal.resultado is not None:
-                partida.registrar_decision(partida.ubicacion, terminal.resultado)
+                # Única vía para aplicar la decisión: una vez por mazmorra.
+                partida.cerrar_mazmorra(mazmorra.mazmorra, terminal.resultado)
                 mazmorra.cuarto.fase = FASE_RESUELTO
                 mazmorra = None
                 mensaje_mapa = (
@@ -245,8 +246,10 @@ def main():
         if escena == Escena.VICTORIA:
             dibujar_victoria(pantalla, fuente_titulo, fuente_hud)
         _dibujar_hud(pantalla, fuente_hud, partida.colapso, jugador)
-        if escena in (Escena.MAZMORRA, Escena.DECISION) and mostrar_minimapa:
-            dibujar_minimapa(pantalla, mazmorra.mazmorra, fuente_minimapa)
+        if escena in (Escena.MAZMORRA, Escena.DECISION):
+            _dibujar_hud_mazmorra(pantalla, fuente_hud, mazmorra)
+            if mostrar_minimapa:
+                dibujar_minimapa(pantalla, mazmorra.mazmorra, fuente_minimapa)
         if escena == Escena.JEFE:
             arena.dibujar_hud(pantalla, fuente_hud)
         if _apunta_con_mouse(escena, jugador):
@@ -364,6 +367,16 @@ def _dibujar_hud(pantalla, fuente, colapso, jugador):
         assets.COLOR_TEXTO_HUD,
     )
     pantalla.blit(texto_carga, assets.POSICION_TEXTO_CARGA)
+
+
+def _dibujar_hud_mazmorra(pantalla, fuente, mazmorra):
+    """"Cuartos limpios: X/N" y el mensaje breve de la mazmorra (sello)."""
+    limpios, total = mazmorra.mazmorra.cuartos_limpios()
+    texto = fuente.render(f"Cuartos limpios: {limpios}/{total}", True, assets.COLOR_TEXTO_HUD)
+    pantalla.blit(texto, assets.POSICION_TEXTO_CUARTOS_LIMPIOS)
+    if mazmorra.mensaje is not None:
+        superficie = fuente.render(mazmorra.mensaje[0], True, assets.COLOR_MENSAJE_MAZMORRA)
+        pantalla.blit(superficie, superficie.get_rect(center=assets.POSICION_MENSAJE_MAZMORRA))
 
 
 def _dibujar_hud_mapa(pantalla, fuente, partida):

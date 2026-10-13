@@ -42,6 +42,16 @@ class Partida:
         self.ubicacion = destino
         return camino, costo
 
+    def cerrar_mazmorra(self, mazmorra, resultado):
+        """Único camino del juego para aplicar la decisión de una mazmorra
+        normal: solo si `mazmorra.completar()` acepta (cuarto final con
+        el sello cumplido y aún no completada). Así registrar_decision
+        se aplica una sola vez por mazmorra. Retorna True si se aplicó."""
+        if not mazmorra.completar():
+            return False
+        self.registrar_decision(mazmorra.nombre_zona, resultado)
+        return True
+
     def registrar_decision(self, zona, resultado):
         """Resultado del minijuego de la mazmorra de `zona`: aplica
         colapso y progreso, y ajusta los pesos de las calles de la zona."""

@@ -4,12 +4,16 @@ Dibuja el grafo de cuartos de una Mazmorra (src/dungeon/mazmorra.py)
 en su posición de cuadrícula:
     - pasillos = aristas del grafo;
     - color de cada cuarto según su toxicidad local (verde 0 -> rojo 100),
-      oscurecido si todavía no se visitó;
+      oscurecido si todavía está pendiente (no limpio: nunca visitado o
+      con enemigos);
     - el cuarto actual con borde blanco;
-    - el cuarto final con una "F", solo una vez descubierto (visitado);
+    - el cuarto final con un candado mientras está sellado y con una
+      estrella cuando se desbloquea;
     - la ruta BFS más corta del cuarto actual al final, resaltada.
 No modifica la mazmorra.
 """
+
+import math
 
 import pygame
 
@@ -62,12 +66,38 @@ def dibujar_minimapa(pantalla, mazmorra, fuente):
     for cuarto, centro in centros.items():
         rect = pygame.Rect(0, 0, tamanio, tamanio)
         rect.center = centro
-        visitado = cuarto in mazmorra.visitados
-        pygame.draw.rect(pantalla, color_toxicidad(mazmorra.toxicidad[cuarto], visitado), rect)
+        limpio = cuarto in mazmorra.limpiados
+        pygame.draw.rect(pantalla, color_toxicidad(mazmorra.toxicidad[cuarto], limpio), rect)
         if cuarto in ruta and cuarto != mazmorra.actual:
             pygame.draw.rect(pantalla, assets.COLOR_RUTA_MINIMAPA, rect, assets.GROSOR_BORDE_RUTA_MINIMAPA)
         if cuarto == mazmorra.actual:
             pygame.draw.rect(pantalla, assets.COLOR_CUARTO_ACTUAL, rect, assets.GROSOR_CUARTO_ACTUAL)
-        if cuarto == mazmorra.cuarto_final and mazmorra.final_descubierto:
-            marca = fuente.render("F", True, assets.COLOR_MARCA_FINAL)
-            pantalla.blit(marca, marca.get_rect(center=centro))
+        if cuarto == mazmorra.cuarto_final:
+            if mazmorra.final_desbloqueado():
+                _dibujar_estrella(pantalla, centro)
+            else:
+                _dibujar_candado(pantalla, centro)
+
+
+def _dibujar_candado(pantalla, centro):
+    """Cuerpo rectangular + arco (rectángulo sin base) encima."""
+    ancho = assets.TAMANIO_CANDADO
+    cuerpo = pygame.Rect(0, 0, ancho, ancho * 3 // 4)
+    cuerpo.midtop = (centro[0], centro[1] - 1)
+    arco = pygame.Rect(0, 0, ancho * 2 // 3, ancho * 2 // 3)
+    arco.midbottom = (centro[0], cuerpo.top + assets.GROSOR_CANDADO)
+    pygame.draw.rect(pantalla, assets.COLOR_CANDADO, arco, assets.GROSOR_CANDADO)
+    pygame.draw.rect(pantalla, assets.COLOR_CANDADO, cuerpo)
+    pygame.draw.rect(pantalla, assets.COLOR_MARCA_FINAL, cuerpo, 1)
+
+
+def _dibujar_estrella(pantalla, centro):
+    """Estrella de 5 puntas: el cuarto final ya se puede abrir."""
+    radio = assets.TAMANIO_CANDADO * 0.75
+    puntos = []
+    for i in range(10):
+        r = radio if i % 2 == 0 else radio * 0.45
+        angulo = math.radians(-90 + i * 36)
+        puntos.append((centro[0] + r * math.cos(angulo), centro[1] + r * math.sin(angulo)))
+    pygame.draw.polygon(pantalla, assets.COLOR_FINAL_DESBLOQUEADO, puntos)
+    pygame.draw.polygon(pantalla, assets.COLOR_MARCA_FINAL, puntos, 1)

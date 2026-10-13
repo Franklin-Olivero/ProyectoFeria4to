@@ -63,15 +63,29 @@ REPORTES_ZONA_EJEMPLO = [
 
 
 class Puerta:
-    """Una puerta del cuarto: su rectángulo y si está bloqueada o abierta."""
+    """Una puerta del cuarto: su rectángulo y su estado.
+
+    bloqueada: hay enemigos vivos en el cuarto.
+    sellada: lleva al cuarto final y todavía quedan cuartos pendientes
+        (lo decide la mazmorra, no los enemigos de este cuarto).
+    """
 
     def __init__(self, direccion, rect):
         self.direccion = direccion
         self.rect = rect
         self.bloqueada = True
+        self.sellada = False
+
+    @property
+    def cruzable(self):
+        return not self.bloqueada and not self.sellada
 
     def color(self):
-        return assets.COLOR_PUERTA_BLOQUEADA if self.bloqueada else assets.COLOR_PUERTA_ABIERTA
+        if self.bloqueada:
+            return assets.COLOR_PUERTA_BLOQUEADA
+        if self.sellada:
+            return assets.COLOR_PUERTA_SELLADA
+        return assets.COLOR_PUERTA_ABIERTA
 
 
 class Cuarto:
@@ -93,6 +107,7 @@ class Cuarto:
         nivel_toxicidad=None,
         dificultad=None,
         es_final=True,
+        permitir_decision=None,
     ):
         ancho_ventana = pygame.display.get_surface().get_width()
         alto_ventana = pygame.display.get_surface().get_height()
@@ -105,6 +120,9 @@ class Cuarto:
         self.nivel_toxicidad = nivel_toxicidad
         self.dificultad = dificultad if dificultad is not None else nivel_a_dificultad(nivel_toxicidad)
         self.es_final = es_final
+        # Defensa extra: función sin argumentos que dice si la decisión
+        # puede empezar (la mazmorra exige el sello cumplido). None = sí.
+        self.permitir_decision = permitir_decision
 
         self.fase = FASE_COMBATE
         self.terminal = None
@@ -160,6 +178,8 @@ class Cuarto:
             if not self.es_final:
                 self.fase = FASE_LIMPIO
                 return
+            if self.permitir_decision is not None and not self.permitir_decision():
+                return  # se reintenta cada frame (ver actualizar)
             self.fase = FASE_DECISION
             self.terminal = TerminalDecision(construir_arbol_publicacion())
             self.terminal.iniciar()
@@ -178,6 +198,8 @@ class Cuarto:
         self.enemigos = [enemigo for enemigo in self.enemigos if enemigo.vivo]
         if len(self.enemigos) != cantidad_antes:
             self._actualizar_estado_puertas()
+        else:
+            self._verificar_fin_combate()
 
     def eliminar_un_enemigo(self):
         """Debug: quita un enemigo de la lista y refresca el estado de las puertas."""
@@ -194,6 +216,14 @@ class Cuarto:
 
         for puerta in self.puertas.values():
             pygame.draw.rect(pantalla, puerta.color(), puerta.rect)
+            if puerta.sellada and not puerta.bloqueada:
+                # Una X sobre la puerta: cerrada por cuartos pendientes.
+                r = puerta.rect
+                for inicio, fin in ((r.topleft, r.bottomright), (r.bottomleft, r.topright)):
+                    pygame.draw.line(
+                        pantalla, assets.COLOR_X_PUERTA_SELLADA, inicio, fin,
+                        assets.GROSOR_X_PUERTA_SELLADA,
+                    )
 
         for enemigo in self.enemigos:
             enemigo.dibujar(pantalla)

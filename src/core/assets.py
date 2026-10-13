@@ -224,3 +224,17 @@ GROSOR_MIRA = 2
 LARGO_CRUZ_MIRA = 5  # px de cada brazo de la cruz que sale del círculo
 COLOR_LINEA_APUNTADO = (255, 255, 255, 60)  # RGBA: línea tenue jugador -> mira
 GROSOR_LINEA_APUNTADO = 1
+
+# Sello del cuarto final de una mazmorra normal (cuartos pendientes)
+COLOR_PUERTA_SELLADA = (170, 130, 30)  # dorado oscuro: no es por enemigos
+COLOR_X_PUERTA_SELLADA = (50, 35, 10)
+GROSOR_X_PUERTA_SELLADA = 3
+DURACION_MENSAJE_MAZMORRA = 2.0  # s de "Cuarto final desbloqueado" / "Limpia todos..."
+COLOR_MENSAJE_MAZMORRA = (255, 220, 80)
+POSICION_MENSAJE_MAZMORRA = (400, 70)  # centro: entre el HUD y el muro superior del cuarto
+POSICION_TEXTO_CUARTOS_LIMPIOS = (10, 70)
+# Minimapa: candado sobre el cuarto final sellado y estrella al desbloquearse
+COLOR_CANDADO = (255, 210, 80)
+COLOR_FINAL_DESBLOQUEADO = (255, 255, 255)
+TAMANIO_CANDADO = 14  # ancho del cuerpo del candado en px
+GROSOR_CANDADO = 2

@@ -11,7 +11,12 @@ El grafo gobierna toda la mecánica:
       donde hay arista.
     - Entrada = primera celda elegida (cuarto 0, sin enemigos).
       Cuarto final = el más lejano por BFS desde la entrada (desempate:
-      menor id). Solo ahí aparece el minijuego de decisión.
+      menor id) cuya eliminación NO desconecta al resto: así todos los
+      demás cuartos se pueden recorrer sin pasar por el final.
+    - Sello del cuarto final: solo se puede entrar (por cualquiera de
+      sus puertas, aunque el ciclo le dé dos) cuando todos los demás
+      cuartos están limpios. Solo ahí aparece el minijuego de decisión,
+      y resolverlo completa la mazmorra (una sola vez).
     - Generación perezosa: un cuarto decide su dificultad la primera
       vez que se entra, con nivel_a_dificultad(toxicidad_local).
     - Propagación de toxicidad: cada PROPAGACION_INTERVALO s en un
@@ -55,7 +60,9 @@ class Mazmorra:
         entrada, cuarto_final, actual: ids de cuarto.
         toxicidad: {cuarto: nivel 0-100}; arranca en el nivel de la zona.
         dificultad: {cuarto: dict} solo para los cuartos ya generados.
-        visitados, limpiados: conjuntos de ids.
+        visitados, limpiados: conjuntos de ids. La entrada está limpia
+            desde el inicio; un cuarto nunca visitado NO está limpio.
+        completada: True tras resolver la decisión del cuarto final.
         tiempo_en_cuarto: segundos acumulados con enemigos vivos.
     """
 
@@ -82,6 +89,7 @@ class Mazmorra:
         self.dificultad = {}
         self.visitados = set()
         self.limpiados = set()
+        self.completada = False
         self.tiempo_en_cuarto = 0.0
         self.actual = None
         self.entrar(self.entrada)
@@ -145,10 +153,32 @@ class Mazmorra:
         return vecinas
 
     def _elegir_cuarto_final(self):
-        """El cuarto con mayor distancia BFS desde la entrada; si empatan,
-        el de menor id. O(V + E)."""
+        """El cuarto más lejano por BFS desde la entrada (desempate: menor
+        id) que no sea un "punto de corte": sin él, el resto del grafo
+        sigue conexo, así que ningún cuarto queda atrapado detrás del
+        final sellado. Si el más lejano no cumple, se prueba el siguiente.
+
+        (En la práctica el más lejano siempre cumple: es una hoja del
+        árbol BFS, y el resto del árbol sigue uniendo a los demás. La
+        verificación queda explícita como garantía.)
+        Complejidad: O(V * (V + E)) en el peor caso; con 6 cuartos, nada.
+        """
         _, distancias, _ = self.grafo.bfs(self.entrada)
-        return max(distancias, key=lambda cuarto: (distancias[cuarto], -cuarto))
+        candidatos = sorted(
+            (c for c in distancias if c != self.entrada),
+            key=lambda cuarto: (-distancias[cuarto], cuarto),
+        )
+        for candidato in candidatos:
+            if self.resto_conexo_sin(candidato):
+                return candidato
+        raise RuntimeError("Ningún cuarto puede ser final sin desconectar la mazmorra.")
+
+    def resto_conexo_sin(self, cuarto):
+        """True si el grafo sin `cuarto` sigue siendo conexo (copia +
+        eliminar_nodo + es_conexo, todo O(V + E))."""
+        sin_cuarto = self.grafo.copia()
+        sin_cuarto.eliminar_nodo(cuarto)
+        return sin_cuarto.es_conexo()
 
     # ------------------------------------------------------------------
     # Puertas y movimiento
@@ -167,10 +197,11 @@ class Mazmorra:
 
     def mover(self, direccion):
         """Pasa al cuarto vecino por la puerta `direccion` del cuarto
-        actual. Retorna el id del cuarto nuevo, o None si no hay pasillo.
-        (Que la puerta esté abierta lo decide el cuarto físico.)"""
+        actual. Retorna el id del cuarto nuevo, o None si no hay pasillo
+        o si el destino es el cuarto final todavía sellado. (Que la
+        puerta no esté bloqueada por enemigos lo decide el cuarto físico.)"""
         vecino = self.puertas(self.actual).get(direccion)
-        if vecino is None:
+        if vecino is None or not self.puede_entrar(vecino):
             return None
         self.entrar(vecino)
         return vecino
@@ -197,7 +228,54 @@ class Mazmorra:
         return cuarto in self.dificultad
 
     def marcar_limpiado(self, cuarto):
+        """Marca `cuarto` como limpio. Retorna True si con esto se
+        desbloqueó el cuarto final (era el último pendiente)."""
+        estaba_desbloqueado = self.final_desbloqueado()
         self.limpiados.add(cuarto)
+        return not estaba_desbloqueado and self.final_desbloqueado()
+
+    # ------------------------------------------------------------------
+    # Sello del cuarto final y cierre de la mazmorra
+    # ------------------------------------------------------------------
+
+    def cuartos_pendientes(self):
+        """Cuartos no finales que aún no están limpios (incluye los nunca
+        visitados). O(V)."""
+        return [
+            cuarto for cuarto in self.grafo.nodos()
+            if cuarto != self.cuarto_final and cuarto not in self.limpiados
+        ]
+
+    def final_desbloqueado(self):
+        return not self.cuartos_pendientes()
+
+    def puede_entrar(self, cuarto):
+        """El cuarto final solo con todo lo demás limpio; los demás, siempre."""
+        if cuarto == self.cuarto_final:
+            return self.final_desbloqueado()
+        return True
+
+    def puede_iniciar_decision(self):
+        """Defensa extra: la decisión solo arranca estando en el cuarto
+        final con el sello cumplido y la mazmorra aún sin completar."""
+        return (
+            self.actual == self.cuarto_final
+            and self.final_desbloqueado()
+            and not self.completada
+        )
+
+    def completar(self):
+        """Cierra la mazmorra al resolverse la decisión. Retorna True solo
+        la primera vez (y solo si la decisión podía haberse iniciado):
+        quien la llama aplica el resultado únicamente en ese caso."""
+        if not self.puede_iniciar_decision():
+            return False
+        self.completada = True
+        return True
+
+    def cuartos_limpios(self):
+        """(limpios, total) para el HUD; el final cuenta como el último."""
+        return len(self.limpiados), len(self.grafo)
 
     @property
     def final_descubierto(self):
