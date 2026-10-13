@@ -25,7 +25,8 @@ PruebaPythonGame/
 │   │   ├── balance.py              # Números de balance: stats por rol, jefe, charcos, i-frames. Puro.
 │   │   ├── colapso.py              # ColapsoElectoral: porcentaje 0-100 que sube/baja. Puro.
 │   │   ├── equipo.py               # Carga compartida de habilidad entre aliados. Puro.
-│   │   └── escenas.py              # Enum Escena + transición a DERROTA por colapso. Puro.
+│   │   ├── escenas.py              # Enum Escena + transición a DERROTA por colapso. Puro.
+│   │   └── apuntado.py             # Dirección unitaria hacia el mouse con zona muerta. Puro (solo math).
 │   ├── structures/
 │   │   ├── tree.py                 # Árbol N-ario manual (CRUD + 4 recorridos). Puro.
 │   │   ├── min_heap.py             # Montículo binario de mínimos manual (cola de prioridad). Puro.
@@ -119,6 +120,12 @@ de habilidades).
 decimal para tolerar el error de float), `texto()`.
 *Depende de:* nada.
 
+**`apuntado.py`** — puro (solo `math`).
+`calcular_direccion_apuntado(centro, punto_mouse, direccion_previa)` →
+vector unitario `(x, y)` hacia el mouse, o `direccion_previa` si el
+mouse está a menos de `ZONA_MUERTA_APUNTADO` px. O(1).
+*Depende de:* `balance`.
+
 **`escenas.py`** — puro. **`Escena`** (Enum): `MAPA_CIUDAD`,
 `MAZMORRA`, `DECISION`, `JEFE`, `VICTORIA`, `DERROTA`;
 `ESCENAS_DE_COMBATE`; `escena_tras_colapso(escena, colapso)` →
@@ -187,7 +194,12 @@ y no la reinicia), `visible` (parpadeo), `reiniciar()`.
 - **`JugadorBase`** — identidad del rol (`rol`, `COLOR`, `NOMBRE`,
   `NOMBRE_HABILIDAD`); stats leídas de `STATS_POR_ROL[rol]`
   (`velocidad`, `vida_maxima`, `danio`, `carga_maxima`); `invulnerabilidad`.
-  Métodos: `manejar_movimiento`, `actualizar_disparo(dt, disparando)`
+  Atributo de clase `apunta_con_mouse` (True por defecto; el Candidato
+  lo pone en False): decide quién actualiza `direccion_mirada` —
+  `apuntar_a(punto_mouse)` (usa `core/apuntado`) o
+  `manejar_movimiento` (dirección de caminata). Los ataques y la
+  habilidad siempre salen de `direccion_mirada`.
+  Métodos: `manejar_movimiento`, `apuntar_a`, `actualizar_disparo(dt, disparando)`
   (disparo sostenido con acumulador), `registrar_kill`, `sumar_carga`,
   `puede_usar_habilidad`, `recibir_dano(danio, inicia_invulnerabilidad)`,
   `actualizar_invulnerabilidad`, `dibujar`. Interfaz a sobreescribir:
@@ -195,7 +207,7 @@ y no la reinicia), `visible` (parpadeo), `reiniciar()`.
 - **`Ciudadano(JugadorBase)`** — abanico de 3 proyectiles / Burbuja
   Comunitaria (flag con duración; todavía sin frenar proyectiles ni curar).
 
-*Depende de:* `pygame`, `assets`, `balance`, `invulnerabilidad`, `projectile`.
+*Depende de:* `pygame`, `assets`, `apuntado`, `balance`, `invulnerabilidad`, `projectile`.
 
 **`influencer.py`** — **`ProyectilEmpuje(Proyectil)`** (ancho; al
 impactar daña y llama `enemigo.empujar`) e **`Influencer(JugadorBase)`**
@@ -208,7 +220,7 @@ al impactar; daña una vez a cada enemigo; con `quita_escudo` pone
 (Fact-Checking).
 *Depende de:* `pygame`, `assets`, `player`, `projectile`.
 
-**`candidato.py`** — **`OndaExpansiva`** (área circular que crece;
+**`candidato.py`** — `apunta_con_mouse = False`. **`OndaExpansiva`** (área circular que crece;
 misma interfaz que `Proyectil` por duck typing),
 **`ProyectilRebotante(Proyectil)`** (invierte x/y en los bordes) y
 **`Candidato(JugadorBase)`** (Debate Rebotante).
@@ -342,9 +354,16 @@ de dibujo.
   en la Alcaldía, si está desbloqueada) `JEFE` → `VICTORIA` → (ENTER)
   `MAPA_CIUDAD`; desde cualquier escena, colapso al 100% → `DERROTA` →
   (ENTER) partida nueva. M alterna el minimapa.
+- Apuntado: en `MAZMORRA`/`JEFE`, si `jugador.apunta_con_mouse`, lee el
+  mouse (sin foco conserva la dirección), le resta la sacudida con la
+  que se dibujó el mundo y llama `apuntar_a` (al inicio del frame, para
+  F, y tras moverse, para el disparo); oculta el cursor y dibuja la
+  mira (`_dibujar_mira`) sobre el HUD. SPACE o click izquierdo
+  (`CLICK_DISPARA`) cuentan como "disparando".
 - `_frame_de_combate(...)` — un frame de combate idéntico en la
   mazmorra y en la arena.
-- `_escenario_activo`, `_nuevo_selector`, `_curar`, `_elegir_rol`,
+- `_apunta_con_mouse`, `_apuntar_con_mouse`, `_dibujar_mira`,
+  `_escenario_activo`, `_nuevo_selector`, `_curar`, `_elegir_rol`,
   `_dibujar_hud`, `_dibujar_hud_mapa`,
   `_actualizar_proyectiles`, `_resolver_colisiones_contra_enemigos`
   (delega en `al_impactar` y reparte carga con `registrar_kill_equipo`),
@@ -420,7 +439,9 @@ graph TD
 
     Equipo --> Balance
     Invul --> Balance
-    Player --> Balance & Invul & Proyectil
+    Apuntado["apuntado"]
+    Apuntado --> Balance
+    Player --> Balance & Invul & Proyectil & Apuntado
     Infl --> Player
     Peri --> Player
     Cand --> Player
@@ -446,7 +467,7 @@ graph TD
     Minimapa --> Balance
 
     classDef puro fill:#d6f5d6,stroke:#2e7d32,color:#000
-    class Tree,Heap,Graph,BT,Balance,Colapso,Equipo,Escenas,Invul,Jefe,Clasif,Mazmorra,Ciudad,Partida,Progreso,Charco,MFinal,Terminal,Selector puro
+    class Apuntado,Tree,Heap,Graph,BT,Balance,Colapso,Equipo,Escenas,Invul,Jefe,Clasif,Mazmorra,Ciudad,Partida,Progreso,Charco,MFinal,Terminal,Selector puro
 ```
 
 Para no saturar el diagrama no se dibujan las flechas hacia
@@ -529,6 +550,7 @@ Reglas que ya están aplicadas en el código, no solo declaradas en
   `test_balance`, `test_mazmorra_final`, `test_invulnerabilidad`,
   `test_progreso`, `test_min_heap`, `test_graph`, `test_mazmorra`,
   `test_grafo_ciudad` y `test_partida` (derrota global y reinicio) no
-  usan `pygame` (`test_graph` verifica en un proceso aparte que los
+  usan `pygame`; `test_apuntado` prueba la función pura sin `pygame` y
+  el apuntado de los roles con `Vector2` (`test_graph` verifica en un proceso aparte que los
   módulos de grafos, mazmorra, ciudad, partida y escenas no lo cargan); `test_player_habilidad` y
   `test_roles` usan `pygame.Rect`/`Vector2` sin abrir ventana.

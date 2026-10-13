@@ -42,15 +42,25 @@ Como está implementada: jefe "Servidor Central" en un solo cuarto grande, con 3
 ## Colapso Electoral
 Barra 0.0%-100.0%: +0.2 por cada fallo (Detonación o derrota contra el jefe), -0.1 por cada éxito (Purificación Exitosa o jefe derrotado), y +0.02 por unidad de costo de cada viaje por la ciudad. **Derrota global:** si llega a 100% (en cualquier escena), la escena DERROTA muestra "Colapso total" con el input de combate desactivado; ENTER reinicia la partida completa (colapso 0, progreso 0, ubicación en la Plaza, pesos de la ciudad restablecidos, mismo rol) y ESC sale.
 
+## Controles
+
+* WASD o flechas: mover.
+* Mouse: apuntar (Ciudadano, Influencer y Periodista). En combate el cursor del sistema se oculta y se dibuja una mira con una línea tenue desde el jugador (`MOSTRAR_LINEA_APUNTADO` en `balance.py`). El Candidato no usa el mouse: cursor normal, sin mira.
+* SPACE o click izquierdo (mantenidos): disparar (`CLICK_DISPARA` en `balance.py`). Mismo cooldown y cadencia con cualquiera de los dos.
+* F: habilidad. M: minimapa.
+* ENTER y flechas: menús, mapa de la ciudad y terminal de decisión.
+
+**Regla de apuntado:** la dirección de disparo siempre sale de `direccion_mirada`. En los roles con `apunta_con_mouse = True` solo la actualiza `apuntar_a()`; el Candidato (`apunta_con_mouse = False`) la actualiza al caminar porque su ataque es radial y su habilidad sale hacia donde camina. Los roles nunca calculan su propia dirección. La cuenta vive en `src/core/apuntado.py` (pura; zona muerta `ZONA_MUERTA_APUNTADO` = 6 px) y `Main.py` le resta al mouse la sacudida de pantalla antes de apuntar.
+
 ## Los 4 roles jugables
-Influencer, Periodista, Ciudadano, Candidato — los 4 están implementados y se eligen con las teclas 1-4 al empezar. Cada uno: ataque básico con disparo sostenido (SPACE mantenida, limitado por la cadencia del rol) + habilidad activa (F) que **se carga matando enemigos dentro de la mazmorra** (no por temporizador) — una barra de carga que se llena con kills y se gasta completa al usar la habilidad. Sinergia: Influencer agrupa, Periodista expone, Candidato remata, Ciudadano sostiene.
+Influencer, Periodista, Ciudadano, Candidato — los 4 están implementados y se eligen con las teclas 1-4 al empezar. Cada uno: ataque básico con disparo sostenido (SPACE o click izquierdo mantenidos, limitado por la cadencia del rol) + habilidad activa (F) que **se carga matando enemigos dentro de la mazmorra** (no por temporizador) — una barra de carga que se llena con kills y se gasta completa al usar la habilidad. Sinergia: Influencer agrupa, Periodista expone, Candidato remata, Ciudadano sostiene.
 
 * Influencer: proyectil ancho que empuja al enemigo golpeado / Live Stream Viral (fija el aggro de todos los enemigos vivos del cuarto hacia él durante 3 s)
 * Periodista: rayo perforante lineal / Fact-Checking (rayo perforante que quita el escudo de anonimato de cada enemigo que cruza; al jefe se lo rompe de golpe)
 * Ciudadano: abanico frontal de 3 proyectiles / Burbuja Comunitaria (diseño: domo que frena proyectiles hostiles y regenera vida de aliados dentro; hoy solo se activa como flag con duración de 4 s y radio dibujado, sin frenar proyectiles ni curar)
 * Candidato: onda expansiva radial / Debate Rebotante (3 proyectiles que rebotan en las paredes hasta 3 rebotes o 4 s)
 
-Clase base común: `JugadorBase` en `src/entities/player.py`; cada rol solo sobreescribe `ataque_basico()` y `usar_habilidad()`.
+Clase base común: `JugadorBase` en `src/entities/player.py`; cada rol solo sobreescribe `ataque_basico()` y `usar_habilidad()` (y el Candidato, además, `apunta_con_mouse = False`).
 
 **Invulnerabilidad tras un golpe (i-frames):** al recibir daño, el jugador queda invulnerable `INVULNERABILIDAD_DURACION` = 0.6 s (en `balance.py`) y su sprite parpadea cada 0.08 s. Vale para los 4 roles, en el cuarto normal y en la arena del jefe. No se acumula: un golpe durante la ventana no la reinicia. Los charcos tóxicos respetan la ventana (no dañan durante ella) pero su daño continuo no la abre.
 
@@ -76,7 +86,7 @@ PruebaPythonGame/
 │-- requirements.txt
 │-- assets/             # (aún no existe: llegará con el arte real)
 │-- src/
-│   │-- core/          # constantes, balance, configuración de pantalla, reloj
+│   │-- core/          # constantes, balance, configuración de pantalla, reloj, escenas, apuntado
 │   │-- structures/     # árbol N-ario, grafo y min-heap puros, sin dependencias de Pygame
 │   │-- ai/             # behavior tree genérico, sin dependencias de Pygame
 │   │-- entities/       # jugadores (roles), proyectiles, enemigos, jefe
@@ -106,6 +116,7 @@ No mezclar responsabilidades entre carpetas. `structures/` y `ai/` no deben impo
 16. Mazmorra normal de 6 cuartos sobre el grafo: generación DFS 3x3 con un ciclo, cuarto final por BFS, generación perezosa y propagación de toxicidad por BFS (`src/dungeon/mazmorra.py`, `mazmorra_jugable.py`) — completado
 17. Mapa de la ciudad con Dijkstra, costo de viaje en colapso y pesos dinámicos (`src/dungeon/grafo_ciudad.py`, escena MAPA_CIUDAD, `src/ui/mapa_ciudad*.py`); reemplaza la tecla B — completado
 18. Minimapa de la mazmorra con la tecla M (`src/ui/mapa_render.py`) — completado
+19. Apuntado con mouse para Ciudadano, Influencer y Periodista (`src/core/apuntado.py`, `JugadorBase.apuntar_a`, mira en `Main.py`) y click izquierdo como segundo gatillo; el Candidato sigue apuntando al caminar — completado
 
 No agregues código de Ciudad Nova como mundo abierto caminable (la ciudad hoy es solo el mapa de selección) ni sockets / `src/network/` salvo que se te pida explícitamente — son alcance de entregas futuras.
 

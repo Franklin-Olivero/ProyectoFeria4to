@@ -26,11 +26,17 @@ enemigos (registrar_kill) y se gasta completa al usarla.
 
 Invulnerabilidad: tras un golpe, INVULNERABILIDAD_DURACION segundos sin
 perder vida, con el sprite parpadeando.
+
+Apuntado: los ataques salen siempre de `direccion_mirada`. Si el rol
+tiene `apunta_con_mouse = True` (Ciudadano, Influencer, Periodista),
+solo apuntar_a() la cambia, hacia el mouse; si es False (Candidato),
+la cambia manejar_movimiento() con la dirección de caminata.
 """
 
 import pygame
 
 from src.core import assets
+from src.core.apuntado import calcular_direccion_apuntado
 from src.core.balance import (
     BUFF_KILL_DURACION,
     DANIO_BASE,
@@ -51,6 +57,8 @@ class JugadorBase:
     COLOR = assets.COLOR_CIUDADANO
     NOMBRE = "Jugador"
     NOMBRE_HABILIDAD = ""
+    # True: apunta con el mouse (apuntar_a). False: apunta hacia donde camina.
+    apunta_con_mouse = True
 
     def __init__(self, x, y):
         self.rect = pygame.Rect(0, 0, assets.TAMANIO_JUGADOR, assets.TAMANIO_JUGADOR)
@@ -69,11 +77,9 @@ class JugadorBase:
         self.invulnerabilidad = Invulnerabilidad()
         self.danio = DANIO_BASE * self.stats.danio_mult
         self.carga_maxima = self.stats.carga_maxima
-        # Dirección hacia la que "mira" el jugador: se usa para apuntar
-        # los ataques. El proyecto es 100% teclado (sin mouse en ningún
-        # otro sistema), así que se define como la última dirección de
-        # movimiento en vez de apuntar al mouse, para mantener
-        # consistencia con el resto de la mecánica.
+        # Dirección hacia la que "mira" el jugador: de aquí salen los
+        # ataques y la habilidad. La actualiza apuntar_a() (mouse) o
+        # manejar_movimiento() según `apunta_con_mouse`.
         self.direccion_mirada = pygame.Vector2(0, -1)
 
         # Puede tener fracciones por la carga compartida del equipo.
@@ -101,11 +107,21 @@ class JugadorBase:
 
         if direccion.length_squared() > 0:
             direccion = direccion.normalize()
-            self.direccion_mirada = direccion
+            if not self.apunta_con_mouse:
+                self.direccion_mirada = direccion
             self.posicion += direccion * self.velocidad * dt
             self.rect.center = (round(self.posicion.x), round(self.posicion.y))
             self.rect.clamp_ip(limites)
             self.posicion.update(self.rect.center)
+
+    def apuntar_a(self, punto_mouse):
+        """Orienta `direccion_mirada` hacia `punto_mouse` (coordenadas del
+        mundo). No hace nada si el rol no apunta con el mouse."""
+        if not self.apunta_con_mouse:
+            return
+        previa = (self.direccion_mirada.x, self.direccion_mirada.y)
+        nueva = calcular_direccion_apuntado(self.rect.center, punto_mouse, previa)
+        self.direccion_mirada = pygame.Vector2(nueva)
 
     # ------------------------------------------------------------------
     # Disparo sostenido con cooldown

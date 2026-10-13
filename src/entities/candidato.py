@@ -99,6 +99,9 @@ class Candidato(JugadorBase):
     COLOR = assets.COLOR_CANDIDATO
     NOMBRE = "Candidato"
     NOMBRE_HABILIDAD = "Debate Rebotante"
+    # Ataque radial (no necesita apuntar) y Debate Rebotante hacia donde
+    # camina: la dirección la sigue fijando manejar_movimiento().
+    apunta_con_mouse = False
 
     def ataque_basico(self):
         return [OndaExpansiva(self.rect.center, self.danio)]

@@ -21,6 +21,11 @@ DANIO_BASE = 1
 # arena). Un golpe dentro de la ventana no resta vida ni la reinicia.
 INVULNERABILIDAD_DURACION = 0.6  # segundos
 
+# Controles: apuntado con mouse (src/core/apuntado.py) y gatillos
+ZONA_MUERTA_APUNTADO = 6  # px: con el mouse más cerca se conserva la dirección previa
+MOSTRAR_LINEA_APUNTADO = True  # línea tenue del jugador a la mira
+CLICK_DISPARA = True  # click izquierdo mantenido dispara igual que SPACE
+
 # Límites de la cadencia efectiva (con o sin buff)
 CADENCIA_MINIMA_INTERVALO = 0.08  # segundos: piso del tiempo entre disparos
 CADENCIA_MAXIMA = 12  # volleys por segundo: tope

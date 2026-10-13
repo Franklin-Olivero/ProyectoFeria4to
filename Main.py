@@ -20,6 +20,7 @@ import sys
 import pygame
 
 from src.core import assets
+from src.core.balance import CLICK_DISPARA, MOSTRAR_LINEA_APUNTADO
 from src.core.config import FPS, crear_pantalla, crear_reloj
 from src.core.equipo import registrar_kill_equipo
 from src.core.escenas import ESCENAS_DE_COMBATE, Escena, escena_tras_colapso
@@ -101,6 +102,9 @@ def main():
     # Se dibuja el mundo aquí y se copia a la pantalla con la sacudida;
     # el HUD va directo a la pantalla para que no tiemble.
     lienzo = pygame.Surface(pantalla.get_size())
+    # Desplazamiento con el que se dibujó el mundo en el último frame: el
+    # mouse está en coordenadas de pantalla y se le resta para apuntar.
+    sacudida = (0, 0)
 
     proyectiles_jugador = []
     proyectiles_enemigos = []
@@ -109,6 +113,12 @@ def main():
     while ejecutando:
         dt = reloj.tick(FPS) / 1000
         tiempo_mensaje_mapa = max(0.0, tiempo_mensaje_mapa - dt)
+        # Mouse: solo en combate y con un rol que apunta con él (no el
+        # Candidato). Ahí se oculta el cursor del sistema y se dibuja la mira.
+        apuntando = _apunta_con_mouse(escena, jugador)
+        pygame.mouse.set_visible(not apuntando)
+        if apuntando:
+            _apuntar_con_mouse(jugador, sacudida)  # la habilidad (F) sale hacia el mouse
 
         # --- Input, según la escena ------------------------------------
         for evento in pygame.event.get():
@@ -173,7 +183,8 @@ def main():
 
         if escena in ESCENAS_DE_COMBATE:
             _frame_de_combate(
-                dt, jugador, jugadores, escenario, proyectiles_jugador, proyectiles_enemigos
+                dt, jugador, jugadores, escenario, proyectiles_jugador, proyectiles_enemigos,
+                sacudida,
             )
             if escena == Escena.MAZMORRA:
                 if mazmorra.cambio_de_cuarto:
@@ -215,6 +226,7 @@ def main():
             if escena == Escena.DERROTA:
                 dibujar_derrota(pantalla, fuente_titulo, fuente_hud)
             pygame.display.flip()
+            sacudida = (0, 0)
             continue
 
         escenario = _escenario_activo(escena, arena, mazmorra)
@@ -237,20 +249,29 @@ def main():
             dibujar_minimapa(pantalla, mazmorra.mazmorra, fuente_minimapa)
         if escena == Escena.JEFE:
             arena.dibujar_hud(pantalla, fuente_hud)
+        if _apunta_con_mouse(escena, jugador):
+            _dibujar_mira(pantalla, jugador, sacudida)
         pygame.display.flip()
 
     pygame.quit()
     sys.exit()
 
 
-def _frame_de_combate(dt, jugador, jugadores, escenario, proyectiles_jugador, proyectiles_enemigos):
+def _frame_de_combate(
+    dt, jugador, jugadores, escenario, proyectiles_jugador, proyectiles_enemigos, sacudida=(0, 0)
+):
     """Un frame de combate, igual en la mazmorra y en la arena."""
     jugador.actualizar_invulnerabilidad(dt)
     teclas = pygame.key.get_pressed()
     jugador.manejar_movimiento(teclas, dt, escenario.rect)
+    # Se re-apunta tras moverse, para que el disparo salga desde la
+    # posición nueva hacia el mouse.
+    if jugador.apunta_con_mouse:
+        _apuntar_con_mouse(jugador, sacudida)
     # Disparo sostenido: el jugador decide cuántos volleys salen según
-    # su cooldown (cadencia del rol + buff por kill).
-    proyectiles_jugador.extend(jugador.actualizar_disparo(dt, teclas[TECLA_DISPARAR]))
+    # su cooldown (cadencia del rol + buff por kill). SPACE o click izquierdo.
+    disparando = teclas[TECLA_DISPARAR] or (CLICK_DISPARA and pygame.mouse.get_pressed()[0])
+    proyectiles_jugador.extend(jugador.actualizar_disparo(dt, disparando))
     escenario.actualizar(dt, jugador, proyectiles_enemigos)
 
     _actualizar_proyectiles(proyectiles_jugador, dt, escenario.rect)
@@ -260,6 +281,40 @@ def _frame_de_combate(dt, jugador, jugadores, escenario, proyectiles_jugador, pr
         proyectiles_jugador, escenario.enemigos, jugador, jugadores
     )
     _resolver_colision_contra_jugador(proyectiles_enemigos, jugador)
+
+
+def _apunta_con_mouse(escena, jugador):
+    return escena in ESCENAS_DE_COMBATE and jugador.apunta_con_mouse
+
+
+def _apuntar_con_mouse(jugador, sacudida):
+    """Orienta al jugador hacia el mouse. El mundo se dibuja desplazado
+    por la sacudida, así que el punto se pasa a coordenadas del mundo
+    restándola. Sin foco de ventana se conserva la dirección anterior."""
+    if not pygame.mouse.get_focused():
+        return
+    x, y = pygame.mouse.get_pos()
+    jugador.apuntar_a((x - sacudida[0], y - sacudida[1]))
+
+
+def _dibujar_mira(pantalla, jugador, sacudida):
+    """Mira en la posición del mouse, sobre el HUD (no tiembla), y una
+    línea tenue desde el jugador tal como se ve en pantalla."""
+    mouse = pygame.mouse.get_pos()
+    if MOSTRAR_LINEA_APUNTADO:
+        capa = pygame.Surface(pantalla.get_size(), pygame.SRCALPHA)
+        origen = (jugador.rect.centerx + sacudida[0], jugador.rect.centery + sacudida[1])
+        pygame.draw.line(
+            capa, assets.COLOR_LINEA_APUNTADO, origen, mouse, assets.GROSOR_LINEA_APUNTADO
+        )
+        pantalla.blit(capa, (0, 0))
+    radio, brazo = assets.RADIO_MIRA, assets.LARGO_CRUZ_MIRA
+    pygame.draw.circle(pantalla, assets.COLOR_MIRA, mouse, radio, assets.GROSOR_MIRA)
+    x, y = mouse
+    for dx, dy in ((1, 0), (-1, 0), (0, 1), (0, -1)):
+        inicio = (x + dx * radio, y + dy * radio)
+        fin = (x + dx * (radio + brazo), y + dy * (radio + brazo))
+        pygame.draw.line(pantalla, assets.COLOR_MIRA, inicio, fin, assets.GROSOR_MIRA)
 
 
 def _escenario_activo(escena, arena, mazmorra):

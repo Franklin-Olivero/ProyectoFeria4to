@@ -216,3 +216,11 @@ POSICION_TEXTO_COSTO = (20, 546)
 POSICION_TEXTO_AYUDA_MAPA = (20, 572)
 POSICION_MENSAJE_MAPA = (400, 70)  # centro del mensaje del último resultado
 DURACION_MENSAJE_MAPA = 4.0  # s que se muestra el resultado al volver al mapa
+
+# Mira del apuntado con mouse (se dibuja sobre el HUD, sin sacudida)
+COLOR_MIRA = (255, 255, 255)
+RADIO_MIRA = 8
+GROSOR_MIRA = 2
+LARGO_CRUZ_MIRA = 5  # px de cada brazo de la cruz que sale del círculo
+COLOR_LINEA_APUNTADO = (255, 255, 255, 60)  # RGBA: línea tenue jugador -> mira
+GROSOR_LINEA_APUNTADO = 1
