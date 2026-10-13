@@ -7,6 +7,7 @@ import pygame
 from src.core import assets
 from src.core.colapso import ColapsoElectoral
 from src.core.config import COLOR_FONDO, FPS, crear_pantalla, crear_reloj
+from src.core.equipo import registrar_kill_equipo
 from src.dungeon.cuarto import FASE_DECISION, FASE_RESUELTO, Cuarto
 from src.entities.candidato import Candidato
 from src.entities.influencer import Influencer
@@ -19,6 +20,7 @@ from src.ui.terminal_decision import (
     IZQUIERDA,
     PURIFICACION_EXITOSA,
 )
+from src.ui.seleccion_rol import dibujar_seleccion
 from src.ui.terminal_decision_render import dibujar_terminal
 
 TECLA_DISPARAR = pygame.K_SPACE
@@ -53,6 +55,9 @@ def main():
         sys.exit()
     cuarto = Cuarto()
     jugador = clase_rol(cuarto.rect.centerx, cuarto.rect.bottom - 40)
+    # Todos los jugadores de la partida (por ahora solo uno); se usa para
+    # repartir la carga compartida de equipo en cada kill.
+    jugadores = [jugador]
 
     proyectiles_jugador = []
     proyectiles_enemigos = []
@@ -68,8 +73,6 @@ def main():
                 # Durante la decisión el input va a la terminal, no al jugador.
                 if evento.type == pygame.KEYDOWN and evento.key in TECLAS_TERMINAL:
                     cuarto.terminal.navegar(TECLAS_TERMINAL[evento.key])
-            elif evento.type == pygame.KEYDOWN and evento.key == TECLA_DISPARAR:
-                proyectiles_jugador.extend(jugador.ataque_basico())
             elif evento.type == pygame.KEYDOWN and evento.key == TECLA_HABILIDAD:
                 if jugador.puede_usar_habilidad():
                     jugador.usar_habilidad(cuarto.enemigos, proyectiles_jugador)
@@ -87,12 +90,19 @@ def main():
         else:
             teclas = pygame.key.get_pressed()
             jugador.manejar_movimiento(teclas, dt, cuarto.rect)
+            # Disparo sostenido: el jugador decide cuántos volleys salen
+            # según su cooldown (cadencia del rol + buff por kill).
+            proyectiles_jugador.extend(
+                jugador.actualizar_disparo(dt, teclas[TECLA_DISPARAR])
+            )
             cuarto.actualizar(dt, jugador, proyectiles_enemigos)
 
             _actualizar_proyectiles(proyectiles_jugador, dt, cuarto.rect)
             _actualizar_proyectiles(proyectiles_enemigos, dt, cuarto.rect)
 
-            _resolver_colisiones_contra_enemigos(proyectiles_jugador, cuarto.enemigos, jugador)
+            _resolver_colisiones_contra_enemigos(
+                proyectiles_jugador, cuarto.enemigos, jugador, jugadores
+            )
             _resolver_colision_contra_jugador(proyectiles_enemigos, jugador)
 
         pantalla.fill(COLOR_FONDO)
@@ -114,6 +124,8 @@ def main():
 def _elegir_rol(pantalla, reloj, fuente):
     """Pantalla previa al loop: espera 1-4 y retorna la clase elegida
     (None si se cierra la ventana)."""
+    fuente_stats = pygame.font.Font(None, assets.TAMANIO_FUENTE_SELECCION)
+    clases_rol = list(ROLES_POR_TECLA.values())
     while True:
         for evento in pygame.event.get():
             if evento.type == pygame.QUIT:
@@ -122,12 +134,7 @@ def _elegir_rol(pantalla, reloj, fuente):
                 return ROLES_POR_TECLA[evento.key]
 
         pantalla.fill(COLOR_FONDO)
-        titulo = fuente.render("Elige tu personaje (1-4):", True, assets.COLOR_TEXTO_HUD)
-        pantalla.blit(titulo, assets.POSICION_TITULO_SELECCION)
-        x, y = assets.POSICION_OPCIONES_SELECCION
-        for numero, clase in enumerate(ROLES_POR_TECLA.values(), start=1):
-            opcion = fuente.render(f"{numero}. {clase.NOMBRE}", True, clase.COLOR)
-            pantalla.blit(opcion, (x, y + (numero - 1) * assets.SEPARACION_OPCIONES_SELECCION))
+        dibujar_seleccion(pantalla, clases_rol, fuente, fuente_stats)
         pygame.display.flip()
         reloj.tick(FPS)
 
@@ -150,7 +157,7 @@ def _dibujar_hud(pantalla, fuente, colapso, jugador, cuarto):
     pantalla.blit(texto_colapso, assets.POSICION_TEXTO_COLAPSO)
 
     texto_carga = fuente.render(
-        f"Carga: {jugador.carga_habilidad}/{jugador.CARGA_MAXIMA_HABILIDAD}",
+        f"Carga: {jugador.carga_habilidad:g}/{jugador.carga_maxima}",
         True,
         assets.COLOR_TEXTO_HUD,
     )
@@ -169,11 +176,11 @@ def _actualizar_proyectiles(proyectiles, dt, limites):
     proyectiles[:] = [proyectil for proyectil in proyectiles if proyectil.vivo]
 
 
-def _resolver_colisiones_contra_enemigos(proyectiles, enemigos, jugador):
+def _resolver_colisiones_contra_enemigos(proyectiles, enemigos, jugador, jugadores):
     """Delega cada choque en `proyectil.al_impactar(enemigo)`, que cada
     tipo de proyectil del rol define (destruirse, perforar, empujar,
-    área...). Cada enemigo que muere suma un kill a la carga de
-    habilidad del jugador."""
+    área...). Cada enemigo que muere da la kill completa a `jugador` y
+    carga compartida al resto de `jugadores` (ver src/core/equipo.py)."""
     for proyectil in proyectiles:
         for enemigo in enemigos:
             if not proyectil.vivo:
@@ -181,7 +188,7 @@ def _resolver_colisiones_contra_enemigos(proyectiles, enemigos, jugador):
             if enemigo.vivo and proyectil.colisiona_con(enemigo.rect):
                 proyectil.al_impactar(enemigo)
                 if not enemigo.vivo:
-                    jugador.registrar_kill()
+                    registrar_kill_equipo(jugador, jugadores)
 
 
 def _resolver_colision_contra_jugador(proyectiles, jugador):

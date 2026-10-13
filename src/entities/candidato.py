@@ -20,11 +20,11 @@ class OndaExpansiva:
     colisiona_con, al_impactar, dibujar, vivo), para que el loop
     principal lo trate igual que a cualquier proyectil."""
 
-    def __init__(self, centro):
+    def __init__(self, centro, danio):
         self.centro = pygame.Vector2(centro)
         self.radio = 0.0
         self.tiempo = 0.0
-        self.danio = assets.DANIO_PROYECTIL_JUGADOR
+        self.danio = danio
         self.vivo = True
         self.golpeados = []
 
@@ -62,12 +62,12 @@ class OndaExpansiva:
 class ProyectilRebotante(Proyectil):
     """Proyectil que rebota en los bordes en vez de destruirse."""
 
-    def __init__(self, posicion, direccion):
+    def __init__(self, posicion, direccion, danio):
         super().__init__(
             posicion=posicion,
             direccion=direccion,
             velocidad=assets.VELOCIDAD_PROYECTIL,
-            danio=assets.DANIO_PROYECTIL_JUGADOR,
+            danio=danio,
             color=assets.COLOR_PROYECTIL_REBOTANTE,
         )
         self.rebotes = 0
@@ -95,11 +95,13 @@ class ProyectilRebotante(Proyectil):
 
 
 class Candidato(JugadorBase):
+    rol = "candidato"
     COLOR = assets.COLOR_CANDIDATO
     NOMBRE = "Candidato"
+    NOMBRE_HABILIDAD = "Debate Rebotante"
 
     def ataque_basico(self):
-        return [OndaExpansiva(self.rect.center)]
+        return [OndaExpansiva(self.rect.center, self.danio)]
 
     def usar_habilidad(self, enemigos=(), proyectiles_salida=None):
         """Debate Rebotante: 3 proyectiles rebotantes en abanico."""
@@ -108,5 +110,5 @@ class Candidato(JugadorBase):
         if proyectiles_salida is not None:
             for angulo in assets.ANGULOS_DEBATE_REBOTANTE:
                 direccion = self.direccion_mirada.rotate(angulo)
-                proyectiles_salida.append(ProyectilRebotante(self.rect.center, direccion))
+                proyectiles_salida.append(ProyectilRebotante(self.rect.center, direccion, self.danio))
         return True

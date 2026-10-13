@@ -12,6 +12,15 @@ cualquier rol igual: agrega lo que devuelve ataque_basico() a sus
 proyectiles y resuelve colisiones con `proyectil.al_impactar(enemigo)`,
 que cada tipo de proyectil define a su manera.
 
+Estadísticas: velocidad, cadencia, daño, vida y carga máxima salen de
+STATS_POR_ROL[self.rol] (src/core/balance.py). Las clases de rol no
+guardan números de balance propios.
+
+Disparo sostenido: mientras se mantenga el botón, actualizar_disparo()
+dispara un volley cada `intervalo_disparo()` segundos, medido con un
+acumulador de tiempo (independiente del framerate). Cada kill propia
+activa un buff temporal de cadencia.
+
 Habilidad activa: no tiene cooldown por tiempo. Se carga matando
 enemigos (registrar_kill) y se gasta completa al usarla.
 """
@@ -19,15 +28,25 @@ enemigos (registrar_kill) y se gasta completa al usarla.
 import pygame
 
 from src.core import assets
+from src.core.balance import (
+    BUFF_KILL_DURACION,
+    DANIO_BASE,
+    STATS_POR_ROL,
+    VELOCIDAD_BASE,
+    VIDA_BASE,
+    intervalo_disparo,
+)
 from src.entities.projectile import Proyectil
 
 ANGULO_ABANICO_GRADOS = 30
 
 
 class JugadorBase:
-    CARGA_MAXIMA_HABILIDAD = 5  # kills necesarios para usar la habilidad
-    COLOR = assets.COLOR_CIUDADANO  # cada rol lo sobreescribe
+    # Identidad del rol (no balance): cada rol sobreescribe estos 4.
+    rol = None  # clave en STATS_POR_ROL
+    COLOR = assets.COLOR_CIUDADANO
     NOMBRE = "Jugador"
+    NOMBRE_HABILIDAD = ""
 
     def __init__(self, x, y):
         self.rect = pygame.Rect(0, 0, assets.TAMANIO_JUGADOR, assets.TAMANIO_JUGADOR)
@@ -38,7 +57,13 @@ class JugadorBase:
         # velocidad real termina siendo menor a la configurada. Se
         # acumula aquí y el rect se sincroniza redondeando cada frame.
         self.posicion = pygame.Vector2(self.rect.center)
-        self.vida = assets.VIDA_JUGADOR
+
+        self.stats = STATS_POR_ROL[self.rol]
+        self.velocidad = VELOCIDAD_BASE * self.stats.velocidad_mult
+        self.vida_maxima = VIDA_BASE * self.stats.vida_mult
+        self.vida = self.vida_maxima
+        self.danio = DANIO_BASE * self.stats.danio_mult
+        self.carga_maxima = self.stats.carga_maxima
         # Dirección hacia la que "mira" el jugador: se usa para apuntar
         # los ataques. El proyecto es 100% teclado (sin mouse en ningún
         # otro sistema), así que se define como la última dirección de
@@ -46,7 +71,12 @@ class JugadorBase:
         # consistencia con el resto de la mecánica.
         self.direccion_mirada = pygame.Vector2(0, -1)
 
-        self.carga_habilidad = 0
+        # Puede tener fracciones por la carga compartida del equipo.
+        self.carga_habilidad = 0.0
+
+        # Segundos que faltan para el próximo volley (<= 0: listo).
+        self.tiempo_para_disparo = 0.0
+        self.tiempo_buff_kill = 0.0
 
     @property
     def vivo(self):
@@ -67,10 +97,42 @@ class JugadorBase:
         if direccion.length_squared() > 0:
             direccion = direccion.normalize()
             self.direccion_mirada = direccion
-            self.posicion += direccion * assets.VELOCIDAD_JUGADOR * dt
+            self.posicion += direccion * self.velocidad * dt
             self.rect.center = (round(self.posicion.x), round(self.posicion.y))
             self.rect.clamp_ip(limites)
             self.posicion.update(self.rect.center)
+
+    # ------------------------------------------------------------------
+    # Disparo sostenido con cooldown
+    # ------------------------------------------------------------------
+
+    @property
+    def buff_kill_activo(self):
+        return self.tiempo_buff_kill > 0
+
+    def intervalo_disparo(self):
+        """Segundos entre volleys ahora mismo (1 / cadencia efectiva)."""
+        return intervalo_disparo(self.stats.cadencia, self.buff_kill_activo)
+
+    def actualizar_disparo(self, dt, disparando):
+        """Avanza el cooldown y, si `disparando`, dispara los volleys que
+        correspondan. Retorna la lista de proyectiles nuevos.
+
+        El acumulador `tiempo_para_disparo` baja con dt y sube un
+        intervalo por cada volley, así que la cadencia real es la misma
+        a 30 o a 144 FPS (en un frame largo pueden salir 2 volleys).
+        Sin disparar no se "ahorran" volleys: el acumulador no baja de 0.
+        """
+        self.tiempo_buff_kill = max(0.0, self.tiempo_buff_kill - dt)
+        self.tiempo_para_disparo -= dt
+        nuevos = []
+        if disparando:
+            while self.tiempo_para_disparo <= 0:
+                nuevos.extend(self.ataque_basico())
+                self.tiempo_para_disparo += self.intervalo_disparo()
+        else:
+            self.tiempo_para_disparo = max(self.tiempo_para_disparo, 0.0)
+        return nuevos
 
     # ------------------------------------------------------------------
     # Interfaz que cada rol sobreescribe
@@ -101,18 +163,23 @@ class JugadorBase:
     # ------------------------------------------------------------------
 
     def registrar_kill(self):
-        """Suma 1 a la carga de la habilidad, sin pasar del máximo."""
-        self.carga_habilidad = min(self.carga_habilidad + 1, self.CARGA_MAXIMA_HABILIDAD)
+        """Kill propia: 1 kill de carga y (re)inicia el buff de cadencia."""
+        self.sumar_carga(1)
+        self.tiempo_buff_kill = BUFF_KILL_DURACION
+
+    def sumar_carga(self, cantidad):
+        """Suma `cantidad` de kills (puede ser fracción) sin pasar del máximo."""
+        self.carga_habilidad = min(self.carga_habilidad + cantidad, self.carga_maxima)
 
     def puede_usar_habilidad(self):
-        return self.carga_habilidad >= self.CARGA_MAXIMA_HABILIDAD
+        return self.carga_habilidad >= self.carga_maxima
 
     def _gastar_carga(self):
         """Helper para usar_habilidad(): si la carga está completa la
         resetea a 0 y retorna True; si no, no toca nada y retorna False."""
         if not self.puede_usar_habilidad():
             return False
-        self.carga_habilidad = 0
+        self.carga_habilidad = 0.0
         return True
 
     def recibir_dano(self, danio):
@@ -128,8 +195,10 @@ class Ciudadano(JugadorBase):
     duración y radio; las colisiones del domo se conectan más adelante.
     """
 
+    rol = "ciudadano"
     COLOR = assets.COLOR_CIUDADANO
     NOMBRE = "Ciudadano"
+    NOMBRE_HABILIDAD = "Burbuja Comunitaria"
 
     def __init__(self, x, y):
         super().__init__(x, y)
@@ -149,7 +218,7 @@ class Ciudadano(JugadorBase):
                     posicion=self.rect.center,
                     direccion=direccion,
                     velocidad=assets.VELOCIDAD_PROYECTIL,
-                    danio=assets.DANIO_PROYECTIL_JUGADOR,
+                    danio=self.danio,
                     color=assets.COLOR_PROYECTIL_JUGADOR,
                 )
             )

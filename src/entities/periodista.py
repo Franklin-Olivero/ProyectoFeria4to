@@ -21,13 +21,13 @@ class RayoPerforante(Proyectil):
     veces mientras lo atraviesa (el choque dura varios frames).
     """
 
-    def __init__(self, posicion, direccion, quita_escudo=False):
+    def __init__(self, posicion, direccion, danio, quita_escudo=False):
         color = assets.COLOR_RAYO_FACT_CHECK if quita_escudo else assets.COLOR_RAYO_PERIODISTA
         super().__init__(
             posicion=posicion,
             direccion=direccion,
             velocidad=assets.VELOCIDAD_RAYO,
-            danio=assets.DANIO_PROYECTIL_JUGADOR,
+            danio=danio,
             color=color,
             tamanio=assets.TAMANIO_RAYO,
         )
@@ -50,17 +50,21 @@ class RayoPerforante(Proyectil):
 
 
 class Periodista(JugadorBase):
+    rol = "periodista"
     COLOR = assets.COLOR_PERIODISTA
     NOMBRE = "Periodista"
+    NOMBRE_HABILIDAD = "Fact-Checking"
 
     def ataque_basico(self):
-        return [RayoPerforante(self.rect.center, self.direccion_mirada)]
+        return [RayoPerforante(self.rect.center, self.direccion_mirada, self.danio)]
 
     def usar_habilidad(self, enemigos=(), proyectiles_salida=None):
         """Fact-Checking: dispara un rayo perforante que quita escudos."""
         if not self._gastar_carga():
             return False
-        rayo = RayoPerforante(self.rect.center, self.direccion_mirada, quita_escudo=True)
+        rayo = RayoPerforante(
+            self.rect.center, self.direccion_mirada, self.danio, quita_escudo=True
+        )
         if proyectiles_salida is not None:
             proyectiles_salida.append(rayo)
         return True

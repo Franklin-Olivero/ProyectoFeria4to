@@ -14,6 +14,14 @@ import pygame  # noqa: E402
 import pytest  # noqa: E402
 
 from src.core import assets  # noqa: E402
+from src.core.balance import (  # noqa: E402
+    BUFF_KILL_DURACION,
+    DANIO_BASE,
+    STATS_POR_ROL,
+    VELOCIDAD_BASE,
+    VIDA_BASE,
+)
+from src.core.equipo import registrar_kill_equipo  # noqa: E402
 from src.entities.candidato import Candidato, OndaExpansiva, ProyectilRebotante  # noqa: E402
 from src.entities.enemy import Enemigo  # noqa: E402
 from src.entities.influencer import Influencer, ProyectilEmpuje  # noqa: E402
@@ -23,10 +31,11 @@ from src.entities.projectile import Proyectil  # noqa: E402
 
 ROLES = [Ciudadano, Influencer, Periodista, Candidato]
 LIMITES = pygame.Rect(0, 0, 500, 400)
+DANIO = 1  # daño fijo para probar los efectos sin depender del balance
 
 
 def cargar_completo(jugador):
-    for _ in range(jugador.CARGA_MAXIMA_HABILIDAD):
+    for _ in range(jugador.carga_maxima):
         jugador.registrar_kill()
 
 
@@ -45,10 +54,10 @@ def test_usar_habilidad_sin_carga_no_actua(clase):
     jugador = clase(250, 200)
     enemigo = Enemigo(250, 100)
     salida = []
-    for _ in range(clase.CARGA_MAXIMA_HABILIDAD - 1):
+    for _ in range(STATS_POR_ROL[clase.rol].carga_maxima - 1):
         jugador.registrar_kill()
     assert jugador.usar_habilidad([enemigo], salida) is False
-    assert jugador.carga_habilidad == clase.CARGA_MAXIMA_HABILIDAD - 1
+    assert jugador.carga_habilidad == STATS_POR_ROL[clase.rol].carga_maxima - 1
     assert salida == []
     assert enemigo.objetivo_forzado is None
 
@@ -79,9 +88,9 @@ def test_influencer_ataque_es_proyectil_ancho_de_empuje():
 
 def test_proyectil_empuje_daña_y_empuja_en_su_direccion():
     enemigo = Enemigo(100, 100)
-    proyectil = ProyectilEmpuje((100, 130), (0, -1))
+    proyectil = ProyectilEmpuje((100, 130), (0, -1), DANIO)
     proyectil.al_impactar(enemigo)
-    assert enemigo.vida == assets.VIDA_ENEMIGO - assets.DANIO_PROYECTIL_JUGADOR
+    assert enemigo.vida == assets.VIDA_ENEMIGO - DANIO
     assert enemigo.rect.centery == 100 - assets.IMPULSO_EMPUJE_INFLUENCER
     assert not proyectil.vivo
 
@@ -122,14 +131,14 @@ def test_periodista_ataque_es_rayo_perforante():
 
 
 def test_rayo_perfora_y_daña_una_vez_a_cada_enemigo():
-    rayo = RayoPerforante((0, 0), (1, 0))
+    rayo = RayoPerforante((0, 0), (1, 0), DANIO)
     a, b = Enemigo(100, 0), Enemigo(200, 0)
     rayo.al_impactar(a)
     rayo.al_impactar(a)  # mismo enemigo en el frame siguiente
     rayo.al_impactar(b)
     assert rayo.vivo
-    assert a.vida == assets.VIDA_ENEMIGO - 1
-    assert b.vida == assets.VIDA_ENEMIGO - 1
+    assert a.vida == assets.VIDA_ENEMIGO - DANIO
+    assert b.vida == assets.VIDA_ENEMIGO - DANIO
 
 
 def test_escudo_anonimato_bloquea_daño_normal():
@@ -151,7 +160,7 @@ def test_fact_checking_dispara_rayo_que_quita_escudo():
     enemigo.escudo_anonimato = True
     rayo.al_impactar(enemigo)
     assert not enemigo.escudo_anonimato
-    assert enemigo.vida == assets.VIDA_ENEMIGO - 1
+    assert enemigo.vida == pytest.approx(assets.VIDA_ENEMIGO - periodista.danio)
 
 
 # ----------------------------------------------------------------------
@@ -166,7 +175,7 @@ def test_candidato_ataque_es_onda_centrada_en_el_jugador():
 
 
 def test_onda_crece_daña_en_area_una_vez_y_desaparece():
-    onda = OndaExpansiva((250, 200))
+    onda = OndaExpansiva((250, 200), DANIO)
     cerca = Enemigo(250 + assets.RADIO_MAXIMO_ONDA - 10, 200)
     lejos = Enemigo(250 + assets.RADIO_MAXIMO_ONDA + 100, 200)
     assert not onda.colisiona_con(cerca.rect)  # radio 0 al nacer
@@ -175,7 +184,7 @@ def test_onda_crece_daña_en_area_una_vez_y_desaparece():
     assert not onda.colisiona_con(lejos.rect)
     onda.al_impactar(cerca)
     onda.al_impactar(cerca)
-    assert cerca.vida == assets.VIDA_ENEMIGO - 1
+    assert cerca.vida == assets.VIDA_ENEMIGO - DANIO
     onda.actualizar(assets.DURACION_ONDA, LIMITES)
     assert not onda.vivo
 
@@ -190,7 +199,7 @@ def test_debate_rebotante_dispara_proyectiles_rebotantes():
 
 
 def test_rebotante_invierte_x_al_tocar_borde_y_sigue_vivo():
-    proyectil = ProyectilRebotante((LIMITES.right - 5, 200), (1, 0))
+    proyectil = ProyectilRebotante((LIMITES.right - 5, 200), (1, 0), DANIO)
     proyectil.actualizar(0.05, LIMITES)
     assert proyectil.direccion.x < 0
     assert proyectil.rebotes == 1
@@ -199,14 +208,72 @@ def test_rebotante_invierte_x_al_tocar_borde_y_sigue_vivo():
 
 
 def test_rebotante_muere_al_superar_maximo_de_rebotes():
-    proyectil = ProyectilRebotante((LIMITES.centerx, LIMITES.top + 5), (0, -1))
+    proyectil = ProyectilRebotante((LIMITES.centerx, LIMITES.top + 5), (0, -1), DANIO)
     proyectil.rebotes = assets.MAXIMO_REBOTES
     proyectil.actualizar(0.05, LIMITES)
     assert not proyectil.vivo
 
 
 def test_rebotante_muere_al_agotar_tiempo_de_vida():
-    proyectil = ProyectilRebotante(LIMITES.center, (1, 0))
+    proyectil = ProyectilRebotante(LIMITES.center, (1, 0), DANIO)
     proyectil.tiempo_vida = 0.01
     proyectil.actualizar(0.02, LIMITES)
     assert not proyectil.vivo
+
+
+# ----------------------------------------------------------------------
+# Stats del balance aplicadas a cada rol + disparo sostenido
+# ----------------------------------------------------------------------
+
+
+@pytest.mark.parametrize("clase", ROLES)
+def test_rol_toma_sus_stats_de_balance(clase):
+    stats = STATS_POR_ROL[clase.rol]
+    jugador = clase(250, 200)
+    assert jugador.velocidad == pytest.approx(VELOCIDAD_BASE * stats.velocidad_mult)
+    assert jugador.vida == pytest.approx(VIDA_BASE * stats.vida_mult)
+    assert jugador.danio == pytest.approx(DANIO_BASE * stats.danio_mult)
+    assert jugador.carga_maxima == stats.carga_maxima
+    for proyectil in jugador.ataque_basico():
+        assert proyectil.danio == pytest.approx(jugador.danio)
+
+
+@pytest.mark.parametrize("clase", ROLES)
+def test_disparo_sostenido_respeta_la_cadencia(clase):
+    """Mantener disparo 3 s a 60 FPS da ~cadencia*3 volleys (+1 del primero)."""
+    jugador = clase(250, 200)
+    volleys_por_ataque = len(jugador.ataque_basico())
+    total = sum(len(jugador.actualizar_disparo(1 / 60, True)) for _ in range(180))
+    esperados = int(3 * jugador.stats.cadencia) + 1
+    assert total // volleys_por_ataque in (esperados - 1, esperados)
+
+
+def test_disparo_independiente_del_framerate():
+    a, b = Influencer(0, 0), Influencer(0, 0)
+    disparos_30 = sum(len(a.actualizar_disparo(1 / 30, True)) for _ in range(60))
+    disparos_144 = sum(len(b.actualizar_disparo(1 / 144, True)) for _ in range(288))
+    assert abs(disparos_30 - disparos_144) <= 1
+
+
+def test_sin_disparar_no_se_acumulan_volleys():
+    jugador = Influencer(0, 0)
+    for _ in range(300):
+        assert jugador.actualizar_disparo(1 / 60, False) == []
+    assert len(jugador.actualizar_disparo(1 / 60, True)) == 1
+
+
+def test_kill_propia_activa_buff_y_expira():
+    jugador = Candidato(0, 0)
+    base = jugador.intervalo_disparo()
+    jugador.registrar_kill()
+    assert jugador.intervalo_disparo() < base
+    jugador.actualizar_disparo(BUFF_KILL_DURACION + 0.01, False)
+    assert jugador.intervalo_disparo() == base
+
+
+def test_carga_compartida_real_no_pasa_del_maximo_del_rol():
+    asesino, aliado = Periodista(0, 0), Ciudadano(0, 0)
+    for _ in range(200):
+        registrar_kill_equipo(asesino, [asesino, aliado])
+    assert aliado.carga_habilidad == aliado.carga_maxima
+    assert not aliado.buff_kill_activo  # el buff es solo para la kill propia

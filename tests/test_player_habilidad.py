@@ -12,9 +12,10 @@ sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")
 import pytest  # noqa: E402
 
 from src.core import assets  # noqa: E402
+from src.core.balance import STATS_POR_ROL  # noqa: E402
 from src.entities.player import Ciudadano as Jugador  # noqa: E402
 
-MAXIMO = Jugador.CARGA_MAXIMA_HABILIDAD
+MAXIMO = STATS_POR_ROL["ciudadano"].carga_maxima
 
 
 @pytest.fixture

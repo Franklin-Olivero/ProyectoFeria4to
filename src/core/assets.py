@@ -8,18 +8,16 @@ reemplazar los valores de este archivo por rutas de sprite, sin tocar
 la lógica de juego.
 """
 
-# Jugador (comunes a los 4 roles)
+# Jugador (comunes a los 4 roles). Velocidad, vida, daño, cadencia y
+# carga de cada rol viven en src/core/balance.py.
 TAMANIO_JUGADOR = 36
 COLOR_CIUDADANO = (60, 140, 220)
-VELOCIDAD_JUGADOR = 220  # píxeles por segundo
-VIDA_JUGADOR = 5
 
 # Proyectiles
 TAMANIO_PROYECTIL = 8
 COLOR_PROYECTIL_JUGADOR = (250, 240, 120)
 COLOR_PROYECTIL_ENEMIGO = (230, 60, 60)
 VELOCIDAD_PROYECTIL = 420  # píxeles por segundo
-DANIO_PROYECTIL_JUGADOR = 1
 DANIO_PROYECTIL_ENEMIGO = 1
 
 # Enemigo
@@ -55,10 +53,17 @@ GROSOR_BORDE_TERMINAL = 3
 MARGEN_TERMINAL = 20
 SEPARACION_LINEAS_TERMINAL = 50
 
-# Selección de personaje
-POSICION_TITULO_SELECCION = (60, 180)
-POSICION_OPCIONES_SELECCION = (60, 240)
-SEPARACION_OPCIONES_SELECCION = 40
+# Selección de personaje: 4 columnas (una por rol) con barras de stats
+POSICION_TITULO_SELECCION = (20, 60)
+ORIGEN_COLUMNAS_SELECCION = (20, 130)  # esquina superior izq. de la 1ra columna
+ANCHO_COLUMNA_SELECCION = 195
+TAMANIO_FUENTE_SELECCION = 22
+SEPARACION_FILAS_SELECCION = 30
+DESPLAZAMIENTO_BARRA_X = 80  # de la etiqueta de la stat al inicio de su barra
+ANCHO_MAXIMO_BARRA = 100  # ancho de la barra del rol con el valor máximo
+ALTO_BARRA = 12
+COLOR_FONDO_BARRA = (70, 74, 84)
+COLOR_TEXTO_SECUNDARIO = (170, 175, 185)
 
 # Influencer: cono de sonido (proyectil ancho que empuja) / Live Stream Viral
 COLOR_INFLUENCER = (220, 80, 200)

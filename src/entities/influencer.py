@@ -15,12 +15,12 @@ from src.entities.projectile import Proyectil
 class ProyectilEmpuje(Proyectil):
     """Proyectil ancho que, además de dañar, hace retroceder al enemigo."""
 
-    def __init__(self, posicion, direccion):
+    def __init__(self, posicion, direccion, danio):
         super().__init__(
             posicion=posicion,
             direccion=direccion,
             velocidad=assets.VELOCIDAD_PROYECTIL_INFLUENCER,
-            danio=assets.DANIO_PROYECTIL_JUGADOR,
+            danio=danio,
             color=assets.COLOR_PROYECTIL_INFLUENCER,
             tamanio=assets.TAMANIO_PROYECTIL_INFLUENCER,
         )
@@ -31,11 +31,13 @@ class ProyectilEmpuje(Proyectil):
 
 
 class Influencer(JugadorBase):
+    rol = "influencer"
     COLOR = assets.COLOR_INFLUENCER
     NOMBRE = "Influencer"
+    NOMBRE_HABILIDAD = "Live Stream Viral"
 
     def ataque_basico(self):
-        return [ProyectilEmpuje(self.rect.center, self.direccion_mirada)]
+        return [ProyectilEmpuje(self.rect.center, self.direccion_mirada, self.danio)]
 
     def usar_habilidad(self, enemigos=(), proyectiles_salida=None):
         """Live Stream Viral: todos los enemigos vivos persiguen y le
