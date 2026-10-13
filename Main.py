@@ -4,6 +4,8 @@ import sys
 
 import pygame
 
+from src.core import assets
+from src.core.colapso import ColapsoElectoral
 from src.core.config import COLOR_FONDO, FPS, crear_pantalla, crear_reloj
 from src.dungeon.cuarto import Cuarto
 from src.entities.player import Jugador
@@ -15,7 +17,11 @@ def main():
     pygame.init()
     pantalla = crear_pantalla()
     reloj = crear_reloj()
+    fuente_hud = pygame.font.Font(None, assets.TAMANIO_FUENTE_HUD)
+    colapso = ColapsoElectoral()
     cuarto = Cuarto()
+    # Evita restar el éxito en cada frame una vez limpio el cuarto.
+    cuarto_purificado = False
     jugador = Jugador(cuarto.rect.centerx, cuarto.rect.bottom - 40)
 
     proyectiles_jugador = []
@@ -37,6 +43,13 @@ def main():
         jugador.manejar_movimiento(teclas, dt, cuarto.rect)
         cuarto.actualizar(dt, jugador, proyectiles_enemigos)
 
+        # Cuarto limpio al 100% = mazmorra purificada (por ahora hay un
+        # solo cuarto). sumar_fallo() se conectará cuando exista una
+        # condición real de incursión fallida (minijuego del cuarto final).
+        if not cuarto.enemigos and not cuarto_purificado:
+            colapso.restar_exito()
+            cuarto_purificado = True
+
         _actualizar_proyectiles(proyectiles_jugador, dt, cuarto.rect)
         _actualizar_proyectiles(proyectiles_enemigos, dt, cuarto.rect)
 
@@ -50,6 +63,8 @@ def main():
             proyectil.dibujar(pantalla)
         for proyectil in proyectiles_enemigos:
             proyectil.dibujar(pantalla)
+        texto_colapso = fuente_hud.render(colapso.texto(), True, assets.COLOR_TEXTO_HUD)
+        pantalla.blit(texto_colapso, assets.POSICION_TEXTO_COLAPSO)
         pygame.display.flip()
 
     pygame.quit()

@@ -29,3 +29,8 @@ VELOCIDAD_ENEMIGO = 90  # píxeles por segundo
 VIDA_ENEMIGO = 3
 RANGO_DISPARO_ENEMIGO = 260  # píxeles
 COOLDOWN_DISPARO_ENEMIGO = 1.2  # segundos entre disparos
+
+# Texto en pantalla (indicador de colapso)
+COLOR_TEXTO_HUD = (235, 235, 235)
+TAMANIO_FUENTE_HUD = 28
+POSICION_TEXTO_COLAPSO = (10, 10)

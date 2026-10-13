@@ -21,7 +21,7 @@ from src.entities.projectile import Proyectil
 
 
 class Enemigo:
-    def __init__(self, x, y):
+    def __init__(self, x, y, velocidad=assets.VELOCIDAD_ENEMIGO):
         self.rect = pygame.Rect(0, 0, assets.TAMANIO_ENEMIGO, assets.TAMANIO_ENEMIGO)
         self.rect.center = (x, y)
         # Posición en punto flotante: pygame.Rect solo guarda enteros,
@@ -31,6 +31,9 @@ class Enemigo:
         # acumula aquí y el rect se sincroniza redondeando cada frame.
         self.posicion = pygame.Vector2(self.rect.center)
         self.vida = assets.VIDA_ENEMIGO
+        # Píxeles por segundo; el cuarto la ajusta según la toxicidad de
+        # la zona (ver src/dungeon/clasificador_toxicidad.py).
+        self.velocidad = velocidad
         self.cooldown_disparo = 0.0
 
         # Contexto del frame actual; lo llena `actualizar` antes del
@@ -76,7 +79,7 @@ class Enemigo:
         direccion = pygame.Vector2(self._jugador.rect.center) - self.posicion
         if direccion.length_squared() > 0:
             direccion = direccion.normalize()
-            self.posicion += direccion * assets.VELOCIDAD_ENEMIGO * self._dt
+            self.posicion += direccion * self.velocidad * self._dt
             self.rect.center = (round(self.posicion.x), round(self.posicion.y))
         return EXITO
 

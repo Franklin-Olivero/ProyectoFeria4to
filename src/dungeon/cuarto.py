@@ -5,10 +5,21 @@ Comportamiento real: mientras existan enemigos VIVOS en el cuarto, las
 enemigo muere, las puertas se abren. Los enemigos traen su propia IA
 (árbol de comportamiento, ver src/entities/enemy.py); este módulo solo
 los posiciona y decide el estado de las puertas.
+
+Cuántos enemigos aparecen y qué tan rápidos son NO es fijo: al crear el
+cuarto se clasifican los reportes de toxicidad de la zona con el árbol
+N-ario (ver src/dungeon/clasificador_toxicidad.py) y el nivel
+resultante decide la dificultad.
 """
 
 import pygame
 
+from src.core import assets
+from src.dungeon.clasificador_toxicidad import (
+    calcular_nivel_toxicidad,
+    construir_arbol_reportes,
+    nivel_a_dificultad,
+)
 from src.entities.enemy import Enemigo
 
 ANCHO_CUARTO = 500
@@ -23,6 +34,21 @@ COLOR_PUERTA_BLOQUEADA = (200, 30, 30)
 COLOR_PUERTA_ABIERTA = (30, 180, 60)
 
 TECLA_DEBUG_ELIMINAR_ENEMIGO = pygame.K_k
+
+SEPARACION_VERTICAL_ENEMIGOS = 60
+
+# Reportes simulados de la zona del cuarto de prueba (un colegio con
+# ciberbullying). Hardcodeados a propósito: el resultado es determinista
+# y fácil de sustentar. Promedio de gravedad = 3.6 -> nivel 65.0 -> tramo
+# medio (3 enemigos, velocidad x1.0).
+NOMBRE_ZONA_EJEMPLO = "Colegio Distrital"
+REPORTES_ZONA_EJEMPLO = [
+    {"id": 1, "tipo": "comentario", "gravedad": 2},
+    {"id": 2, "tipo": "publicacion_viral", "gravedad": 4},
+    {"id": 3, "tipo": "denuncia", "gravedad": 5},
+    {"id": 4, "tipo": "comentario", "gravedad": 3},
+    {"id": 5, "tipo": "publicacion_viral", "gravedad": 4},
+]
 
 
 class Puerta:
@@ -41,15 +67,20 @@ class Cuarto:
     """Un cuarto con 4 puertas y una lista de enemigos.
 
     Las puertas están bloqueadas mientras queden enemigos vivos, y se
-    abren automáticamente en cuanto el último muere.
+    abren automáticamente en cuanto el último muere. La cantidad y
+    velocidad de los enemigos sale del nivel de toxicidad de `reportes`.
     """
 
-    def __init__(self):
+    def __init__(self, reportes=REPORTES_ZONA_EJEMPLO, nombre_zona=NOMBRE_ZONA_EJEMPLO):
         ancho_ventana = pygame.display.get_surface().get_width()
         alto_ventana = pygame.display.get_surface().get_height()
 
         self.rect = pygame.Rect(0, 0, ANCHO_CUARTO, ALTO_CUARTO)
         self.rect.center = (ancho_ventana // 2, alto_ventana // 2)
+
+        arbol_reportes = construir_arbol_reportes(reportes, nombre_zona)
+        self.nivel_toxicidad = calcular_nivel_toxicidad(arbol_reportes)
+        self.dificultad = nivel_a_dificultad(self.nivel_toxicidad)
 
         self.puertas = self._crear_puertas()
         self.enemigos = self._crear_enemigos_iniciales()
@@ -78,12 +109,20 @@ class Cuarto:
         }
 
     def _crear_enemigos_iniciales(self):
+        """Reparte `cantidad_enemigos` a lo ancho del cuarto, en zigzag.
+
+        La velocidad de cada enemigo es la base de assets multiplicada
+        por el `multiplicador_velocidad` de la dificultad.
+        """
         r = self.rect
-        return [
-            Enemigo(r.centerx - 120, r.centery),
-            Enemigo(r.centerx, r.centery - 60),
-            Enemigo(r.centerx + 120, r.centery),
-        ]
+        cantidad = self.dificultad["cantidad_enemigos"]
+        velocidad = assets.VELOCIDAD_ENEMIGO * self.dificultad["multiplicador_velocidad"]
+        enemigos = []
+        for i in range(cantidad):
+            x = r.left + (i + 1) * r.width // (cantidad + 1)
+            y = r.centery - SEPARACION_VERTICAL_ENEMIGOS * (i % 2)
+            enemigos.append(Enemigo(x, y, velocidad))
+        return enemigos
 
     def _actualizar_estado_puertas(self):
         bloqueadas = len(self.enemigos) > 0

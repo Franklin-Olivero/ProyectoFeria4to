@@ -213,10 +213,13 @@ delega en `Cuarto`, `Jugador` y `Proyectil`).
 graph TD
     Main["Main.py"] --> Config["core/config.py"]
     Main --> Cuarto["dungeon/cuarto.py · Cuarto"]
+    Main --> Colapso["core/colapso.py · ColapsoElectoral"]
     Main --> Jugador["entities/player.py · Jugador"]
     Main --> ProyectilMod["entities/projectile.py · Proyectil"]
 
     Cuarto --> Enemigo["entities/enemy.py · Enemigo"]
+    Cuarto --> Clasificador["dungeon/clasificador_toxicidad.py"]
+    Clasificador --> ArbolDecision["structures/tree.py · ArbolDecision"]
 
     Jugador --> ProyectilMod
     Enemigo --> ProyectilMod
@@ -226,19 +229,20 @@ graph TD
     Enemigo --> Assets
     ProyectilMod --> Assets
 
-    ArbolDecision["structures/tree.py · ArbolDecision"]
     TestsArbol["tests/test_tree.py"] -.prueba.-> ArbolDecision
     TestsBT["tests/test_behavior_tree.py"] -.prueba.-> BehaviorTree
-
-    ArbolDecision -. "aún sin conectar a la terminal de decisión (pendiente)" .-> Main
+    TestsClasif["tests/test_clasificador_toxicidad.py"] -.prueba.-> Clasificador
 ```
 
 Notas sobre el diagrama:
 
-- `structures/tree.py` (`ArbolDecision`) ya existe y tiene tests, pero
-  **todavía no está conectado** al loop principal: la "terminal de
-  decisión contra reloj" que debe usarlo no se ha construido. Por eso
-  aparece con una flecha punteada, no una dependencia real.
+- `structures/tree.py` (`ArbolDecision`) se usa como clasificador de
+  reportes de toxicidad: al crear el `Cuarto`, `clasificador_toxicidad.py`
+  arma el árbol de reportes de la zona, calcula el nivel de toxicidad
+  (recorrido por niveles, O(n)) y lo traduce a cantidad y velocidad de
+  enemigos. Es lógica de fondo; el jugador solo ve la dificultad.
+- `core/colapso.py` (`ColapsoElectoral`) se muestra como texto en la
+  esquina superior izquierda y baja -0.1 al limpiar el cuarto.
 - `src/core/config.py` no depende de nada del proyecto; es la raíz de
   configuración que `Main.py` consume directamente.
 - No existe todavía `src/ui/` ni `src/network/`, así que no aparecen en
