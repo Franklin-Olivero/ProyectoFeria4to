@@ -1,12 +1,18 @@
 """Árbol N-ario implementado a mano (sin librerías de terceros).
 
-Se usa como clasificador de reportes de toxicidad (lógica de fondo,
-invisible para el jugador): la raíz representa una zona/edificio de la
+Gobierna dos mecánicas del juego:
+
+1. Clasificador de reportes de toxicidad (lógica de fondo, invisible
+para el jugador): la raíz representa una zona/edificio de la
 ciudad y cada descendiente representa una publicación o reporte de mal
 uso de redes (comentario, publicación viral, denuncia...) con su
 gravedad. Recorrer el árbol permite agregar la toxicidad de la zona, y
 ese valor decide la dificultad de la mazmorra que se genera (ver
 src/dungeon/clasificador_toxicidad.py).
+
+2. Minijuego de decisión al final de cada mazmorra normal: el jugador
+navega activamente el árbol "Publicación Viral" desde la raíz hasta una
+hoja final (ver src/ui/terminal_decision.py).
 
 Este módulo no conoce el significado de las etiquetas: solo ofrece la
 estructura, el CRUD y los recorridos, para poder probarse de forma
@@ -36,12 +42,13 @@ class NodoArbol:
 class ArbolDecision:
     """Árbol N-ario con operaciones CRUD y los 4 recorridos clásicos.
 
-    Uso en el juego: al generar una mazmorra se construye un árbol cuya
+    Uso en el juego (clasificador): al generar una mazmorra se construye un árbol cuya
     raíz es la zona/edificio y cuyos nodos son los reportes de toxicidad
     de esa zona. Un recorrido completo agrega la gravedad de los reportes
     y produce el nivel de toxicidad que determina cuántos enemigos
     aparecen y qué tan rápidos son. El jugador ve el efecto (una
-    mazmorra más fácil o más difícil), nunca la estructura.
+    mazmorra más fácil o más difícil), nunca la estructura. El mismo
+    árbol también se navega nodo a nodo en el minijuego de decisión.
 
     En todas las complejidades, n es el número total de nodos del árbol.
     No se usa ninguna estructura auxiliar (como un diccionario id -> nodo)

@@ -1,0 +1,132 @@
+"""Minijuego de decisión contra reloj (lógica pura, sin Pygame).
+
+Aparece al limpiar una mazmorra normal: el jugador ve una situación de
+redes sociales y navega un árbol N-ario (src/structures/tree.py) hasta
+llegar a una hoja final. El árbol fijo de este módulo es:
+
+    Publicación Viral
+    ├── Verificar  -> Purificación Exitosa
+    ├── Compartir  -> Detonación
+    ├── Reportar   -> Purificación Exitosa
+    └── Ignorar    -> Detonación
+
+El cursor es un puntero a un NodoArbol: "izquierda"/"derecha" mueven un
+índice sobre la lista `.hijos` del nodo actual y "confirmar" desciende
+al hijo seleccionado. Si el reloj llega a 0 antes de alcanzar una hoja,
+el resultado es "Detonación" automática.
+
+El dibujo vive aparte, en src/ui/terminal_decision_render.py, para que
+esta lógica se pueda probar con pytest sin Pygame.
+"""
+
+from src.structures.tree import ArbolDecision
+
+DURACION_TERMINAL = 10.0  # segundos
+
+PURIFICACION_EXITOSA = "Purificación Exitosa"
+DETONACION = "Detonación"
+
+IZQUIERDA = "izquierda"
+DERECHA = "derecha"
+CONFIRMAR = "confirmar"
+
+# (opción, hoja final a la que lleva). Verificar y Reportar purifican;
+# Compartir e Ignorar detonan.
+OPCIONES_PUBLICACION = [
+    ("Verificar", PURIFICACION_EXITOSA),
+    ("Compartir", DETONACION),
+    ("Reportar", PURIFICACION_EXITOSA),
+    ("Ignorar", DETONACION),
+]
+
+
+def construir_arbol_publicacion():
+    """Arma el árbol fijo de la situación "Publicación Viral".
+
+    Ids: raíz = 0, opciones = 1..4, hojas = 11..14 (opción * 10 + 1),
+    para que dos hojas con la misma etiqueta no compartan id.
+
+    Complejidad: O(k^2) con k = 4 opciones, porque cada insertar() busca
+    al padre y verifica el id con DFS sobre el árbol en construcción.
+    Con un árbol de 9 nodos es despreciable.
+    """
+    arbol = ArbolDecision(0, "Publicación Viral")
+    for numero, (opcion, hoja) in enumerate(OPCIONES_PUBLICACION, start=1):
+        arbol.insertar(0, numero, opcion)
+        arbol.insertar(numero, numero * 10 + 1, hoja)
+    return arbol
+
+
+class TerminalDecision:
+    """Estado del minijuego: nodo actual, hijo seleccionado y reloj.
+
+    Atributos:
+        arbol: ArbolDecision ya armado que se va a navegar.
+        nodo_actual: NodoArbol donde está parado el cursor.
+        indice_seleccionado: posición dentro de `nodo_actual.hijos`.
+        tiempo_restante: segundos que quedan antes de la detonación.
+        activa: True entre iniciar() y la llegada a un resultado.
+    """
+
+    def __init__(self, arbol, duracion=DURACION_TERMINAL):
+        self.arbol = arbol
+        self.duracion = duracion
+        self.nodo_actual = arbol.raiz
+        self.indice_seleccionado = 0
+        self.tiempo_restante = duracion
+        self.activa = False
+        self._resultado = None
+
+    def iniciar(self):
+        """Arranca el reloj y posiciona el cursor en la raíz."""
+        self.nodo_actual = self.arbol.raiz
+        self.indice_seleccionado = 0
+        self.tiempo_restante = self.duracion
+        self._resultado = None
+        self.activa = True
+
+    @property
+    def resultado(self):
+        """None mientras no se llegue a una hoja final; si no, su texto."""
+        return self._resultado
+
+    @property
+    def hijo_seleccionado(self):
+        if not self.nodo_actual.hijos:
+            return None
+        return self.nodo_actual.hijos[self.indice_seleccionado]
+
+    def navegar(self, direccion):
+        """Mueve el cursor entre hijos ("izquierda"/"derecha") o desciende
+        al hijo seleccionado ("confirmar").
+
+        Moverse da la vuelta al llegar a un extremo (módulo la cantidad
+        de hijos). Se ignora si la terminal no está activa.
+
+        Complejidad: O(1); solo se cambia un índice o un puntero a nodo.
+        """
+        if not self.activa or not self.nodo_actual.hijos:
+            return
+
+        cantidad = len(self.nodo_actual.hijos)
+        if direccion == IZQUIERDA:
+            self.indice_seleccionado = (self.indice_seleccionado - 1) % cantidad
+        elif direccion == DERECHA:
+            self.indice_seleccionado = (self.indice_seleccionado + 1) % cantidad
+        elif direccion == CONFIRMAR:
+            self.nodo_actual = self.hijo_seleccionado
+            self.indice_seleccionado = 0
+            if not self.nodo_actual.hijos:
+                self._terminar(self.nodo_actual.etiqueta)
+
+    def actualizar(self, dt):
+        """Descuenta el reloj; si llega a 0 sin resultado, detona."""
+        if not self.activa:
+            return
+        self.tiempo_restante = max(0.0, self.tiempo_restante - dt)
+        if self.tiempo_restante == 0.0:
+            self._terminar(DETONACION)
+
+    def _terminar(self, resultado):
+        self._resultado = resultado
+        self.activa = False

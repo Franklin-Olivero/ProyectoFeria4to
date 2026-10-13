@@ -10,6 +10,11 @@ Cuántos enemigos aparecen y qué tan rápidos son NO es fijo: al crear el
 cuarto se clasifican los reportes de toxicidad de la zona con el árbol
 N-ario (ver src/dungeon/clasificador_toxicidad.py) y el nivel
 resultante decide la dificultad.
+
+Fases del cuarto: "combate" mientras queden enemigos; al morir el
+último pasa a "decision" e instancia el minijuego de decisión
+(src/ui/terminal_decision.py); el loop principal lo pasa a "resuelto"
+cuando la terminal da un resultado.
 """
 
 import pygame
@@ -21,6 +26,7 @@ from src.dungeon.clasificador_toxicidad import (
     nivel_a_dificultad,
 )
 from src.entities.enemy import Enemigo
+from src.ui.terminal_decision import TerminalDecision, construir_arbol_publicacion
 
 ANCHO_CUARTO = 500
 ALTO_CUARTO = 400
@@ -36,6 +42,10 @@ COLOR_PUERTA_ABIERTA = (30, 180, 60)
 TECLA_DEBUG_ELIMINAR_ENEMIGO = pygame.K_k
 
 SEPARACION_VERTICAL_ENEMIGOS = 60
+
+FASE_COMBATE = "combate"
+FASE_DECISION = "decision"
+FASE_RESUELTO = "resuelto"
 
 # Reportes simulados de la zona del cuarto de prueba (un colegio con
 # ciberbullying). Hardcodeados a propósito: el resultado es determinista
@@ -81,6 +91,9 @@ class Cuarto:
         arbol_reportes = construir_arbol_reportes(reportes, nombre_zona)
         self.nivel_toxicidad = calcular_nivel_toxicidad(arbol_reportes)
         self.dificultad = nivel_a_dificultad(self.nivel_toxicidad)
+
+        self.fase = FASE_COMBATE
+        self.terminal = None
 
         self.puertas = self._crear_puertas()
         self.enemigos = self._crear_enemigos_iniciales()
@@ -128,6 +141,14 @@ class Cuarto:
         bloqueadas = len(self.enemigos) > 0
         for puerta in self.puertas.values():
             puerta.bloqueada = bloqueadas
+        self._verificar_fin_combate()
+
+    def _verificar_fin_combate(self):
+        """Sin enemigos en fase de combate -> arranca el minijuego de decisión."""
+        if self.fase == FASE_COMBATE and not self.enemigos:
+            self.fase = FASE_DECISION
+            self.terminal = TerminalDecision(construir_arbol_publicacion())
+            self.terminal.iniciar()
 
     def actualizar(self, dt, jugador, proyectiles_enemigos):
         """Corre un tick de IA para cada enemigo vivo y refresca las puertas.
