@@ -12,6 +12,8 @@ sentía el Ciudadano antes de balancear).
 
 from dataclasses import dataclass
 
+from src.core.assets import ESCALA_PIXEL
+
 # Valores base (multiplicador 1.0)
 VELOCIDAD_BASE = 220  # píxeles por segundo
 VIDA_BASE = 5
@@ -189,30 +191,59 @@ PROPAGACION_INCREMENTO = 10.0  # puntos de toxicidad a distancia 1
 TOXICIDAD_MAXIMA_CUARTO = 100.0
 
 # ----------------------------------------------------------------------
-# Mapa de la ciudad (src/dungeon/grafo_ciudad.py)
+# Ciudad Nova: mapa de casillas (src/dungeon/ciudad_mapa.py) y red de
+# calles como grafo (src/dungeon/grafo_ciudad.py)
 # ----------------------------------------------------------------------
+LADO_CASILLA_PIXEL_ART = 16  # píxeles de arte por lado de casilla
+TAM_CASILLA = LADO_CASILLA_PIXEL_ART * ESCALA_PIXEL  # 48 px en pantalla
+ENTRADA_ALCANCE = 60  # px del centro de la puerta para poder entrar con E
+# La Alcaldía sellada queda detrás de sus barricadas: el aviso se
+# muestra desde un poco más lejos que el alcance para entrar.
+ALCANCE_AVISO_SELLADA = 110  # px
+
 ZONA_PLAZA = "Plaza"
 ZONA_COLEGIO = "Colegio"
 ZONA_HOSPITAL = "Hospital"
 ZONA_EMPRESA_MEDIOS = "Empresa de Medios"
 ZONA_ALCALDIA = "Alcaldía"
+CRUCE_NORTE = "Cruce Norte"
+CRUCE_SUR = "Cruce Sur"
+CRUCE_OESTE = "Cruce Oeste"
+CRUCE_ESTE = "Cruce Este"
 
-# Calles (zona, zona, saturación). Ruta corta y peligrosa: Plaza ->
-# Empresa de Medios directo (1 calle, peso 6). Ruta larga y segura:
-# Plaza -> Hospital -> Empresa de Medios (2 calles, peso 3 + 2 = 5).
+# Tramos de calle (nodo, nodo, saturación inicial). El trazado es una
+# rueda: la Plaza al centro unida a 4 cruces y un anillo exterior que
+# pasa frente a los 4 edificios. Ninguna arista es puente y cada
+# edificio tiene dos rutas (una por cada lado del anillo).
+# Ejemplo de Dijkstra: Plaza -> Empresa de Medios por el Cruce Este
+# cuesta 4 + 2 = 6; por el Cruce Sur, 3 + 5 = 8.
 PESOS_INICIALES_CIUDAD = [
-    (ZONA_PLAZA, ZONA_COLEGIO, 2),
-    (ZONA_PLAZA, ZONA_HOSPITAL, 3),
-    (ZONA_PLAZA, ZONA_EMPRESA_MEDIOS, 6),
-    (ZONA_COLEGIO, ZONA_HOSPITAL, 4),
-    (ZONA_HOSPITAL, ZONA_EMPRESA_MEDIOS, 2),
-    (ZONA_COLEGIO, ZONA_ALCALDIA, 5),
-    (ZONA_EMPRESA_MEDIOS, ZONA_ALCALDIA, 3),
+    (ZONA_PLAZA, CRUCE_NORTE, 2),
+    (ZONA_PLAZA, CRUCE_SUR, 3),
+    (ZONA_PLAZA, CRUCE_OESTE, 2),
+    (ZONA_PLAZA, CRUCE_ESTE, 4),
+    (CRUCE_NORTE, ZONA_COLEGIO, 3),
+    (ZONA_COLEGIO, CRUCE_OESTE, 2),
+    (CRUCE_OESTE, ZONA_HOSPITAL, 3),
+    (ZONA_HOSPITAL, CRUCE_SUR, 2),
+    (CRUCE_SUR, ZONA_EMPRESA_MEDIOS, 5),
+    (ZONA_EMPRESA_MEDIOS, CRUCE_ESTE, 2),
+    (CRUCE_ESTE, ZONA_ALCALDIA, 3),
+    (ZONA_ALCALDIA, CRUCE_NORTE, 4),
 ]
 PESO_MINIMO_CIUDAD = 1
 PESO_MAXIMO_CIUDAD = 10
-AJUSTE_PESO_CIUDAD = 1  # Purificación Exitosa baja, Detonación sube
-COSTO_VIAJE_COLAPSO = 0.02  # puntos de colapso por unidad de costo de la ruta
+# Pesos dinámicos al resolver una mazmorra, en las calles de su entrada.
+AJUSTE_DETONACION = 3  # Detonación: +3
+AJUSTE_PURIFICACION = 2  # Purificación Exitosa: -2
+# Histéresis de las barricadas: una calle se bloquea al llegar a
+# BLOQUEO_PESO y se desbloquea al bajar de DESBLOQUEO_PESO. Si
+# bloquearla desconectaría la ciudad, queda abierta con PESO_MAXIMO_CIUDAD.
+BLOQUEO_PESO = 8
+DESBLOQUEO_PESO = 6
+
+# Cintillo de noticias (src/dungeon/noticias.py)
+COLAPSO_TITULAR_ALTO = 50.0  # desde este colapso hay titular de alarma
 
 # Reportes de toxicidad de cada zona con mazmorra (la Alcaldía es la
 # mazmorra final y no usa reportes). Gravedad promedio -> nivel:

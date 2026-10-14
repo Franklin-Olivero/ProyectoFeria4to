@@ -14,7 +14,7 @@ from src.ui import dibujo, sprites
 TITULO = "Servidor Central purificado"
 DETALLE = "La Alcaldía vuelve a estar en línea. El colapso baja 0.1%."
 OPCIONES = [
-    ("Enter", "volver al mapa de la ciudad"),
+    ("Enter", "volver a Ciudad Nova"),
     ("Esc", "salir del juego"),
 ]
 

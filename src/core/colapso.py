@@ -2,8 +2,7 @@
 
 Barra 0.0%-100.0%: sube +0.2 por cada incursión fallida o muerte del
 equipo en una mazmorra y baja -0.1 por cada mazmorra purificada.
-Viajar por la ciudad también lo sube (`sumar`, costo de la ruta; ver
-src/dungeon/partida.py). Si llega a 100% la partida se pierde
+Caminar por Ciudad Nova es gratis. Si llega a 100% la partida se pierde
 (`esta_colapsado()`): Main.py muestra la derrota global "Colapso total"
 y ENTER reinicia la partida completa. Todavía no persiste entre
 ejecuciones.
@@ -34,7 +33,7 @@ class ColapsoElectoral:
         self.valor = self._acotar(self.valor - DECREMENTO_POR_EXITO)
 
     def sumar(self, cantidad):
-        """Suma una cantidad arbitraria (p. ej. el costo de un viaje), acotada."""
+        """Suma una cantidad arbitraria, acotada."""
         self.valor = self._acotar(self.valor + cantidad)
 
     def esta_colapsado(self):

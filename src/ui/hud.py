@@ -29,7 +29,14 @@ CONTROLES_JEFE = [
     ("Tab", "ver árbol de comportamiento"),
 ]
 CONTROLES_TERMINAL = [("← →", "elegir opción"), ("Enter", "confirmar")]
-CONTROLES_MAPA = [("← →", "elegir zona"), ("Enter", "viajar")]
+CONTROLES_CIUDAD = [
+    ("WASD", "caminar"),
+    ("E", "entrar"),
+    ("G", "ruta sugerida"),
+    ("Tab", "cambiar destino"),
+    ("M", "mapa del mundo"),
+]
+CONTROLES_MAPA_MUNDO = [("Tab", "cambiar destino"), ("M", "volver a la ciudad")]
 CONTROLES_FINAL = [("Enter", "continuar"), ("Esc", "salir")]
 CONTROLES_SELECCION = [("1-4", "elegir rol")]
 

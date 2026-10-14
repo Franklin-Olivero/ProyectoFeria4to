@@ -1,16 +1,20 @@
 """Estado global de una partida (lógica pura, sin Pygame).
 
 Agrupa lo que sobrevive entre mazmorras: el Colapso Electoral, el
-progreso (mazmorras completadas), el mapa de la ciudad con sus pesos
-dinámicos y la zona donde está el jugador. Main.py solo traduce teclas
-a estas llamadas; así el viaje, la decisión y la derrota global se
-pueden probar sin abrir ventana.
+progreso (mazmorras completadas), la red de calles de Ciudad Nova con
+sus pesos dinámicos y barricadas, y la última zona donde estuvo el
+jugador (donde reaparece al volver a la ciudad). Main.py solo traduce
+teclas a estas llamadas; así entrar a un edificio, la decisión y la
+derrota global se pueden probar sin abrir ventana.
 """
 
-from src.core.balance import COSTO_VIAJE_COLAPSO
+from src.core.balance import NIVEL_TOXICIDAD_FINAL
 from src.core.colapso import ColapsoElectoral
-from src.dungeon.grafo_ciudad import ZONA_INICIO, GrafoCiudad
+from src.dungeon import ciudad_mapa
+from src.dungeon.clasificador_toxicidad import calcular_nivel_toxicidad, construir_arbol_reportes
+from src.dungeon.grafo_ciudad import EDIFICIOS, ZONA_FINAL, ZONA_INICIO, GrafoCiudad
 from src.dungeon.mazmorra_final import esta_desbloqueada
+from src.dungeon.noticias import EstadoNoticias, generar_titulares
 from src.dungeon.progreso import ProgresoPartida
 from src.ui.terminal_decision import PURIFICACION_EXITOSA
 
@@ -20,8 +24,8 @@ class Partida:
         self.reiniciar()
 
     def reiniciar(self):
-        """Estado inicial: colapso 0, progreso 0, en la Plaza y la ciudad
-        con sus pesos originales."""
+        """Estado inicial: colapso 0, progreso 0, en la Plaza y las calles
+        con sus pesos originales y sin barricadas."""
         self.colapso = ColapsoElectoral()
         self.progreso = ProgresoPartida()
         self.ciudad = GrafoCiudad()
@@ -30,17 +34,52 @@ class Partida:
     def alcaldia_desbloqueada(self):
         return esta_desbloqueada(self.colapso, self.progreso.mazmorras_completadas)
 
-    def ruta_hasta(self, destino):
-        """(camino, costo) más seguro desde la ubicación actual."""
-        return self.ciudad.ruta_mas_segura(self.ubicacion, destino)
+    # ------------------------------------------------------------------
+    # Ciudad Nova
+    # ------------------------------------------------------------------
 
-    def viajar(self, destino):
-        """Cobra el viaje en colapso (COSTO_VIAJE_COLAPSO por unidad de
-        costo de la ruta) y mueve al jugador. Retorna (camino, costo)."""
-        camino, costo = self.ruta_hasta(destino)
-        self.colapso.sumar(costo * COSTO_VIAJE_COLAPSO)
-        self.ubicacion = destino
-        return camino, costo
+    def entrar(self, zona):
+        """El jugador cruza la puerta de `zona` (caminar es gratis): queda
+        como ubicación, para reaparecer frente a esa puerta al volver."""
+        self.ubicacion = zona
+
+    def posicion_aparicion(self):
+        """Px del mundo donde aparece el jugador en la ciudad."""
+        return ciudad_mapa.posicion_aparicion(self.ubicacion)
+
+    def barricadas_activas(self):
+        """Barricadas de calle + las de la Alcaldía mientras está sellada."""
+        casillas = self.ciudad.barricadas_activas()
+        if not self.alcaldia_desbloqueada():
+            casillas = casillas | ciudad_mapa.BARRICADAS_ALCALDIA
+        return casillas
+
+    def es_solida(self, col, fila):
+        return ciudad_mapa.es_solida(col, fila, self.barricadas_activas())
+
+    def ruta_sugerida(self, posicion, destino):
+        """(nodos, costo) desde el nodo más cercano a `posicion`, o None."""
+        return self.ciudad.ruta_sugerida(posicion, destino)
+
+    def toxicidad(self, zona):
+        """Nivel 0-100 de la zona: el de sus reportes (árbol N-ario) o el
+        máximo para la Alcaldía."""
+        if zona == ZONA_FINAL:
+            return NIVEL_TOXICIDAD_FINAL
+        return calcular_nivel_toxicidad(construir_arbol_reportes(self.ciudad.reportes(zona), zona))
+
+    def titulares(self):
+        """Titulares del cintillo según el estado actual."""
+        return generar_titulares(EstadoNoticias(
+            toxicidad={zona: self.toxicidad(zona) for zona in EDIFICIOS if zona != ZONA_FINAL},
+            calles_bloqueadas=self.ciudad.calles_bloqueadas(),
+            colapso=self.colapso.valor,
+            alcaldia_abierta=self.alcaldia_desbloqueada(),
+        ))
+
+    # ------------------------------------------------------------------
+    # Mazmorras
+    # ------------------------------------------------------------------
 
     def cerrar_mazmorra(self, mazmorra, resultado):
         """Único camino del juego para aplicar la decisión de una mazmorra
@@ -54,7 +93,8 @@ class Partida:
 
     def registrar_decision(self, zona, resultado):
         """Resultado del minijuego de la mazmorra de `zona`: aplica
-        colapso y progreso, y ajusta los pesos de las calles de la zona."""
+        colapso y progreso, y ajusta los pesos (y barricadas) de las
+        calles de la entrada de la zona."""
         self.progreso.registrar_decision(resultado, self.colapso)
         self.ciudad.actualizar_tras_mazmorra(zona, resultado == PURIFICACION_EXITOSA)
 

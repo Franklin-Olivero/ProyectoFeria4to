@@ -45,6 +45,7 @@ from src.core.balance import (
     VIDA_BASE,
     intervalo_disparo,
 )
+from src.dungeon.ciudad_mapa import mover_con_colision
 from src.entities.invulnerabilidad import Invulnerabilidad
 from src.entities.projectile import Proyectil
 
@@ -93,8 +94,9 @@ class JugadorBase:
     def vivo(self):
         return self.vida > 0
 
-    def manejar_movimiento(self, teclas, dt, limites):
-        """Mueve al jugador según WASD/flechas y lo mantiene dentro de `limites`."""
+    def _direccion_teclas(self, teclas):
+        """Vector unitario según WASD/flechas (cero si no se pulsa nada).
+        El Candidato, que apunta al caminar, actualiza aquí su mirada."""
         direccion = pygame.Vector2(0, 0)
         if teclas[pygame.K_w] or teclas[pygame.K_UP]:
             direccion.y -= 1
@@ -104,15 +106,38 @@ class JugadorBase:
             direccion.x -= 1
         if teclas[pygame.K_d] or teclas[pygame.K_RIGHT]:
             direccion.x += 1
-
         if direccion.length_squared() > 0:
             direccion = direccion.normalize()
             if not self.apunta_con_mouse:
                 self.direccion_mirada = direccion
+        return direccion
+
+    def manejar_movimiento(self, teclas, dt, limites):
+        """Mueve al jugador según WASD/flechas y lo mantiene dentro de `limites`."""
+        direccion = self._direccion_teclas(teclas)
+        if direccion.length_squared() > 0:
             self.posicion += direccion * self.velocidad * dt
             self.rect.center = (round(self.posicion.x), round(self.posicion.y))
             self.rect.clamp_ip(limites)
             self.posicion.update(self.rect.center)
+
+    def caminar_en_ciudad(self, teclas, dt, es_solida):
+        """Movimiento en Ciudad Nova: misma velocidad del rol, pero contra
+        las casillas sólidas del mapa (mover_con_colision, por ejes
+        separados) en vez de contra los muros de un cuarto."""
+        direccion = self._direccion_teclas(teclas)
+        if direccion.length_squared() == 0:
+            return
+        delta = direccion * self.velocidad * dt
+        x, y = mover_con_colision(
+            (self.posicion.x, self.posicion.y), (delta.x, delta.y), self.rect.size, es_solida
+        )
+        self.colocar_en((x, y))
+
+    def colocar_en(self, posicion):
+        """Pone el centro del jugador en `posicion` (px)."""
+        self.posicion.update(posicion)
+        self.rect.center = (round(self.posicion.x), round(self.posicion.y))
 
     def apuntar_a(self, punto_mouse):
         """Orienta `direccion_mirada` hacia `punto_mouse` (coordenadas del

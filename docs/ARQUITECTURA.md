@@ -5,10 +5,11 @@ no el diseño aspiracional completo del juego. Se regenera manualmente
 cada vez que la estructura de `src/` cambia de forma significativa.
 
 **Lo que todavía no existe** (y por eso no aparece aquí): `src/network/`
-(sockets, Entrega Final) y Ciudad Nova como mundo abierto caminable. La
-ciudad hoy es un mapa de selección sobre un grafo ponderado, desde el
-que se viaja a 3 mazmorras normales de 6 cuartos (grafo de cuartos) y a
-la mazmorra final de un solo cuarto.
+(sockets, Entrega Final) y NPCs en la ciudad. La ciudad es Ciudad Nova:
+un mapa 2D de casillas por el que se camina y se entra por la puerta de
+cada edificio a 3 mazmorras normales de 6 cuartos (grafo de cuartos) y
+a la mazmorra final de un solo cuarto. Sus calles forman un grafo
+ponderado (ruta sugerida y barricadas).
 
 ## 1. Árbol de carpetas
 
@@ -45,8 +46,10 @@ PruebaPythonGame/
 │   │   ├── cuarto.py               # Un cuarto: puertas existentes, enemigos, fases combate/limpio/decisión/resuelto.
 │   │   ├── mazmorra.py             # Mazmorra de 6 cuartos sobre un Grafo: layout, final, propagación. Puro.
 │   │   ├── mazmorra_jugable.py     # Cuerpo Pygame de la mazmorra: un Cuarto por nodo, cruzar puertas.
-│   │   ├── grafo_ciudad.py         # Mapa de la ciudad: Dijkstra y pesos dinámicos. Puro.
-│   │   ├── partida.py              # Colapso + progreso + ciudad + ubicación; viajar, reiniciar. Puro.
+│   │   ├── ciudad_mapa.py          # Ciudad Nova: mapa de casillas, nodos/tramos de calle, colisión, cámara. Puro.
+│   │   ├── grafo_ciudad.py         # Red de calles: Dijkstra, pesos dinámicos, barricadas. Puro.
+│   │   ├── noticias.py             # Titulares del cintillo según el estado de la partida. Puro.
+│   │   ├── partida.py              # Colapso + progreso + calles + ubicación; entrar, reaparecer, reiniciar. Puro.
 │   │   ├── progreso.py             # Mazmorras completadas (solo Purificación Exitosa). Puro.
 │   │   ├── charco.py               # Charco tóxico: aviso + fase activa con daño. Puro.
 │   │   ├── mazmorra_final.py       # Reglas de la pelea final, tiempo, victoria/derrota, desbloqueo. Puro.
@@ -55,8 +58,10 @@ PruebaPythonGame/
 │       ├── terminal_decision.py    # Minijuego de decisión sobre el árbol N-ario. Puro.
 │       ├── terminal_decision_render.py # Dibujo de la terminal.
 │       ├── seleccion_rol.py        # Dibujo de la pantalla de selección con barras de stats.
-│       ├── mapa_ciudad.py          # SelectorZona (flechas izq/der). Puro.
-│       ├── mapa_ciudad_render.py   # Dibujo del mapa: zonas, calles con peso, ruta más segura y costo.
+│       ├── mapa_ciudad.py          # SelectorZona (destino de la ruta, TAB). Puro.
+│       ├── casillas_ciudad.py      # Pixel art de Ciudad Nova: casillas, fachadas, barricada, mosaico.
+│       ├── ciudad_render.py        # Dibujo de la escena CIUDAD: mundo, auras, rótulos, ruta, cintillo.
+│       ├── mapa_ciudad_render.py   # Mapa del mundo (M): el grafo de calles, pesos, bloqueos y ruta.
 │       ├── mapa_render.py          # Minimapa de la mazmorra (tecla M).
 │       ├── pantalla_victoria.py    # Dibujo de la pantalla de victoria + panel final reutilizable.
 │       └── pantalla_derrota.py     # Dibujo de la derrota global "Colapso total".
@@ -78,13 +83,13 @@ Responsabilidad y límites de cada carpeta, según el código real:
 - **`src/entities/`** — jugadores, enemigos, jefe y proyectiles, cada uno
   con su estado y su `dibujar()`. El jefe y la invulnerabilidad son
   lógica pura; el resto usa `pygame.Rect`/`Vector2`.
-- **`src/dungeon/`** — los lugares donde se pelea (cuartos, mazmorra
-  multi-cuarto y arena del jefe), el mapa de la ciudad y sus reglas:
-  clasificación de toxicidad, progreso, partida, charcos y la mazmorra
-  final.
-- **`src/ui/`** — el minijuego de decisión y el selector del mapa
-  (lógica pura) y el dibujo de pantallas que no son mundo de juego
-  (terminal, selección, mapa de ciudad, minimapa, victoria, derrota).
+- **`src/dungeon/`** — los lugares (cuartos, mazmorra multi-cuarto,
+  arena del jefe y Ciudad Nova con su red de calles) y sus reglas:
+  clasificación de toxicidad, progreso, partida, noticias, charcos y la
+  mazmorra final.
+- **`src/ui/`** — el minijuego de decisión y el selector de destino
+  (lógica pura) y todo el dibujo: terminal, selección, Ciudad Nova,
+  mapa del mundo, minimapa, victoria, derrota.
 
 ## 2. Módulos, clases y dependencias
 
@@ -108,15 +113,20 @@ de habilidades).
 - `STATS_POR_ROL` (rol → `StatsRol`), valores base (`VELOCIDAD_BASE`,
   `VIDA_BASE`, `DANIO_BASE`), límites de cadencia, buff por kill,
   `CARGA_COMPARTIDA`, `INVULNERABILIDAD_DURACION` y todas las
-  constantes del jefe, charcos y mazmorra final.
+  constantes del jefe, charcos y mazmorra final. De Ciudad Nova:
+  `TAM_CASILLA` (16 × `ESCALA_PIXEL` = 48), `ENTRADA_ALCANCE`,
+  `ALCANCE_AVISO_SELLADA`, los nombres de zonas y cruces,
+  `PESOS_INICIALES_CIUDAD`, `AJUSTE_DETONACION` (+3),
+  `AJUSTE_PURIFICACION` (-2), `BLOQUEO_PESO` (8), `DESBLOQUEO_PESO` (6)
+  y `COLAPSO_TITULAR_ALTO`.
 - `intervalo_disparo(cadencia, buff_activo)`, `dps_nominal(stats)`,
   `stats_normalizadas()`.
 
-*Depende de:* nada del proyecto.
+*Depende de:* `assets` (solo `ESCALA_PIXEL`, módulo puro).
 
 **`colapso.py`** — puro. **`ColapsoElectoral`**: `valor` acotado a
 [0, 100]; `sumar_fallo()` (+0.2), `restar_exito()` (-0.1),
-`sumar(cantidad)` (costo de viaje), `esta_colapsado()` (redondea a un
+`sumar(cantidad)`, `esta_colapsado()` (redondea a un
 decimal para tolerar el error de float), `texto()`.
 *Depende de:* nada.
 
@@ -126,8 +136,8 @@ vector unitario `(x, y)` hacia el mouse, o `direccion_previa` si el
 mouse está a menos de `ZONA_MUERTA_APUNTADO` px. O(1).
 *Depende de:* `balance`.
 
-**`escenas.py`** — puro. **`Escena`** (Enum): `MAPA_CIUDAD`,
-`MAZMORRA`, `DECISION`, `JEFE`, `VICTORIA`, `DERROTA`;
+**`escenas.py`** — puro. **`Escena`** (Enum): `CIUDAD`,
+`MAZMORRA`, `DECISION`, `RESULTADO`, `JEFE`, `VICTORIA`, `DERROTA`;
 `ESCENAS_DE_COMBATE`; `escena_tras_colapso(escena, colapso)` →
 `DERROTA` si la barra llegó al 100%.
 *Depende de:* nada.
@@ -199,7 +209,10 @@ y no la reinicia), `visible` (parpadeo), `reiniciar()`.
   `apuntar_a(punto_mouse)` (usa `core/apuntado`) o
   `manejar_movimiento` (dirección de caminata). Los ataques y la
   habilidad siempre salen de `direccion_mirada`.
-  Métodos: `manejar_movimiento`, `apuntar_a`, `actualizar_disparo(dt, disparando)`
+  Métodos: `manejar_movimiento` (contra los muros del cuarto),
+  `caminar_en_ciudad(teclas, dt, es_solida)` (misma velocidad del rol,
+  con `mover_con_colision` contra las casillas), `colocar_en`, `apuntar_a`,
+  `actualizar_disparo(dt, disparando)`
   (disparo sostenido con acumulador), `registrar_kill`, `sumar_carga`,
   `puede_usar_habilidad`, `recibir_dano(danio, inicia_invulnerabilidad)`,
   `actualizar_invulnerabilidad`, `dibujar`. Interfaz a sobreescribir:
@@ -207,7 +220,8 @@ y no la reinicia), `visible` (parpadeo), `reiniciar()`.
 - **`Ciudadano(JugadorBase)`** — abanico de 3 proyectiles / Burbuja
   Comunitaria (flag con duración; todavía sin frenar proyectiles ni curar).
 
-*Depende de:* `pygame`, `assets`, `apuntado`, `balance`, `invulnerabilidad`, `projectile`.
+*Depende de:* `pygame`, `assets`, `apuntado`, `balance`, `invulnerabilidad`, `projectile`,
+`dungeon/ciudad_mapa` (`mover_con_colision`).
 
 **`influencer.py`** — **`ProyectilEmpuje(Proyectil)`** (ancho; al
 impactar daña y llama `enemigo.empujar`) e **`Influencer(JugadorBase)`**
@@ -310,24 +324,58 @@ llama a `Mazmorra.mover` y lo ubica junto a la puerta opuesta;
 `cambio_de_cuarto` avisa a `Main.py` para descartar proyectiles.
 *Depende de:* `assets`, `cuarto`, `mazmorra`.
 
-**`grafo_ciudad.py`** — puro. `ZONAS`, `ZONA_INICIO` (Plaza),
-`ZONA_FINAL` (Alcaldía) y **`GrafoCiudad`**: `restablecer()`,
-`zonas()`, `tiene_mazmorra_normal(zona)`, `reportes(zona)`,
-`ruta_mas_segura(origen, destino)` → (camino, costo),
-`actualizar_tras_mazmorra(zona, exito)` (±1, acotado a [1, 10]),
-`calles()`.
+**`ciudad_mapa.py`** — puro. Ciudad Nova como `MAPA` (lista de 44
+cadenas de 64 caracteres; leyenda: pasto, acera/plaza, calle con o sin
+carril, edificio, casa, árbol, farola, entrada, barricada de la
+Alcaldía), `TAM_MUNDO`, `EDIFICIOS` y `ENTRADAS` (rect y puerta de cada
+edificio, todas mirando al sur), `BARRICADAS_ALCALDIA`, `PLAZA`,
+`SPAWN`, `NODOS_CALLE` (casilla de cada nodo del grafo) y `TRAMOS`
+(**`Tramo`**: `a`, `b`, `puntos` del eje con sus codos y `seccion`, el
+corte transversal de acera a acera donde va la barricada). Funciones:
+`tramo(a, b)`, `casillas_de_tramo`, `polilinea_ruta(posicion, nodos)`,
+`casilla`, `es_solida(col, fila, barricadas)`, `casilla_de`,
+`centro_casilla`, `entrada_cercana(posicion, alcance)`,
+`posicion_aparicion(zona)` (dos casillas frente a la puerta),
+`mover_con_colision(posicion, delta, tamano, es_solida)` (ejes
+separados, pegado al borde de la casilla, pasos de media casilla),
+`calcular_camara(pos, tam_mundo, tam_vista)` y `grafo_casillas(es_solida)`
+(un `Grafo` con una arista entre casillas transitables vecinas).
 *Depende de:* `balance`, `structures/graph`.
 
+**`grafo_ciudad.py`** — puro. `ZONAS`, `EDIFICIOS`, `CRUCES`, `NODOS`,
+`ZONA_INICIO` (Plaza), `ZONA_FINAL` (Alcaldía) y **`GrafoCiudad`**:
+`grafo` (9 nodos, 12 calles), `bloqueadas` (claves `frozenset` de las
+calles con barricada); `restablecer()`, `zonas()`,
+`tiene_mazmorra_normal(zona)`, `reportes(zona)`, `calles()`,
+`esta_bloqueada`, `calles_bloqueadas`, `grafo_abierto()` (copia sin
+bloqueadas), `puede_bloquearse(arista)`, `bloquear`, `desbloquear`,
+`barricadas_activas()`, `es_solida(col, fila)`,
+`actualizar_tras_mazmorra(zona, exito)` (+3 / -2 en [1, 10] y luego
+`revisar_barricadas()` con la histéresis 8/6),
+`ruta_mas_segura(origen, destino)`, `nodo_mas_cercano(posicion)` y
+`ruta_sugerida(posicion, destino)` → (nodos, costo) o None.
+*Depende de:* `balance`, `ciudad_mapa`, `structures/graph`.
+
+**`noticias.py`** — puro. **`EstadoNoticias`** (dataclass: toxicidad
+por zona, calles bloqueadas, colapso, Alcaldía abierta) y
+`generar_titulares(estado)`: barricadas, colapso alto, estado de la
+Alcaldía y toxicidad de cada zona; "Sin novedades..." si no hay ni
+barricadas ni colapso alto.
+*Depende de:* `balance`.
+
 **`partida.py`** — puro. **`Partida`**: `colapso`, `progreso`,
-`ciudad`, `ubicacion`; `reiniciar()`, `alcaldia_desbloqueada()`,
-`ruta_hasta(destino)`, `viajar(destino)` (cobra
-`COSTO_VIAJE_COLAPSO` × costo), `cerrar_mazmorra(mazmorra, resultado)`
+`ciudad`, `ubicacion` (última zona: ahí se reaparece); `reiniciar()`
+(también quita las barricadas), `alcaldia_desbloqueada()`,
+`entrar(zona)` (gratis), `posicion_aparicion()`,
+`barricadas_activas()` (de calles + las de la Alcaldía mientras está
+sellada), `es_solida(col, fila)`, `ruta_sugerida(posicion, destino)`,
+`toxicidad(zona)`, `titulares()`, `cerrar_mazmorra(mazmorra, resultado)`
 (única vía que usa `Main.py`: aplica la decisión solo si
 `mazmorra.completar()` acepta, una vez por mazmorra),
-`registrar_decision(zona, resultado)`,
-`hay_derrota_global()`.
-*Depende de:* `balance`, `colapso`, `grafo_ciudad`, `mazmorra_final`,
-`progreso`, `ui/terminal_decision`.
+`registrar_decision(zona, resultado)`, `hay_derrota_global()`.
+*Depende de:* `balance`, `colapso`, `ciudad_mapa`, `grafo_ciudad`,
+`clasificador_toxicidad`, `noticias`, `mazmorra_final`, `progreso`,
+`ui/terminal_decision`.
 
 **`progreso.py`** — puro. **`ProgresoPartida`**:
 `mazmorras_completadas`; `registrar_decision(resultado, colapso)` (solo
@@ -364,7 +412,8 @@ tramo de toxicidad máximo) y dibuja jefe, charcos, barra y tiempo.
 *Depende de:* `structures/tree`.
 
 **`mapa_ciudad.py`** — puro. **`SelectorZona`**: `seleccionada`,
-`mover(dirección)` (da la vuelta en los extremos).
+`mover(dirección)` (da la vuelta en los extremos). En la escena CIUDAD
+elige el destino de la ruta sugerida (TAB).
 *Depende de:* `ui/terminal_decision` (constantes de dirección).
 
 **`pantalla_resultado.py`** — `ResultadoMazmorra` (dataclass: resultado,
@@ -387,7 +436,24 @@ Capa de presentación compartida:
   enemigos, título/subtítulo, barra de colapso) y
   `dibujar_barra_controles` (chips de tecla por escena:
   `CONTROLES_COMBATE`, `CONTROLES_JEFE`, `CONTROLES_TERMINAL`,
-  `CONTROLES_MAPA`, `CONTROLES_FINAL`, `CONTROLES_SELECCION`).
+  `CONTROLES_CIUDAD`, `CONTROLES_MAPA_MUNDO`, `CONTROLES_FINAL`,
+  `CONTROLES_SELECCION`).
+- **`casillas_ciudad.py`** — pixel art de Ciudad Nova con el mismo
+  mecanismo de `sprites.py` (filas de 16 caracteres + paleta,
+  cacheadas): pasto, acera, losa de plaza, calle con carril horizontal o
+  vertical, árbol y farola (figuras "estampadas" sobre su fondo), casa
+  con techo o muro y tres combinaciones de ventanas, barricada a franjas
+  y el mosaico de la Plaza. `fachada(zona, ...)` genera la fachada de
+  cada edificio de zona (techo, ventanas encendidas, puerta, placa del
+  rótulo y un emblema por zona); `placa_rotulo` dice dónde va el texto.
+- **`ciudad_render.py`** — `mundo_base()` (todo el suelo estático en
+  una Surface del tamaño del mundo, una sola vez), `dibujar_ciudad`
+  (copia la parte que ve la cámara y encima: halos de farolas con
+  `BLEND_RGB_ADD`, aura pulsante de cada edificio con
+  `color_toxicidad`, rótulos neón, barricadas activas, ruta punteada y
+  el jugador con `sprite_jugador` + `dibujar_centrado`),
+  `dibujar_cintillo` (titulares desplazándose), `dibujar_aviso` y
+  `dibujar_fundido`.
 - **`cuarto_render.py`** — `fondo_cuarto` (baldosas, muros de ladrillo
   y grafitis, cacheado por cuarto), `dibujar_puerta` (barrotes si está
   bloqueada, X si está sellada, hueco iluminado si está abierta) y
@@ -406,9 +472,10 @@ de resultado en vista previa, migas de pan y leyenda; genérico para
 cualquier `ArbolDecision`), **`seleccion_rol.py`** (tarjetas con sprite
 y barras de stats), **`pantalla_victoria.py`** (`dibujar_victoria` y
 `dibujar_panel_final`, reutilizable), **`pantalla_derrota.py`**,
-**`mapa_ciudad_render.py`** (`dibujar_mapa_ciudad`: calles con su peso,
-zonas con nombre y toxicidad, ruta más segura resaltada y panel con su
-costo) y **`mapa_render.py`** (`dibujar_minimapa`, `color_toxicidad`) —
+**`mapa_ciudad_render.py`** (`dibujar_mapa_mundo`, tecla M: cada nodo
+en su casilla escalada, calles con su peso, las bloqueadas punteadas en
+magenta con su barricada, zonas con nombre y toxicidad, el jugador en su
+lugar y la ruta sugerida con su saturación) y **`mapa_render.py`** (`dibujar_minimapa`, `color_toxicidad`) —
 funciones de dibujo.
 *Dependen de:* `pygame`, `assets`, `dibujo`/`fuentes`/`sprites` (y
 `balance` en `seleccion_rol`, `mapa_ciudad_render` y `mapa_render`).
@@ -417,13 +484,16 @@ funciones de dibujo.
 
 - `main()` — selección de rol, luego el loop con la máquina de estados
   (`Escena`, en `core/escenas.py`): el input, la actualización y el
-  dibujo dependen de la escena. Flujo: `MAPA_CIUDAD` → (ENTER en una
-  zona) `MAZMORRA` → `DECISION` → `RESULTADO` → (ENTER) `MAPA_CIUDAD`;
-  `MAPA_CIUDAD` → (ENTER en la Alcaldía, si está desbloqueada) `JEFE` →
-  `VICTORIA` → (ENTER) `MAPA_CIUDAD`; desde cualquier escena (salvo
-  `RESULTADO`, que se muestra completa primero), colapso al 100% →
-  `DERROTA` → (ENTER) partida nueva. M alterna el minimapa; Tab, el
-  globo del behavior tree.
+  dibujo dependen de la escena. Flujo: `CIUDAD` → (E en una entrada)
+  `MAZMORRA` → `DECISION` → `RESULTADO` → (ENTER) `CIUDAD` frente a esa
+  puerta; `CIUDAD` → (E en la Alcaldía abierta) `JEFE` → `VICTORIA` →
+  (ENTER) `CIUDAD`; desde cualquier escena (salvo `RESULTADO`, que se
+  muestra completa primero), colapso al 100% → `DERROTA` → (ENTER)
+  partida nueva en la Plaza. En `CIUDAD`: WASD camina
+  (`caminar_en_ciudad` con `partida.es_solida`), E entra, G alterna la
+  ruta sugerida, TAB cambia el destino, M abre el mapa del mundo; al
+  entrar y salir de un edificio hay un fundido de `DURACION_FUNDIDO`.
+  En combate M alterna el minimapa y Tab el globo del behavior tree.
 - Dibujo: el mundo (escenario, cono de apuntado, objetivo, jugador,
   proyectiles, números de daño, globo) va a un lienzo que se copia con
   la sacudida; el HUD superior, el minimapa, la barra de controles y la
@@ -436,8 +506,11 @@ funciones de dibujo.
   (`CLICK_DISPARA`) cuentan como "disparando".
 - `_frame_de_combate(...)` — un frame de combate idéntico en la
   mazmorra y en la arena.
+- `_dibujar_ciudad` (mundo o mapa del mundo, HUD, cintillo, chip de la
+  ruta y avisos de entrada / Alcaldía sellada), `_volver_a_la_ciudad`
+  (reaparecer frente a la puerta), `_posicion`.
 - `_apunta_con_mouse`, `_apuntar_con_mouse`, `_escenario_activo`,
-  `_enemigo_mas_cercano`, `_nuevo_selector`, `_curar`, `_elegir_rol`,
+  `_enemigo_mas_cercano`, `_curar`, `_elegir_rol`,
   `_titulo_mazmorra`, `_dibujar_mensaje`, `_actualizar_proyectiles`,
   `_resolver_colisiones_contra_enemigos` (delega en `al_impactar`,
   reparte carga con `registrar_kill_equipo` y agrega el número de daño
@@ -486,7 +559,9 @@ graph TD
         Cuarto["cuarto"]
         Mazmorra["mazmorra"]
         MJugable["mazmorra_jugable"]
+        CiudadMapa["ciudad_mapa"]
         Ciudad["grafo_ciudad"]
+        Noticias["noticias"]
         Partida["partida"]
         Progreso["progreso"]
         Charco["charco"]
@@ -503,19 +578,21 @@ graph TD
         Selector["mapa_ciudad"]
         MapaRender["mapa_ciudad_render"]
         Minimapa["mapa_render"]
+        Casillas["casillas_ciudad"]
+        CiudadRender["ciudad_render"]
     end
 
     Main --> Config & Equipo & Escenas & Cuarto & Arena & MFinal
-    Main --> Mazmorra & MJugable & Ciudad & Partida
+    Main --> Mazmorra & MJugable & Ciudad & CiudadMapa & Partida
     Main --> Player & Infl & Peri & Cand
     Main --> Terminal & TermRender & Seleccion & Victoria & Derrota
-    Main --> Selector & MapaRender & Minimapa
+    Main --> Selector & MapaRender & Minimapa & CiudadRender
 
     Equipo --> Balance
     Invul --> Balance
     Apuntado["apuntado"]
     Apuntado --> Balance
-    Player --> Balance & Invul & Proyectil & Apuntado
+    Player --> Balance & Invul & Proyectil & Apuntado & CiudadMapa
     Infl --> Player
     Peri --> Player
     Cand --> Player
@@ -528,8 +605,10 @@ graph TD
     Cuarto --> Clasif & Enemigo & Terminal
     Mazmorra --> Graph & Clasif & Balance
     MJugable --> Mazmorra & Cuarto
-    Ciudad --> Graph & Balance
-    Partida --> Colapso & Progreso & Ciudad & MFinal & Terminal
+    CiudadMapa --> Graph & Balance
+    Ciudad --> Graph & Balance & CiudadMapa
+    Noticias --> Balance
+    Partida --> Colapso & Progreso & Ciudad & CiudadMapa & Noticias & Clasif & MFinal & Terminal
     Progreso --> Terminal
     Charco --> Balance
     MFinal --> Jefe & Clasif & Balance
@@ -537,11 +616,13 @@ graph TD
     Seleccion --> Balance
     Selector --> Terminal
     Derrota --> Victoria
-    MapaRender --> Clasif & Ciudad & Balance
+    MapaRender --> Ciudad & CiudadMapa & Casillas
     Minimapa --> Balance
+    CiudadRender --> CiudadMapa & Casillas & Minimapa
+    Casillas --> Sprites["sprites"]
 
     classDef puro fill:#d6f5d6,stroke:#2e7d32,color:#000
-    class Apuntado,Tree,Heap,Graph,BT,Balance,Colapso,Equipo,Escenas,Invul,Jefe,Clasif,Mazmorra,Ciudad,Partida,Progreso,Charco,MFinal,Terminal,Selector puro
+    class Apuntado,Tree,Heap,Graph,BT,Balance,Colapso,Equipo,Escenas,Invul,Jefe,Clasif,Mazmorra,Ciudad,CiudadMapa,Noticias,Partida,Progreso,Charco,MFinal,Terminal,Selector puro
 ```
 
 Para no saturar el diagrama no se dibujan las flechas hacia
@@ -552,8 +633,10 @@ Notas:
 - **Dos usos del árbol N-ario**: `clasificador_toxicidad` (lógica de
   fondo que decide la dificultad) y `terminal_decision` (el jugador
   navega el árbol nodo a nodo).
-- **Dos usos del grafo**: `mazmorra` (grafo de cuartos, sin pesos) y
-  `grafo_ciudad` (calles ponderadas por saturación). Ver sección 4.
+- **Tres usos del grafo**: `mazmorra` (grafo de cuartos, sin pesos),
+  `grafo_ciudad` (calles de Ciudad Nova ponderadas por saturación) y
+  `ciudad_mapa.grafo_casillas` (casillas transitables, sin pesos: valida
+  el mapa y da el nodo más cercano a pie). Ver sección 4.
 - **Dos usos del behavior tree**: `Enemigo` (aggro forzado / en rango /
   quieto) y `Jefe` (una Sequence por fase).
 - **Dependencias entre carpetas que conviene conocer**:
@@ -563,13 +646,14 @@ Notas:
 - **Lógica pura + cuerpo Pygame**: `MazmorraFinal`/`Jefe`/`Charco` no
   conocen Pygame; `ArenaJefe` les da rects, proyectiles reales y dibujo.
   Lo mismo hacen `Mazmorra` / `MazmorraJugable` + `mapa_render`,
-  `GrafoCiudad` + `Partida` / `mapa_ciudad_render` y `TerminalDecision`
-  / `terminal_decision_render`.
+  `ciudad_mapa` + `GrafoCiudad` + `Partida` / `ciudad_render` +
+  `mapa_ciudad_render` y `TerminalDecision` / `terminal_decision_render`.
 
 ## 4. Para qué usa el juego cada algoritmo de grafo
 
 V = nodos, E = aristas. La mazmorra tiene 6 cuartos sobre una
-cuadrícula 3x3; la ciudad, 5 zonas y 7 calles.
+cuadrícula 3x3; la red de calles, 9 nodos y 12 calles; el grafo de
+casillas de Ciudad Nova, unas 1560 casillas transitables.
 
 | Algoritmo | Dónde | Mecánica que gobierna | Complejidad | Por qué este y no otro |
 |---|---|---|---|---|
@@ -579,11 +663,32 @@ cuadrícula 3x3; la ciudad, 5 zonas y 7 calles.
 | `copia` + `eliminar_nodo` + DFS (`es_conexo`) | `Mazmorra.resto_conexo_sin` | El final nunca es punto de corte: sellado, no deja cuartos inalcanzables. | O(V + E) por candidato | Quitar el nodo y preguntar si el resto es conexo es la definición directa de punto de corte, fácil de explicar. |
 | BFS | `Mazmorra.propagar_desde` | Cada 15 s con enemigos vivos, los cuartos no generados a distancia d suben 10/d de toxicidad. | O(V + E) por propagación | Necesita la distancia de todos los cuartos al actual, justo lo que devuelve un BFS. |
 | BFS + `camino` | `Mazmorra.ruta_al_final`, minimapa | Resalta el camino más corto del cuarto actual al final. | O(V + E) | Igual que arriba: camino más corto en un grafo sin pesos. |
-| Dijkstra (con `MinHeap`) + `camino` | `GrafoCiudad.ruta_mas_segura`, mapa | Ruta de menor saturación total y su costo, que se cobra en colapso al viajar. | O((V + E) log V) | Las calles tienen pesos distintos y la ruta con menos calles puede ser la más saturada (Plaza → Empresa de Medios: directo 6, por el Hospital 5); BFS contaría calles, Dijkstra suma pesos. |
-| `cambiar_peso` | `GrafoCiudad.actualizar_tras_mazmorra` | Purificación Exitosa baja 1 las calles de la zona, Detonación las sube 1 (rango [1, 10]); las rutas óptimas cambian según las decisiones del jugador. | O(grado) | Lista de adyacencia: cambiar un peso es O(1). |
+| Dijkstra (con `MinHeap`) + `camino` | `GrafoCiudad.ruta_sugerida`, tecla G y mapa del mundo | Ruta de menor saturación total sobre las calles abiertas, dibujada sobre el mapa. | O((V + E) log V) | Ver sección 4.1. |
+| `copia` + `eliminar_arista` + DFS (`es_conexo`) | `GrafoCiudad.puede_bloquearse` | Una calle saturada solo se bloquea si la ciudad sigue conexa. | O(V + E) | Ver sección 4.1. |
+| BFS (grafo de casillas) | `GrafoCiudad.nodo_mas_cercano`, tests del mapa | Nodo más cercano a pie; validar que el mapa y las barricadas son coherentes con el grafo. | O(V + E) | Ver sección 4.1. |
+| `cambiar_peso` | `GrafoCiudad.actualizar_tras_mazmorra` | Detonación +3 y Purificación Exitosa -2 en las calles de la entrada de la zona (rango [1, 10]); de ahí salen las barricadas. | O(grado) | Lista de adyacencia: cambiar un peso es O(1). |
 
 El `MinHeap` existe para Dijkstra: sacar el nodo con menor distancia
 tentativa cuesta O(log V) en vez de O(V) recorriendo todos los nodos.
+
+### 4.1 Qué algoritmo gobierna cada mecánica de Ciudad Nova
+
+Ciudad Nova tiene dos grafos: la **red de calles** (`GrafoCiudad`: 9
+nodos — Plaza, 4 cruces y la entrada de cada edificio — y 12 calles con
+peso = saturación) y el **grafo de casillas** (`grafo_casillas`: una
+arista entre cada par de casillas transitables vecinas). El trazado de
+calles es una rueda (Plaza al centro, anillo exterior): ninguna arista
+es puente y cada edificio tiene dos rutas, una por cada lado del anillo.
+
+| Mecánica | Algoritmo | Dónde | Por qué |
+|---|---|---|---|
+| **Ruta sugerida** (G, línea punteada; panel del mapa del mundo) | **Dijkstra** con `MinHeap`, sobre `grafo_abierto()` (copia sin las calles bloqueadas) | `GrafoCiudad.ruta_sugerida` → `ruta_mas_segura`; `ciudad_mapa.polilinea_ruta` la convierte en puntos sobre las calles | Las calles pesan distinto: Plaza → Empresa de Medios por el Cruce Este cuesta 4 + 2 = 6 y por el Cruce Sur 3 + 5 = 8. Con la calle Cruce Sur – Medios bloqueada, desde el Cruce Sur la ruta rodea por la Plaza (3 + 4 + 2 = 9). BFS contaría calles, Dijkstra suma saturación. |
+| **Conectividad antes de bloquear** (barricadas) | **DFS** iterativo (`es_conexo`) sobre la copia sin las bloqueadas y sin la candidata | `GrafoCiudad.puede_bloquearse`, llamado por `revisar_barricadas` | "¿Quitar esta calle deja la ciudad en una pieza?" es pura alcanzabilidad: un DFS O(V + E) basta. Si la respuesta es no, la calle queda abierta al máximo (10). Así una barricada nunca deja un edificio inalcanzable, aunque se intenten bloquear todas. |
+| **Histéresis de barricadas** | comparación de pesos (8 / 6) | `GrafoCiudad.revisar_barricadas` | Bloquear en 8 y desbloquear al bajar de 6 evita que una calle parpadee entre abierta y cerrada con cada decisión. |
+| **Nodo más cercano a pie** | **BFS** sobre el grafo de casillas desde la casilla del jugador | `GrafoCiudad.nodo_mas_cercano` (cacheado por casilla y barricadas) | El primer nodo que sale de la cola es el de menos pasos; a diferencia de la distancia en línea recta, nunca elige un nodo al otro lado de una barricada. |
+| **Validar el mapa** | **BFS** sobre el grafo de casillas | `tests/test_ciudad_mapa.py` | Comprueba que cada tramo une sus extremos por casillas transitables, que sin barricadas todo se alcanza desde el spawn, que con todas las barricadas puestas ningún nodo alcanza a otro (cada sección corta su calle de acera a acera) y que la puerta de la Alcaldía solo se alcanza cuando está abierta. |
+| **Pesos dinámicos** | `cambiar_peso` | `GrafoCiudad.actualizar_tras_mazmorra` | Detonación +3 y Purificación Exitosa -2 en las calles del nodo de entrada de la zona; con eso se disparan o se retiran las barricadas. |
+| **Colisión y cámara** | aritmética de casillas (no es grafo) | `ciudad_mapa.mover_con_colision`, `calcular_camara` | Movimiento por ejes separados contra casillas sólidas (el jugador resbala por los muros) y cámara centrada y limitada a los bordes del mundo. |
 
 ## 5. Convenciones actuales
 
@@ -632,9 +737,12 @@ Reglas que ya están aplicadas en el código, no solo declaradas en
   `test_clasificador_toxicidad`, `test_terminal_decision`,
   `test_balance`, `test_mazmorra_final`, `test_invulnerabilidad`,
   `test_progreso`, `test_min_heap`, `test_graph`, `test_mazmorra`,
-  `test_grafo_ciudad`, `test_partida` (derrota global y reinicio) y
+  `test_grafo_ciudad` (Dijkstra, rodeo, bloqueo/desbloqueo 8/6, nunca
+  desconectar), `test_ciudad_mapa` (mapa, tramos con BFS, barricadas,
+  colisión, cámara), `test_noticias`, `test_partida` (derrota global y
+  reinicio) y
   `test_jefe_esquivable` (simula las balas del jefe y mide el pasillo
   libre en radios 120/180/240 px) no usan `pygame`; `test_apuntado` prueba la función pura sin `pygame` y
-  el apuntado de los roles con `Vector2` (`test_graph` verifica en un proceso aparte que los
-  módulos de grafos, mazmorra, ciudad, partida y escenas no lo cargan); `test_player_habilidad` y
+  el apuntado de los roles con `Vector2` (`test_graph` y `test_ciudad_mapa` verifican en un proceso aparte que los
+  módulos de grafos, mazmorra, ciudad, noticias, partida y escenas no lo cargan); `test_player_habilidad` y
   `test_roles` usan `pygame.Rect`/`Vector2` sin abrir ventana.
