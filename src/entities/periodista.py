@@ -46,7 +46,7 @@ class RayoPerforante(Proyectil):
     def dibujar(self, pantalla):
         cola = self.posicion - self.direccion * assets.LARGO_ESTELA_RAYO
         pygame.draw.line(pantalla, self.color, cola, self.posicion, assets.GROSOR_ESTELA_RAYO)
-        super().dibujar(pantalla)
+        pygame.draw.rect(pantalla, self.color, self.rect)
 
 
 class Periodista(JugadorBase):

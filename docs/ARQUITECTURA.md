@@ -367,25 +367,67 @@ tramo de toxicidad máximo) y dibuja jefe, charcos, barra y tiempo.
 `mover(dirección)` (da la vuelta en los extremos).
 *Depende de:* `ui/terminal_decision` (constantes de dirección).
 
-**`terminal_decision_render.py`**, **`seleccion_rol.py`**,
-**`pantalla_victoria.py`** (`dibujar_victoria` y
+**`pantalla_resultado.py`** — `ResultadoMazmorra` (dataclass: resultado,
+opción elegida, colapso antes/después, zona) y `dibujar_resultado`:
+pantalla teal (Purificación) o magenta (Detonación) con ilustración,
+barra de colapso con el valor anterior marcado y el delta.
+
+Capa de presentación compartida:
+
+- **`fuentes.py`** — `fuente(tamanio, negrita)`: caché de fuentes
+  (JetBrains Mono desde `assets/fonts/`, con fallback a la de pygame).
+- **`dibujo.py`** — primitivas: `panel`, `panel_alfa`, `texto`, `chip`
+  (etiqueta de tecla), `barra`, `linea_punteada`, `poligono_alfa`,
+  `corchetes`, `ajustar_texto`, `parrafo`.
+- **`sprites.py`** — pixel art definido como filas de caracteres y
+  escalado con caché (`sprite`, `sprite_jugador`): jugador por rol,
+  enemigo (dos variantes), jefe, corazón, candado, terminal, chulo,
+  explosión, avatar, destello.
+- **`hud.py`** — `dibujar_hud_superior` (J1, corazones, carga de F,
+  enemigos, título/subtítulo, barra de colapso) y
+  `dibujar_barra_controles` (chips de tecla por escena:
+  `CONTROLES_COMBATE`, `CONTROLES_JEFE`, `CONTROLES_TERMINAL`,
+  `CONTROLES_MAPA`, `CONTROLES_FINAL`, `CONTROLES_SELECCION`).
+- **`cuarto_render.py`** — `fondo_cuarto` (baldosas, muros de ladrillo
+  y grafitis, cacheado por cuarto), `dibujar_puerta` (barrotes si está
+  bloqueada, X si está sellada, hueco iluminado si está abierta) y
+  `dibujar_terminal_cuarto` (terminal física del cuarto final con el
+  aviso "Terminal bloqueada · Elimina a los N enemigos").
+- **`combate_render.py`** — `TextosFlotantes` (números de daño),
+  `dibujar_cono_apuntado`, `enemigo_apuntado` + `dibujar_objetivo`
+  (marco amarillo y línea discontinua), `dibujar_globo_arbol` (Tab:
+  muestra `enemigo.nodo_activo`, la ruta de nodos del último tick del
+  behavior tree) y `dibujar_mira`.
+
+**`terminal_decision_render.py`** (`dibujar_terminal`: reloj grande con
+barra, tarjeta de la publicación, el árbol N-ario como diagrama con el
+camino recorrido, los hijos elegibles, las ramas cerradas y las hojas
+de resultado en vista previa, migas de pan y leyenda; genérico para
+cualquier `ArbolDecision`), **`seleccion_rol.py`** (tarjetas con sprite
+y barras de stats), **`pantalla_victoria.py`** (`dibujar_victoria` y
 `dibujar_panel_final`, reutilizable), **`pantalla_derrota.py`**,
 **`mapa_ciudad_render.py`** (`dibujar_mapa_ciudad`: calles con su peso,
-zonas con nombre y toxicidad, ruta más segura resaltada y su costo) y
-**`mapa_render.py`** (`dibujar_minimapa`, `color_toxicidad`) — funciones
-de dibujo.
-*Dependen de:* `pygame`, `assets` (y `balance` en `seleccion_rol`,
-`mapa_ciudad_render` y `mapa_render`).
+zonas con nombre y toxicidad, ruta más segura resaltada y panel con su
+costo) y **`mapa_render.py`** (`dibujar_minimapa`, `color_toxicidad`) —
+funciones de dibujo.
+*Dependen de:* `pygame`, `assets`, `dibujo`/`fuentes`/`sprites` (y
+`balance` en `seleccion_rol`, `mapa_ciudad_render` y `mapa_render`).
 
 ### `Main.py`
 
 - `main()` — selección de rol, luego el loop con la máquina de estados
   (`Escena`, en `core/escenas.py`): el input, la actualización y el
   dibujo dependen de la escena. Flujo: `MAPA_CIUDAD` → (ENTER en una
-  zona) `MAZMORRA` → `DECISION` → `MAPA_CIUDAD`; `MAPA_CIUDAD` → (ENTER
-  en la Alcaldía, si está desbloqueada) `JEFE` → `VICTORIA` → (ENTER)
-  `MAPA_CIUDAD`; desde cualquier escena, colapso al 100% → `DERROTA` →
-  (ENTER) partida nueva. M alterna el minimapa.
+  zona) `MAZMORRA` → `DECISION` → `RESULTADO` → (ENTER) `MAPA_CIUDAD`;
+  `MAPA_CIUDAD` → (ENTER en la Alcaldía, si está desbloqueada) `JEFE` →
+  `VICTORIA` → (ENTER) `MAPA_CIUDAD`; desde cualquier escena (salvo
+  `RESULTADO`, que se muestra completa primero), colapso al 100% →
+  `DERROTA` → (ENTER) partida nueva. M alterna el minimapa; Tab, el
+  globo del behavior tree.
+- Dibujo: el mundo (escenario, cono de apuntado, objetivo, jugador,
+  proyectiles, números de daño, globo) va a un lienzo que se copia con
+  la sacudida; el HUD superior, el minimapa, la barra de controles y la
+  mira van directo a la pantalla (no tiemblan).
 - Apuntado: en `MAZMORRA`/`JEFE`, si `jugador.apunta_con_mouse`, lee el
   mouse (sin foco conserva la dirección), le resta la sacudida con la
   que se dibujó el mundo y llama `apuntar_a` (al inicio del frame, para
@@ -394,12 +436,12 @@ de dibujo.
   (`CLICK_DISPARA`) cuentan como "disparando".
 - `_frame_de_combate(...)` — un frame de combate idéntico en la
   mazmorra y en la arena.
-- `_apunta_con_mouse`, `_apuntar_con_mouse`, `_dibujar_mira`,
-  `_escenario_activo`, `_nuevo_selector`, `_curar`, `_elegir_rol`,
-  `_dibujar_hud`, `_dibujar_hud_mapa`,
-  `_actualizar_proyectiles`, `_resolver_colisiones_contra_enemigos`
-  (delega en `al_impactar` y reparte carga con `registrar_kill_equipo`),
-  `_resolver_colision_contra_jugador`.
+- `_apunta_con_mouse`, `_apuntar_con_mouse`, `_escenario_activo`,
+  `_enemigo_mas_cercano`, `_nuevo_selector`, `_curar`, `_elegir_rol`,
+  `_titulo_mazmorra`, `_dibujar_mensaje`, `_actualizar_proyectiles`,
+  `_resolver_colisiones_contra_enemigos` (delega en `al_impactar`,
+  reparte carga con `registrar_kill_equipo` y agrega el número de daño
+  flotante), `_resolver_colision_contra_jugador`.
 
 *Depende de:* casi todo; es el único módulo que conoce a todos y no
 contiene mecánica propia.
@@ -552,6 +594,14 @@ Reglas que ya están aplicadas en el código, no solo declaradas en
   módulo define un color suelto: también los muros/puertas del cuarto y
   el color de fondo viven en `assets.py`. Las clases de rol no guardan
   números de balance: leen `STATS_POR_ROL[self.rol]`.
+- **Presentación en `src/ui/`, nunca en la lógica.** Las entidades solo
+  piden su sprite a `sprites.py`; cuarto y arena delegan el piso, los
+  muros, las puertas y la terminal en `cuarto_render.py`; los efectos
+  de combate y el HUD los dibuja `Main.py` con `combate_render.py` y
+  `hud.py`. Ningún módulo de dibujo modifica el estado del juego. El
+  único dato que la lógica guarda para el dibujo es
+  `Enemigo.nodo_activo` (la ruta del último tick del árbol), que no
+  influye en la IA.
 - **Interfaz común entre roles y entre escenarios.** Los 4 roles
   heredan de `JugadorBase` y solo sobreescriben `ataque_basico()` y
   `usar_habilidad()`. Todo proyectil (o efecto) resuelve su choque con

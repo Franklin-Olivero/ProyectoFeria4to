@@ -54,6 +54,12 @@ class Enemigo:
         self.tiempo_objetivo_forzado = 0.0
         # True: detecta al jugador a cualquier distancia (agresividad absoluta).
         self.agro_permanente = agro_permanente
+        # Ruta de nodos que ejecutó el árbol en el último tick, solo para
+        # mostrarla en pantalla (tecla Tab). Ej.: ("Selector", "Sequence",
+        # "Perseguir"). No influye en la IA.
+        self.nodo_activo = ()
+        # Alterna el color del sprite para que no todos se vean iguales.
+        self.variante = (round(x) + round(y)) // 40 % 2
 
         # Contexto del frame actual; lo llena `actualizar` antes del
         # tick para que las acciones del árbol (sin argumentos, por
@@ -126,6 +132,7 @@ class Enemigo:
         return EXITO if distancia <= assets.RANGO_DISPARO_ENEMIGO else FALLO
 
     def _perseguir_objetivo(self):
+        self.nodo_activo = ("Selector", "Sequence", "Perseguir")
         direccion = pygame.Vector2(self._objetivo().rect.center) - self.posicion
         if direccion.length_squared() > 0:
             direccion = direccion.normalize()
@@ -155,9 +162,11 @@ class Enemigo:
                 )
                 self._proyectiles_salida.append(proyectil)
                 self.cooldown_disparo = assets.COOLDOWN_DISPARO_ENEMIGO
+                self.nodo_activo = ("Selector", "Sequence", "Disparar")
         return EXITO
 
     def _quedarse_quieto(self):
+        self.nodo_activo = ("Selector", "Quedarse quieto")
         return EXITO
 
     def recibir_dano(self, danio):
@@ -176,4 +185,10 @@ class Enemigo:
         self.posicion.update(self.rect.center)
 
     def dibujar(self, pantalla):
-        pygame.draw.rect(pantalla, assets.COLOR_ENEMIGO, self.rect)
+        from src.ui import sprites
+
+        paleta = sprites.PALETA_ENEMIGO if self.variante == 0 else sprites.PALETA_ENEMIGO_MORADO
+        imagen = sprites.sprite(sprites.ENEMIGO, paleta)
+        pantalla.blit(imagen, imagen.get_rect(center=self.rect.center))
+        if self.escudo_anonimato:
+            pygame.draw.rect(pantalla, assets.COLOR_ESCUDO_JEFE, self.rect.inflate(8, 8), 2, border_radius=4)
