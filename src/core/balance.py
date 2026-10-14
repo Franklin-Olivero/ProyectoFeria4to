@@ -271,3 +271,74 @@ REPORTES_POR_ZONA = {
         {"id": 5, "tipo": "comentario", "gravedad": 2},
     ],
 }
+
+# ----------------------------------------------------------------------
+# Gracia al entrar a un cuarto (src/dungeon/gracia_entrada.py)
+# ----------------------------------------------------------------------
+# Mientras dura, los enemigos quedan congelados (no persiguen, no
+# disparan, no golpean) y el jugador solo puede moverse.
+GRACIA_ENTRADA_CUARTO_S = 1.0
+# Ningún enemigo aparece a menos de esto del punto donde entra el jugador.
+DISTANCIA_MIN_SPAWN_ENEMIGO = 260  # px
+SEPARACION_MIN_SPAWN_ENEMIGOS = 70  # px entre dos enemigos al aparecer
+MARGEN_SPAWN_ENEMIGO = 60  # px libres hasta los muros del cuarto
+PASO_GRILLA_SPAWN = (90, 80)  # px entre posiciones candidatas (x, y)
+
+# ----------------------------------------------------------------------
+# Tipos de enemigo (src/entities/tipos_enemigo.py, src/entities/enemigos.py)
+# ----------------------------------------------------------------------
+# La velocidad final = VELOCIDAD_ENEMIGO (assets) x multiplicador del
+# tramo de toxicidad x velocidad_mult del tipo.
+
+
+@dataclass(frozen=True)
+class StatsTipoEnemigo:
+    velocidad_mult: float
+    vida: float
+
+
+STATS_TIPO_ENEMIGO = {
+    # Cuerpo a cuerpo: rápido, vida media, daño por contacto. No dispara.
+    "perseguidor": StatsTipoEnemigo(velocidad_mult=1.15, vida=3),
+    # A distancia: lento, frágil, dispara apuntado con telegrafía.
+    "tirador": StatsTipoEnemigo(velocidad_mult=0.8, vida=2),
+    # Apoyo: el más lento y frágil, no ataca; cura a sus aliados.
+    "curandero": StatsTipoEnemigo(velocidad_mult=0.7, vida=2),
+}
+
+# Perseguidor: golpe por contacto
+DANIO_CONTACTO_PERSEGUIDOR = 1
+COOLDOWN_CONTACTO_PERSEGUIDOR = 0.8  # s entre golpes
+
+# Tirador: mantiene distancia y dispara apuntado
+RANGO_PREFERIDO_TIRADOR = 320  # px al jugador
+TOLERANCIA_RANGO_TIRADOR = 40  # px: dentro de [rango ± tolerancia] orbita
+FACTOR_ORBITA_TIRADOR = 0.5  # fracción de su velocidad al orbitar
+CADENCIA_TIRADOR_S = 1.8  # s entre disparos
+TELEGRAFIA_TIRADOR_S = 0.25  # s resaltado antes de cada disparo
+VELOCIDAD_PROYECTIL_TIRADOR = 260  # px/s: esquivable
+DANIO_PROYECTIL_TIRADOR = 1
+
+# Curandero: se esconde detrás de sus aliados y los cura
+DISTANCIA_HUIDA_CURANDERO = 200  # px: más cerca que esto, huye
+SEPARACION_DETRAS_CURANDERO = 120  # px detrás del centro de sus aliados
+INTERVALO_CURA_S = 3.0
+FRACCION_CURA = 0.34  # de la vida máxima del aliado por cura
+RADIO_CURA = 280  # px
+MAX_CURAS_POR_ALIADO = 2  # por aliado y por cuarto: nadie es inmatable
+DURACION_EFECTO_CURA_S = 0.4  # s que se ve el rayo de cura
+PANICO_CURANDERO_S = 6.0  # s siendo el único vivo antes de entrar en pánico
+
+# Composición de cada cuarto según el tramo de toxicidad
+# (composicion_cuarto en src/entities/tipos_enemigo.py). Los totales
+# salen de DIFICULTAD_BAJA/MEDIA/ALTA del clasificador (2 / 3 / 5).
+PROB_TIRADOR_FINAL_BAJA = 0.5  # el cuarto final BAJA puede traer 1 tirador
+PROPORCION_TIRADORES_MEDIA = 0.4  # ~60 % perseguidores / ~40 % tiradores
+PROB_CURANDERO_MEDIA = 0.25
+MAX_CURANDEROS_MEDIA = 1
+PROPORCION_TIRADORES_ALTA = 0.4
+PROPORCION_CURANDEROS_ALTA = 0.2
+PROB_CURANDERO_EXTRA_ALTA = 0.3  # chance de un segundo curandero
+MAX_CURANDEROS_ALTA = 2
+MIN_CURANDEROS_FINAL_ALTA = 1
+MIN_TIRADORES_FINAL_ALTA = 2

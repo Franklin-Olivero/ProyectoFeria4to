@@ -27,6 +27,10 @@ enemigos (registrar_kill) y se gasta completa al usarla.
 Invulnerabilidad: tras un golpe, INVULNERABILIDAD_DURACION segundos sin
 perder vida, con el sprite parpadeando.
 
+Gracia de entrada: mientras `armas_bloqueadas` sea True (Main.py lo
+pone durante el segundo de gracia al entrar a un cuarto) el jugador
+puede moverse pero no dispara ni usa la habilidad.
+
 Apuntado: los ataques salen siempre de `direccion_mirada`. Si el rol
 tiene `apunta_con_mouse = True` (Ciudadano, Influencer, Periodista),
 solo apuntar_a() la cambia, hacia el mouse; si es False (Candidato),
@@ -89,6 +93,8 @@ class JugadorBase:
         # Segundos que faltan para el próximo volley (<= 0: listo).
         self.tiempo_para_disparo = 0.0
         self.tiempo_buff_kill = 0.0
+        # Gracia de entrada al cuarto: sin disparo ni habilidad.
+        self.armas_bloqueadas = False
 
     @property
     def vivo(self):
@@ -171,6 +177,8 @@ class JugadorBase:
         """
         self.tiempo_buff_kill = max(0.0, self.tiempo_buff_kill - dt)
         self.tiempo_para_disparo -= dt
+        if self.armas_bloqueadas:
+            disparando = False
         nuevos = []
         if disparando:
             while self.tiempo_para_disparo <= 0:
@@ -217,8 +225,12 @@ class JugadorBase:
         """Suma `cantidad` de kills (puede ser fracción) sin pasar del máximo."""
         self.carga_habilidad = min(self.carga_habilidad + cantidad, self.carga_maxima)
 
-    def puede_usar_habilidad(self):
+    def habilidad_cargada(self):
+        """La barra está llena (aunque las armas estén bloqueadas)."""
         return self.carga_habilidad >= self.carga_maxima
+
+    def puede_usar_habilidad(self):
+        return self.habilidad_cargada() and not self.armas_bloqueadas
 
     def _gastar_carga(self):
         """Helper para usar_habilidad(): si la carga está completa la

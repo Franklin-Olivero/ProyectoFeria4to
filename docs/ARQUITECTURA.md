@@ -19,7 +19,8 @@ PruebaPythonGame/
 ├── requirements.txt
 ├── src/
 │   ├── ai/
-│   │   └── behavior_tree.py        # Behavior tree genérico (Node/Selector/Sequence/Action). Puro.
+│   │   ├── behavior_tree.py        # Behavior tree genérico (Node/Selector/Sequence/Action). Puro.
+│   │   └── nodos_combate.py        # Nodos de los tipos de enemigo (distancia, huir, curar, disparar). Puro.
 │   ├── core/
 │   │   ├── config.py               # Tamaño de ventana, FPS, título, reloj.
 │   │   ├── assets.py               # TODAS las constantes visuales (colores, tamaños, posiciones del HUD).
@@ -39,13 +40,17 @@ PruebaPythonGame/
 │   │   ├── periodista.py           # Rol Periodista + RayoPerforante.
 │   │   ├── candidato.py            # Rol Candidato + OndaExpansiva + ProyectilRebotante.
 │   │   ├── invulnerabilidad.py     # Ventana de i-frames tras un golpe. Puro.
-│   │   ├── enemy.py                # Enemigo con IA de behavior tree.
+│   │   ├── enemy.py                # Enemigo base con IA de behavior tree (rama de congelado + interfaz de agente).
+│   │   ├── tipos_enemigo.py        # TipoEnemigo, CONFIG_TIPO y composicion_cuarto. Puro.
+│   │   ├── enemigos.py             # Perseguidor, Tirador, Curandero y crear_enemigo.
 │   │   └── jefe.py                 # Jefe "Servidor Central": fases, escudo, patrones. Puro.
 │   ├── dungeon/
 │   │   ├── clasificador_toxicidad.py # Árbol de reportes -> nivel de toxicidad -> dificultad. Puro.
 │   │   ├── cuarto.py               # Un cuarto: puertas existentes, enemigos, fases combate/limpio/decisión/resuelto.
 │   │   ├── mazmorra.py             # Mazmorra de 6 cuartos sobre un Grafo: layout, final, propagación. Puro.
-│   │   ├── mazmorra_jugable.py     # Cuerpo Pygame de la mazmorra: un Cuarto por nodo, cruzar puertas.
+│   │   ├── mazmorra_jugable.py     # Cuerpo Pygame de la mazmorra: un Cuarto por nodo, cruzar puertas, gracia.
+│   │   ├── gracia_entrada.py       # GraciaEntrada: 1 s sin combate al entrar a un cuarto. Puro.
+│   │   ├── spawn.py                # posiciones_spawn: enemigos lejos del punto de entrada. Puro.
 │   │   ├── ciudad_mapa.py          # Ciudad Nova: mapa de casillas, nodos/tramos de calle, colisión, cámara. Puro.
 │   │   ├── grafo_ciudad.py         # Red de calles: Dijkstra, pesos dinámicos, barricadas. Puro.
 │   │   ├── noticias.py             # Titulares del cintillo según el estado de la partida. Puro.
@@ -63,6 +68,8 @@ PruebaPythonGame/
 │       ├── ciudad_render.py        # Dibujo de la escena CIUDAD: mundo, auras, rótulos, ruta, cintillo.
 │       ├── mapa_ciudad_render.py   # Mapa del mundo (M): el grafo de calles, pesos, bloqueos y ruta.
 │       ├── mapa_render.py          # Minimapa de la mazmorra (tecla M).
+│       ├── enemigo_render.py       # Dibujo de enemigos: sprite_enemigo + gracia, telegrafía, cura, pánico.
+│       ├── ruta_sprites.py         # Qué PNG usar para un sprite (o None = placeholder). Puro.
 │       ├── pantalla_victoria.py    # Dibujo de la pantalla de victoria + panel final reutilizable.
 │       └── pantalla_derrota.py     # Dibujo de la derrota global "Colapso total".
 └── tests/                          # pytest; la mayoría sin abrir ventana (ver sección 5).
@@ -179,7 +186,19 @@ cada algoritmo.
 
 Puro. Estados `EXITO`, `FALLO`, `EN_PROGRESO`; **`Node`**,
 **`Selector`**, **`Sequence`**, **`Action`**.
-*Lo usan:* `enemy.py` y `jefe.py`.
+*Lo usan:* `enemy.py`, `enemigos.py` y `jefe.py`.
+
+### `src/ai/nodos_combate.py`
+
+Puro. Nodos sobre un "agente" por duck typing (nunca importan
+`entities/`): **`DistanciaMenorQue`** (condición), **`Huir`**,
+**`MantenerDistancia`** (retrocede / se acerca / orbita),
+**`DispararApuntado`** (cadencia + telegrafía), **`CurarAliado`**
+(intervalo, fracción, radio, tope por aliado; ignora a sí mismo y a lo
+que no es `curable`) y las funciones `distancia`, `direccion`,
+`punto_detras`. Las acciones con cooldown devuelven EXITO mientras
+esperan, para no cortar su Sequence.
+*Depende de:* `behavior_tree`, `math`.
 
 ### `src/entities/`
 
@@ -240,13 +259,39 @@ misma interfaz que `Proyectil` por duck typing),
 **`Candidato(JugadorBase)`** (Debate Rebotante).
 *Depende de:* `pygame`, `assets`, `player`, `projectile`.
 
-**`enemy.py`** — **`Enemigo`**: `vida`, `velocidad`, `escudo_anonimato`,
+**`enemy.py`** — **`Enemigo`**: `tipo` (None = genérico), `curable`, `vida`,
+`vida_maxima`, `curaciones_recibidas`, `congelado`, `aliados`, `reloj`,
+`velocidad`, `escudo_anonimato`,
 `objetivo_forzado`, `agro_permanente` (True por defecto: el nodo de
 detección siempre tiene éxito, agresividad absoluta; con False usa
-`RANGO_DISPARO_ENEMIGO`), `arbol` (Selector: aggro forzado → jugador
-detectado → quieto). `actualizar`, `forzar_objetivo`, `recibir_dano` (ignorado con
-escudo), `empujar`, `mantener_dentro`, `dibujar`.
+`RANGO_DISPARO_ENEMIGO`), `arbol` (Selector: ¿congelado? → aggro
+forzado → jugador detectado → quieto; `_construir_arbol` lo arma y cada
+tipo lo sobreescribe; `_rama_congelado` es siempre la primera rama).
+Interfaz de agente para `nodos_combate`: `xy`, `objetivo_xy`, `dt`,
+`mover(dx, dy, factor)`. `actualizar`, `forzar_objetivo`, `recibir_dano`
+(ignorado con escudo), `empujar`, `mantener_dentro`, `dibujar` (delega
+en `ui/enemigo_render`).
 *Depende de:* `pygame`, `behavior_tree`, `assets`, `projectile`.
+
+**`tipos_enemigo.py`** — puro. **`TipoEnemigo`** (Enum: `PERSEGUIDOR`,
+`TIRADOR`, `CURANDERO`), `CONFIG_TIPO` (stats de cada tipo desde
+`balance.STATS_TIPO_ENEMIGO`), `tramo_de(dificultad)` y
+`composicion_cuarto(nivel_dificultad, es_cuarto_final, rng,
+es_cuarto_inicial)` → lista de tipos (perseguidores, tiradores,
+curanderos). Ver la tabla de la sección 4.2.
+*Depende de:* `balance`, `dungeon/clasificador_toxicidad` (los tramos).
+
+**`enemigos.py`** — **`EnemigoTipado(Enemigo)`** (stats, tamaño de
+hitbox y velocidad del tipo; `velocidad_base` = la del tramo),
+**`Perseguidor`** (persigue y `_golpear_por_contacto` con cooldown),
+**`Tirador`** (`MantenerDistancia` + `DispararApuntado`;
+`recarga_disparo`, `telegrafia`, `disparar_hacia_objetivo`),
+**`Curandero`** (`CurarAliado`, `DistanciaMenorQue` + `Huir`,
+`_ponerse_detras` con `punto_detras`, `_revisar_panico`, `al_curar`,
+`efecto_cura`, `en_panico`) y `crear_enemigo(tipo, x, y,
+velocidad_base, agro_permanente)`.
+*Depende de:* `pygame`, `behavior_tree`, `nodos_combate`, `assets`,
+`balance`, `enemy`, `projectile`, `tipos_enemigo`.
 
 **`jefe.py`** — puro.
 - `fase_por_vida(fraccion)`: >60% → 1, >30% → 2, resto → 3.
@@ -275,9 +320,12 @@ escudo), `empujar`, `mantener_dentro`, `dibujar`.
 `nivel_a_dificultad(nivel)` → `{cantidad_enemigos, multiplicador_velocidad}`.
 *Depende de:* `structures/tree`.
 
-**`cuarto.py`** — **`Puerta`** y **`Cuarto`** (`rect`, `puertas` solo
-en `direcciones_puertas`, `enemigos`, `es_final`, `fase`
-combate/limpio/decision/resuelto, `terminal`). Acepta `nivel_toxicidad`
+**`cuarto.py`** — `centro_puerta`, `punto_llegada` (dónde aparece el
+jugador al entrar por una puerta), **`Puerta`** y **`Cuarto`** (`rect`,
+`puertas` solo en `direcciones_puertas`, `enemigos` creados con
+`composicion_cuarto` + `posiciones_spawn` + `crear_enemigo`,
+`congelado` (gracia, se copia a cada enemigo junto con `aliados`),
+`es_final`, `fase` combate/limpio/decision/resuelto, `terminal`). Acepta `nivel_toxicidad`
 y `dificultad` ya calculados (si no, los saca de `reportes`). Al morir
 el último enemigo, el cuarto final pasa a `"decision"` y crea la
 `TerminalDecision`; uno intermedio pasa a `"limpio"`. Los valores por
@@ -313,8 +361,22 @@ hay_enemigos_vivos)`, `propagar_desde(cuarto)`, `ruta_al_final()`,
 *Depende de:* `random`, `balance`, `clasificador_toxicidad`,
 `structures/graph`.
 
+**`gracia_entrada.py`** — puro. **`GraciaEntrada`**: `duracion`
+(`GRACIA_ENTRADA_CUARTO_S`), `restante`, `iniciar()`, `actualizar(dt)`,
+`activa`, `fraccion` (para el anillo).
+*Depende de:* `balance`.
+
+**`spawn.py`** — puro. `candidatas(limites)` (grilla con margen) y
+`posiciones_spawn(limites, punto_entrada, cantidad, rng)`: solo puntos a
+>= `DISTANCIA_MIN_SPAWN_ENEMIGO` de la entrada y separados entre sí,
+elegidos con el rng y ordenados de cerca a lejos.
+*Depende de:* `balance`.
+
 **`mazmorra_jugable.py`** — **`MazmorraJugable`**: misma interfaz que
-`Cuarto`/`ArenaJefe`. Crea un `Cuarto` por nodo la primera vez que se
+`Cuarto`/`ArenaJefe`, más `gracia` (se inicia al crearla y en cada
+`_cruzar`; cada frame pone `cuarto.congelado`). Crea cada cuarto con el
+`punto_llegada` del jugador, un `random.Random` derivado del rng de la
+mazmorra y `es_cuarto_inicial` (distancia BFS <= 1 a la entrada). Crea un `Cuarto` por nodo la primera vez que se
 entra (puertas, toxicidad, dificultad y `es_final` del grafo) y los
 guarda (un cuarto limpio sigue limpio). Sella (`Puerta.sellada`) las
 puertas cuyo vecino no se puede pisar todavía y guarda un `mensaje`
@@ -397,7 +459,9 @@ importa ni crea `TerminalDecision`.
 
 **`arena_jefe.py`** — **`ArenaJefe`**: misma interfaz que `Cuarto`
 (`rect`, `enemigos`, `actualizar`, `dibujar`, `manejar_evento`) más
-`dibujar_hud`. Da `rect` al jefe, convierte cada `DisparoJefe` en
+`dibujar_hud` y `gracia` (al entrar y al reiniciar la pelea: mientras
+dura no se actualiza la mazmorra final y los súbditos quedan
+congelados). Los súbditos alternan Perseguidor y Tirador. Da `rect` al jefe, convierte cada `DisparoJefe` en
 `ProyectilConEstela`, le informa al jefe cuántas de esas balas siguen
 vivas (tope), crea súbditos `Enemigo` con `agro_permanente` (tope y velocidad del
 tramo de toxicidad máximo) y dibuja jefe, charcos, barra y tiempo.
@@ -430,8 +494,18 @@ Capa de presentación compartida:
   `corchetes`, `ajustar_texto`, `parrafo`.
 - **`sprites.py`** — pixel art definido como filas de caracteres y
   escalado con caché (`sprite`, `sprite_jugador`): jugador por rol,
-  enemigo (dos variantes), jefe, corazón, candado, terminal, chulo,
-  explosión, avatar, destello.
+  enemigo genérico, jefe, corazón, candado, terminal, chulo, explosión,
+  avatar, destello. **`sprite_enemigo(tipo, frame=0)`** es la única
+  fuente de la imagen de un enemigo: carga
+  `assets/sprites/enemigos/<id>.png` si existe (caché,
+  `limpiar_cache_enemigos`) y si no usa `PIXEL_ART_ENEMIGO[tipo]`
+  (perseguidor con cuernos y dientes, tirador de un ojo con cañón,
+  curandero redondo con cruz).
+- **`ruta_sprites.py`** — puro: `ruta_sprite_enemigo(id, carpeta,
+  existe)` → ruta del PNG o None.
+- **`enemigo_render.py`** — `dibujar_enemigo`: sprite + alfa pulsante
+  durante la gracia, iluminado en la telegrafía, marco de escudo,
+  contorno de pánico y rayo de cura con partículas.
 - **`hud.py`** — `dibujar_hud_superior` (J1, corazones, carga de F,
   enemigos, título/subtítulo, barra de colapso) y
   `dibujar_barra_controles` (chips de tecla por escena:
@@ -463,7 +537,8 @@ Capa de presentación compartida:
   `dibujar_cono_apuntado`, `enemigo_apuntado` + `dibujar_objetivo`
   (marco amarillo y línea discontinua), `dibujar_globo_arbol` (Tab:
   muestra `enemigo.nodo_activo`, la ruta de nodos del último tick del
-  behavior tree) y `dibujar_mira`.
+  behavior tree), `dibujar_mira` y `dibujar_gracia` (anillo de cuenta
+  regresiva alrededor del jugador).
 
 **`terminal_decision_render.py`** (`dibujar_terminal`: reloj grande con
 barra, tarjeta de la publicación, el árbol N-ario como diagrama con el
@@ -541,6 +616,7 @@ graph TD
         Heap["structures/min_heap"]
         Graph["structures/graph"]
         BT["ai/behavior_tree"]
+        Nodos["ai/nodos_combate"]
     end
 
     subgraph entities
@@ -551,6 +627,8 @@ graph TD
         Peri["periodista"]
         Cand["candidato"]
         Enemigo["enemy"]
+        Tipos["tipos_enemigo"]
+        Enemigos["enemigos"]
         Jefe["jefe"]
     end
 
@@ -567,6 +645,8 @@ graph TD
         Charco["charco"]
         MFinal["mazmorra_final"]
         Arena["arena_jefe"]
+        Gracia["gracia_entrada"]
+        Spawn["spawn"]
     end
 
     subgraph ui
@@ -580,6 +660,8 @@ graph TD
         Minimapa["mapa_render"]
         Casillas["casillas_ciudad"]
         CiudadRender["ciudad_render"]
+        EnemigoRender["enemigo_render"]
+        RutaSprites["ruta_sprites"]
     end
 
     Main --> Config & Equipo & Escenas & Cuarto & Arena & MFinal
@@ -596,15 +678,22 @@ graph TD
     Infl --> Player
     Peri --> Player
     Cand --> Player
-    Enemigo --> BT & Proyectil
+    Enemigo --> BT & Proyectil & EnemigoRender
+    Nodos --> BT
+    Tipos --> Balance & Clasif
+    Enemigos --> Enemigo & Nodos & Tipos & Proyectil
+    EnemigoRender --> Sprites
+    Sprites --> RutaSprites
     Jefe --> BT & Balance & Charco
 
     Clasif --> Tree
     Terminal --> Tree
     Graph --> Heap
-    Cuarto --> Clasif & Enemigo & Terminal
+    Cuarto --> Clasif & Enemigos & Tipos & Spawn & Terminal
+    Spawn --> Balance
+    Gracia --> Balance
     Mazmorra --> Graph & Clasif & Balance
-    MJugable --> Mazmorra & Cuarto
+    MJugable --> Mazmorra & Cuarto & Gracia
     CiudadMapa --> Graph & Balance
     Ciudad --> Graph & Balance & CiudadMapa
     Noticias --> Balance
@@ -612,7 +701,7 @@ graph TD
     Progreso --> Terminal
     Charco --> Balance
     MFinal --> Jefe & Clasif & Balance
-    Arena --> MFinal & Enemigo & Proyectil
+    Arena --> MFinal & Enemigos & Tipos & Gracia & Proyectil
     Seleccion --> Balance
     Selector --> Terminal
     Derrota --> Victoria
@@ -622,7 +711,7 @@ graph TD
     Casillas --> Sprites["sprites"]
 
     classDef puro fill:#d6f5d6,stroke:#2e7d32,color:#000
-    class Apuntado,Tree,Heap,Graph,BT,Balance,Colapso,Equipo,Escenas,Invul,Jefe,Clasif,Mazmorra,Ciudad,CiudadMapa,Noticias,Partida,Progreso,Charco,MFinal,Terminal,Selector puro
+    class Nodos,Tipos,Gracia,Spawn,RutaSprites,Apuntado,Tree,Heap,Graph,BT,Balance,Colapso,Equipo,Escenas,Invul,Jefe,Clasif,Mazmorra,Ciudad,CiudadMapa,Noticias,Partida,Progreso,Charco,MFinal,Terminal,Selector puro
 ```
 
 Para no saturar el diagrama no se dibujan las flechas hacia
@@ -637,8 +726,9 @@ Notas:
   `grafo_ciudad` (calles de Ciudad Nova ponderadas por saturación) y
   `ciudad_mapa.grafo_casillas` (casillas transitables, sin pesos: valida
   el mapa y da el nodo más cercano a pie). Ver sección 4.
-- **Dos usos del behavior tree**: `Enemigo` (aggro forzado / en rango /
-  quieto) y `Jefe` (una Sequence por fase).
+- **Usos del behavior tree**: `Enemigo` y sus tres tipos (cada uno con
+  su árbol; la rama "¿congelado?" siempre primero) y `Jefe` (una
+  Sequence por fase).
 - **Dependencias entre carpetas que conviene conocer**:
   `entities/jefe → dungeon/charco` (el jefe suelta charcos),
   `dungeon/cuarto` y `dungeon/progreso → ui/terminal_decision` (la
@@ -690,6 +780,34 @@ es puente y cada edificio tiene dos rutas, una por cada lado del anillo.
 | **Pesos dinámicos** | `cambiar_peso` | `GrafoCiudad.actualizar_tras_mazmorra` | Detonación +3 y Purificación Exitosa -2 en las calles del nodo de entrada de la zona; con eso se disparan o se retiran las barricadas. |
 | **Colisión y cámara** | aritmética de casillas (no es grafo) | `ciudad_mapa.mover_con_colision`, `calcular_camara` | Movimiento por ejes separados contra casillas sólidas (el jugador resbala por los muros) y cámara centrada y limitada a los bordes del mundo. |
 
+### 4.2 Tipos de enemigo: composición de cada cuarto por tramo
+
+`composicion_cuarto(nivel_dificultad, es_cuarto_final, rng,
+es_cuarto_inicial)`; constantes en `balance.py`. "Inicial" = la entrada
+y sus vecinos por BFS (las primeras peleas).
+
+| Tramo (enemigos) | Cuarto normal | Cuarto final | Curanderos |
+|---|---|---|---|
+| BAJA (2) | 2 perseguidores | 2 perseguidores, o 1 + 1 tirador (50 %) | nunca |
+| MEDIA (3) | 2 perseguidores + 1 tirador (~60/40); con 25 % de chance: 1 + 1 + 1 curandero | igual | máx. 1; nunca en cuartos iniciales |
+| ALTA (5) | 2 tiradores (40 %), 1 curandero (20 %; 30 % de chance de un 2.º) y el resto perseguidores | ≥ 2 tiradores y ≥ 1 curandero | máx. 2, nunca más que los que atacan; nunca en cuartos iniciales |
+
+Siempre hay al menos un enemigo que no es curandero y los curanderos
+ocupan las posiciones de aparición más lejanas a la entrada.
+
+Comportamiento (behavior tree de cada tipo, con los nodos de
+`ai/nodos_combate.py`):
+
+| Tipo | Velocidad | Vida | Rama activa del Selector |
+|---|---|---|---|
+| Perseguidor | ×1.15 | 3 | (aggro forzado \| detectado) → perseguir → golpe por contacto (1 cada 0.8 s) |
+| Tirador | ×0.8 | 2 | (aggro forzado \| detectado) → `MantenerDistancia` (320 ± 40 px) → `DispararApuntado` (1.8 s + 0.25 s de telegrafía, bala a 260 px/s) |
+| Curandero | ×0.7 | 2 | ¿pánico (6 s solo)? → perseguir; si no: `CurarAliado` (cada 3 s, 34 %, radio 280, máx. 2 por aliado) → (`DistanciaMenorQue(200)` → `Huir`) \| ponerse detrás de sus aliados |
+
+Todas empiezan con la rama "¿congelado?" (gracia de entrada,
+`GraciaEntrada`): mientras está activa el enemigo no hace nada más,
+aunque tenga `agro_permanente`.
+
 ## 5. Convenciones actuales
 
 Reglas que ya están aplicadas en el código, no solo declaradas en
@@ -739,10 +857,13 @@ Reglas que ya están aplicadas en el código, no solo declaradas en
   `test_progreso`, `test_min_heap`, `test_graph`, `test_mazmorra`,
   `test_grafo_ciudad` (Dijkstra, rodeo, bloqueo/desbloqueo 8/6, nunca
   desconectar), `test_ciudad_mapa` (mapa, tramos con BFS, barricadas,
-  colisión, cámara), `test_noticias`, `test_partida` (derrota global y
-  reinicio) y
+  colisión, cámara), `test_noticias`, `test_tipos_enemigo`
+  (composición por tramo), `test_nodos_combate` (nodos y gracia con
+  agentes falsos), `test_partida` (derrota global y reinicio) y
   `test_jefe_esquivable` (simula las balas del jefe y mide el pasillo
   libre en radios 120/180/240 px) no usan `pygame`; `test_apuntado` prueba la función pura sin `pygame` y
   el apuntado de los roles con `Vector2` (`test_graph` y `test_ciudad_mapa` verifican en un proceso aparte que los
-  módulos de grafos, mazmorra, ciudad, noticias, partida y escenas no lo cargan); `test_player_habilidad` y
-  `test_roles` usan `pygame.Rect`/`Vector2` sin abrir ventana.
+  módulos de grafos, mazmorra, ciudad, noticias, partida y escenas no lo cargan); `test_player_habilidad`,
+  `test_roles`, `test_agro`, `test_spawn` y `test_enemigos` (gracia, tipos, cuarto
+  con curandero, carga por kill) usan `pygame.Rect`/`Vector2` sin abrir ventana;
+  `test_sprites_enemigo` crea Surfaces en memoria (fallback del PNG).

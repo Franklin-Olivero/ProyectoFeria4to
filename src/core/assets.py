@@ -516,3 +516,50 @@ GROSOR_MIRA = 2
 LARGO_CRUZ_MIRA = 5  # px de cada brazo de la cruz que sale del círculo
 COLOR_LINEA_APUNTADO = (62, 230, 196, 70)  # RGBA: línea tenue jugador -> mira
 GROSOR_LINEA_APUNTADO = 1
+
+# ----------------------------------------------------------------------
+# Tipos de enemigo: todo lo visual de cada tipo, en un solo lugar. Las
+# claves son los valores de TipoEnemigo (src/entities/tipos_enemigo.py).
+# Para usar arte real basta con dejar <ID_SPRITE_ENEMIGO[tipo]>.png en
+# RUTA_SPRITES_ENEMIGOS (ver sprites.sprite_enemigo).
+# ----------------------------------------------------------------------
+RUTA_SPRITES_ENEMIGOS = os.path.join("assets", "sprites", "enemigos")
+ID_SPRITE_ENEMIGO = {
+    "perseguidor": "perseguidor",
+    "tirador": "tirador",
+    "curandero": "curandero",
+}
+COLOR_PRINCIPAL_ENEMIGO = {
+    "perseguidor": (232, 52, 64),  # rojo: agresivo
+    "tirador": (255, 120, 60),  # naranja
+    "curandero": (70, 200, 120),  # verde
+}
+COLOR_SECUNDARIO_ENEMIGO = {
+    "perseguidor": (120, 20, 40),
+    "tirador": COLOR_MAGENTA,
+    "curandero": (236, 246, 236),
+}
+TAMANIO_ENEMIGO_TIPO = {  # hitbox lógica (px de lado)
+    "perseguidor": 38,
+    "tirador": 40,
+    "curandero": 36,
+}
+COLOR_PROYECTIL_TIRADOR = (255, 140, 70)
+TAMANIO_PROYECTIL_TIRADOR = 10
+COLOR_TELEGRAFIA_TIRADOR = (255, 230, 150)  # el tirador se ilumina antes de disparar
+COLOR_RAYO_CURA = (90, 240, 140)
+GROSOR_RAYO_CURA = 3
+COLOR_PARTICULA_CURA = (140, 255, 170)
+CANTIDAD_PARTICULAS_CURA = 6
+TAMANIO_PARTICULA_CURA = 5
+COLOR_PANICO_CURANDERO = COLOR_MAGENTA  # contorno del curandero en pánico
+
+# Gracia al entrar al cuarto: anillo de cuenta regresiva sobre el
+# jugador y enemigos que parpadean (alfa pulsante) mientras dura.
+COLOR_ANILLO_GRACIA = COLOR_TEAL
+COLOR_FONDO_ANILLO_GRACIA = (40, 60, 80)
+RADIO_ANILLO_GRACIA = 30
+GROSOR_ANILLO_GRACIA = 4
+ALFA_MIN_ENEMIGO_GRACIA = 90
+ALFA_MAX_ENEMIGO_GRACIA = 220
+PERIODO_PARPADEO_GRACIA = 0.35  # s por pulso

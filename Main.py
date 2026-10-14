@@ -144,6 +144,9 @@ def main():
         tiempo_mensaje_mapa = max(0.0, tiempo_mensaje_mapa - dt)
         # Mouse: solo en combate y con un rol que apunta con él (no el
         # Candidato). Ahí se oculta el cursor del sistema y se dibuja la mira.
+        # Gracia de entrada al cuarto: el jugador solo puede moverse.
+        escenario = _escenario_activo(escena, arena, mazmorra)
+        jugador.armas_bloqueadas = escena in ESCENAS_DE_COMBATE and escenario.gracia.activa
         apuntando = _apunta_con_mouse(escena, jugador)
         pygame.mouse.set_visible(not apuntando)
         if apuntando:
@@ -314,6 +317,8 @@ def main():
                 if objetivo is not None:
                     combate_render.dibujar_objetivo(lienzo, jugador, objetivo)
         jugador.dibujar(lienzo)
+        if escena in ESCENAS_DE_COMBATE and escenario.gracia.activa:
+            combate_render.dibujar_gracia(lienzo, jugador, escenario.gracia.fraccion)
         for proyectil in proyectiles_jugador:
             proyectil.dibujar(lienzo)
         for proyectil in proyectiles_enemigos:
@@ -363,7 +368,9 @@ def _frame_de_combate(
     if jugador.apunta_con_mouse:
         _apuntar_con_mouse(jugador, sacudida)
     # Disparo sostenido: el jugador decide cuántos volleys salen según
-    # su cooldown (cadencia del rol + buff por kill). SPACE o click izquierdo.
+    # su cooldown (cadencia del rol + buff por kill). SPACE o click
+    # izquierdo; durante la gracia de entrada, nada.
+    jugador.armas_bloqueadas = escenario.gracia.activa
     disparando = teclas[TECLA_DISPARAR] or (CLICK_DISPARA and pygame.mouse.get_pressed()[0])
     proyectiles_jugador.extend(jugador.actualizar_disparo(dt, disparando))
     escenario.actualizar(dt, jugador, proyectiles_enemigos)

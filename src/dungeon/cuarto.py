@@ -9,7 +9,14 @@ los posiciona y decide el estado de las puertas.
 Cuántos enemigos aparecen y qué tan rápidos son NO es fijo: al crear el
 cuarto se clasifican los reportes de toxicidad de la zona con el árbol
 N-ario (ver src/dungeon/clasificador_toxicidad.py) y el nivel
-resultante decide la dificultad.
+resultante decide la dificultad. De qué tipo es cada uno (perseguidor,
+tirador, curandero) lo decide composicion_cuarto
+(src/entities/tipos_enemigo.py) según ese tramo, y dónde aparece,
+posiciones_spawn (src/dungeon/spawn.py): siempre a una distancia segura
+del punto por donde entra el jugador, con los curanderos más atrás.
+
+Mientras `congelado` sea True (gracia de entrada, la pone la mazmorra
+jugable) todos sus enemigos quedan quietos.
 
 Dentro de una mazmorra de varios cuartos (src/dungeon/mazmorra.py)
 cada cuarto recibe además qué puertas existen (solo donde el grafo
@@ -23,6 +30,8 @@ decisión (src/ui/terminal_decision.py) y un cuarto intermedio pasa a
 terminal da un resultado.
 """
 
+import random
+
 import pygame
 
 from src.core import assets
@@ -31,7 +40,9 @@ from src.dungeon.clasificador_toxicidad import (
     construir_arbol_reportes,
     nivel_a_dificultad,
 )
-from src.entities.enemy import Enemigo
+from src.dungeon.spawn import posiciones_spawn
+from src.entities.enemigos import crear_enemigo
+from src.entities.tipos_enemigo import composicion_cuarto
 from src.ui import cuarto_render
 from src.ui.terminal_decision import TerminalDecision, construir_arbol_publicacion
 
@@ -39,8 +50,6 @@ ANCHO_CUARTO = assets.ANCHO_CUARTO
 ALTO_CUARTO = assets.ALTO_CUARTO
 
 TECLA_DEBUG_ELIMINAR_ENEMIGO = pygame.K_k
-
-SEPARACION_VERTICAL_ENEMIGOS = 60
 
 FASE_COMBATE = "combate"
 FASE_DECISION = "decision"
@@ -61,6 +70,26 @@ REPORTES_ZONA_EJEMPLO = [
     {"id": 4, "tipo": "comentario", "gravedad": 3},
     {"id": 5, "tipo": "publicacion_viral", "gravedad": 4},
 ]
+
+
+def centro_puerta(rect_cuarto, direccion):
+    """Centro de la puerta `direccion` sobre el borde del cuarto."""
+    r = rect_cuarto
+    return {"N": (r.centerx, r.top), "S": (r.centerx, r.bottom),
+            "E": (r.right, r.centery), "W": (r.left, r.centery)}[direccion]
+
+
+# Dirección de la puerta -> hacia dónde queda el interior del cuarto.
+HACIA_ADENTRO = {"N": (0, 1), "S": (0, -1), "E": (-1, 0), "W": (1, 0)}
+
+
+def punto_llegada(rect_cuarto, direccion):
+    """Dónde aparece el jugador al entrar por la puerta `direccion`:
+    DISTANCIA_APARICION_PUERTA px hacia dentro desde su centro."""
+    x, y = centro_puerta(rect_cuarto, direccion)
+    dx, dy = HACIA_ADENTRO[direccion]
+    distancia = assets.DISTANCIA_APARICION_PUERTA
+    return (x + dx * distancia, y + dy * distancia)
 
 
 class Puerta:
@@ -109,6 +138,9 @@ class Cuarto:
         dificultad=None,
         es_final=True,
         permitir_decision=None,
+        punto_entrada=None,
+        rng=None,
+        es_cuarto_inicial=False,
     ):
         self.rect = pygame.Rect(0, 0, ANCHO_CUARTO, ALTO_CUARTO)
         self.rect.center = assets.CENTRO_CUARTO
@@ -124,44 +156,40 @@ class Cuarto:
 
         self.fase = FASE_COMBATE
         self.terminal = None
+        self.congelado = False  # gracia de entrada (ver gracia_entrada.py)
 
         self.puertas = self._crear_puertas(direcciones_puertas)
-        self.enemigos = self._crear_enemigos_iniciales()
+        self.enemigos = self._crear_enemigos_iniciales(
+            punto_entrada if punto_entrada is not None else self.rect.center,
+            rng if rng is not None else random.Random(),
+            es_cuarto_inicial,
+        )
         self._actualizar_estado_puertas()
 
     def _crear_puertas(self, direcciones):
-        r = self.rect
-
-        rect_n = pygame.Rect(0, 0, assets.ANCHO_PUERTA, assets.GROSOR_PUERTA)
-        rect_n.center = (r.centerx, r.top)
-
-        rect_s = pygame.Rect(0, 0, assets.ANCHO_PUERTA, assets.GROSOR_PUERTA)
-        rect_s.center = (r.centerx, r.bottom)
-
-        rect_e = pygame.Rect(0, 0, assets.GROSOR_PUERTA, assets.ANCHO_PUERTA)
-        rect_e.center = (r.right, r.centery)
-
-        rect_w = pygame.Rect(0, 0, assets.GROSOR_PUERTA, assets.ANCHO_PUERTA)
-        rect_w.center = (r.left, r.centery)
-
-        rects = {"N": rect_n, "S": rect_s, "E": rect_e, "W": rect_w}
+        rects = {}
+        for direccion in DIRECCIONES:
+            horizontal = direccion in ("N", "S")
+            ancho, alto = ((assets.ANCHO_PUERTA, assets.GROSOR_PUERTA) if horizontal
+                           else (assets.GROSOR_PUERTA, assets.ANCHO_PUERTA))
+            rects[direccion] = pygame.Rect(0, 0, ancho, alto)
+            rects[direccion].center = centro_puerta(self.rect, direccion)
         return {direccion: Puerta(direccion, rects[direccion]) for direccion in direcciones}
 
-    def _crear_enemigos_iniciales(self):
-        """Reparte `cantidad_enemigos` a lo ancho del cuarto, en zigzag.
+    def _crear_enemigos_iniciales(self, punto_entrada, rng, es_cuarto_inicial):
+        """Tipos según composicion_cuarto y posiciones según
+        posiciones_spawn (lejos de `punto_entrada`). Las posiciones vienen
+        de la más cercana a la más lejana y los tipos con los curanderos
+        al final: así los curanderos quedan detrás de los demás.
 
-        La velocidad de cada enemigo es la base de assets multiplicada
-        por el `multiplicador_velocidad` de la dificultad.
+        La velocidad base es la de assets por el `multiplicador_velocidad`
+        de la dificultad; cada tipo la multiplica por la suya.
         """
+        tipos = composicion_cuarto(self.dificultad, self.es_final, rng, es_cuarto_inicial)
         r = self.rect
-        cantidad = self.dificultad["cantidad_enemigos"]
+        posiciones = posiciones_spawn((r.left, r.top, r.right, r.bottom), punto_entrada, len(tipos), rng)
         velocidad = assets.VELOCIDAD_ENEMIGO * self.dificultad["multiplicador_velocidad"]
-        enemigos = []
-        for i in range(cantidad):
-            x = r.left + (i + 1) * r.width // (cantidad + 1)
-            y = r.centery - SEPARACION_VERTICAL_ENEMIGOS * (i % 2)
-            enemigos.append(Enemigo(x, y, velocidad))
-        return enemigos
+        return [crear_enemigo(tipo, x, y, velocidad) for tipo, (x, y) in zip(tipos, posiciones)]
 
     def _actualizar_estado_puertas(self):
         bloqueadas = len(self.enemigos) > 0
@@ -189,6 +217,8 @@ class Cuarto:
         agregan los proyectiles que disparan (ver Enemigo._disparar_a_objetivo).
         """
         for enemigo in self.enemigos:
+            enemigo.congelado = self.congelado
+            enemigo.aliados = self.enemigos
             enemigo.actualizar(dt, jugador, proyectiles_enemigos)
             enemigo.mantener_dentro(self.rect)
 

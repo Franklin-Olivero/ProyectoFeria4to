@@ -3,9 +3,12 @@
 Envuelve a MazmorraFinal (lógica pura) y le pone cuerpo con Pygame:
     - el cuarto grande (rect) y el rect de colisión del jefe,
     - convierte cada DisparoJefe en un ProyectilConEstela real,
-    - crea los súbditos invocados (Enemigo normales, con la velocidad
-      del tramo de toxicidad máximo y como mucho
+    - crea los súbditos invocados (alternando Perseguidor y Tirador,
+      con la velocidad del tramo de toxicidad máximo y como mucho
       dificultad["cantidad_enemigos"] vivos a la vez),
+    - da el segundo de gracia al entrar y al reiniciar la pelea: mientras
+      dura, la pelea entera queda en pausa (el jefe no ataca ni corre el
+      reloj, los súbditos quedan congelados) y Main.py bloquea las armas,
     - dibuja jefe, charcos, barra de vida, fase, tiempo y mensajes.
 
 Expone la misma interfaz que Cuarto (rect, enemigos, actualizar,
@@ -17,8 +20,10 @@ import pygame
 
 from src.core import assets
 from src.core.balance import DANIO_PROYECTIL_JEFE, UMBRAL_FASE_2, UMBRAL_FASE_3
+from src.dungeon.gracia_entrada import GraciaEntrada
 from src.dungeon.mazmorra_final import EN_COMBATE, VICTORIA, MazmorraFinal
-from src.entities.enemy import Enemigo
+from src.entities.enemigos import crear_enemigo
+from src.entities.tipos_enemigo import TipoEnemigo
 from src.entities.projectile import ProyectilConEstela
 from src.ui import cuarto_render, dibujo, sprites
 
@@ -26,6 +31,8 @@ DISTANCIA_INICIO_JUGADOR = 50  # px desde el borde inferior de la arena
 SEMILLA_FONDO_ARENA = 777
 GRAFITIS_ARENA = 4
 NOMBRE_JEFE = "Servidor Central"
+# Tipos de los súbditos, en orden de invocación (se repite).
+TIPOS_SUBDITOS = (TipoEnemigo.PERSEGUIDOR, TipoEnemigo.TIRADOR)
 
 
 class ArenaJefe:
@@ -35,7 +42,10 @@ class ArenaJefe:
         limites = (self.rect.left, self.rect.top, self.rect.right, self.rect.bottom)
         self.mazmorra = MazmorraFinal(colapso, limites)
         self.subditos = []
+        self._invocados = 0  # para alternar el tipo de cada súbdito
         self._tiempo = 0.0  # reloj visual para el parpadeo
+        self.gracia = GraciaEntrada()
+        self.gracia.iniciar()
         self._vincular_cuerpo_jefe()
         self.colocar_jugador(jugador)
 
@@ -65,8 +75,16 @@ class ArenaJefe:
 
     def actualizar(self, dt, jugador, proyectiles_enemigos):
         self._tiempo += dt
+        self.gracia.actualizar(dt)
+        if self.gracia.activa:
+            # Gracia: nada hostil se mueve; el jefe ni siquiera se actualiza.
+            for subdito in self.subditos:
+                subdito.congelado = True
+                subdito.actualizar(dt, jugador, proyectiles_enemigos)
+            return
         if self.mazmorra.estado == EN_COMBATE:
             for subdito in self.subditos:
+                subdito.congelado = False
                 subdito.actualizar(dt, jugador, proyectiles_enemigos)
                 subdito.mantener_dentro(self.rect)
             self.subditos = [subdito for subdito in self.subditos if subdito.vivo]
@@ -84,6 +102,7 @@ class ArenaJefe:
             jugador.vida = jugador.vida_maxima
             jugador.invulnerabilidad.reiniciar()
             self.colocar_jugador(jugador)
+            self.gracia.iniciar()
             return
 
         if self.mazmorra.estado == VICTORIA:
@@ -116,9 +135,11 @@ class ArenaJefe:
             if len(self.subditos) >= tope:
                 break
             lado = -1 if i % 2 == 0 else 1
-            # Agresividad absoluta: persiguen y disparan desde cualquier distancia.
-            subdito = Enemigo(
-                self.jefe.x + lado * assets.SEPARACION_INVOCACION, self.jefe.y, velocidad,
+            tipo = TIPOS_SUBDITOS[self._invocados % len(TIPOS_SUBDITOS)]
+            self._invocados += 1
+            # Agresividad absoluta: cada uno hace lo suyo desde cualquier distancia.
+            subdito = crear_enemigo(
+                tipo, self.jefe.x + lado * assets.SEPARACION_INVOCACION, self.jefe.y, velocidad,
                 agro_permanente=True,
             )
             subdito.mantener_dentro(self.rect)

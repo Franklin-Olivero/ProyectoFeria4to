@@ -12,21 +12,27 @@ y le da un Cuarto físico a cada nodo:
       qué cuartos se limpiaron;
     - sella las puertas que llevan al cuarto final mientras queden
       cuartos pendientes y avisa con un mensaje breve al tocarlas o al
-      desbloquearse el final.
+      desbloquearse el final;
+    - da un segundo de gracia (GraciaEntrada) al empezar y en cada
+      cuarto al que se entra: el cuarto queda `congelado` mientras dure
+      y Main.py bloquea las armas del jugador;
+    - crea cada cuarto sabiendo por qué puerta entra el jugador, para
+      que sus enemigos aparezcan lejos de ese punto, con un rng propio
+      (derivado de la semilla de la mazmorra) para la composición.
 
 Expone la misma interfaz que Cuarto y ArenaJefe (rect, enemigos,
 actualizar, dibujar, manejar_evento), así Main.py usa el mismo loop.
 """
 
+import random
+
 from src.core import assets
-from src.dungeon.cuarto import Cuarto
+from src.dungeon.cuarto import Cuarto, punto_llegada
+from src.dungeon.gracia_entrada import GraciaEntrada
 from src.dungeon.mazmorra import OPUESTA
 
 TEXTO_FINAL_DESBLOQUEADO = "Cuarto final desbloqueado"
 TEXTO_PUERTA_SELLADA = "Limpia todos los cuartos primero"
-
-# Dirección de la puerta -> hacia dónde queda el interior del cuarto.
-HACIA_ADENTRO = {"N": (0, 1), "S": (0, -1), "E": (-1, 0), "W": (1, 0)}
 
 
 class MazmorraJugable:
@@ -38,8 +44,13 @@ class MazmorraJugable:
         self.cambio_de_cuarto = False
         # Mensaje breve para el HUD: (texto, segundos restantes) o None.
         self.mensaje = None
+        # Distancia (en cuartos) de cada uno a la entrada: la entrada y
+        # sus vecinos son los "cuartos iniciales" (sin curanderos).
+        _, self._distancia_entrada, _ = mazmorra.grafo.bfs(mazmorra.entrada)
+        self.gracia = GraciaEntrada()
         self._crear_cuarto_si_falta(mazmorra.actual)
         self._sincronizar_sellos()
+        self.gracia.iniciar()
 
     @property
     def cuarto(self):
@@ -57,7 +68,7 @@ class MazmorraJugable:
     def colocar_en_entrada(self, jugador):
         _ubicar(jugador, self.cuarto.rect.center)
 
-    def _crear_cuarto_si_falta(self, id_cuarto):
+    def _crear_cuarto_si_falta(self, id_cuarto, punto_entrada=None):
         if id_cuarto in self.cuartos:
             return
         m = self.mazmorra
@@ -67,6 +78,9 @@ class MazmorraJugable:
             dificultad=m.dificultad[id_cuarto],
             es_final=id_cuarto == m.cuarto_final,
             permitir_decision=m.puede_iniciar_decision,
+            punto_entrada=punto_entrada,
+            rng=random.Random(m.rng.random()),
+            es_cuarto_inicial=self._distancia_entrada[id_cuarto] <= 1,
         )
 
     def actualizar(self, dt, jugador, proyectiles_enemigos):
@@ -75,6 +89,8 @@ class MazmorraJugable:
             texto, restante = self.mensaje
             self.mensaje = (texto, restante - dt) if restante > dt else None
 
+        self.gracia.actualizar(dt)
+        self.cuarto.congelado = self.gracia.activa
         # Primero se registra el cuarto limpio (así el cuarto final, si el
         # jugador ya está en él, puede abrir la decisión este mismo frame).
         self.cuarto.actualizar(dt, jugador, proyectiles_enemigos)
@@ -110,17 +126,18 @@ class MazmorraJugable:
         return None
 
     def _cruzar(self, direccion, jugador):
-        """Pasa al cuarto vecino y aparece junto a su puerta opuesta."""
+        """Pasa al cuarto vecino, aparece junto a su puerta opuesta (los
+        enemigos de un cuarto nuevo se generan lejos de ese punto) y
+        arranca la gracia de entrada."""
+        rect = self.cuarto.rect  # todos los cuartos miden y se ubican igual
         if self.mazmorra.mover(direccion) is None:
             return
-        self._crear_cuarto_si_falta(self.mazmorra.actual)
+        llegada = punto_llegada(rect, OPUESTA[direccion])
+        self._crear_cuarto_si_falta(self.mazmorra.actual, llegada)
         self._sincronizar_sellos()
         self.cambio_de_cuarto = True
-        llegada = OPUESTA[direccion]
-        puerta = self.cuarto.puertas[llegada].rect
-        dx, dy = HACIA_ADENTRO[llegada]
-        distancia = assets.DISTANCIA_APARICION_PUERTA
-        _ubicar(jugador, (puerta.centerx + dx * distancia, puerta.centery + dy * distancia))
+        _ubicar(jugador, llegada)
+        self.gracia.iniciar()
 
     def manejar_evento(self, evento):
         self.cuarto.manejar_evento(evento)

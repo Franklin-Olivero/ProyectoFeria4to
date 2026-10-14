@@ -91,7 +91,7 @@ def dibujar_corazones(pantalla, vida, vida_maxima):
 def dibujar_habilidad(pantalla, jugador):
     x, y = assets.POSICION_HABILIDAD_HUD
     fraccion = jugador.carga_habilidad / jugador.carga_maxima if jugador.carga_maxima else 0
-    lista = jugador.puede_usar_habilidad()
+    lista = jugador.habilidad_cargada()
     color = assets.COLOR_TEAL if lista else assets.COLOR_MORADO
     dibujo.texto(pantalla, "F", (x, y - 3), color, assets.TAMANIO_FUENTE_PEQUENA, negrita=True)
     dibujo.barra(pantalla, (x + 16, y, assets.ANCHO_BARRA_HABILIDAD, assets.ALTO_BARRA_HABILIDAD),

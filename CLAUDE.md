@@ -54,7 +54,19 @@ Como está implementada: jefe "Servidor Central" en un solo cuarto grande, con 3
 **Regla de desbloqueo:** se entra por la puerta de la Alcaldía (E), solo si el colapso es mayor a 80% o si hay al menos 1 mazmorra completada (con Purificación Exitosa). Si no, sus barricadas tapan la puerta y se muestra "Alcaldía sellada: purifica una mazmorra".
 
 ## Enemigos: agresividad absoluta
-Los enemigos nunca se quedan quietos ni huyen: con `agro_permanente = True` (por defecto, en los cuartos normales y en los súbditos del jefe) el nodo de detección del behavior tree siempre tiene éxito y persiguen y disparan desde cualquier distancia. `RANGO_DISPARO_ENEMIGO` se conserva para el caso `agro_permanente = False`.
+Los enemigos nunca se quedan quietos: con `agro_permanente = True` (por defecto, en los cuartos normales y en los súbditos del jefe) el nodo de detección del behavior tree siempre tiene éxito y cada tipo hace lo suyo desde cualquier distancia. `RANGO_DISPARO_ENEMIGO` se conserva para el caso `agro_permanente = False`. (La única huida es la del Curandero, que es su rol, y nunca bloquea el cuarto: ver abajo.)
+
+## Gracia de entrada (1 s al entrar a un cuarto)
+`GRACIA_ENTRADA_CUARTO_S` = 1.0 (`src/dungeon/gracia_entrada.py`, objeto puro `GraciaEntrada`): se reinicia al empezar la mazmorra, en cada puerta cruzada (también al volver a un cuarto limpio) y al entrar o reiniciar la arena del jefe. Mientras dura, la rama "¿congelado?" es la PRIMERA del Selector de todo enemigo (prioridad sobre `agro_permanente`): no persiguen, no disparan ni golpean; en la arena el jefe ni se actualiza. El jugador puede moverse pero no dispara ni usa F (`JugadorBase.armas_bloqueadas`, lo pone Main.py). Se ve como un anillo de cuenta regresiva alrededor del jugador y enemigos con alfa pulsante. Los proyectiles en vuelo se limpian al cambiar de cuarto. Los enemigos de un cuarto nuevo aparecen a >= `DISTANCIA_MIN_SPAWN_ENEMIGO` (260 px) del punto por donde entra el jugador (`src/dungeon/spawn.py`).
+
+## Tipos de enemigo
+`src/entities/tipos_enemigo.py` (puro: `TipoEnemigo`, `CONFIG_TIPO` desde `balance.STATS_TIPO_ENEMIGO`, `composicion_cuarto`) + `src/entities/enemigos.py` (`Perseguidor`, `Tirador`, `Curandero` heredan de `Enemigo`: reutilizan vida, empuje, escudo, agro, aggro forzado y carga por kill; solo cambia su behavior tree, armado con `src/ai/behavior_tree.py` y los nodos puros de `src/ai/nodos_combate.py`: `DistanciaMenorQue`, `MantenerDistancia`, `Huir`, `CurarAliado`, `DispararApuntado`).
+* Perseguidor: velocidad ×1.15, vida 3, daño por contacto 1 cada 0.8 s, no dispara.
+* Tirador: velocidad ×0.8, vida 2; mantiene 320 ± 40 px (retrocede, se acerca u orbita) y dispara apuntado cada 1.8 s tras 0.25 s de telegrafía (se ilumina); bala a 260 px/s.
+* Curandero: velocidad ×0.7, vida 2, no ataca; se esconde detrás de sus aliados, huye si el jugador está a < 200 px y cada 3 s cura el 34 % de la vida máxima al aliado más herido a <= 280 px. Nunca a sí mismo ni al jefe, máximo 2 curas por aliado por cuarto. Tras 6 s siendo el único vivo entra en pánico: persigue a velocidad normal y deja de curar. El cuarto no se libera mientras quede cualquier enemigo vivo.
+* Composición por tramo (`composicion_cuarto(nivel_dificultad, es_cuarto_final, rng, es_cuarto_inicial)`): BAJA (2) solo perseguidores, el final puede traer 1 tirador; MEDIA (3) 2 perseguidores + 1 tirador o 1 + 1 + 1 curandero (25 %); ALTA (5) 2 tiradores, 1-2 curanderos (nunca más que los demás) y el resto perseguidores, el final con ≥ 1 curandero y ≥ 2 tiradores. La entrada y sus vecinos (cuartos iniciales) nunca tienen curanderos; siempre hay ≥ 1 enemigo que no es curandero. Los curanderos aparecen en las posiciones más lejanas a la entrada. Porcentajes y máximos en `balance.py`.
+* Los súbditos del jefe alternan Perseguidor y Tirador.
+* Arte: todo el render de enemigos pide su imagen a `sprites.sprite_enemigo(tipo)`. Hoy devuelve un pixel art distinto por tipo (`PIXEL_ART_ENEMIGO`); si existe `assets/sprites/enemigos/<ID_SPRITE_ENEMIGO[tipo]>.png` lo carga (con caché) y si no, cae al placeholder. Colores, tamaño de hitbox e id de sprite por tipo en `assets.py`.
 
 ## Colapso Electoral
 Barra 0.0%-100.0%: +0.2 por cada fallo (Detonación o derrota contra el jefe) y -0.1 por cada éxito (Purificación Exitosa o jefe derrotado). Caminar por la ciudad no cuesta colapso. **Derrota global:** si llega a 100% (en cualquier escena), la escena DERROTA muestra "Colapso total" con el input de combate desactivado; ENTER reinicia la partida completa (colapso 0, progreso 0, en la Plaza, pesos de las calles restablecidos y sin barricadas, mismo rol) y ESC sale.
@@ -106,13 +118,13 @@ PruebaPythonGame/
 │-- src/
 │   │-- core/          # constantes, balance, configuración de pantalla, reloj, escenas, apuntado
 │   │-- structures/     # árbol N-ario, grafo y min-heap puros, sin dependencias de Pygame
-│   │-- ai/             # behavior tree genérico, sin dependencias de Pygame
-│   │-- entities/       # jugadores (roles), proyectiles, enemigos, jefe
+│   │-- ai/             # behavior tree genérico y nodos de combate, sin dependencias de Pygame
+│   │-- entities/       # jugadores (roles), proyectiles, enemigos y sus tipos, jefe
 │   │-- dungeon/        # cuartos, mazmorra multi-cuarto, mapa de casillas y grafo de calles de Ciudad Nova, noticias, partida, clasificador, mazmorra final
 │   │-- ui/             # minijuego de decisión, selección de rol, Ciudad Nova (casillas y render), mapa del mundo, minimapa, victoria/derrota
 │   └-- network/        # (aún no existe) protocolo sockets, serialización, server/client
 ```
-No mezclar responsabilidades entre carpetas. `structures/` y `ai/` no deben importar `pygame`. La lógica de jefe, charcos, mazmorra final, invulnerabilidad, progreso, balance, terminal de decisión, mazmorra multi-cuarto, mapa de casillas de Ciudad Nova, grafo de calles, noticias, partida, escenas y selector de destino también es pura (sin `pygame`) para poder probarse en aislado; su dibujo vive en módulos aparte.
+No mezclar responsabilidades entre carpetas. `structures/` y `ai/` no deben importar `pygame`. La lógica de jefe, charcos, mazmorra final, invulnerabilidad, progreso, balance, terminal de decisión, mazmorra multi-cuarto, mapa de casillas de Ciudad Nova, grafo de calles, noticias, partida, escenas, selector de destino, gracia de entrada, posiciones de aparición, tipos de enemigo y su composición también es pura (sin `pygame`) para poder probarse en aislado; su dibujo vive en módulos aparte.
 
 ## Estado real del MVP
 
@@ -139,6 +151,8 @@ No mezclar responsabilidades entre carpetas. `structures/` y `ai/` no deben impo
 21. Jefe esquivable (ráfaga con hueco, espiral lenta, fase 3 por ciclos con descanso, tope de 40 balas, charcos justos) y agresividad absoluta de enemigos y súbditos (`agro_permanente`) — completado
 22. Ciudad Nova caminable: mapa de casillas con colisión y cámara (`src/dungeon/ciudad_mapa.py`), red de calles como grafo con ruta sugerida (Dijkstra), barricadas por saturación con histéresis 8/6 que nunca desconectan la ciudad, Alcaldía sellada con barricadas, escena CIUDAD con fundido, mapa del mundo (M), auras de toxicidad y cintillo de noticias (`src/dungeon/noticias.py`, `src/ui/ciudad_render.py`, `src/ui/casillas_ciudad.py`); sin costo de viaje — completado
 
+23. Segundo de gracia al entrar a cada cuarto (enemigos congelados, jugador sin armas, aparición a >= 260 px) y tres tipos de enemigo (Perseguidor, Tirador, Curandero) con composición por tramo de toxicidad y arte intercambiable vía `sprite_enemigo` (`src/dungeon/gracia_entrada.py`, `src/dungeon/spawn.py`, `src/entities/tipos_enemigo.py`, `src/entities/enemigos.py`, `src/ai/nodos_combate.py`, `src/ui/enemigo_render.py`); capturas en `docs/capturas/` — completado
+
 Ciudad Nova es un mapa de casillas sin NPCs: no agregues NPCs ni sockets / `src/network/` salvo que se te pida explícitamente — son alcance de entregas futuras.
 
 ## Convenciones de código
@@ -147,7 +161,7 @@ Ciudad Nova es un mapa de casillas sin NPCs: no agregues NPCs ni sockets / `src/
 * Priorizar código explicable sobre código optimizado en exceso — se sustenta en voz alta ante la profesora.
 * Todo árbol/grafo debe exponer sus operaciones de forma que se puedan probar de forma aislada (sin Pygame).
 * Todo elemento visual debe referenciar una constante o ruta de sprite centralizada en `src/core/assets.py`, nunca un color hardcodeado disperso. Los números de balance (stats de roles, jefe, charcos, invulnerabilidad) van en `src/core/balance.py`.
-* El arte es pixel art dibujado en código dentro de `src/ui` (filas de caracteres + paleta, cacheadas: `sprites.py`, `casillas_ciudad.py`), con paleta y tamaños centralizados en `assets.py`. Cuando llegue arte real solo se cambia cómo se obtienen las imágenes, sin tocar la lógica.
+* El arte es pixel art dibujado en código dentro de `src/ui` (filas de caracteres + paleta, cacheadas: `sprites.py`, `casillas_ciudad.py`), con paleta y tamaños centralizados en `assets.py`. Cuando llegue arte real solo se cambia cómo se obtienen las imágenes, sin tocar la lógica. Los enemigos ya cargan su PNG si existe (`sprite_enemigo`, fallback al placeholder).
 
 ## Instrucciones de Git
 
