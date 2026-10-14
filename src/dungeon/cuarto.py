@@ -32,10 +32,11 @@ from src.dungeon.clasificador_toxicidad import (
     nivel_a_dificultad,
 )
 from src.entities.enemy import Enemigo
+from src.ui import cuarto_render
 from src.ui.terminal_decision import TerminalDecision, construir_arbol_publicacion
 
-ANCHO_CUARTO = 500
-ALTO_CUARTO = 400
+ANCHO_CUARTO = assets.ANCHO_CUARTO
+ALTO_CUARTO = assets.ALTO_CUARTO
 
 TECLA_DEBUG_ELIMINAR_ENEMIGO = pygame.K_k
 
@@ -109,11 +110,8 @@ class Cuarto:
         es_final=True,
         permitir_decision=None,
     ):
-        ancho_ventana = pygame.display.get_surface().get_width()
-        alto_ventana = pygame.display.get_surface().get_height()
-
         self.rect = pygame.Rect(0, 0, ANCHO_CUARTO, ALTO_CUARTO)
-        self.rect.center = (ancho_ventana // 2, alto_ventana // 2)
+        self.rect.center = assets.CENTRO_CUARTO
 
         if nivel_toxicidad is None:
             nivel_toxicidad = calcular_nivel_toxicidad(construir_arbol_reportes(reportes, nombre_zona))
@@ -212,18 +210,21 @@ class Cuarto:
             self.eliminar_un_enemigo()
 
     def dibujar(self, pantalla):
-        pygame.draw.rect(pantalla, assets.COLOR_MURO, self.rect, assets.GROSOR_MURO)
+        # Piso, muros y grafitis (cacheados por cuarto): más grafitis a
+        # mayor toxicidad. La semilla fija hace que cada cuarto conserve
+        # sus manchas al volver a él.
+        semilla = round(self.nivel_toxicidad * 100) + len(self.puertas) * 7
+        grafitis = 1 + int(self.nivel_toxicidad // 35)
+        fondo = cuarto_render.fondo_cuarto(self.rect, semilla, grafitis)
+        pantalla.blit(fondo, cuarto_render.origen_fondo(self.rect))
 
         for puerta in self.puertas.values():
-            pygame.draw.rect(pantalla, puerta.color(), puerta.rect)
-            if puerta.sellada and not puerta.bloqueada:
-                # Una X sobre la puerta: cerrada por cuartos pendientes.
-                r = puerta.rect
-                for inicio, fin in ((r.topleft, r.bottomright), (r.bottomleft, r.topright)):
-                    pygame.draw.line(
-                        pantalla, assets.COLOR_X_PUERTA_SELLADA, inicio, fin,
-                        assets.GROSOR_X_PUERTA_SELLADA,
-                    )
+            cuarto_render.dibujar_puerta(pantalla, puerta, self.rect)
+
+        if self.es_final:
+            cuarto_render.dibujar_terminal_cuarto(
+                pantalla, self.rect, bloqueada=bool(self.enemigos), cantidad_enemigos=len(self.enemigos)
+            )
 
         for enemigo in self.enemigos:
             enemigo.dibujar(pantalla)

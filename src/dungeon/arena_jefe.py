@@ -20,8 +20,12 @@ from src.core.balance import DANIO_PROYECTIL_JEFE, UMBRAL_FASE_2, UMBRAL_FASE_3
 from src.dungeon.mazmorra_final import EN_COMBATE, VICTORIA, MazmorraFinal
 from src.entities.enemy import Enemigo
 from src.entities.projectile import ProyectilConEstela
+from src.ui import cuarto_render, dibujo, sprites
 
 DISTANCIA_INICIO_JUGADOR = 50  # px desde el borde inferior de la arena
+SEMILLA_FONDO_ARENA = 777
+GRAFITIS_ARENA = 4
+NOMBRE_JEFE = "Servidor Central"
 
 
 class ArenaJefe:
@@ -125,7 +129,8 @@ class ArenaJefe:
     # ------------------------------------------------------------------
 
     def dibujar(self, pantalla):
-        pygame.draw.rect(pantalla, assets.COLOR_MURO, self.rect, assets.GROSOR_MURO)
+        fondo = cuarto_render.fondo_cuarto(self.rect, SEMILLA_FONDO_ARENA, GRAFITIS_ARENA)
+        pantalla.blit(fondo, cuarto_render.origen_fondo(self.rect))
         for charco in self.mazmorra.charcos:
             self._dibujar_charco(pantalla, charco)
         for subdito in self.subditos:
@@ -155,44 +160,44 @@ class ArenaJefe:
             # Parpadeo al cambiar de fase: visible e invisible alternados.
             if int(self._tiempo / assets.PERIODO_PARPADEO_JEFE) % 2 == 0:
                 return
-        color = assets.COLOR_DESTELLO_JEFE if jefe.tiempo_destello > 0 else assets.COLOR_JEFE
-        pygame.draw.rect(pantalla, color, jefe.rect)
+        imagen = sprites.sprite(sprites.JEFE, sprites.PALETA_JEFE, escala=4)
+        if jefe.tiempo_destello > 0:
+            # Destello blanco al recibir daño: silueta del sprite en blanco.
+            imagen = imagen.copy()
+            imagen.fill(assets.COLOR_DESTELLO_JEFE, special_flags=pygame.BLEND_RGB_MAX)
+        pantalla.blit(imagen, imagen.get_rect(center=jefe.rect.center))
         if jefe.escudo_anonimato:
             escudo = jefe.rect.inflate(assets.MARGEN_ESCUDO_JEFE * 2, assets.MARGEN_ESCUDO_JEFE * 2)
-            pygame.draw.rect(pantalla, assets.COLOR_ESCUDO_JEFE, escudo, assets.GROSOR_ESCUDO_JEFE)
+            pygame.draw.rect(pantalla, assets.COLOR_ESCUDO_JEFE, escudo, assets.GROSOR_ESCUDO_JEFE,
+                             border_radius=8)
 
-    def dibujar_hud(self, pantalla, fuente):
-        """Barra de vida con marcas de fase, "Fase N", tiempo y mensajes.
-        Se dibuja fuera de la sacudida para que siempre se lea."""
+    def dibujar_hud(self, pantalla):
+        """Nombre del jefe, barra de vida con marcas de fase, fase, escudo
+        y tiempo, en el centro del HUD superior. Se dibuja fuera de la
+        sacudida para que siempre se lea."""
         jefe = self.jefe
         fondo = pygame.Rect(assets.RECT_BARRA_JEFE)
-        pygame.draw.rect(pantalla, assets.COLOR_FONDO_BARRA_JEFE, fondo)
-        relleno = fondo.copy()
-        relleno.width = round(fondo.width * jefe.fraccion_vida)
-        pygame.draw.rect(pantalla, assets.COLOR_BARRA_JEFE, relleno)
+        dibujo.texto(pantalla, NOMBRE_JEFE, (fondo.centerx, 20), assets.COLOR_MORADO,
+                     assets.TAMANIO_FUENTE_MEDIA, negrita=True, ancla="center")
+        dibujo.barra(pantalla, fondo, jefe.fraccion_vida, assets.COLOR_BARRA_JEFE)
         for umbral in (UMBRAL_FASE_2, UMBRAL_FASE_3):
             x = fondo.left + round(fondo.width * umbral)
-            marca = pygame.Rect(0, 0, assets.ANCHO_MARCA_FASE, fondo.height)
-            marca.midtop = (x, fondo.top)
-            pygame.draw.rect(pantalla, assets.COLOR_MARCA_FASE, marca)
+            pygame.draw.line(pantalla, assets.COLOR_MARCA_FASE, (x, fondo.top), (x, fondo.bottom),
+                             assets.ANCHO_MARCA_FASE)
 
         texto_fase = f"Fase {jefe.fase}"
         if jefe.escudo_anonimato:
-            texto_fase += f"  Escudo: {jefe.vida_escudo}"
-        pantalla.blit(
-            fuente.render(texto_fase, True, assets.COLOR_TEXTO_HUD), assets.POSICION_TEXTO_FASE
-        )
-
+            texto_fase += f" · Escudo {jefe.vida_escudo}"
+        dibujo.texto(pantalla, texto_fase, (fondo.left, fondo.bottom + 3), assets.COLOR_TEXTO_SECUNDARIO,
+                     assets.TAMANIO_FUENTE_PEQUENA)
         segundos = int(self.mazmorra.tiempo_restante + 0.999)  # redondeo hacia arriba
-        texto_tiempo = f"Tiempo: {segundos // 60}:{segundos % 60:02d}"
-        pantalla.blit(
-            fuente.render(texto_tiempo, True, assets.COLOR_TEXTO_HUD),
-            assets.POSICION_TEXTO_TIEMPO_JEFE,
-        )
+        dibujo.texto(pantalla, f"{segundos // 60}:{segundos % 60:02d}", (fondo.right, fondo.bottom + 3),
+                     assets.COLOR_AMARILLO, assets.TAMANIO_FUENTE_PEQUENA, negrita=True, ancla="topright")
 
         # La victoria tiene su propia pantalla (src/ui/pantalla_victoria.py);
         # aquí solo se avisa la derrota.
         mensaje = self.mazmorra.texto_mensaje()
         if mensaje is not None and self.mazmorra.estado != VICTORIA:
-            superficie = fuente.render(mensaje, True, assets.COLOR_MENSAJE_DERROTA)
-            pantalla.blit(superficie, superficie.get_rect(center=assets.POSICION_MENSAJE_CENTRAL))
+            dibujo.chip(pantalla, mensaje, assets.POSICION_MENSAJE_CENTRAL, assets.COLOR_MAGENTA,
+                        assets.COLOR_FONDO_PANEL, assets.COLOR_MAGENTA, assets.TAMANIO_FUENTE_MEDIA,
+                        ancla="center", alto=36, margen=16)

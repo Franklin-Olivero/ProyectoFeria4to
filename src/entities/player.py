@@ -215,9 +215,14 @@ class JugadorBase:
         self.invulnerabilidad.actualizar(dt)
 
     def dibujar(self, pantalla):
-        # Parpadeo durante la invulnerabilidad.
+        # Parpadeo durante la invulnerabilidad. El sprite (pixel art, ver
+        # src/ui/sprites.py) se apoya en el borde inferior del rect de
+        # colisión y sobresale un poco por arriba, como en un top-down.
         if self.invulnerabilidad.visible:
-            pygame.draw.rect(pantalla, self.COLOR, self.rect)
+            from src.ui import sprites
+
+            imagen = sprites.sprite_jugador(self.COLOR)
+            pantalla.blit(imagen, imagen.get_rect(midbottom=(self.rect.centerx, self.rect.bottom + 4)))
 
 
 class Ciudadano(JugadorBase):
@@ -275,6 +280,10 @@ class Ciudadano(JugadorBase):
     def dibujar(self, pantalla):
         super().dibujar(pantalla)
         if self.burbuja_activa:
+            diametro = self.radio_burbuja * 2
+            capa = pygame.Surface((diametro, diametro), pygame.SRCALPHA)
+            pygame.draw.circle(capa, (*assets.COLOR_BURBUJA, 40), (self.radio_burbuja,) * 2, self.radio_burbuja)
+            pantalla.blit(capa, capa.get_rect(center=self.rect.center))
             pygame.draw.circle(
                 pantalla,
                 assets.COLOR_BURBUJA,

@@ -52,6 +52,22 @@ class Proyectil:
         self.vivo = False
 
     def dibujar(self, pantalla):
+        # Estela punteada detrás del proyectil (sin estado: se deduce de
+        # la dirección), cada punto más pequeño y más transparente.
+        cantidad = assets.PUNTOS_ESTELA_PROYECTIL
+        if cantidad and self.direccion.length_squared() > 0:
+            lado = self.rect.width
+            lado_capa = 2 * (assets.ESPACIADO_ESTELA_PROYECTIL * cantidad + lado)
+            capa = pygame.Surface((lado_capa, lado_capa), pygame.SRCALPHA)
+            centro = pygame.Vector2(capa.get_size()) / 2
+            for i in range(1, cantidad + 1):
+                punto = centro - self.direccion * assets.ESPACIADO_ESTELA_PROYECTIL * i
+                tamanio = max(2, round(lado * (1 - i / (cantidad + 1))))
+                alfa = round(assets.ALFA_ESTELA_PROYECTIL * (1 - i / (cantidad + 1)))
+                rect = pygame.Rect(0, 0, tamanio, tamanio)
+                rect.center = (round(punto.x), round(punto.y))
+                pygame.draw.rect(capa, (*self.color[:3], alfa), rect)
+            pantalla.blit(capa, capa.get_rect(center=self.rect.center))
         pygame.draw.rect(pantalla, self.color, self.rect)
 
 

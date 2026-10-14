@@ -96,6 +96,30 @@ class TerminalDecision:
             return None
         return self.nodo_actual.hijos[self.indice_seleccionado]
 
+    def camino(self):
+        """Lista de nodos desde la raíz hasta `nodo_actual` (inclusive).
+
+        Lo usa la pantalla para resaltar el camino recorrido y las migas
+        de pan. Complejidad: O(n), DFS hasta encontrar el nodo actual.
+        """
+        return self._camino_hasta(self.arbol.raiz, self.nodo_actual) or [self.nodo_actual]
+
+    def _camino_hasta(self, nodo, objetivo):
+        if nodo is objetivo:
+            return [nodo]
+        for hijo in nodo.hijos:
+            resto = self._camino_hasta(hijo, objetivo)
+            if resto:
+                return [nodo] + resto
+        return None
+
+    @property
+    def opcion_elegida(self):
+        """Etiqueta de la opción de primer nivel por la que se bajó, o None
+        si el cursor sigue en la raíz."""
+        camino = self.camino()
+        return camino[1].etiqueta if len(camino) > 1 else None
+
     def navegar(self, direccion):
         """Mueve el cursor entre hijos ("izquierda"/"derecha") o desciende
         al hijo seleccionado ("confirmar").

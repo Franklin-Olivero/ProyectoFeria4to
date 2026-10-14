@@ -40,12 +40,18 @@ def _centro_celda(celda):
     )
 
 
-def dibujar_minimapa(pantalla, mazmorra, fuente):
+def dibujar_minimapa(pantalla, mazmorra):
+    from src.ui import dibujo
+
     tamanio = assets.TAMANIO_CELDA_MINIMAPA
     lado_total = (LADO_CUADRICULA_MAZMORRA - 1) * assets.PASO_CELDA_MINIMAPA + tamanio
     fondo = pygame.Rect(assets.ORIGEN_MINIMAPA, (lado_total, lado_total))
     fondo.inflate_ip(assets.MARGEN_FONDO_MINIMAPA * 2, assets.MARGEN_FONDO_MINIMAPA * 2)
-    pygame.draw.rect(pantalla, assets.COLOR_FONDO_MINIMAPA, fondo)
+    fondo.height += 18  # espacio para el título
+    fondo.top -= 18
+    dibujo.panel(pantalla, fondo, assets.COLOR_FONDO_MINIMAPA, assets.COLOR_BORDE_PANEL, 1)
+    dibujo.texto(pantalla, "Mapa (M)", (fondo.left + 8, fondo.top + 4), assets.COLOR_TEXTO_SECUNDARIO,
+                 assets.TAMANIO_FUENTE_PEQUENA)
 
     grafo = mazmorra.grafo
     centros = {cuarto: _centro_celda(celda) for cuarto, celda in mazmorra.celdas.items()}
