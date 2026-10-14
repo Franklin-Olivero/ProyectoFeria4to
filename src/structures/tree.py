@@ -1,9 +1,22 @@
 """Árbol N-ario implementado a mano (sin librerías de terceros).
 
-Se usa como motor de la "terminal de decisión contra reloj": cada nodo
-representa un estado/opción de la decisión y puede tener cualquier
-número de hijos (por ejemplo, la raíz "Publicación Viral" tiene 4
-hijos: Verificar, Compartir, Reportar, Ignorar).
+Gobierna dos mecánicas del juego:
+
+1. Clasificador de reportes de toxicidad (lógica de fondo, invisible
+para el jugador): la raíz representa una zona/edificio de la
+ciudad y cada descendiente representa una publicación o reporte de mal
+uso de redes (comentario, publicación viral, denuncia...) con su
+gravedad. Recorrer el árbol permite agregar la toxicidad de la zona, y
+ese valor decide la dificultad de la mazmorra que se genera (ver
+src/dungeon/clasificador_toxicidad.py).
+
+2. Minijuego de decisión al final de cada mazmorra normal: el jugador
+navega activamente el árbol "Publicación Viral" desde la raíz hasta una
+hoja final (ver src/ui/terminal_decision.py).
+
+Este módulo no conoce el significado de las etiquetas: solo ofrece la
+estructura, el CRUD y los recorridos, para poder probarse de forma
+aislada y sin Pygame.
 """
 
 from collections import deque
@@ -14,8 +27,9 @@ class NodoArbol:
 
     Atributos:
         id: identificador único del nodo dentro del árbol.
-        etiqueta: texto/estado que representa el nodo (lo que se
-            muestra en la terminal de decisión).
+        etiqueta: dato que representa el nodo. En el clasificador de
+            toxicidad es el nombre de la zona (raíz) o el diccionario
+            del reporte ({"id", "tipo", "gravedad"}) en los demás nodos.
         hijos: lista de NodoArbol, en el orden en que fueron insertados.
     """
 
@@ -27,6 +41,14 @@ class NodoArbol:
 
 class ArbolDecision:
     """Árbol N-ario con operaciones CRUD y los 4 recorridos clásicos.
+
+    Uso en el juego (clasificador): al generar una mazmorra se construye un árbol cuya
+    raíz es la zona/edificio y cuyos nodos son los reportes de toxicidad
+    de esa zona. Un recorrido completo agrega la gravedad de los reportes
+    y produce el nivel de toxicidad que determina cuántos enemigos
+    aparecen y qué tan rápidos son. El jugador ve el efecto (una
+    mazmorra más fácil o más difícil), nunca la estructura. El mismo
+    árbol también se navega nodo a nodo en el minijuego de decisión.
 
     En todas las complejidades, n es el número total de nodos del árbol.
     No se usa ninguna estructura auxiliar (como un diccionario id -> nodo)
