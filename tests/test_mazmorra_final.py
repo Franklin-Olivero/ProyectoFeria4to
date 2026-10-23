@@ -204,7 +204,7 @@ def test_derrota_por_tiempo_agotado_suma_fallo_y_reinicia():
     mazmorra = MazmorraFinal(colapso, LIMITES, random.Random(0))
     jefe_original = mazmorra.jefe
     # Jugador lejos del jefe y fuera de alcance de charcos: solo cuenta el tiempo.
-    mazmorra.actualizar(TIEMPO_LIMITE_JEFE + 1, JugadorFalso(vida=1000))
+    mazmorra.actualizar(TIEMPO_LIMITE_JEFE + 1, [JugadorFalso(vida=1000)])
     assert colapso.valor == pytest.approx(50.2)
     assert mazmorra.derrotas == 1
     assert mazmorra.reinicio_pendiente
@@ -217,7 +217,7 @@ def test_derrota_por_tiempo_agotado_suma_fallo_y_reinicia():
 def test_derrota_si_el_jugador_muere():
     colapso = ColapsoElectoral(50.0)
     mazmorra = MazmorraFinal(colapso, LIMITES, random.Random(0))
-    mazmorra.actualizar(1 / 60, JugadorFalso(vida=0))
+    mazmorra.actualizar(1 / 60, [JugadorFalso(vida=0)])
     assert mazmorra.derrotas == 1
     assert colapso.valor == pytest.approx(50.2)
 
@@ -227,8 +227,8 @@ def test_victoria_resta_colapso_una_sola_vez():
     mazmorra = MazmorraFinal(colapso, LIMITES, random.Random(0))
     mazmorra.jefe.vida = 0
     jugador = JugadorFalso()
-    mazmorra.actualizar(1 / 60, jugador)
-    mazmorra.actualizar(1 / 60, jugador)
+    mazmorra.actualizar(1 / 60, [jugador])
+    mazmorra.actualizar(1 / 60, [jugador])
     assert mazmorra.estado == VICTORIA
     assert mazmorra.texto_mensaje() == "Servidor Central purificado"
     assert colapso.valor == pytest.approx(49.9)
@@ -246,10 +246,10 @@ def test_mazmorra_final_nunca_instancia_terminal_decision(monkeypatch):
     mazmorra = MazmorraFinal(colapso, LIMITES, random.Random(0))
     jugador = JugadorFalso(vida=1000)
     for _ in range(600):
-        mazmorra.actualizar(1 / 60, jugador)
-    mazmorra.actualizar(TIEMPO_LIMITE_JEFE, jugador)
+        mazmorra.actualizar(1 / 60, [jugador])
+    mazmorra.actualizar(TIEMPO_LIMITE_JEFE, [jugador])
     mazmorra.jefe.vida = 0
-    mazmorra.actualizar(1 / 60, jugador)
+    mazmorra.actualizar(1 / 60, [jugador])
     assert mazmorra.estado == VICTORIA
     assert not any(isinstance(v, terminal_decision.TerminalDecision) for v in vars(mazmorra).values())
 

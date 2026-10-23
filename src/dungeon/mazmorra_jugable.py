@@ -6,8 +6,9 @@ y le da un Cuarto físico a cada nodo:
       dicta el grafo, la toxicidad/dificultad del nodo y si es el final;
     - guarda los cuartos ya creados, así un cuarto limpiado sigue limpio
       (sus enemigos no reaparecen) al volver a él;
-    - detecta cuando el jugador toca una puerta ABIERTA, lo pasa al
-      cuarto vecino y lo pone junto a la puerta opuesta;
+    - detecta cuando un jugador toca una puerta ABIERTA y pasa a todo el
+      equipo al cuarto vecino, junto a la puerta opuesta (en cooperativo,
+      uno al lado del otro);
     - informa a la Mazmorra si quedan enemigos vivos (propagación) y
       qué cuartos se limpiaron;
     - sella las puertas que llevan al cuarto final mientras queden
@@ -19,6 +20,7 @@ actualizar, dibujar, manejar_evento), así Main.py usa el mismo loop.
 """
 
 from src.core import assets
+from src.core.equipo import jugadores_en_combate
 from src.dungeon.cuarto import Cuarto
 from src.dungeon.mazmorra import OPUESTA
 
@@ -54,8 +56,8 @@ class MazmorraJugable:
     def enemigos(self):
         return self.cuarto.enemigos
 
-    def colocar_en_entrada(self, jugador):
-        _ubicar(jugador, self.cuarto.rect.center)
+    def colocar_en_entrada(self, jugadores):
+        ubicar_en_fila(jugadores, self.cuarto.rect.center, (1, 0))
 
     def _crear_cuarto_si_falta(self, id_cuarto):
         if id_cuarto in self.cuartos:
@@ -69,7 +71,7 @@ class MazmorraJugable:
             permitir_decision=m.puede_iniciar_decision,
         )
 
-    def actualizar(self, dt, jugador, proyectiles_enemigos):
+    def actualizar(self, dt, jugadores, proyectiles_enemigos):
         self.cambio_de_cuarto = False
         if self.mensaje is not None:
             texto, restante = self.mensaje
@@ -77,20 +79,20 @@ class MazmorraJugable:
 
         # Primero se registra el cuarto limpio (así el cuarto final, si el
         # jugador ya está en él, puede abrir la decisión este mismo frame).
-        self.cuarto.actualizar(dt, jugador, proyectiles_enemigos)
+        self.cuarto.actualizar(dt, jugadores, proyectiles_enemigos)
         hay_enemigos = bool(self.cuarto.enemigos)
         if not hay_enemigos and self.mazmorra.marcar_limpiado(self.mazmorra.actual):
             self._avisar(TEXTO_FINAL_DESBLOQUEADO)
         self._sincronizar_sellos()
         self.mazmorra.actualizar(dt, hay_enemigos)
 
-        puerta = self._puerta_tocada(jugador)
+        puerta = self._puerta_tocada(jugadores_en_combate(jugadores))
         if puerta is None:
             return
         if puerta.sellada:
             self._avisar(TEXTO_PUERTA_SELLADA)
             return
-        self._cruzar(puerta.direccion, jugador)
+        self._cruzar(puerta.direccion, jugadores)
         proyectiles_enemigos.clear()
 
     def _sincronizar_sellos(self):
@@ -102,15 +104,16 @@ class MazmorraJugable:
     def _avisar(self, texto):
         self.mensaje = (texto, assets.DURACION_MENSAJE_MAZMORRA)
 
-    def _puerta_tocada(self, jugador):
-        """Puerta sin enemigos que toca el jugador (sellada o no), o None."""
+    def _puerta_tocada(self, jugadores):
+        """Puerta sin enemigos que toca algún jugador (sellada o no), o None."""
         for puerta in self.cuarto.puertas.values():
-            if not puerta.bloqueada and jugador.rect.colliderect(puerta.rect):
+            if not puerta.bloqueada and any(j.rect.colliderect(puerta.rect) for j in jugadores):
                 return puerta
         return None
 
-    def _cruzar(self, direccion, jugador):
-        """Pasa al cuarto vecino y aparece junto a su puerta opuesta."""
+    def _cruzar(self, direccion, jugadores):
+        """Pasa al cuarto vecino y el equipo aparece junto a su puerta
+        opuesta, en fila a lo ancho de la puerta."""
         if self.mazmorra.mover(direccion) is None:
             return
         self._crear_cuarto_si_falta(self.mazmorra.actual)
@@ -120,13 +123,24 @@ class MazmorraJugable:
         puerta = self.cuarto.puertas[llegada].rect
         dx, dy = HACIA_ADENTRO[llegada]
         distancia = assets.DISTANCIA_APARICION_PUERTA
-        _ubicar(jugador, (puerta.centerx + dx * distancia, puerta.centery + dy * distancia))
+        # La fila va perpendicular a la dirección de entrada (a lo ancho de la puerta).
+        ubicar_en_fila(jugadores, (puerta.centerx + dx * distancia, puerta.centery + dy * distancia), (-dy, dx))
 
     def manejar_evento(self, evento):
         self.cuarto.manejar_evento(evento)
 
     def dibujar(self, pantalla):
         self.cuarto.dibujar(pantalla)
+
+
+def ubicar_en_fila(jugadores, centro, eje):
+    """Reparte a los jugadores centrados en `centro`, separados
+    SEPARACION_JUGADORES_COOP a lo largo de `eje` (unitario). Con uno
+    solo, queda justo en `centro`."""
+    separacion = assets.SEPARACION_JUGADORES_COOP
+    for i, jugador in enumerate(jugadores):
+        desplazamiento = (i - (len(jugadores) - 1) / 2) * separacion
+        _ubicar(jugador, (centro[0] + eje[0] * desplazamiento, centro[1] + eje[1] * desplazamiento))
 
 
 def _ubicar(jugador, centro):

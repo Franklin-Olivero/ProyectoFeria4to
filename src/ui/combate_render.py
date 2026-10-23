@@ -116,6 +116,17 @@ def dibujar_globo_arbol(pantalla, enemigo):
                  assets.TAMANIO_FUENTE_NORMAL, negrita=True)
 
 
+def dibujar_indicador_apuntado(pantalla, jugador):
+    """Flechita del color del rol hacia donde apunta el J2 (no tiene mira
+    de mouse; su dirección sale del stick derecho)."""
+    centro = pygame.Vector2(jugador.rect.center)
+    direccion = pygame.Vector2(jugador.direccion_mirada)
+    punta = centro + direccion * assets.LARGO_INDICADOR_J2
+    base = punta - direccion * assets.TAMANIO_PUNTA_INDICADOR_J2
+    lado = direccion.rotate(90) * (assets.TAMANIO_PUNTA_INDICADOR_J2 * 0.6)
+    pygame.draw.polygon(pantalla, jugador.COLOR, [punta, base + lado, base - lado])
+
+
 def dibujar_mira(pantalla, jugador, sacudida):
     """Mira en la posición del mouse, sobre el HUD (no tiembla), y una
     línea tenue desde el jugador tal como se ve en pantalla."""

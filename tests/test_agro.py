@@ -53,7 +53,7 @@ def test_sin_agro_permanente_usa_el_rango_y_se_queda_quieto():
 
 def test_subditos_del_jefe_persiguen_y_disparan_desde_lejos():
     jugador = jugador_en(0, 0)
-    arena = ArenaJefe(ColapsoElectoral(), jugador)
+    arena = ArenaJefe(ColapsoElectoral(), [jugador])
     # Jugador en la esquina inferior izquierda, lejos del jefe (arriba al centro).
     jugador.rect.center = (arena.rect.left + 30, arena.rect.bottom - 30)
     jugador.posicion.update(jugador.rect.center)

@@ -21,10 +21,31 @@ DANIO_BASE = 1
 # arena). Un golpe dentro de la ventana no resta vida ni la reinicia.
 INVULNERABILIDAD_DURACION = 0.6  # segundos
 
+# Movimiento con inercia: la velocidad real se acerca a la pedida con un
+# suavizado exponencial (independiente del framerate). Con 16/s llega
+# al 95% de la velocidad del rol en ~0.19 s; con 22/s frena en ~0.14 s.
+ACELERACION_MOVIMIENTO = 16.0  # 1/s: qué tan rápido arranca o cambia de dirección
+FRENADO_MOVIMIENTO = 22.0  # 1/s: qué tan rápido se detiene al soltar
+VELOCIDAD_MINIMA_MOVIMIENTO = 4.0  # px/s: por debajo se considera quieto
+
+# Dash (src/entities/dash.py): igual para los 4 roles; la diferencia
+# natural sale de la velocidad de cada rol, que se multiplica.
+DASH_VELOCIDAD_MULT = 4.0  # multiplicador sobre la velocidad del rol
+DASH_DURACION = 0.12  # segundos que dura el desplazamiento
+DASH_COOLDOWN = 5.0  # segundos entre el inicio de un dash y el siguiente
+DASH_INVULNERABLE = True  # durante el dash ningún golpe resta vida
+
 # Controles: apuntado con mouse (src/core/apuntado.py) y gatillos
 ZONA_MUERTA_APUNTADO = 6  # px: con el mouse más cerca se conserva la dirección previa
 MOSTRAR_LINEA_APUNTADO = True  # línea tenue del jugador a la mira
 CLICK_DISPARA = True  # click izquierdo mantenido dispara igual que SPACE
+
+# Control de PS4 del J2 (src/core/entrada.py): sticks y gatillo en -1..1 / 0..1.
+ZONA_MUERTA_STICK = 0.15  # inclinación menor que esto cuenta como stick suelto
+UMBRAL_GATILLO = 0.5  # R2 hundido más que esto = disparando
+
+# Cooperativo: un jugador caído revive al cruzar al siguiente cuarto.
+VIDA_AL_REVIVIR = 1
 
 # Límites de la cadencia efectiva (con o sin buff)
 CADENCIA_MINIMA_INTERVALO = 0.08  # segundos: piso del tiempo entre disparos

@@ -26,6 +26,7 @@ terminal da un resultado.
 import pygame
 
 from src.core import assets
+from src.core.equipo import jugador_mas_cercano
 from src.dungeon.clasificador_toxicidad import (
     calcular_nivel_toxicidad,
     construir_arbol_reportes,
@@ -182,14 +183,17 @@ class Cuarto:
             self.terminal = TerminalDecision(construir_arbol_publicacion())
             self.terminal.iniciar()
 
-    def actualizar(self, dt, jugador, proyectiles_enemigos):
+    def actualizar(self, dt, jugadores, proyectiles_enemigos):
         """Corre un tick de IA para cada enemigo vivo y refresca las puertas.
 
-        `proyectiles_enemigos` es la lista de salida donde los enemigos
-        agregan los proyectiles que disparan (ver Enemigo._disparar_a_objetivo).
+        Cada enemigo apunta al jugador en pie más cercano (en solitario,
+        siempre el único). `proyectiles_enemigos` es la lista de salida
+        donde los enemigos agregan los proyectiles que disparan (ver
+        Enemigo._disparar_a_objetivo).
         """
         for enemigo in self.enemigos:
-            enemigo.actualizar(dt, jugador, proyectiles_enemigos)
+            objetivo = jugador_mas_cercano(enemigo.rect.center, jugadores)
+            enemigo.actualizar(dt, objetivo, proyectiles_enemigos)
             enemigo.mantener_dentro(self.rect)
 
         cantidad_antes = len(self.enemigos)

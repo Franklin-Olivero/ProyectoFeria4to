@@ -8,8 +8,10 @@ velocidad.
 
 Reglas:
     - Temporizador de TIEMPO_LIMITE_JEFE segundos.
-    - Tiempo agotado o jugador muerto -> derrota: colapso.sumar_fallo()
-      y la pelea se reinicia desde cero.
+    - Tiempo agotado o todos los jugadores muertos -> derrota:
+      colapso.sumar_fallo() y la pelea se reinicia desde cero.
+    - En cooperativo el jefe persigue al jugador en pie más cercano y
+      los charcos dañan a cada jugador que pise uno.
     - Jefe muerto -> victoria: colapso.restar_exito() una sola vez.
 
 La parte física (rects, proyectiles de Pygame, súbditos y dibujo) vive
@@ -25,6 +27,7 @@ from src.core.balance import (
     NIVEL_TOXICIDAD_FINAL,
     TIEMPO_LIMITE_JEFE,
 )
+from src.core.equipo import jugador_mas_cercano, jugadores_en_combate, todos_caidos
 from src.dungeon.clasificador_toxicidad import nivel_a_dificultad
 from src.entities.jefe import Jefe, SalidaJefe
 
@@ -69,9 +72,10 @@ class MazmorraFinal:
         self.estado = EN_COMBATE
         self.salida = SalidaJefe()
 
-    def actualizar(self, dt, jugador, balas_vivas=0):
-        """Un frame de la pelea. `jugador` necesita posicion.x/.y, vivo y
-        recibir_dano(); `balas_vivas` = proyectiles del jefe en la arena."""
+    def actualizar(self, dt, jugadores, balas_vivas=0):
+        """Un frame de la pelea. Cada jugador de `jugadores` necesita
+        posicion.x/.y, vivo y recibir_dano(); `balas_vivas` = proyectiles
+        del jefe en la arena."""
         self.tiempo_mensaje_derrota = max(0.0, self.tiempo_mensaje_derrota - dt)
         self.tiempo_sacudida = max(0.0, self.tiempo_sacudida - dt)
         self.salida = SalidaJefe()
@@ -79,32 +83,33 @@ class MazmorraFinal:
             return
 
         self.tiempo_restante = max(0.0, self.tiempo_restante - dt)
+        objetivo = jugador_mas_cercano((self.jefe.x, self.jefe.y), jugadores)
         self.jefe.actualizar(
-            dt, (jugador.posicion.x, jugador.posicion.y), self.salida, balas_vivas
+            dt, (objetivo.posicion.x, objetivo.posicion.y), self.salida, balas_vivas
         )
         if self.jefe.eventos:
             # Cambio de fase o escudo roto: sacudida corta de pantalla.
             self.tiempo_sacudida = assets.SHAKE_DURACION
             self.jefe.eventos.clear()
 
-        self._actualizar_charcos(dt, jugador)
+        self._actualizar_charcos(dt, jugadores)
 
         if not self.jefe.vivo:
             self.estado = VICTORIA
             self.colapso.restar_exito()
-        elif self.tiempo_restante <= 0 or not jugador.vivo:
+        elif self.tiempo_restante <= 0 or todos_caidos(jugadores):
             self._derrota()
 
-    def _actualizar_charcos(self, dt, jugador):
+    def _actualizar_charcos(self, dt, jugadores):
         self.charcos.extend(self.salida.charcos)
-        danio = 0.0
         for charco in self.charcos:
             charco.actualizar(dt)
-            danio += charco.danio_para(jugador.posicion.x, jugador.posicion.y, dt)
+        for jugador in jugadores_en_combate(jugadores):
+            danio = sum(charco.danio_para(jugador.posicion.x, jugador.posicion.y, dt) for charco in self.charcos)
+            if danio > 0:
+                # Respeta la invulnerabilidad pero no la abre (daño continuo).
+                jugador.recibir_dano(danio, inicia_invulnerabilidad=False)
         self.charcos = [charco for charco in self.charcos if charco.vivo]
-        if danio > 0:
-            # Respeta la invulnerabilidad pero no la abre (daño continuo).
-            jugador.recibir_dano(danio, inicia_invulnerabilidad=False)
 
     def _derrota(self):
         self.colapso.sumar_fallo()

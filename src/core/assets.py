@@ -77,6 +77,26 @@ POSICION_VALOR_COLAPSO = (1156, 42)  # midleft del porcentaje
 COLOR_BARRA_COLAPSO = COLOR_AMARILLO
 COLOR_FONDO_BARRA = (38, 36, 74)
 COLOR_BORDE_BARRA = (74, 70, 120)
+# Paneles laterales (cooperativo): J1 en el margen izquierdo y J2 en el
+# derecho, entre el muro del cuarto (x 122-1158) y el borde de la pantalla.
+RECTS_PANEL_JUGADOR = ((4, 80, 114, 330), (1162, 80, 114, 330))  # x, y, ancho, alto
+CORAZONES_POR_FILA_PANEL = 4
+ANCHO_BARRA_HABILIDAD_PANEL = 70
+TAMANIO_FUENTE_MINI = 10  # controles clave del panel ("Stick R Apuntar" debe caber en 96 px)
+
+# Indicador del cooldown del dash (círculo con un muñeco corriendo)
+RADIO_INDICADOR_DASH = 22
+OSCURECER_INDICADOR_DASH = 0.5  # recargando: el icono a la mitad de brillo
+COLOR_FONDO_INDICADOR_DASH = (14, 12, 32)
+ALFA_AGUA_INDICADOR_DASH = 150  # el "agua" que sube mientras recarga
+AMPLITUD_OLA_DASH = 2.5  # px
+LARGO_OLA_DASH = 18  # px entre crestas
+VELOCIDAD_OLA_DASH = 6.0  # rad/s: qué tan rápido se mueve la ola
+CAPAS_AURA_DASH = 4  # anillos del aura neón cuando está listo
+ALFA_AURA_DASH = 70  # alfa del anillo más interno (los de afuera se desvanecen)
+DURACION_FLASH_DASH = 0.15  # s del destello al quedar disponible
+COLOR_FLASH_DASH = (255, 255, 255)
+ESCALA_ICONO_DASH = 2
 # Compatibilidad: textos sueltos del HUD antiguo
 POSICION_TEXTO_COLAPSO = (10, 10)
 POSICION_TEXTO_CARGA = (10, 40)
@@ -101,6 +121,22 @@ COLOR_CANDIDATO = COLOR_AMARILLO
 COLOR_CONO_APUNTADO = (255, 56, 120, 46)  # RGBA
 LARGO_CONO_APUNTADO = 230
 ANGULO_CONO_ESTRECHO = 8  # grados a cada lado, roles sin abanico
+
+# Dash: partículas (src/ui/particulas.py) e imágenes fantasma. Solo visual;
+# la duración y velocidad del dash viven en src/core/balance.py.
+DASH_PARTICULAS_POR_FRAME = 3  # partículas emitidas por frame durante el dash
+DASH_PARTICULA_RADIO = 5  # radio inicial de cada partícula
+DASH_PARTICULA_DISPERSION = 10  # px: desvío aleatorio de la partícula respecto al jugador
+DASH_PARTICULA_DURACION = 0.2  # segundos que vive cada partícula
+DASH_PARTICULA_ALFA_INICIAL = 160  # alfa 0-255
+DASH_AFTERIMAGES = 3  # cuántas imágenes fantasma dejar
+DASH_AFTERIMAGE_ALFA = (120, 70, 30)  # alfa de cada una, de la más nueva a la más vieja
+
+# Cooperativo: separación entre jugadores al aparecer (entrada, puerta, arena).
+SEPARACION_JUGADORES_COOP = 56
+# Indicador de apuntado del J2 (no tiene mira de mouse).
+LARGO_INDICADOR_J2 = 34  # px desde el centro del jugador hasta la punta
+TAMANIO_PUNTA_INDICADOR_J2 = 8
 
 # ----------------------------------------------------------------------
 # Proyectiles
@@ -209,6 +245,18 @@ SEPARACION_FILAS_SELECCION = 34
 DESPLAZAMIENTO_BARRA_X = 100  # de la etiqueta de la stat al inicio de su barra
 ANCHO_MAXIMO_BARRA = 110  # ancho de la barra del rol con el valor máximo
 ALTO_BARRA = 10
+# Cursores de cada jugador sobre las tarjetas (chip "J1"/"J2" del color del
+# rol, arriba a la derecha)
+GROSOR_TARJETA_RESALTADA = 4
+ALFA_TARJETA_CONFIRMADA = 36  # tinte del color del rol sobre la tarjeta elegida
+POSICION_ESTADO_SELECCION = (640, 590)  # centro de "J1: ... · J2: ..."
+
+# ----------------------------------------------------------------------
+# Pantalla de modo: 1 o 2 jugadores (antes de elegir personaje)
+# ----------------------------------------------------------------------
+RECTS_OPCION_MODO = ((250, 170, 360, 340), (670, 170, 360, 340))  # x, y, ancho, alto
+POSICION_AVISO_MODO = (640, 570)  # centro del estado del control / aviso
+DURACION_AVISO_MODO = 2.5  # s que se muestra "Conecta un control..."
 
 # Influencer: cono de sonido (proyectil ancho que empuja) / Live Stream Viral
 COLOR_PROYECTIL_INFLUENCER = (255, 150, 230)

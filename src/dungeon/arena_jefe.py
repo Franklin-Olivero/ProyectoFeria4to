@@ -17,7 +17,9 @@ import pygame
 
 from src.core import assets
 from src.core.balance import DANIO_PROYECTIL_JEFE, UMBRAL_FASE_2, UMBRAL_FASE_3
+from src.core.equipo import jugador_mas_cercano
 from src.dungeon.mazmorra_final import EN_COMBATE, VICTORIA, MazmorraFinal
+from src.dungeon.mazmorra_jugable import ubicar_en_fila
 from src.entities.enemy import Enemigo
 from src.entities.projectile import ProyectilConEstela
 from src.ui import cuarto_render, dibujo, sprites
@@ -29,7 +31,7 @@ NOMBRE_JEFE = "Servidor Central"
 
 
 class ArenaJefe:
-    def __init__(self, colapso, jugador):
+    def __init__(self, colapso, jugadores):
         self.rect = pygame.Rect(0, 0, assets.ANCHO_ARENA, assets.ALTO_ARENA)
         self.rect.center = assets.CENTRO_ARENA
         limites = (self.rect.left, self.rect.top, self.rect.right, self.rect.bottom)
@@ -37,7 +39,7 @@ class ArenaJefe:
         self.subditos = []
         self._tiempo = 0.0  # reloj visual para el parpadeo
         self._vincular_cuerpo_jefe()
-        self.colocar_jugador(jugador)
+        self.colocar_jugadores(jugadores)
 
     @property
     def jefe(self):
@@ -50,9 +52,9 @@ class ArenaJefe:
             return self.subditos + [self.jefe]
         return list(self.subditos)
 
-    def colocar_jugador(self, jugador):
-        jugador.rect.center = (self.rect.centerx, self.rect.bottom - DISTANCIA_INICIO_JUGADOR)
-        jugador.posicion.update(jugador.rect.center)
+    def colocar_jugadores(self, jugadores):
+        inicio = (self.rect.centerx, self.rect.bottom - DISTANCIA_INICIO_JUGADOR)
+        ubicar_en_fila(jugadores, inicio, (1, 0))
 
     def _vincular_cuerpo_jefe(self):
         # Al reiniciar la pelea la mazmorra crea un Jefe nuevo sin rect.
@@ -63,27 +65,29 @@ class ArenaJefe:
     def manejar_evento(self, evento):
         """La arena no tiene teclas propias (sin debug ni decisión)."""
 
-    def actualizar(self, dt, jugador, proyectiles_enemigos):
+    def actualizar(self, dt, jugadores, proyectiles_enemigos):
         self._tiempo += dt
         if self.mazmorra.estado == EN_COMBATE:
             for subdito in self.subditos:
-                subdito.actualizar(dt, jugador, proyectiles_enemigos)
+                objetivo = jugador_mas_cercano(subdito.rect.center, jugadores)
+                subdito.actualizar(dt, objetivo, proyectiles_enemigos)
                 subdito.mantener_dentro(self.rect)
             self.subditos = [subdito for subdito in self.subditos if subdito.vivo]
 
         # El jefe respeta MAX_PROYECTILES_JEFE: se le pasa cuántas balas
         # suyas siguen vivas (las de los súbditos no cuentan).
         balas_jefe = sum(isinstance(p, ProyectilConEstela) for p in proyectiles_enemigos)
-        self.mazmorra.actualizar(dt, jugador, balas_jefe)
+        self.mazmorra.actualizar(dt, jugadores, balas_jefe)
         self._vincular_cuerpo_jefe()
 
         if self.mazmorra.reinicio_pendiente:
             self.mazmorra.reinicio_pendiente = False
             self.subditos.clear()
             proyectiles_enemigos.clear()
-            jugador.vida = jugador.vida_maxima
-            jugador.invulnerabilidad.reiniciar()
-            self.colocar_jugador(jugador)
+            for jugador in jugadores:
+                jugador.vida = jugador.vida_maxima
+                jugador.invulnerabilidad.reiniciar()
+            self.colocar_jugadores(jugadores)
             return
 
         if self.mazmorra.estado == VICTORIA:

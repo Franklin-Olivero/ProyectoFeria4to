@@ -102,6 +102,20 @@ CORAZON = [
 PALETA_CORAZON_LLENO = {"c": assets.COLOR_MAGENTA}
 PALETA_CORAZON_VACIO = {"c": (74, 60, 110)}
 
+# Muñeco corriendo (10x10) para el indicador del dash; 'c' = color del rol.
+CORRIENDO = [
+    "......cc..",
+    "......cc..",
+    "...cccc...",
+    "..c.cc.c..",
+    "....cc..c.",
+    "....ccc...",
+    "...c...c..",
+    "..c....c..",
+    ".c......c.",
+    "..........",
+]
+
 # Candado (8x10)
 CANDADO = [
     "..aaaa..",
