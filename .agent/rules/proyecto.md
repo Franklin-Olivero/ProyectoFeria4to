@@ -13,7 +13,7 @@ trigger: always_on
 
 ## Visión completa del juego
 
-Civitas es un action-RPG top-down **cooperativo, de 1 a 4 jugadores** (soporta solitario, online más adelante). Inspirado en *The Binding of Isaac*: el jugador recorre una ciudad y entra a distintas mazmorras repartidas por ella. (Hoy: 1 jugador local; la ciudad es un **mapa de selección** sobre un grafo ponderado — Plaza, Colegio, Hospital, Empresa de Medios y Alcaldía — desde donde se viaja a 3 mazmorras normales de varios cuartos y a la mazmorra final. Ciudad Nova como mundo abierto caminable y el multijugador son visión futura.)
+Civitas es un action-RPG top-down **cooperativo, de 1 a 4 jugadores** (soporta solitario, online más adelante). Inspirado en *The Binding of Isaac*: el jugador recorre una ciudad y entra a distintas mazmorras repartidas por ella. (Hoy: 1 o 2 jugadores locales —el J2 con control de PS4—; la ciudad es un **mapa de selección** sobre un grafo ponderado — Plaza, Colegio, Hospital, Empresa de Medios y Alcaldía — desde donde se viaja a 3 mazmorras normales de varios cuartos y a la mazmorra final. Ciudad Nova como mundo abierto caminable y el multijugador son visión futura.)
 
 Cada mazmorra tiene un **nivel de toxicidad por mal uso de redes** propio de su contexto (ciberbullying, acoso, desinformación posteada, etc.) — ese nivel determina su dificultad (más/menos enemigos, más/menos agresivos). Dentro de la mazmorra: cuartos con enemigos que el jugador limpia con sus poderes, al estilo Isaac.
 
@@ -56,13 +56,22 @@ Los enemigos nunca se quedan quietos ni huyen: con `agro_permanente = True` (por
 ## Colapso Electoral
 Barra 0.0%-100.0%: +0.2 por cada fallo (Detonación o derrota contra el jefe), -0.1 por cada éxito (Purificación Exitosa o jefe derrotado), y +0.02 por unidad de costo de cada viaje por la ciudad. **Derrota global:** si llega a 100% (en cualquier escena), la escena DERROTA muestra "Colapso total" con el input de combate desactivado; ENTER reinicia la partida completa (colapso 0, progreso 0, ubicación en la Plaza, pesos de la ciudad restablecidos, mismo rol) y ESC sale.
 
+## Menú de inicio
+
+1. **Modo**: "1 jugador" o "2 jugadores" (← → o 1-2, Enter; también cruceta y ✕ del control). Elegir 2 sin control conectado muestra "Conecta un control de PS4 para jugar de a dos" y espera; el control se detecta al conectarlo (también a mitad de partida si se desconecta).
+2. **Roles**: cada jugador tiene su cursor sobre las 4 tarjetas (chip "J1"/"J2" del color del rol, ✓ al confirmar, la tarjeta elegida se tiñe). J1: A/D o flechas, Enter o Espacio confirma, 1-4 elige directo, Retroceso para cambiar. J2: cruceta o stick, ✕ confirma, ○ para cambiar. Pueden repetir rol. La partida empieza cuando todos confirmaron; Esc vuelve a la pantalla de modo.
+Lógica pura en `src/ui/seleccion.py` (`SelectorModo`, `CursorRol`, `SeleccionRoles`); dibujo en `src/ui/pantalla_modo.py` y `src/ui/seleccion_rol.py`.
+
 ## Controles
 
-* WASD o flechas: mover.
+* WASD o flechas: mover. El movimiento tiene inercia: la velocidad real se acerca a la pedida con un suavizado exponencial (`ACELERACION_MOVIMIENTO` = 16/s al caminar, `FRENADO_MOVIMIENTO` = 22/s al soltar, en `balance.py`) y el avance de cada frame es la integral exacta, así se siente igual a cualquier framerate. La posición se guarda en float y no se redondea entre frames (solo al chocar con un muro, que además anula la velocidad en ese eje). El loop usa `reloj.tick_busy_loop(FPS)`: en Windows `tick()` da frames irregulares (16/17/18 ms) que se ven como tirones.
 * Mouse: apuntar (Ciudadano, Influencer y Periodista). En combate el cursor del sistema se oculta y se dibuja una mira con una línea tenue desde el jugador (`MOSTRAR_LINEA_APUNTADO` en `balance.py`). El Candidato no usa el mouse: cursor normal, sin mira.
 * SPACE o click izquierdo (mantenidos): disparar (`CLICK_DISPARA` en `balance.py`). Mismo cooldown y cadencia con cualquiera de los dos.
-* F: habilidad. M: minimapa.
+* F: habilidad. Shift: dash. M: minimapa.
 * ENTER y flechas: menús, mapa de la ciudad y terminal de decisión.
+* J2 (control de PS4, cooperativo): stick izquierdo mover, stick derecho apuntar, R2 disparar, L1 habilidad, ✕ (Cruz) dash. Se lee con `pygame._sdl2.controller` (API GameController de SDL), que normaliza el mapeo entre drivers; los índices crudos de `pygame.joystick` cambian según el sistema.
+
+**Regla de input:** el combate no usa eventos sino el estado de cada frame. `src/core/entrada.py` convierte teclado+mouse (`EntradaTeclado`) o el control (`EntradaMando`) en un `InputJugador` (movimiento, punto o dirección de apuntado, disparando, y los pulsos habilidad/dash, True solo el frame en que se aprieta), y `JugadorBase.manejar_input()` lo aplica igual para cualquier jugador.
 
 **Regla de apuntado:** la dirección de disparo siempre sale de `direccion_mirada`. En los roles con `apunta_con_mouse = True` solo la actualiza `apuntar_a()`; el Candidato (`apunta_con_mouse = False`) la actualiza al caminar porque su ataque es radial y su habilidad sale hacia donde camina. Los roles nunca calculan su propia dirección. La cuenta vive en `src/core/apuntado.py` (pura; zona muerta `ZONA_MUERTA_APUNTADO` = 6 px) y `Main.py` le resta al mouse la sacudida de pantalla antes de apuntar.
 
@@ -76,7 +85,21 @@ Influencer, Periodista, Ciudadano, Candidato — los 4 están implementados y se
 
 Clase base común: `JugadorBase` en `src/entities/player.py`; cada rol solo sobreescribe `ataque_basico()` y `usar_habilidad()` (y el Candidato, además, `apunta_con_mouse = False`).
 
+**Dash (los 4 roles por igual):** Shift (J1) o ✕ (J2), solo en combate. Va en la dirección de movimiento (quieto: hacia donde mira), con la dirección fijada al iniciarlo. Constantes en `balance.py`: `DASH_VELOCIDAD_MULT` = 4.0 sobre la velocidad del rol, `DASH_DURACION` = 0.12 s, `DASH_COOLDOWN` = 5.0 s (cuenta desde el inicio), `DASH_INVULNERABLE` = True. Durante el dash no se dispara (el acumulador de disparo queda en pausa), no se usa la habilidad y ningún golpe entra ni abre la ventana de i-frames (al terminar tampoco se abren: el dash no cuenta como golpe). No atraviesa muros (mismo clamp que el movimiento). Lógica pura en `src/entities/dash.py`, que también expone `fraccion_cooldown` (1 = recién usado, 0 = listo) y `tiempo_listo` (segundos desde que volvió a estar disponible) para el HUD. Visual: rastro de partículas del color del rol (`src/ui/particulas.py`, solo dibujo, sin hitbox) y 3 imágenes fantasma con alfa decreciente; constantes visuales en `assets.py`.
+
 **Invulnerabilidad tras un golpe (i-frames):** al recibir daño, el jugador queda invulnerable `INVULNERABILIDAD_DURACION` = 0.6 s (en `balance.py`) y su sprite parpadea cada 0.08 s. Vale para los 4 roles, en el cuarto normal y en la arena del jefe. No se acumula: un golpe durante la ventana no la reinicia. Los charcos tóxicos respetan la ventana (no dañan durante ella) pero su daño continuo no la abre.
+
+## Cooperativo local (2 jugadores, misma pantalla)
+
+No es red: J1 con teclado+mouse y J2 con control de PS4, en el mismo equipo. Se activa eligiendo "2 jugadores" en el menú de inicio (ver arriba); con "1 jugador" el juego es el de siempre.
+* Comparten cuarto, enemigos, colapso y carga de equipo (`registrar_kill_equipo`). Cada jugador tiene su propia lista de proyectiles para acreditar cada kill a quien la hizo.
+* Cada enemigo, súbdito y el jefe apuntan al jugador en pie más cercano (`equipo.jugador_mas_cercano`). Los charcos dañan a cada jugador que pise uno.
+* Al tocar una puerta abierta cualquiera de los dos, pasa todo el equipo, en fila junto a la puerta opuesta. Al entrar a una mazmorra se cura a ambos.
+* Un jugador sin vida queda **caído** (no se mueve, no dispara, no se dibuja, los enemigos lo ignoran) mientras el otro siga en pie, y revive con `VIDA_AL_REVIVIR` = 1 al pasar al siguiente cuarto. En la arena del jefe la derrota llega solo si caen ambos. Si caen los dos en una mazmorra normal, se comporta como en solitario.
+* J1 maneja la terminal de decisión y tiene la mira del mouse; J2 tiene una flechita de apuntado del color de su rol.
+* **HUD en cooperativo:** paneles laterales verticales en los márgenes del cuarto (J1 a la izquierda, J2 a la derecha; `hud.dibujar_panel_jugador`). Cada uno: "J1"/"J2" y rol en su color (o "CAÍDO"), corazones, carga de la habilidad (F / L1), indicador del dash y controles clave (J1: SPACE Disparar · Mouse Apuntar · SHIFT Dash; J2: R2 Disparar · Stick R Apuntar · ✕ Dash). Arriba queda solo el lugar, los enemigos y el colapso. Con 1 jugador el HUD superior es el de siempre, sin paneles.
+* **Indicador del dash** (`hud.dibujar_indicador_dash`, solo dibujo, lee `jugador.dash`): círculo con un muñeco corriendo. Listo: a todo color con un aura neón suave del color del rol. Recargando: icono al 50% de brillo y el círculo se llena desde abajo con una ola (seno que se desplaza). Al quedar disponible: destello blanco de 0.15 s. Constantes (radio, ola, aura, destello) en `assets.py`.
+* Reglas puras en `src/core/equipo.py` (`jugadores_en_combate`, `jugador_mas_cercano`, `todos_caidos`, `revivir_caidos`). Los escenarios (`Cuarto`, `MazmorraJugable`, `ArenaJefe`, `MazmorraFinal`) reciben la lista `jugadores`.
 
 ## Roles: stats y trade-offs
 
@@ -100,15 +123,15 @@ PruebaPythonGame/
 │-- requirements.txt
 │-- assets/             # (aún no existe: llegará con el arte real)
 │-- src/
-│   │-- core/          # constantes, balance, configuración de pantalla, reloj, escenas, apuntado
+│   │-- core/          # constantes, balance, configuración de pantalla, reloj, escenas, apuntado, input por jugador, reglas de equipo
 │   │-- structures/     # árbol N-ario, grafo y min-heap puros, sin dependencias de Pygame
 │   │-- ai/             # behavior tree genérico, sin dependencias de Pygame
-│   │-- entities/       # jugadores (roles), proyectiles, enemigos, jefe
+│   │-- entities/       # jugadores (roles), dash, proyectiles, enemigos, jefe
 │   │-- dungeon/        # cuartos, mazmorra multi-cuarto, grafo de la ciudad, partida, clasificador, mazmorra final
-│   │-- ui/             # minijuego de decisión, selección de rol, mapa de ciudad, minimapa, victoria/derrota
+│   │-- ui/             # minijuego de decisión, menú de inicio (modo y roles), mapa de ciudad, minimapa, victoria/derrota, HUD, partículas
 │   └-- network/        # (aún no existe) protocolo sockets, serialización, server/client
 ```
-No mezclar responsabilidades entre carpetas. `structures/` y `ai/` no deben importar `pygame`. La lógica de jefe, charcos, mazmorra final, invulnerabilidad, progreso, balance, terminal de decisión, mazmorra multi-cuarto, grafo de la ciudad, partida, escenas y selector del mapa también es pura (sin `pygame`) para poder probarse en aislado; su dibujo vive en módulos aparte.
+No mezclar responsabilidades entre carpetas. `structures/` y `ai/` no deben importar `pygame`. La lógica de jefe, charcos, mazmorra final, invulnerabilidad, dash, reglas de equipo, progreso, balance, terminal de decisión, mazmorra multi-cuarto, grafo de la ciudad, partida, escenas, selector del mapa y menú de inicio también es pura (sin `pygame`) para poder probarse en aislado; su dibujo vive en módulos aparte.
 
 ## Estado real del MVP
 
@@ -133,6 +156,12 @@ No mezclar responsabilidades entre carpetas. `structures/` y `ai/` no deben impo
 19. Apuntado con mouse para Ciudadano, Influencer y Periodista (`src/core/apuntado.py`, `JugadorBase.apuntar_a`, mira en `Main.py`) y click izquierdo como segundo gatillo; el Candidato sigue apuntando al caminar — completado
 20. Sello del cuarto final: solo se entra con todos los demás cuartos limpios (también por el ciclo), el final nunca es punto de corte y la decisión cierra la mazmorra una sola vez — completado
 21. Jefe esquivable (ráfaga con hueco, espiral lenta, fase 3 por ciclos con descanso, tope de 40 balas, charcos justos) y agresividad absoluta de enemigos y súbditos (`agro_permanente`) — completado
+22. Dash con invulnerabilidad corta para los 4 roles (`src/entities/dash.py`, Shift / ✕) — completado
+23. Rastro de partículas e imágenes fantasma del dash (`src/ui/particulas.py`) — completado
+24. Cooperativo local de 2 jugadores con control de PS4 (`src/core/entrada.py`, reglas en `src/core/equipo.py`, panel del J2) — completado; probado con control simulado, falta probarlo con un DualShock 4 real
+25. Movimiento fluido: inercia con integración exacta, posición sin redondeo entre frames y frames regulares con `tick_busy_loop` — completado
+26. Menú de inicio: pantalla de 1 o 2 jugadores y selección de rol simultánea con un cursor por jugador (`src/ui/seleccion.py`, `src/ui/pantalla_modo.py`) — completado
+27. Paneles laterales de HUD en cooperativo con indicador animado del cooldown del dash (aura, ola, destello) y dash con cooldown de 5 s — completado
 
 No agregues código de Ciudad Nova como mundo abierto caminable (la ciudad hoy es solo el mapa de selección) ni sockets / `src/network/` salvo que se te pida explícitamente — son alcance de entregas futuras.
 

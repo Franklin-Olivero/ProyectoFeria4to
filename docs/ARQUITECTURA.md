@@ -24,7 +24,8 @@ PruebaPythonGame/
 │   │   ├── assets.py               # TODAS las constantes visuales (colores, tamaños, posiciones del HUD).
 │   │   ├── balance.py              # Números de balance: stats por rol, jefe, charcos, i-frames. Puro.
 │   │   ├── colapso.py              # ColapsoElectoral: porcentaje 0-100 que sube/baja. Puro.
-│   │   ├── equipo.py               # Carga compartida de habilidad entre aliados. Puro.
+│   │   ├── equipo.py               # Carga compartida y reglas del cooperativo (objetivo, caídos). Puro.
+│   │   ├── entrada.py              # InputJugador + lectores de teclado/mouse (J1) y control PS4 (J2).
 │   │   ├── escenas.py              # Enum Escena + transición a DERROTA por colapso. Puro.
 │   │   └── apuntado.py             # Dirección unitaria hacia el mouse con zona muerta. Puro (solo math).
 │   ├── structures/
@@ -38,6 +39,7 @@ PruebaPythonGame/
 │   │   ├── periodista.py           # Rol Periodista + RayoPerforante.
 │   │   ├── candidato.py            # Rol Candidato + OndaExpansiva + ProyectilRebotante.
 │   │   ├── invulnerabilidad.py     # Ventana de i-frames tras un golpe. Puro.
+│   │   ├── dash.py                 # Timers y estado del dash (duración, cooldown). Puro.
 │   │   ├── enemy.py                # Enemigo con IA de behavior tree.
 │   │   └── jefe.py                 # Jefe "Servidor Central": fases, escudo, patrones. Puro.
 │   ├── dungeon/
@@ -53,6 +55,9 @@ PruebaPythonGame/
 │   │   └── arena_jefe.py           # Cuerpo Pygame de la mazmorra final: rects, súbditos, dibujo.
 │   └── ui/
 │       ├── terminal_decision.py    # Minijuego de decisión sobre el árbol N-ario. Puro.
+│       ├── particulas.py           # Rastro visual del dash (emitir, actualizar, dibujar).
+│       ├── seleccion.py            # Menú de inicio: SelectorModo, CursorRol, SeleccionRoles. Puro.
+│       ├── pantalla_modo.py        # Dibujo de la pantalla "1 o 2 jugadores".
 │       ├── terminal_decision_render.py # Dibujo de la terminal.
 │       ├── seleccion_rol.py        # Dibujo de la pantalla de selección con barras de stats.
 │       ├── mapa_ciudad.py          # SelectorZona (flechas izq/der). Puro.
@@ -133,8 +138,19 @@ mouse está a menos de `ZONA_MUERTA_APUNTADO` px. O(1).
 *Depende de:* nada.
 
 **`equipo.py`** — puro. `registrar_kill_equipo(asesino, aliados)`: kill
-completa al asesino y `CARGA_COMPARTIDA` a cada aliado.
+completa al asesino y `CARGA_COMPARTIDA` a cada aliado. Cooperativo:
+`jugadores_en_combate` (los vivos; si no queda ninguno, todos),
+`jugador_mas_cercano(punto, jugadores)` (a quién apunta cada enemigo y
+el jefe), `todos_caidos` y `revivir_caidos` (al cambiar de cuarto),
+todas O(n).
 *Depende de:* `balance`.
+
+**`entrada.py`** — **`InputJugador`** (dataclass: movimiento, punto o
+dirección de apuntado, disparando y los pulsos habilidad/dash),
+`direccion_teclado`, `leer_stick` (zona muerta) y los lectores
+**`EntradaTeclado`** (J1) y **`EntradaMando`** (J2, sobre
+`pygame._sdl2.controller`, que normaliza el mapeo del DualShock 4).
+*Depende de:* `pygame`, `balance`.
 
 ### `src/structures/tree.py`
 
@@ -189,6 +205,13 @@ Puro. Estados `EXITO`, `FALLO`, `EN_PROGRESO`; **`Node`**,
 `aplicar_golpe(vida, danio, inicia=True)` (no resta durante la ventana
 y no la reinicia), `visible` (parpadeo), `reiniciar()`.
 *Depende de:* `assets`, `balance`.
+
+**`dash.py`** — puro. **`Dash`**: `activo`, `cooldown_restante`,
+`tiempo_restante`, `direccion` (fijada al iniciar); `iniciar(direccion)`,
+`actualizar(dt)`, `reiniciar()`, `velocidad_multiplicador`,
+`puede_disparar`, `invulnerable`. Todo O(1). `JugadorBase` lo usa en
+`mover`, `actualizar_disparo`, `intentar_habilidad` y `recibir_dano`.
+*Depende de:* `balance`.
 
 **`player.py`**
 - **`JugadorBase`** — identidad del rol (`rol`, `COLOR`, `NOMBRE`,
