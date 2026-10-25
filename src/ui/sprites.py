@@ -10,10 +10,19 @@ reemplazar estas funciones por `pygame.image.load`, sin tocar las
 entidades que los usan.
 """
 
+import json
+
 import pygame
 
 from src.core import assets
-from src.ui.ruta_sprites import ruta_sprite_enemigo
+from src.ui.ruta_sprites import (
+    cuadros_de_atlas,
+    cuadros_por_nombre,
+    indice_por_tiempo,
+    ruta_atlas,
+    ruta_sprite,
+    ruta_sprite_enemigo,
+)
 
 # Colores comunes de la leyenda
 _NEGRO = (16, 14, 30)
@@ -356,41 +365,227 @@ def sprite(filas, paleta, escala=assets.ESCALA_PIXEL):
     return _cache[clave]
 
 
-def sprite_jugador(color_rol, escala=assets.ESCALA_PIXEL):
-    return sprite(JUGADOR, {**PALETA_JUGADOR, "c": color_rol}, escala)
+# --- Hojas de sprites (arte real) --------------------------------------
+#
+# Una hoja es `<carpeta>/<id>.png` (tira a resolución nativa) más su
+# `<id>.atlas.json` de Pixelbolt. Se carga una vez por escala y queda
+# como {animacion: ([Surface, ...], [duracion_ms, ...])}; el cuadro que
+# toca se elige con ruta_sprites.indice_por_tiempo. Un PNG sin atlas se
+# trata como una imagen suelta de un solo cuadro (sin escalar).
+
+_cache_hojas = {}
+_cache_cuadros = {}  # (ruta, escala) -> {nombre_del_cuadro: Surface}
+
+
+def _cargar_hoja(ruta_png, escala):
+    """Hoja cargada y escalada, o None si no hay PNG legible."""
+    clave = (ruta_png, escala)
+    if clave not in _cache_hojas:
+        _cache_hojas[clave] = _leer_hoja(ruta_png, escala)
+    return _cache_hojas[clave]
+
+
+def _leer_hoja(ruta_png, escala):
+    imagen = _cargar_png(ruta_png)
+    if imagen is None:
+        return None
+    try:
+        with open(ruta_atlas(ruta_png), encoding="utf-8") as archivo:
+            atlas = json.load(archivo)
+        cuadros = cuadros_de_atlas(atlas)
+        por_nombre = cuadros_por_nombre(atlas)
+    except (OSError, ValueError, KeyError):
+        return {"default": ([imagen], [100])}
+
+    escalados = {}
+
+    def escalado(rect):
+        if rect not in escalados:
+            x, y, w, h = rect
+            escalados[rect] = pygame.transform.scale(imagen.subsurface(rect), (w * escala, h * escala))
+        return escalados[rect]
+
+    hoja = {}
+    for nombre, lista in cuadros.items():
+        superficies = [escalado(rect) for rect, _ in lista]
+        duraciones = [duracion for _, duracion in lista]
+        hoja[nombre] = (superficies, duraciones)
+    _cache_cuadros[(ruta_png, escala)] = {nombre: escalado(rect) for nombre, (rect, _) in por_nombre.items()}
+    return hoja
+
+
+def cuadro_por_nombre(ruta_png, nombre, escala=assets.ESCALA_PIXEL):
+    """Surface del cuadro `nombre` de la hoja en `ruta_png`, o None si no
+    hay hoja o no existe ese cuadro (piso, muro, puertas)."""
+    if ruta_png is None or _cargar_hoja(ruta_png, escala) is None:
+        return None
+    return _cache_cuadros.get((ruta_png, escala), {}).get(nombre)
+
+
+def cuadro_de_hoja(hoja, animacion, tiempo):
+    """Surface de `animacion` en el segundo `tiempo` (bucle). Si la hoja
+    no tiene esa animación usa la primera que tenga."""
+    if animacion not in hoja:
+        animacion = next(iter(hoja))
+    superficies, duraciones = hoja[animacion]
+    return superficies[indice_por_tiempo(duraciones, tiempo)]
+
+
+def limpiar_cache_hojas():
+    """Olvida las hojas cargadas (p. ej. tras copiar arte nuevo)."""
+    _cache_hojas.clear()
+    _cache_cuadros.clear()
+    _cache_enemigos.clear()
+    _cache_retratos.clear()
+
+
+# --- Cuarto: piso, muro, puertas y charco ------------------------------
+
+def cuadro_cuarto(nombre):
+    """Baldosa o muro (`assets.CUADROS_PISO`, `CUADRO_MURO`...) a ESCALA_PIXEL,
+    o None sin hoja."""
+    return cuadro_por_nombre(ruta_sprite(assets.ID_SPRITE_CUARTO, assets.RUTA_SPRITES_CUARTO), nombre)
+
+
+def cuadro_puerta(estado):
+    """Puerta horizontal (27x6 por ESCALA_PIXEL) en `estado` = "abierta" /
+    "bloqueada" / "sellada", o None sin hoja."""
+    return cuadro_por_nombre(ruta_sprite(assets.ID_SPRITE_PUERTA, assets.RUTA_SPRITES_CUARTO),
+                             assets.CUADRO_PUERTA[estado])
+
+
+def sprite_charco(activo, tiempo, radio):
+    """Charco tóxico de diámetro ~2*radio (la hoja es de 30 px, se escala
+    al entero más cercano), en "aviso" (solo contorno) o "activo"
+    (burbujeando); None sin hoja."""
+    escala = max(1, round(2 * radio / 30))
+    hoja = _cargar_hoja(ruta_sprite(assets.ID_SPRITE_CHARCO, assets.RUTA_SPRITES_CUARTO), escala)
+    if hoja is None:
+        return None
+    animacion = assets.ANIMACION_CHARCO_ACTIVO if activo else assets.ANIMACION_CHARCO_AVISO
+    return cuadro_de_hoja(hoja, animacion, tiempo)
+
+
+# --- Proyectiles -------------------------------------------------------
+#
+# Plantillas pequeñas que se tiñen con el color de cada proyectil
+# ('c' = color, 'd' = su sombra, 'w' = brillo) y se escalan x2 hasta el
+# tamaño lógico del proyectil (tamanio = lado del rect de colisión).
+
+BALA_4 = [".kk.", "kwck", "kcdk", ".kk."]
+BALA_5 = [".kkk.", "kwcck", "kccck", "kcddk", ".kkk."]
+BALA_6 = ["..kk..", ".kwck.", "kwccck", "kcccdk", ".kcdk.", "..kk.."]
+# Onda de sonido del Influencer (13x13), apuntando a la derecha.
+ONDA_13 = [
+    "......kk.....",
+    "....kkcc.....",
+    "...kcc..kk...",
+    "..kc...kcc...",
+    "..kc..kc..kk.",
+    ".kc...kc..kcc",
+    ".kc...kc..kcc",
+    ".kc...kc..kcc",
+    "..kc..kc..kk.",
+    "..kc...kcc...",
+    "...kcc..kk...",
+    "....kkcc.....",
+    "......kk.....",
+]
+# Punta del rayo del Periodista (5x5).
+RAYO_5 = ["..k..", ".kck.", "kcwck", ".kck.", "..k.."]
+PLANTILLAS_PROYECTIL = {8: BALA_4, 10: BALA_5, 12: BALA_6, 26: ONDA_13}
+ESCALA_PROYECTIL = 2
+
+
+def _sombra(color):
+    return tuple(max(0, int(v * 0.55)) for v in color[:3])
+
+
+def sprite_proyectil(color, tamanio, plantilla=None):
+    """Sprite del proyectil de lado `tamanio` teñido con `color`; None si
+    no hay plantilla para ese tamaño (el que llama dibuja un rect)."""
+    filas = plantilla or PLANTILLAS_PROYECTIL.get(tamanio)
+    if filas is None:
+        return None
+    paleta = {"k": _NEGRO, "c": tuple(color[:3]), "d": _sombra(color), "w": _BLANCO}
+    return sprite(filas, paleta, ESCALA_PROYECTIL)
+
+
+def sprite_jugador(color_rol, escala=assets.ESCALA_PIXEL, rol=None, tiempo=0.0,
+                   caminando=False, dash=False):
+    """Imagen del jugador. Con `rol` (clave de STATS_POR_ROL) y su hoja en
+    assets/sprites/jugadores/<rol>.png devuelve el cuadro de "caminar"
+    para `tiempo` (quieto = primer cuadro) o el de "dash"; sin hoja, el
+    muñeco dibujado en código teñido con `color_rol`."""
+    hoja = _cargar_hoja(ruta_sprite(rol, assets.RUTA_SPRITES_JUGADORES), escala) if rol else None
+    if hoja is None:
+        return sprite(JUGADOR, {**PALETA_JUGADOR, "c": color_rol}, escala)
+    if dash and assets.ANIMACION_DASH in hoja:
+        return cuadro_de_hoja(hoja, assets.ANIMACION_DASH, 0.0)
+    return cuadro_de_hoja(hoja, assets.ANIMACION_CAMINAR, tiempo if caminando else 0.0)
+
+
+def sprite_jefe(tiempo=0.0, furia=False, escala=assets.ESCALA_SPRITE_JEFE):
+    """Cuadro del jefe para `tiempo` ("furia" en la última fase); sin hoja,
+    el pixel art JEFE."""
+    hoja = _cargar_hoja(ruta_sprite(assets.ID_SPRITE_JEFE, assets.RUTA_SPRITES_JEFE), escala)
+    if hoja is None:
+        return sprite(JEFE, PALETA_JEFE, escala)
+    animacion = assets.ANIMACION_JEFE_FURIA if furia else assets.ANIMACION_JEFE_IDLE
+    return cuadro_de_hoja(hoja, animacion, tiempo)
+
+
+_cache_retratos = {}
+
+
+def retrato_rol(rol, alto):
+    """Ilustración grande del rol (assets/sprites/retratos/<rol>.png)
+    escalada a `alto` px, o None si no existe: el que llama decide el
+    fallback (normalmente sprite_jugador a escala grande)."""
+    if (rol, alto) not in _cache_retratos:
+        imagen = _cargar_png(ruta_sprite(rol, assets.RUTA_SPRITES_RETRATOS))
+        if imagen is not None:
+            ancho = max(1, round(imagen.get_width() * alto / imagen.get_height()))
+            imagen = pygame.transform.smoothscale(imagen, (ancho, alto))
+        _cache_retratos[(rol, alto)] = imagen
+    return _cache_retratos[(rol, alto)]
 
 
 _cache_enemigos = {}
 
 
-def sprite_enemigo(tipo, frame=0):
+def sprite_enemigo(tipo, frame=0, tiempo=None):
     """Única fuente de la imagen de un enemigo: todo el render la pide aquí.
 
     `tipo` es un TipoEnemigo (o su valor "perseguidor"/"tirador"/
-    "curandero"); None = el enemigo genérico original. `frame` queda
-    para animaciones futuras (hoy cada tipo tiene un solo cuadro).
+    "curandero"); None = el enemigo genérico original. Con `tiempo`
+    (segundos, p. ej. enemigo.reloj) devuelve el cuadro de "caminar"
+    que toca; `frame` se conserva por compatibilidad (índice fijo).
 
     Arte real: guardar `assets/sprites/enemigos/<id>.png`, con <id> =
-    assets.ID_SPRITE_ENEMIGO[tipo] (p. ej. perseguidor.png), con fondo
-    transparente y ~42x42 px (el tamaño del placeholder). Si el archivo
-    existe se carga una vez y se cachea; si no existe o no se puede
-    leer, se usa el pixel art de PIXEL_ART_ENEMIGO. No hay que tocar
-    nada más del código.
+    assets.ID_SPRITE_ENEMIGO[tipo] (p. ej. perseguidor.png). Si va con
+    su <id>.atlas.json es una hoja de 16x16 por cuadro que se escala por
+    ESCALA_PIXEL; sin atlas, es una imagen suelta de ~42x42 px. Si no
+    existe o no se puede leer, se usa el pixel art de PIXEL_ART_ENEMIGO.
+    No hay que tocar nada más del código.
     """
     if tipo is None:
         return sprite(ENEMIGO, PALETA_ENEMIGO)
     clave = getattr(tipo, "value", tipo)
-    if (clave, frame) not in _cache_enemigos:
-        imagen = _cargar_png(ruta_sprite_enemigo(assets.ID_SPRITE_ENEMIGO[clave]))
-        if imagen is None:
-            imagen = sprite(PIXEL_ART_ENEMIGO[clave], paleta_enemigo(clave))
-        _cache_enemigos[(clave, frame)] = imagen
-    return _cache_enemigos[(clave, frame)]
+    hoja = _cargar_hoja(ruta_sprite_enemigo(assets.ID_SPRITE_ENEMIGO[clave]), assets.ESCALA_PIXEL)
+    if hoja is not None:
+        superficies, duraciones = hoja.get(assets.ANIMACION_CAMINAR) or next(iter(hoja.values()))
+        if tiempo is None:
+            return superficies[frame % len(superficies)]
+        return superficies[indice_por_tiempo(duraciones, tiempo)]
+    if clave not in _cache_enemigos:
+        _cache_enemigos[clave] = sprite(PIXEL_ART_ENEMIGO[clave], paleta_enemigo(clave))
+    return _cache_enemigos[clave]
 
 
 def limpiar_cache_enemigos():
     """Olvida las imágenes cargadas (p. ej. tras copiar arte nuevo)."""
-    _cache_enemigos.clear()
+    limpiar_cache_hojas()
 
 
 def _cargar_png(ruta):

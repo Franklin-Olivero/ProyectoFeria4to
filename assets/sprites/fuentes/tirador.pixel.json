@@ -1,0 +1,113 @@
+{
+  "version": 1,
+  "name": "tirador",
+  "width": 16,
+  "height": 16,
+  "palette": {
+    "k": "#100e1e",
+    "o": "#ff783c",
+    "l": "#ffb080",
+    "d": "#c04a1e",
+    "m": "#ff3878",
+    "w": "#f6f6fc",
+    "g": "#504868"
+  },
+  "symbols": {
+    "cuerpo": [
+      ".....kkkkkk.....",
+      "....kllooook....",
+      "...kloooooook...",
+      "..kloowwwwoook..",
+      "..koowwkkwwook..",
+      "..koowkmmkwook..",
+      "..kooowkkwoookkk",
+      "..koooowwooookgg",
+      "..kdooooooodkmmk",
+      "..kdddoooodddkgg",
+      "...kddddddddkkk.",
+      "....kkddddkk....",
+      ".....kkkkkk....."
+    ],
+    "patas_rest": [
+      "....kgk..kgk....",
+      "...kggk..kggk...",
+      "...kkk....kkk..."
+    ],
+    "patas_a": [
+      "....kgk..kgk....",
+      "....kgk.kggk....",
+      "....kk..kkk....."
+    ],
+    "patas_b": [
+      "....kgk..kgk....",
+      "...kggk.kgk.....",
+      "...kkk..kk......"
+    ]
+  },
+  "frames": [
+    {
+      "name": "quieto",
+      "duration": 160,
+      "ops": [
+        {
+          "op": "stamp",
+          "symbol": "cuerpo",
+          "x": 0,
+          "y": 0
+        },
+        {
+          "op": "stamp",
+          "symbol": "patas_rest",
+          "x": 0,
+          "y": 13
+        }
+      ]
+    },
+    {
+      "name": "paso_a",
+      "duration": 120,
+      "ops": [
+        {
+          "op": "stamp",
+          "symbol": "cuerpo",
+          "x": 0,
+          "y": 0
+        },
+        {
+          "op": "stamp",
+          "symbol": "patas_a",
+          "x": 0,
+          "y": 13
+        }
+      ]
+    },
+    {
+      "name": "paso_b",
+      "duration": 120,
+      "ops": [
+        {
+          "op": "stamp",
+          "symbol": "cuerpo",
+          "x": 0,
+          "y": 0
+        },
+        {
+          "op": "stamp",
+          "symbol": "patas_b",
+          "x": 0,
+          "y": 13
+        }
+      ]
+    }
+  ],
+  "animations": {
+    "caminar": {
+      "frames": [
+        "quieto",
+        "paso_a",
+        "quieto",
+        "paso_b"
+      ]
+    }
+  }
+}

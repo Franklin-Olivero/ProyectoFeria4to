@@ -1,0 +1,87 @@
+{
+  "version": 1,
+  "name": "curandero",
+  "width": 16,
+  "height": 16,
+  "palette": {
+    "k": "#100e1e",
+    "g": "#46c878",
+    "l": "#8cf0a8",
+    "d": "#2a8a50",
+    "w": "#ecf6ec",
+    "e": "#1a3a2a",
+    "r": "#ff6b8a"
+  },
+  "symbols": {
+    "cuerpo": [
+      "......kkkk......",
+      "....kkllggkk....",
+      "...klllgwwggk...",
+      "..kllggwwwwggk..",
+      "..klgggwwwwggdk.",
+      ".kgggwwwwwwwwgdk",
+      ".kgggwwwwwwwwgdk",
+      ".kggggwwwwwwgddk",
+      "..kgggkwwwwkgdk.",
+      "..kgggewwwwegdk.",
+      "...kggggggggdk..",
+      "....kkggggdkk...",
+      "......kkkk......"
+    ],
+    "ojos": [
+      "..k..k..",
+      "........"
+    ],
+    "flot_a": [
+      "......kddk......",
+      ".......kk......."
+    ],
+    "flot_b": [
+      "......kddk......",
+      "................"
+    ]
+  },
+  "frames": [
+    {
+      "name": "quieto",
+      "duration": 180,
+      "ops": [
+        {
+          "op": "stamp",
+          "symbol": "cuerpo",
+          "x": 0,
+          "y": 1
+        },
+        {
+          "op": "stamp",
+          "symbol": "ojos",
+          "x": 4,
+          "y": 6
+        },
+        {
+          "op": "stamp",
+          "symbol": "flot_a",
+          "x": 0,
+          "y": 14
+        }
+      ]
+    },
+    {
+      "name": "flota",
+      "duration": 180,
+      "from": "quieto",
+      "translate": [
+        0,
+        -1
+      ]
+    }
+  ],
+  "animations": {
+    "caminar": {
+      "frames": [
+        "quieto",
+        "flota"
+      ]
+    }
+  }
+}

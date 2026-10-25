@@ -165,6 +165,13 @@ class ArenaJefe:
 
     def _dibujar_charco(self, pantalla, charco):
         centro = (round(charco.x), round(charco.y))
+        imagen = sprites.sprite_charco(charco.activo, self._tiempo, charco.radio)
+        if imagen is not None:
+            if charco.activo:
+                imagen = imagen.copy()
+                imagen.set_alpha(assets.ALFA_CHARCO_SPRITE)
+            pantalla.blit(imagen, imagen.get_rect(center=centro))
+            return
         if charco.activo:
             superficie = pygame.Surface((charco.radio * 2, charco.radio * 2), pygame.SRCALPHA)
             pygame.draw.circle(
@@ -185,7 +192,7 @@ class ArenaJefe:
             # Parpadeo al cambiar de fase: visible e invisible alternados.
             if int(self._tiempo / assets.PERIODO_PARPADEO_JEFE) % 2 == 0:
                 return
-        imagen = sprites.sprite(sprites.JEFE, sprites.PALETA_JEFE, escala=4)
+        imagen = sprites.sprite_jefe(self._tiempo, furia=jefe.fase >= 3)
         if jefe.tiempo_destello > 0:
             # Destello blanco al recibir daño: silueta del sprite en blanco.
             imagen = imagen.copy()

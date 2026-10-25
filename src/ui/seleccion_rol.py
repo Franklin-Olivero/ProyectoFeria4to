@@ -55,8 +55,11 @@ def dibujar_seleccion(pantalla, clases_rol, seleccion):
                     assets.TAMANIO_FUENTE_MEDIA, alto=30, margen=11)
         _dibujar_chips_cursor(pantalla, encima, (tarjeta.right - 14, y), clase.COLOR)
 
-        imagen = sprites.sprite_jugador(clase.COLOR, escala=5)
-        pantalla.blit(imagen, imagen.get_rect(midtop=(tarjeta.centerx, y + 40)))
+        # Retrato ilustrado del rol si existe; si no, el sprite grande.
+        imagen = sprites.retrato_rol(clase.rol, assets.ALTO_RETRATO_SELECCION)
+        if imagen is None:
+            imagen = sprites.sprite_jugador(clase.COLOR, escala=5, rol=clase.rol)
+        pantalla.blit(imagen, imagen.get_rect(midbottom=(tarjeta.centerx, y + 124)))
         y += 140
         dibujo.texto(pantalla, clase.NOMBRE, (tarjeta.centerx, y), clase.COLOR, assets.TAMANIO_FUENTE_TITULO,
                      negrita=True, ancla="center")
