@@ -27,7 +27,9 @@ PruebaPythonGame/
 │   │   ├── equipo.py               # Carga compartida y reglas del cooperativo (objetivo, caídos). Puro.
 │   │   ├── entrada.py              # InputJugador + lectores de teclado/mouse (J1) y control PS4 (J2).
 │   │   ├── escenas.py              # Enum Escena + transición a DERROTA por colapso. Puro.
-│   │   └── apuntado.py             # Dirección unitaria hacia el mouse con zona muerta. Puro (solo math).
+│   │   ├── apuntado.py             # Dirección unitaria hacia el mouse con zona muerta. Puro (solo math).
+│   │   ├── preferencias.py         # Ajustes del jugador (audio, accesibilidad, controles) + JSON validado. Puro.
+│   │   └── audio.py                # pygame.mixer: volúmenes de música/efectos y sonidos de interfaz.
 │   ├── structures/
 │   │   ├── tree.py                 # Árbol N-ario manual (CRUD + 4 recorridos). Puro.
 │   │   ├── min_heap.py             # Montículo binario de mínimos manual (cola de prioridad). Puro.
@@ -64,7 +66,16 @@ PruebaPythonGame/
 │       ├── mapa_ciudad_render.py   # Dibujo del mapa: zonas, calles con peso, ruta más segura y costo.
 │       ├── mapa_render.py          # Minimapa de la mazmorra (tecla M).
 │       ├── pantalla_victoria.py    # Dibujo de la pantalla de victoria + panel final reutilizable.
-│       └── pantalla_derrota.py     # Dibujo de la derrota global "Colapso total".
+│       ├── pantalla_derrota.py     # Dibujo de la derrota global "Colapso total".
+│       ├── navegacion.py           # Acciones abstractas de menú (ARRIBA, CONFIRMAR, VOLVER...) y sonidos. Puro.
+│       ├── menu_principal.py       # MenuPrincipal: opciones, foco, EXTRAS/CRÉDITOS, abre el modal. Puro.
+│       ├── ajustes.py              # ModalAjustes: pestañas AUDIO/ACCESIBILIDAD/CONTROLES y valores. Puro.
+│       ├── menu_principal_render.py # Dibujo y ratón del menú (VistaMenu), desenfoque y velo del modal.
+│       ├── ajustes_render.py       # Dibujo y ratón del modal: sliders, interruptores, guía, control PS4.
+│       ├── guia_controles.py       # Asignaciones reales de teclado y control para la guía.
+│       ├── fondo_ciudad.py         # Ciudad nocturna con parallax, naves, letreros y lluvia.
+│       ├── titulo_civitas.py       # Título CIVITAS en pixel art con resplandor y glitch.
+│       └── filtro_color.py         # Filtro de daltonismo sobre toda la pantalla (matriz de color sin numpy).
 └── tests/                          # pytest; la mayoría sin abrir ventana (ver sección 5).
 ```
 
@@ -150,7 +161,28 @@ dirección de apuntado, disparando y los pulsos habilidad/dash),
 `direccion_teclado`, `leer_stick` (zona muerta) y los lectores
 **`EntradaTeclado`** (J1) y **`EntradaMando`** (J2, sobre
 `pygame._sdl2.controller`, que normaliza el mapeo del DualShock 4).
+También las teclas de interfaz de combate (`TECLA_MINIMAPA`,
+`TECLA_ARBOL`), para que la guía de controles lea las mismas que el juego.
 *Depende de:* `pygame`, `balance`.
+
+**`preferencias.py`** — puro. **`Preferencias`** (dataclass con valores
+predeterminados explícitos): `volumen_musica`, `volumen_efectos`,
+`subtitulos`, `filtro_daltonismo`, `reducir_movimiento`,
+`esquema_controles`, `mostrar_cono`, `opacidad_cono`. `desde_dict`
+valida campo por campo (tipo, rango 0-100, opciones válidas; lo inválido
+toma su valor predeterminado), `cargar(ruta)` (archivo ausente o JSON
+corrupto → predeterminados) y `guardar(ruta)` (escribe a un temporal y lo
+renombra). El archivo es `preferencias.json`, ignorado por git.
+*Depende de:* nada.
+
+**`audio.py`** — **`Audio`**: único punto que toca `pygame.mixer`.
+`aplicar(preferencias)` pone el volumen de `pygame.mixer.music` y de cada
+efecto (`a_volumen_mixer`: 0% silencia, 100% = 1.0, nunca más);
+`reproducir(nombre)`. Carga los archivos de `assets.RUTAS_SONIDOS` /
+`RUTA_MUSICA_MENU` si existen; hoy no hay archivos de audio, así que los
+efectos de interfaz se sintetizan en código (onda cuadrada) y la música
+queda en silencio. Sin salida de audio, `disponible = False` y no suena nada.
+*Depende de:* `pygame`, `assets`.
 
 ### `src/structures/tree.py`
 
@@ -436,10 +468,66 @@ funciones de dibujo.
 *Dependen de:* `pygame`, `assets`, `dibujo`/`fuentes`/`sprites` (y
 `balance` en `seleccion_rol`, `mapa_ciudad_render` y `mapa_render`).
 
+**Pantalla de inicio y ajustes.** La lógica es pura y recibe acciones
+abstractas (`navegacion.py`: `ARRIBA`, `ABAJO`, `IZQUIERDA`, `DERECHA`,
+`CONFIRMAR`, `VOLVER`, `PESTANA_ANTERIOR/SIGUIENTE`); cada acción
+devuelve el sonido a reproducir solo si cambió algo, así el audio nunca
+se duplica.
+
+- **`menu_principal.py`** — **`MenuPrincipal`**: opciones JUGAR,
+  CONTINUAR (deshabilitada sin partida en curso), EXTRAS, CRÉDITOS,
+  AJUSTES, SALIR y el engranaje. `accion`, `enfocar` (ratón),
+  `confirmar` (deja la opción "pulsada" `DURACION_PULSADO_MENU` s),
+  `actualizar(dt)` (retorna JUGAR/CONTINUAR/SALIR al terminar el
+  pulsado), vistas `EXTRAS`/`CRÉDITOS` y el modal (`abrir_ajustes` /
+  `cerrar_ajustes`, que devuelve el foco a quien lo abrió).
+- **`ajustes.py`** — **`ModalAjustes`**: edita un `Preferencias`. Foco:
+  barra de pestañas → controles de la pestaña → CERRAR. Sliders ±5 con
+  ← →, interruptores, selectores (dan la vuelta), `fijar` (ratón) con
+  validación. Los ajustes del cono solo aparecen en la vista MANDO.
+- **`menu_principal_render.py`** — **`VistaMenu`**: estado solo visual
+  (realce animado, giro del engranaje, apertura del modal). Layout
+  compartido por dibujo y ratón (`rects_menu`). Opciones con estados
+  normal / seleccionada (`[ J U G A R ]` violeta con resplandor) /
+  pulsada / deshabilitada (con la razón escrita). Modal: fondo
+  difuminado (reducir a 1/4 y ampliar) + velo negro al 60%.
+- **`ajustes_render.py`** — **`VistaAjustes`**: dibujo y ratón del modal
+  (pestañas, slider segmentado con arrastre, interruptor, selector,
+  segmentado TECLADO/MANDO), guía de teclado, dibujo del DualShock 4 con
+  rótulos y vista previa del cono.
+- **`guia_controles.py`** — asignaciones sacadas de las constantes de
+  `entrada.py` y `balance.py` (si cambia una tecla, cambia la guía).
+- **`fondo_ciudad.py`** — **`FondoCiudad`**: cielo, 4 capas de edificios
+  generadas una vez en baja resolución (pixel art) y desplazadas a
+  distinta velocidad (parallax tileable), naves con estela por
+  profundidad, letreros holográficos que parpadean, bruma y lluvia.
+- **`titulo_civitas.py`** — **`TituloCivitas`**: letras pixel art
+  (`sprites.LETRAS_TITULO`), sombra, resplandor difuminado, scanlines
+  grabadas y glitch breve cada 2.5-6 s (separación cromática, franjas
+  desplazadas, destello).
+- **`filtro_color.py`** — **`FiltroColor`**: daltonización
+  `M = I + E·(I − S)` (S de Machado et al. 2009). Sin numpy: lee los bytes
+  de la imagen con otro orden de canales (`frombuffer`, sin copiar) para
+  cruzar canales, multiplica (`BLEND_MULT`) y suma/resta
+  (`BLEND_ADD/SUB`). `descomponer(M)` → pasadas + factor k (calcula M/k
+  para que las sumas no se saturen antes de las restas). Cuesta unos
+  15-20 ms por frame solo cuando hay un filtro elegido.
+
+Reducir movimiento detiene el parallax, las naves, la lluvia, el
+parpadeo de letreros, el glitch del título, las transiciones del menú y
+la sacudida de cámara del jefe.
+
 ### `Main.py`
 
-- `main()` — selección de rol, luego el loop con la máquina de estados
-  (`Escena`, en `core/escenas.py`): el input, la actualización y el
+- `main()` — carga las preferencias, crea `Audio` y `FiltroColor`, y
+  alterna entre el menú principal (`_menu_principal`) y la partida
+  (`_jugar`). JUGAR pasa por modo y roles y crea una `_Sesion` nueva
+  (partida, jugadores, lectores de input); CONTINUAR vuelve a la sesión
+  en curso. Cada frame termina en `presentar()`: filtro de daltonismo y
+  flip.
+- `_jugar(...)` — el loop con la máquina de estados
+  (`Escena`, en `core/escenas.py`); ESC en el mapa vuelve al menú
+  principal conservando la sesión. El input, la actualización y el
   dibujo dependen de la escena. Flujo: `MAPA_CIUDAD` → (ENTER en una
   zona) `MAZMORRA` → `DECISION` → `RESULTADO` → (ENTER) `MAPA_CIUDAD`;
   `MAPA_CIUDAD` → (ENTER en la Alcaldía, si está desbloqueada) `JEFE` →

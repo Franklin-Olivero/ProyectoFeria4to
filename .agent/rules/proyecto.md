@@ -56,9 +56,28 @@ Los enemigos nunca se quedan quietos ni huyen: con `agro_permanente = True` (por
 ## Colapso Electoral
 Barra 0.0%-100.0%: +0.2 por cada fallo (Detonación o derrota contra el jefe), -0.1 por cada éxito (Purificación Exitosa o jefe derrotado), y +0.02 por unidad de costo de cada viaje por la ciudad. **Derrota global:** si llega a 100% (en cualquier escena), la escena DERROTA muestra "Colapso total" con el input de combate desactivado; ENTER reinicia la partida completa (colapso 0, progreso 0, ubicación en la Plaza, pesos de la ciudad restablecidos, mismo rol) y ESC sale.
 
-## Menú de inicio
+## Pantalla de inicio (menú principal)
 
-1. **Modo**: "1 jugador" o "2 jugadores" (← → o 1-2, Enter; también cruceta y ✕ del control). Elegir 2 sin control conectado muestra "Conecta un control de PS4 para jugar de a dos" y espera; el control se detecta al conectarlo (también a mitad de partida si se desconecta).
+Lo primero que se ve: ciudad nocturna pixel art animada (`src/ui/fondo_ciudad.py`: cielo con nubes, 4 capas de edificios con parallax generadas una vez en baja resolución, letreros holográficos que parpadean, naves con estela a 3 profundidades, bruma rosada y lluvia), el título CIVITAS en letras pixel art dibujadas en código con resplandor violeta, scanlines y un glitch breve cada 2.5-6 s (`src/ui/titulo_civitas.py`), el menú central y un engranaje arriba a la derecha.
+* Opciones: **JUGAR** (pantalla de modo → roles → partida nueva), **CONTINUAR** (vuelve a la partida en curso de esta sesión; deshabilitada y con el texto "SIN PARTIDA EN CURSO" si no hay; no existe guardado en disco), **EXTRAS** (contenido pendiente), **CRÉDITOS** (solo datos reales del repo; los nombres del equipo están pendientes en `LINEAS_CREDITOS`), **AJUSTES** y **SALIR**. ESC en el mapa de la ciudad vuelve a este menú con la partida en curso.
+* Navegación: ↑ ↓ (o W/S), Enter/Espacio, Esc/Retroceso para volver; control: cruceta o stick izquierdo, ✕ confirma, ○ vuelve, L1/R1 cambian de pestaña (Q/E en teclado); ratón: hover enfoca y clic confirma. El foco recorre las opciones habilitadas y el engranaje. Seleccionada = `[ J U G A R ]` violeta con resplandor y entrada deslizante; pulsada = fondo violeta 0.14 s antes de actuar; deshabilitada = texto apagado con la razón.
+* Sonidos: cada acción devuelve el sonido de un cambio real (navegar, confirmar, volver), así nunca se duplica.
+Lógica pura en `src/ui/menu_principal.py` (`MenuPrincipal`), `src/ui/ajustes.py` (`ModalAjustes`) y `src/ui/navegacion.py` (acciones abstractas); dibujo y ratón en `src/ui/menu_principal_render.py` y `src/ui/ajustes_render.py`. El loop vive en `Main._menu_principal`.
+
+## Ajustes (modal) y preferencias
+
+Modal sobre el fondo difuminado y oscurecido al 60% (la ciudad sigue animándose); se cierra con CERRAR, Esc u ○ y devuelve el foco a quien lo abrió. Tres pestañas:
+* **AUDIO**: sliders MÚSICA y EFECTOS DE SONIDO (0-100%, ±5 con ← →, clic y arrastre) aplicados al instante a `pygame.mixer` por `src/core/audio.py` (único punto que toca el mezclador; 0% silencia, 100% = volumen 1.0). No hay archivos de audio en el repo: los efectos de interfaz se sintetizan en código (onda cuadrada) y la música suena cuando exista `assets/musica/menu.ogg` (rutas en `assets.RUTAS_SONIDOS` / `RUTA_MUSICA_MENU`).
+* **ACCESIBILIDAD**: SUBTÍTULOS (se guarda; el juego aún no tiene voces ni diálogos), FILTRO DE DALTONISMO (Ninguno / Protanopia / Deuteranopia / Tritanopia) y REDUCIR MOVIMIENTO (detiene parallax, naves, lluvia, parpadeo, glitch, transiciones del menú y la sacudida de cámara del jefe).
+* **CONTROLES**: guía informativa TECLADO / RATÓN o MANDO (DualShock 4 dibujado con rótulos) con las asignaciones reales leídas de `entrada.py`/`balance.py` (`src/ui/guia_controles.py`). En la vista MANDO: CONO DE DISPARO (mostrar) y OPACIDAD (0-100%, `ALFA_MAXIMO_CONO` = 115, 40% = el cono de siempre) con vista previa. Solo cambian el dibujo del cono, nunca la puntería; el cono se dibuja para cada jugador que apunta (J1 con mouse, J2 con el stick derecho).
+
+**Filtro de daltonismo global** (`src/ui/filtro_color.py`): `Main.presentar()` lo aplica a la imagen final antes de cada flip, en todas las pantallas. Daltonización `M = I + E·(I − S)` con S de Machado et al. 2009; sin numpy: los mismos bytes leídos con otro orden de canales (`pygame.image.frombuffer`) dan vistas con canales cruzados que se multiplican (`BLEND_MULT`) y suman/restan (`BLEND_ADD/SUB`); se calcula M/k para que nada se sature antes de las restas. Cuesta ~15-20 ms por frame solo con un filtro elegido. Es una aproximación: no reemplaza pruebas con jugadores.
+
+**Preferencias** (`src/core/preferencias.py`, pura): dataclass con valores predeterminados explícitos, guardada en `preferencias.json` (ignorado por git) al cambiar un valor (al soltar el slider si se arrastra). Al cargar se valida campo por campo (tipo, rango, opción): lo inválido, ausente o de otra versión toma su valor predeterminado y el juego siempre arranca.
+
+## Menú de inicio de la partida (JUGAR)
+
+1. **Modo**: "1 jugador" o "2 jugadores" (← → o 1-2, Enter; también cruceta y ✕ del control). Elegir 2 sin control conectado muestra "Conecta un control de PS4 para jugar de a dos" y espera; el control se detecta al conectarlo (también a mitad de partida si se desconecta). Esc u ○ vuelve al menú principal.
 2. **Roles**: cada jugador tiene su cursor sobre las 4 tarjetas (chip "J1"/"J2" del color del rol, ✓ al confirmar, la tarjeta elegida se tiñe). J1: A/D o flechas, Enter o Espacio confirma, 1-4 elige directo, Retroceso para cambiar. J2: cruceta o stick, ✕ confirma, ○ para cambiar. Pueden repetir rol. La partida empieza cuando todos confirmaron; Esc vuelve a la pantalla de modo.
 Lógica pura en `src/ui/seleccion.py` (`SelectorModo`, `CursorRol`, `SeleccionRoles`); dibujo en `src/ui/pantalla_modo.py` y `src/ui/seleccion_rol.py`.
 
@@ -67,8 +86,8 @@ Lógica pura en `src/ui/seleccion.py` (`SelectorModo`, `CursorRol`, `SeleccionRo
 * WASD o flechas: mover. El movimiento tiene inercia: la velocidad real se acerca a la pedida con un suavizado exponencial (`ACELERACION_MOVIMIENTO` = 16/s al caminar, `FRENADO_MOVIMIENTO` = 22/s al soltar, en `balance.py`) y el avance de cada frame es la integral exacta, así se siente igual a cualquier framerate. La posición se guarda en float y no se redondea entre frames (solo al chocar con un muro, que además anula la velocidad en ese eje). El loop usa `reloj.tick_busy_loop(FPS)`: en Windows `tick()` da frames irregulares (16/17/18 ms) que se ven como tirones.
 * Mouse: apuntar (Ciudadano, Influencer y Periodista). En combate el cursor del sistema se oculta y se dibuja una mira con una línea tenue desde el jugador (`MOSTRAR_LINEA_APUNTADO` en `balance.py`). El Candidato no usa el mouse: cursor normal, sin mira.
 * SPACE o click izquierdo (mantenidos): disparar (`CLICK_DISPARA` en `balance.py`). Mismo cooldown y cadencia con cualquiera de los dos.
-* F: habilidad. Shift: dash. M: minimapa.
-* ENTER y flechas: menús, mapa de la ciudad y terminal de decisión.
+* F: habilidad. Shift: dash. M: minimapa (`TECLA_MINIMAPA` y `TECLA_ARBOL` viven en `entrada.py`).
+* ENTER y flechas: menús, mapa de la ciudad y terminal de decisión. ESC en el mapa: menú principal.
 * J2 (control de PS4, cooperativo): stick izquierdo mover, stick derecho apuntar, R2 disparar, L1 habilidad, ✕ (Cruz) dash. Se lee con `pygame._sdl2.controller` (API GameController de SDL), que normaliza el mapeo entre drivers; los índices crudos de `pygame.joystick` cambian según el sistema.
 
 **Regla de input:** el combate no usa eventos sino el estado de cada frame. `src/core/entrada.py` convierte teclado+mouse (`EntradaTeclado`) o el control (`EntradaMando`) en un `InputJugador` (movimiento, punto o dirección de apuntado, disparando, y los pulsos habilidad/dash, True solo el frame en que se aprieta), y `JugadorBase.manejar_input()` lo aplica igual para cualquier jugador.
@@ -121,17 +140,17 @@ Todo cambio de balance se hace en `src/core/balance.py`, nunca dentro de las cla
 PruebaPythonGame/
 │-- Main.py
 │-- requirements.txt
-│-- assets/             # (aún no existe: llegará con el arte real)
+│-- assets/             # fonts/ (JetBrains Mono); sonidos/ y musica/ aún vacíos (los efectos se sintetizan en código)
 │-- src/
-│   │-- core/          # constantes, balance, configuración de pantalla, reloj, escenas, apuntado, input por jugador, reglas de equipo
+│   │-- core/          # constantes, balance, configuración de pantalla, reloj, escenas, apuntado, input por jugador, reglas de equipo, preferencias, audio
 │   │-- structures/     # árbol N-ario, grafo y min-heap puros, sin dependencias de Pygame
 │   │-- ai/             # behavior tree genérico, sin dependencias de Pygame
 │   │-- entities/       # jugadores (roles), dash, proyectiles, enemigos, jefe
 │   │-- dungeon/        # cuartos, mazmorra multi-cuarto, grafo de la ciudad, partida, clasificador, mazmorra final
-│   │-- ui/             # minijuego de decisión, menú de inicio (modo y roles), mapa de ciudad, minimapa, victoria/derrota, HUD, partículas
+│   │-- ui/             # menú principal y ajustes, filtro de daltonismo, minijuego de decisión, menú de modo y roles, mapa de ciudad, minimapa, victoria/derrota, HUD, partículas
 │   └-- network/        # (aún no existe) protocolo sockets, serialización, server/client
 ```
-No mezclar responsabilidades entre carpetas. `structures/` y `ai/` no deben importar `pygame`. La lógica de jefe, charcos, mazmorra final, invulnerabilidad, dash, reglas de equipo, progreso, balance, terminal de decisión, mazmorra multi-cuarto, grafo de la ciudad, partida, escenas, selector del mapa y menú de inicio también es pura (sin `pygame`) para poder probarse en aislado; su dibujo vive en módulos aparte.
+No mezclar responsabilidades entre carpetas. `structures/` y `ai/` no deben importar `pygame`. La lógica de jefe, charcos, mazmorra final, invulnerabilidad, dash, reglas de equipo, progreso, balance, terminal de decisión, mazmorra multi-cuarto, grafo de la ciudad, partida, escenas, selector del mapa, menú de inicio, menú principal, modal de ajustes y preferencias también es pura (sin `pygame`) para poder probarse en aislado; su dibujo vive en módulos aparte.
 
 ## Estado real del MVP
 
@@ -162,6 +181,7 @@ No mezclar responsabilidades entre carpetas. `structures/` y `ai/` no deben impo
 25. Movimiento fluido: inercia con integración exacta, posición sin redondeo entre frames y frames regulares con `tick_busy_loop` — completado
 26. Menú de inicio: pantalla de 1 o 2 jugadores y selección de rol simultánea con un cursor por jugador (`src/ui/seleccion.py`, `src/ui/pantalla_modo.py`) — completado
 27. Paneles laterales de HUD en cooperativo con indicador animado del cooldown del dash (aura, ola, destello) y dash con cooldown de 5 s — completado
+28. Pantalla de inicio retrofuturista (ciudad pixel art con parallax, naves y lluvia; título CIVITAS con glitch), menú JUGAR/CONTINUAR/EXTRAS/CRÉDITOS/AJUSTES/SALIR con teclado, ratón y control, modal de ajustes (audio real por `pygame.mixer`, filtro de daltonismo global, reducir movimiento, guía de controles y cono de apuntado ajustable) y preferencias persistentes en `preferencias.json` — completado; CONTINUAR reanuda solo la partida de la sesión (no hay guardado en disco), no hay archivos de audio ni subtítulos que mostrar
 
 No agregues código de Ciudad Nova como mundo abierto caminable (la ciudad hoy es solo el mapa de selección) ni sockets / `src/network/` salvo que se te pida explícitamente — son alcance de entregas futuras.
 
@@ -170,7 +190,7 @@ No agregues código de Ciudad Nova como mundo abierto caminable (la ciudad hoy e
 * Un módulo, una responsabilidad.
 * Priorizar código explicable sobre código optimizado en exceso — se sustenta en voz alta ante la profesora.
 * Todo árbol/grafo debe exponer sus operaciones de forma que se puedan probar de forma aislada (sin Pygame).
-* Todo elemento visual debe referenciar una constante o ruta de sprite centralizada en `src/core/assets.py`, nunca un color hardcodeado disperso. Los números de balance (stats de roles, jefe, charcos, invulnerabilidad) van en `src/core/balance.py`.
+* Todo elemento visual debe referenciar una constante o ruta de sprite centralizada en `src/core/assets.py`, nunca un color hardcodeado disperso. Las rutas de sonido y música y los tonos de los efectos sintetizados también viven ahí. Los números de balance (stats de roles, jefe, charcos, invulnerabilidad) van en `src/core/balance.py`.
 * Placeholders (rectángulos de color) intencionales mientras se valida la mecánica; el arte real solo reemplaza la ruta del sprite, sin tocar lógica.
 
 ## Instrucciones de Git
