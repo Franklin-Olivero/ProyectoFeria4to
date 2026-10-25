@@ -38,19 +38,26 @@ class TextosFlotantes:
                          assets.TAMANIO_FUENTE_MEDIA, negrita=True, ancla="center")
 
 
-def dibujar_cono_apuntado(pantalla, jugador, angulo_medio):
-    """Abanico translúcido desde el jugador en su dirección de mirada."""
+def alfa_cono(opacidad):
+    """Opacidad 0-100 del ajuste -> alfa 0-ALFA_MAXIMO_CONO del cono.
+    Solo cambia cómo se ve: la puntería no depende del cono."""
+    return round(assets.ALFA_MAXIMO_CONO * max(0, min(100, opacidad)) / 100)
+
+
+def dibujar_cono_apuntado(pantalla, jugador, angulo_medio, alfa=None, largo=assets.LARGO_CONO_APUNTADO):
+    """Abanico translúcido desde el jugador en su dirección de mirada.
+    `alfa` sale del ajuste de opacidad (alfa_cono); None = el de assets."""
     origen = pygame.Vector2(jugador.rect.center)
     direccion = pygame.Vector2(jugador.direccion_mirada)
     if direccion.length_squared() == 0:
         return
-    largo = assets.LARGO_CONO_APUNTADO
+    color = assets.COLOR_CONO_APUNTADO if alfa is None else (*assets.COLOR_CONO_APUNTADO[:3], alfa)
     puntos = [origen]
     pasos = 6
     for i in range(pasos + 1):
         angulo = -angulo_medio + (2 * angulo_medio) * i / pasos
         puntos.append(origen + direccion.rotate(angulo) * largo)
-    dibujo.poligono_alfa(pantalla, assets.COLOR_CONO_APUNTADO, puntos)
+    dibujo.poligono_alfa(pantalla, color, puntos)
 
 
 def enemigo_apuntado(jugador, enemigos):

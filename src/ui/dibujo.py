@@ -76,25 +76,37 @@ def linea_punteada(pantalla, color, inicio, fin, largo=6, hueco=6, grosor=2):
     if distancia < 1:
         return
     direccion = (fin - inicio) / distancia
-    capa = None
+    # Con alfa se dibuja en una capa del tamaño justo de la línea.
+    capa, origen = None, pygame.Vector2(0, 0)
     if len(color) == 4:
-        capa = pygame.Surface(pantalla.get_size(), pygame.SRCALPHA)
+        capa, origen = _capa_alfa([inicio, fin], grosor)
     destino = capa if capa is not None else pantalla
     recorrido = 0.0
     while recorrido < distancia:
         a = inicio + direccion * recorrido
         b = inicio + direccion * min(recorrido + largo, distancia)
-        pygame.draw.line(destino, color, a, b, grosor)
+        pygame.draw.line(destino, color, a - origen, b - origen, grosor)
         recorrido += largo + hueco
     if capa is not None:
-        pantalla.blit(capa, (0, 0))
+        pantalla.blit(capa, origen)
 
 
 def poligono_alfa(pantalla, color_rgba, puntos):
     """Polígono semitransparente en coordenadas de pantalla."""
-    capa = pygame.Surface(pantalla.get_size(), pygame.SRCALPHA)
-    pygame.draw.polygon(capa, color_rgba, puntos)
-    pantalla.blit(capa, (0, 0))
+    capa, origen = _capa_alfa(puntos, 1)
+    pygame.draw.polygon(capa, color_rgba, [pygame.Vector2(p) - origen for p in puntos])
+    pantalla.blit(capa, origen)
+
+
+def _capa_alfa(puntos, margen):
+    """Superficie transparente que cubre `puntos` (más `margen`) y su
+    esquina en pantalla: así no se crea una capa del tamaño de la pantalla."""
+    xs = [p[0] for p in puntos]
+    ys = [p[1] for p in puntos]
+    origen = pygame.Vector2(int(min(xs)) - margen, int(min(ys)) - margen)
+    ancho = int(max(xs)) - int(origen.x) + margen + 2
+    alto = int(max(ys)) - int(origen.y) + margen + 2
+    return pygame.Surface((max(1, ancho), max(1, alto)), pygame.SRCALPHA), origen
 
 
 def corchetes(pantalla, rect, color, largo, grosor, margen=0):

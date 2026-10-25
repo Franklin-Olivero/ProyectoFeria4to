@@ -1,5 +1,11 @@
 """Punto de entrada del juego.
 
+Antes de la partida va la pantalla de inicio (src/ui/menu_principal.py):
+
+    MENÚ PRINCIPAL --JUGAR--> modo (1 o 2 jugadores) --> roles --> partida nueva
+    MENÚ PRINCIPAL --CONTINUAR--> la partida en curso (si hay)
+    partida, en el mapa --(ESC)--> MENÚ PRINCIPAL (la partida queda en curso)
+
 El flujo de la partida es una máquina de estados explícita (Escena,
 src/core/escenas.py):
 
@@ -25,17 +31,23 @@ se dibujan directo a la pantalla; el mundo se dibuja en un lienzo que
 se copia con la sacudida del jefe. Los efectos de combate (cono de
 apuntado, objetivo, números de daño, globo del behavior tree con Tab)
 viven en src/ui/combate_render.py; el rastro del dash, en
-src/ui/particulas.py.
+src/ui/particulas.py. Cada frame termina en presentar(): aplica el
+filtro de daltonismo de las preferencias (src/ui/filtro_color.py) a la
+imagen final y hace el flip.
 """
 
 import sys
+from dataclasses import dataclass, replace
 
 import pygame
 from pygame._sdl2 import controller
 
 from src.core import assets
+from src.core.audio import Audio
 from src.core.config import FPS, crear_pantalla, crear_reloj
-from src.core.entrada import EJE_MAXIMO, EntradaMando, EntradaTeclado
+from src.core.entrada import TECLA_ARBOL, TECLA_MINIMAPA, EJE_MAXIMO, EntradaMando, EntradaTeclado
+from src.core.preferencias import cargar as cargar_preferencias
+from src.core.preferencias import guardar as guardar_preferencias
 from src.core.equipo import jugadores_en_combate, registrar_kill_equipo, revivir_caidos
 from src.core.escenas import ESCENAS_DE_COMBATE, Escena, escena_tras_colapso
 from src.dungeon.arena_jefe import ArenaJefe
@@ -49,9 +61,12 @@ from src.entities.candidato import Candidato
 from src.entities.influencer import Influencer
 from src.entities.periodista import Periodista
 from src.entities.player import ANGULO_ABANICO_GRADOS, Ciudadano
-from src.ui import combate_render, dibujo, hud
+from src.ui import combate_render, dibujo, hud, navegacion
 from src.ui.combate_render import TextosFlotantes
+from src.ui.filtro_color import FiltroColor
 from src.ui.mapa_ciudad import SelectorZona
+from src.ui.menu_principal import JUGAR, SALIR, MenuPrincipal
+from src.ui.menu_principal_render import VistaMenu
 from src.ui.mapa_ciudad_render import dibujar_mapa_ciudad
 from src.ui.mapa_render import dibujar_minimapa
 from src.ui.pantalla_derrota import dibujar_derrota
@@ -64,8 +79,6 @@ from src.ui.seleccion_rol import dibujar_seleccion
 from src.ui.terminal_decision import CONFIRMAR, DERECHA, IZQUIERDA
 from src.ui.terminal_decision_render import dibujar_terminal
 
-TECLA_MINIMAPA = pygame.K_m
-TECLA_ARBOL = pygame.K_TAB
 TECLAS_CONFIRMAR = (pygame.K_RETURN, pygame.K_KP_ENTER)
 TECLA_SALIR = pygame.K_ESCAPE
 
@@ -90,7 +103,30 @@ BOTON_CONFIRMAR = pygame.CONTROLLER_BUTTON_A  # ✕
 BOTON_CANCELAR = pygame.CONTROLLER_BUTTON_B  # ○
 UMBRAL_STICK_MENU = 0.6  # fracción del eje: más inclinado = un paso en el menú
 
-VOLVER = "volver"  # _elegir_roles: Esc, de vuelta a la pantalla de modo
+VOLVER = "volver"  # Esc en modo o roles: un paso atrás
+MENU = "menu"  # _jugar: Esc en el mapa, de vuelta al menú principal
+
+# Menú principal y ajustes -> acciones de src/ui/navegacion.py.
+TECLAS_MENU_PRINCIPAL = {
+    pygame.K_UP: navegacion.ARRIBA, pygame.K_w: navegacion.ARRIBA,
+    pygame.K_DOWN: navegacion.ABAJO, pygame.K_s: navegacion.ABAJO,
+    pygame.K_LEFT: navegacion.IZQUIERDA, pygame.K_a: navegacion.IZQUIERDA,
+    pygame.K_RIGHT: navegacion.DERECHA, pygame.K_d: navegacion.DERECHA,
+    pygame.K_RETURN: navegacion.CONFIRMAR, pygame.K_KP_ENTER: navegacion.CONFIRMAR,
+    pygame.K_SPACE: navegacion.CONFIRMAR,
+    pygame.K_ESCAPE: navegacion.VOLVER, pygame.K_BACKSPACE: navegacion.VOLVER,
+    pygame.K_q: navegacion.PESTANA_ANTERIOR, pygame.K_e: navegacion.PESTANA_SIGUIENTE,
+}
+BOTONES_MENU_PRINCIPAL = {
+    pygame.CONTROLLER_BUTTON_DPAD_UP: navegacion.ARRIBA,
+    pygame.CONTROLLER_BUTTON_DPAD_DOWN: navegacion.ABAJO,
+    pygame.CONTROLLER_BUTTON_DPAD_LEFT: navegacion.IZQUIERDA,
+    pygame.CONTROLLER_BUTTON_DPAD_RIGHT: navegacion.DERECHA,
+    pygame.CONTROLLER_BUTTON_A: navegacion.CONFIRMAR,  # ✕
+    pygame.CONTROLLER_BUTTON_B: navegacion.VOLVER,  # ○
+    pygame.CONTROLLER_BUTTON_LEFTSHOULDER: navegacion.PESTANA_ANTERIOR,  # L1
+    pygame.CONTROLLER_BUTTON_RIGHTSHOULDER: navegacion.PESTANA_SIGUIENTE,  # R1
+}
 
 # Teclas de la terminal de decisión -> dirección de navegación.
 TECLAS_TERMINAL = {
@@ -114,20 +150,65 @@ def main():
     controller.init()
     pantalla = crear_pantalla()
     reloj = crear_reloj()
-    partida = Partida()
-    # Menú de inicio: 1 o 2 jugadores, y luego cada uno elige su rol.
-    eleccion = _menu_inicio(pantalla, reloj, _primer_mando())
-    if eleccion is None:
-        pygame.quit()
-        sys.exit()
-    clases, mando = eleccion
+    preferencias = cargar_preferencias()
+    audio = Audio(preferencias)
+    filtro = FiltroColor()
+
+    def presentar():
+        """Muestra el frame: filtro de daltonismo sobre la imagen final y flip."""
+        filtro.aplicar(pantalla, preferencias.filtro_daltonismo)
+        pygame.display.flip()
+
+    # La vista del menú se conserva: al volver, la ciudad sigue donde iba.
+    vista_menu = VistaMenu(pantalla.get_size())
+    mando = _primer_mando()
+    sesion = None  # partida en curso, para CONTINUAR
+    while True:
+        accion, mando = _menu_principal(pantalla, reloj, vista_menu, sesion is not None, preferencias, audio,
+                                        presentar, mando)
+        if accion == SALIR:
+            break
+        if accion == JUGAR:
+            # Partida nueva: 1 o 2 jugadores, y luego cada uno elige su rol.
+            eleccion = _menu_inicio(pantalla, reloj, mando, presentar)
+            if eleccion is None:
+                break
+            if eleccion == VOLVER:
+                continue
+            clases, mando = eleccion
+            sesion = _nueva_sesion(clases, mando)
+        if _jugar(pantalla, reloj, sesion, preferencias, presentar) == SALIR:
+            break
+    guardar_preferencias(preferencias)
+    pygame.quit()
+    sys.exit()
+
+
+@dataclass
+class _Sesion:
+    """Lo que sobrevive al volver al menú principal: la partida, los
+    jugadores y sus lectores de input (mismo orden)."""
+
+    partida: Partida
+    jugadores: list
+    entradas: list
+
+
+def _nueva_sesion(clases, mando):
+    # J1 (jugadores[0]) es el del teclado: su HUD va arriba, maneja la
+    # terminal de decisión y apunta con la mira del mouse.
     entradas = [EntradaTeclado()]
     if len(clases) > 1:
         entradas.append(EntradaMando(mando))
-    # Todos los jugadores de la partida, en el mismo orden que `entradas`.
-    # J1 (jugadores[0]) es el del teclado: su HUD va arriba, maneja la
-    # terminal de decisión y apunta con la mira del mouse.
-    jugadores = [clase(0, 0) for clase in clases]
+    return _Sesion(Partida(), [clase(0, 0) for clase in clases], entradas)
+
+
+def _jugar(pantalla, reloj, sesion, preferencias, presentar):
+    """La partida (máquina de escenas). Retorna SALIR si se cierra el
+    juego, o MENU con Esc en el mapa (la sesión queda para CONTINUAR)."""
+    partida = sesion.partida
+    entradas = sesion.entradas
+    jugadores = sesion.jugadores
     jugador = jugadores[0]
     selector = _nuevo_selector(partida)
 
@@ -166,8 +247,7 @@ def main():
         textos.limpiar()
         particulas.limpiar()
 
-    ejecutando = True
-    while ejecutando:
+    while True:
         # tick_busy_loop y no tick: en Windows tick() duerme con poca
         # precisión y los frames salen de 16, 17 o 18 ms, lo que se ve
         # como tirones al moverse. busy_loop da frames regulares.
@@ -186,10 +266,12 @@ def main():
                 # El control del J2 se desconectó: al volver a conectarlo, sigue jugando.
                 entradas[1].mando = _actualizar_mando(evento, None) or entradas[1].mando
             if evento.type == pygame.QUIT:
-                ejecutando = False
+                return SALIR
             elif evento.type != pygame.KEYDOWN:
                 continue
             elif escena == Escena.MAPA_CIUDAD:
+                if evento.key == TECLA_SALIR:
+                    return MENU
                 if evento.key in TECLAS_MAPA:
                     selector.mover(TECLAS_MAPA[evento.key])
                 elif evento.key in TECLAS_CONFIRMAR:
@@ -224,6 +306,7 @@ def main():
                         # Partida completa nueva, con los mismos roles.
                         partida.reiniciar()
                         jugadores = [type(j)(0, 0) for j in jugadores]
+                        sesion.jugadores = jugadores
                         jugador = jugadores[0]
                         selector = _nuevo_selector(partida)
                         mensaje_mapa = None
@@ -232,7 +315,7 @@ def main():
                     escena = Escena.MAPA_CIUDAD
                     limpiar_combate()
                 elif evento.key == TECLA_SALIR:
-                    ejecutando = False
+                    return SALIR
             elif evento.key == TECLA_MINIMAPA and escena == Escena.MAZMORRA:
                 mostrar_minimapa = not mostrar_minimapa
             elif evento.key == TECLA_ARBOL and escena in ESCENAS_DE_COMBATE:
@@ -305,7 +388,7 @@ def main():
                 hud.dibujar_barra_controles(pantalla, hud.CONTROLES_FINAL)
             else:
                 hud.dibujar_barra_controles(pantalla, hud.CONTROLES_MAPA)
-            pygame.display.flip()
+            presentar()
             sacudida = (0, 0)
             continue
 
@@ -315,13 +398,13 @@ def main():
                 f"Cuarto final  ·  {mazmorra.mazmorra.nombre_zona}  ·  Mazmorra normal",
             )
             hud.dibujar_barra_controles(pantalla, hud.CONTROLES_TERMINAL)
-            pygame.display.flip()
+            presentar()
             sacudida = (0, 0)
             continue
 
         if escena == Escena.RESULTADO:
             dibujar_resultado(pantalla, resultado)
-            pygame.display.flip()
+            presentar()
             sacudida = (0, 0)
             continue
 
@@ -331,10 +414,15 @@ def main():
         escenario.dibujar(lienzo)
         particulas.dibujar(lienzo)  # el rastro del dash queda detrás de los jugadores
         objetivo = None
-        if escena in ESCENAS_DE_COMBATE and jugador in en_combate:
-            angulo = ANGULO_ABANICO_GRADOS if isinstance(jugador, Ciudadano) else assets.ANGULO_CONO_ESTRECHO
-            if jugador.apunta_con_mouse:
-                combate_render.dibujar_cono_apuntado(lienzo, jugador, angulo)
+        if escena in ESCENAS_DE_COMBATE:
+            # Cono de apuntado de cada jugador que apunta (mouse o stick
+            # derecho). Su visibilidad y opacidad son ajustes solo visuales.
+            alfa_cono = combate_render.alfa_cono(preferencias.opacidad_cono) if preferencias.mostrar_cono else 0
+            for j in en_combate:
+                if j.apunta_con_mouse and alfa_cono > 0:
+                    angulo = ANGULO_ABANICO_GRADOS if isinstance(j, Ciudadano) else assets.ANGULO_CONO_ESTRECHO
+                    combate_render.dibujar_cono_apuntado(lienzo, j, angulo, alfa_cono)
+            if jugador in en_combate and jugador.apunta_con_mouse:
                 objetivo = combate_render.enemigo_apuntado(jugador, escenario.enemigos)
                 if objetivo is not None:
                     combate_render.dibujar_objetivo(lienzo, jugador, objetivo)
@@ -352,7 +440,9 @@ def main():
             enemigo_globo = objetivo or _enemigo_mas_cercano(jugador, escenario.enemigos)
             if enemigo_globo is not None:
                 combate_render.dibujar_globo_arbol(lienzo, enemigo_globo)
-        sacudida = arena.mazmorra.desplazamiento_sacudida() if escena == Escena.JEFE else (0, 0)
+        # La sacudida es decorativa: reducir movimiento la quita.
+        temblar = escena == Escena.JEFE and not preferencias.reducir_movimiento
+        sacudida = arena.mazmorra.desplazamiento_sacudida() if temblar else (0, 0)
         pantalla.blit(lienzo, sacudida)
 
         # Solitario: el J1 va en el HUD superior. Cooperativo: arriba solo
@@ -381,10 +471,7 @@ def main():
             dibujar_victoria(pantalla)
         if _apunta_con_mouse(escena, jugador) and jugador in en_combate:
             combate_render.dibujar_mira(pantalla, jugador, sacudida)
-        pygame.display.flip()
-
-    pygame.quit()
-    sys.exit()
+        presentar()
 
 
 def _frame_de_combate(
@@ -483,26 +570,74 @@ def _curar(jugadores):
         jugador.detener()
 
 
-def _menu_inicio(pantalla, reloj, mando):
-    """Pantalla de modo y luego la de roles (Esc en roles vuelve al modo).
-    Retorna (clases de rol en orden J1, J2..., control o None), o None
-    si se cierra la ventana."""
+def _menu_principal(pantalla, reloj, vista, hay_partida, preferencias, audio, presentar, mando):
+    """Pantalla de inicio con la ciudad animada, el menú, EXTRAS, CRÉDITOS
+    y el modal de ajustes. Teclado, control y ratón se traducen a
+    acciones de src/ui/navegacion.py; el sonido sale de lo que retorna
+    cada acción (un cambio real), así nunca se duplica. Retorna
+    (JUGAR | CONTINUAR | SALIR, control)."""
+    menu = MenuPrincipal(hay_partida, preferencias)
+    sticks = (_StickMenu(),
+              _StickMenu(pygame.CONTROLLER_AXIS_LEFTY, navegacion.ARRIBA, navegacion.ABAJO))
+    guardadas = replace(preferencias)
+    pygame.mouse.set_visible(True)
     while True:
-        modo = _elegir_modo(pantalla, reloj, mando)
-        if modo is None:
-            return None
+        dt = reloj.tick_busy_loop(FPS) / 1000
+        for evento in pygame.event.get():
+            mando = _actualizar_mando(evento, mando)
+            if evento.type == pygame.QUIT:
+                return SALIR, mando
+            accion = _accion_menu(evento, sticks)
+            sonido = menu.accion(accion) if accion is not None else vista.manejar_mouse(evento, menu)
+            audio.reproducir(sonido)
+        resultado = menu.actualizar(dt)
+        # Los ajustes se aplican al instante y se guardan en disco al
+        # cambiar (si se arrastra un slider, al soltarlo).
+        if preferencias != guardadas:
+            audio.aplicar(preferencias)
+            if not vista.arrastrando:
+                guardar_preferencias(preferencias)
+                guardadas = replace(preferencias)
+        if resultado is not None:
+            return resultado, mando
+        vista.actualizar(dt, menu, preferencias.reducir_movimiento)
+        vista.dibujar(pantalla, menu, audio, preferencias.reducir_movimiento)
+        presentar()
+
+
+def _accion_menu(evento, sticks):
+    """Acción de navegación de un evento de teclado o control, o None."""
+    if evento.type == pygame.KEYDOWN:
+        return TECLAS_MENU_PRINCIPAL.get(evento.key)
+    if evento.type == pygame.CONTROLLERBUTTONDOWN:
+        return BOTONES_MENU_PRINCIPAL.get(evento.button)
+    for stick in sticks:
+        direccion = stick.paso(evento)
+        if direccion is not None:
+            return direccion
+    return None
+
+
+def _menu_inicio(pantalla, reloj, mando, presentar):
+    """Pantalla de modo y luego la de roles (Esc en roles vuelve al modo).
+    Retorna (clases de rol en orden J1, J2..., control o None), VOLVER
+    con Esc en la pantalla de modo, o None si se cierra la ventana."""
+    while True:
+        modo = _elegir_modo(pantalla, reloj, mando, presentar)
+        if modo is None or modo == VOLVER:
+            return modo
         modo, mando = modo
-        clases = _elegir_roles(pantalla, reloj, modo, mando)
+        clases = _elegir_roles(pantalla, reloj, modo, mando, presentar)
         if clases is None:
             return None
         if clases != VOLVER:
             return clases, mando
 
 
-def _elegir_modo(pantalla, reloj, mando):
+def _elegir_modo(pantalla, reloj, mando, presentar):
     """1 o 2 jugadores, con teclado o con el control. Dos jugadores exige
     un control: si no hay, se avisa y se espera a que se conecte uno.
-    Retorna (modo, control) o None si se cierra o se pulsa Esc."""
+    Retorna (modo, control), VOLVER con Esc u ○, o None si se cierra."""
     selector = SelectorModo()
     stick = _StickMenu()
     aviso = 0.0  # segundos que le quedan al aviso "Conecta un control"
@@ -516,7 +651,7 @@ def _elegir_modo(pantalla, reloj, mando):
                 return None
             if evento.type == pygame.KEYDOWN:
                 if evento.key == TECLA_SALIR:
-                    return None
+                    return VOLVER
                 if evento.key in TECLAS_MENU_J1:
                     selector.mover(TECLAS_MENU_J1[evento.key])
                 elif evento.key in TECLAS_MODO:
@@ -529,6 +664,8 @@ def _elegir_modo(pantalla, reloj, mando):
                     selector.mover(BOTONES_MENU_J2[evento.button])
                 elif evento.button == BOTON_CONFIRMAR:
                     confirmar = True
+                elif evento.button == BOTON_CANCELAR:
+                    return VOLVER
             elif (direccion := stick.paso(evento)) is not None:
                 selector.mover(direccion)
         if confirmar:
@@ -539,10 +676,10 @@ def _elegir_modo(pantalla, reloj, mando):
 
         dibujar_modo(pantalla, selector, mando.name if mando is not None else None, aviso > 0)
         hud.dibujar_barra_controles(pantalla, hud.CONTROLES_MODO)
-        pygame.display.flip()
+        presentar()
 
 
-def _elegir_roles(pantalla, reloj, modo, mando):
+def _elegir_roles(pantalla, reloj, modo, mando, presentar):
     """Cada jugador mueve su cursor sobre las tarjetas y confirma; la
     partida empieza cuando todos confirmaron. J1: flechas o A/D, Enter
     o Espacio, 1-4 directo, Retroceso para cambiar. J2: cruceta o stick,
@@ -581,21 +718,24 @@ def _elegir_roles(pantalla, reloj, modo, mando):
 
         dibujar_seleccion(pantalla, CLASES_ROL, seleccion)
         hud.dibujar_barra_controles(pantalla, hud.CONTROLES_SELECCION_DOS if j2 else hud.CONTROLES_SELECCION)
-        pygame.display.flip()
+        presentar()
         if seleccion.lista:
             return [CLASES_ROL[indice] for indice in seleccion.indices()]
         reloj.tick(FPS)
 
 
 class _StickMenu:
-    """Stick izquierdo como flechas en los menús: un paso cada vez que se
-    inclina más allá de UMBRAL_STICK_MENU; vuelve a contar al soltarlo."""
+    """Un eje del stick izquierdo como flechas en los menús: un paso cada
+    vez que se inclina más allá de UMBRAL_STICK_MENU; vuelve a contar al
+    soltarlo. Por defecto el eje horizontal (izquierda / derecha)."""
 
-    def __init__(self):
+    def __init__(self, eje=pygame.CONTROLLER_AXIS_LEFTX, negativo=IZQUIERDA, positivo=DERECHA):
+        self._eje = eje
+        self._negativo, self._positivo = negativo, positivo
         self._inclinado = False
 
     def paso(self, evento):
-        if evento.type != pygame.CONTROLLERAXISMOTION or evento.axis != pygame.CONTROLLER_AXIS_LEFTX:
+        if evento.type != pygame.CONTROLLERAXISMOTION or evento.axis != self._eje:
             return None
         valor = evento.value / EJE_MAXIMO
         if abs(valor) < UMBRAL_STICK_MENU:
@@ -604,7 +744,7 @@ class _StickMenu:
         if self._inclinado:
             return None
         self._inclinado = True
-        return DERECHA if valor > 0 else IZQUIERDA
+        return self._positivo if valor > 0 else self._negativo
 
 
 def _actualizar_mando(evento, mando):

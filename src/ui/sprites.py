@@ -217,6 +217,65 @@ DESTELLO = [
 ]
 PALETA_DESTELLO = {"w": (200, 230, 220)}
 
+# --- Menú principal ----------------------------------------------------
+
+# Letras del título (5x7). '#' = color del título; las dos filas de
+# arriba se aclaran en palabra_titulo() para darle un brillo de neón.
+LETRAS_TITULO = {
+    "C": [".###.", "#...#", "#....", "#....", "#....", "#...#", ".###."],
+    "I": ["#####", "..#..", "..#..", "..#..", "..#..", "..#..", "#####"],
+    "V": ["#...#", "#...#", "#...#", "#...#", ".#.#.", ".#.#.", "..#.."],
+    "T": ["#####", "..#..", "..#..", "..#..", "..#..", "..#..", "..#.."],
+    "A": [".###.", "#...#", "#...#", "#####", "#...#", "#...#", "#...#"],
+    "S": [".####", "#....", "#....", ".###.", "....#", "....#", "####."],
+}
+_FILAS_LUZ_TITULO = 2
+
+
+def _componer_palabra(palabra):
+    """Filas de la palabra completa, con una columna vacía entre letras."""
+    filas = []
+    for y in range(7):
+        fila = ".".join(LETRAS_TITULO[letra][y] for letra in palabra)
+        filas.append(fila.replace("#", "l") if y < _FILAS_LUZ_TITULO else fila)
+    return filas
+
+
+TITULO = _componer_palabra("CIVITAS")
+
+
+def palabra_titulo(color, color_luz):
+    """(filas, paleta) del título CIVITAS para sprite()."""
+    return TITULO, {"#": color, "l": color_luz}
+
+
+# Nave (11x5) mirando a la derecha: el fondo del menú la voltea si va a la izquierda.
+NAVE = [
+    "....kkk....",
+    "..kccwwk...",
+    "kcccccccckl",
+    ".kkcccccck.",
+    "...kkkkk...",
+]
+PALETA_NAVE = {"k": _NEGRO, "c": (92, 84, 150), "w": assets.COLOR_CIAN_NEON, "l": assets.COLOR_CIAN_NEON}
+
+# Engranaje del botón de ajustes (12x12); 'c' = color según el estado.
+ENGRANAJE = [
+    ".....cc.....",
+    "..c.cccc.c..",
+    ".cccccccccc.",
+    "..cccccccc..",
+    ".cccc..cccc.",
+    "cccc....cccc",
+    "cccc....cccc",
+    ".cccc..cccc.",
+    "..cccccccc..",
+    ".cccccccccc.",
+    "..c.cccc.c..",
+    ".....cc.....",
+]
+
+
 _cache = {}
 
 

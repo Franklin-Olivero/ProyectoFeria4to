@@ -27,6 +27,10 @@ from src.core.balance import CLICK_DISPARA, UMBRAL_GATILLO, ZONA_MUERTA_STICK
 TECLA_DISPARAR = pygame.K_SPACE
 TECLA_HABILIDAD = pygame.K_f
 TECLAS_DASH = (pygame.K_LSHIFT, pygame.K_RSHIFT)
+# Teclas de interfaz en combate (eventos en Main.py; aquí para que la
+# guía de controles de los ajustes lea las mismas que el juego).
+TECLA_MINIMAPA = pygame.K_m
+TECLA_ARBOL = pygame.K_TAB
 
 # Botones del control (nombres de SDL, ver docstring del módulo).
 BOTON_DASH = pygame.CONTROLLER_BUTTON_A  # Cruz

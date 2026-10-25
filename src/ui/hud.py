@@ -34,9 +34,22 @@ CONTROLES_JEFE = [
     ("Tab", "ver árbol"),
 ]
 CONTROLES_TERMINAL = [("← →", "elegir opción"), ("Enter", "confirmar")]
-CONTROLES_MAPA = [("← →", "elegir zona"), ("Enter", "viajar")]
+CONTROLES_MAPA = [("← →", "elegir zona"), ("Enter", "viajar"), ("Esc", "menú principal")]
 CONTROLES_FINAL = [("Enter", "continuar"), ("Esc", "salir")]
-CONTROLES_MODO = [("← →", "elegir"), ("1-2", "directo"), ("Enter", "confirmar"), ("Esc", "salir")]
+CONTROLES_MODO = [("← →", "elegir"), ("1-2", "directo"), ("Enter", "confirmar"), ("Esc", "volver")]
+CONTROLES_MENU_PRINCIPAL = [
+    ("↑ ↓", "elegir"),
+    ("Enter / ✕", "confirmar"),
+    ("Ratón", "señalar y clic"),
+]
+CONTROLES_VISTA_MENU = [("Enter / Esc / ○", "volver")]
+CONTROLES_AJUSTES = [
+    ("↑ ↓", "moverse"),
+    ("← →", "cambiar"),
+    ("Q E / L1 R1", "pestaña"),
+    ("Enter / ✕", "activar"),
+    ("Esc / ○", "cerrar"),
+]
 CONTROLES_SELECCION = [("← →", "elegir"), ("Enter", "confirmar"), ("1-4", "directo"), ("Esc", "volver")]
 CONTROLES_SELECCION_DOS = [
     ("A D", "J1 elige"),

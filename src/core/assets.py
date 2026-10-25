@@ -451,3 +451,172 @@ GROSOR_MIRA = 2
 LARGO_CRUZ_MIRA = 5  # px de cada brazo de la cruz que sale del círculo
 COLOR_LINEA_APUNTADO = (62, 230, 196, 70)  # RGBA: línea tenue jugador -> mira
 GROSOR_LINEA_APUNTADO = 1
+# Opacidad del cono ajustable (pestaña CONTROLES): 100% = este alfa. El
+# 40% predeterminado da el alfa 46 de COLOR_CONO_APUNTADO.
+ALFA_MAXIMO_CONO = 115
+ANGULO_CONO_VISTA_PREVIA = 14  # grados a cada lado en la vista previa de los ajustes
+
+# ----------------------------------------------------------------------
+# Pantalla de inicio: paleta retrofuturista (negro, azul noche, violeta
+# neón y cian de acento)
+# ----------------------------------------------------------------------
+COLOR_CIAN_NEON = (80, 220, 255)
+COLOR_MENU_SELECCION = (196, 120, 255)  # violeta neón: foco, títulos, bordes activos
+COLOR_RESPLANDOR_MENU = (150, 70, 255)
+COLOR_MENU_PULSADO = (150, 80, 240)
+COLOR_TEXTO_PULSADO = (20, 8, 40)
+COLOR_TEXTO_DESHABILITADO = (88, 84, 120)
+COLOR_FONDO_MENU = (8, 6, 24, 205)  # RGBA: panel detrás de las opciones
+COLOR_BORDE_MENU = (84, 60, 140)
+COLOR_ENGRANAJE = (176, 170, 214)
+TAMANIO_FUENTE_MENU = 24
+
+# Título CIVITAS (src/ui/titulo_civitas.py)
+CENTRO_Y_TITULO = 0.2  # fracción del alto de la pantalla
+ESCALA_TITULO = 13  # px por píxel de letra (5x7)
+COLOR_TITULO = (176, 96, 255)
+COLOR_TITULO_LUZ = (226, 184, 255)
+COLOR_TITULO_SOMBRA = (52, 20, 96)
+COLOR_RESPLANDOR_TITULO = (140, 50, 255)
+RADIO_RESPLANDOR_TITULO = 14
+COLOR_GLITCH_CIAN = (30, 190, 230)
+COLOR_GLITCH_MAGENTA = (230, 40, 150)
+COLOR_DESTELLO_TITULO = (60, 44, 84)
+INTERVALO_GLITCH_TITULO = (2.5, 6.0)  # s entre glitches (al azar)
+DURACION_GLITCH_TITULO = 0.22
+SEPARACION_CROMATICA_TITULO = (3, 7)  # px
+DESPLAZAMIENTO_FRANJA_TITULO = (6, 18)  # px
+PASO_SCANLINES_TITULO = 4  # una fila oscura cada 4 px
+BRILLO_SCANLINES_TITULO = 175  # 0-255: brillo que conserva la fila oscura
+
+# Opciones del menú (src/ui/menu_principal_render.py)
+INICIO_OPCIONES_MENU = 0.39  # y de la primera opción, fracción del alto
+PASO_OPCIONES_MENU = 50
+ANCHO_OPCION_MENU = 360
+ALTO_OPCION_MENU = 42
+DURACION_PULSADO_MENU = 0.14  # s que se ve la opción pulsada antes de actuar
+DURACION_REALCE_MENU = 0.12  # s de la animación de entrada al seleccionar
+DESLIZAMIENTO_OPCION_MENU = 14  # px desde los que entra la opción seleccionada
+PULSO_OPCION_MENU = 4.0  # rad/s del pulso de brillo de la opción seleccionada
+RADIO_RESPLANDOR_MENU = 6
+LADO_BOTON_ENGRANAJE = 52
+MARGEN_BOTON_ENGRANAJE = 22
+ESCALA_ENGRANAJE = 3
+GIRO_ENGRANAJE = 90  # grados/s mientras tiene el foco
+TAMANIO_PANEL_VISTA = (760, 360)  # EXTRAS / CRÉDITOS
+CENTRO_Y_PANEL_VISTA = 0.6
+COLUMNA_CREDITOS = 220  # x (desde el borde del panel) donde empiezan los valores
+
+# Modal de ajustes (src/ui/ajustes_render.py)
+TAMANIO_MODAL_AJUSTES = (900, 520)
+CENTRO_Y_MODAL_AJUSTES = 0.47
+DURACION_TRANSICION_MODAL = 0.18
+DESPLAZAMIENTO_ENTRADA_MODAL = 24  # px desde los que sube el modal al abrirse
+ALFA_VELO_MODAL = 153  # 60% de negro sobre el fondo
+REDUCCION_DESENFOQUE_MODAL = 4  # el fondo se reduce a 1/4 y se vuelve a ampliar
+COLOR_FONDO_MODAL = (12, 10, 30)
+COLOR_FONDO_MODAL_ALFA = (12, 10, 30, 225)
+COLOR_BORDE_MODAL_INTERIOR = (40, 90, 120)
+COLOR_FILA_ENFOCADA = (34, 22, 66)
+COLOR_PESTANA_ACTIVA = (60, 34, 112)
+COLOR_FONDO_VISTA_PREVIA = (18, 16, 40)
+ANCHO_BOTON_CERRAR = 130
+ANCHO_PESTANA = 190
+ALTO_FILA_AJUSTES = 56
+ANCHO_ETIQUETA_AJUSTES = 300
+ANCHO_ETIQUETA_COLUMNA = 196  # filas de la columna derecha (cono, en la vista MANDO)
+ANCHO_ZONA_MANDO = 450
+SEGMENTOS_SLIDER = 20
+COLOR_SEGMENTO_ACTIVO = (164, 90, 255)
+COLOR_SEGMENTO_LUZ = (214, 170, 255)
+COLOR_SEGMENTO_INACTIVO = (36, 30, 66)
+COLOR_CUERPO_MANDO = (34, 30, 64)
+COLOR_BORDE_MANDO = (110, 80, 180)
+COLOR_LINEA_GUIA_MANDO = (70, 110, 150)
+COLORES_BOTONES_PS = {"✕": (120, 170, 255), "○": (255, 90, 110), "□": (230, 130, 220), "△": (80, 220, 170)}
+
+# Ciudad animada del fondo (src/ui/fondo_ciudad.py). Velocidades en px/s
+# de pantalla; tamaños de edificios en píxeles de la baja resolución.
+SEMILLA_FONDO_CIUDAD = 2026  # misma ciudad en cada arranque
+ESCALA_PIXEL_FONDO = 3
+COLOR_CIELO_ARRIBA = (6, 5, 22)
+COLOR_CIELO_HORIZONTE = (46, 18, 82)
+COLOR_NUBE = (14, 12, 40)
+COLOR_BORDE_NUBE = (32, 26, 76)
+CANTIDAD_NUBES = 9
+COLOR_ESTRELLA = (120, 120, 190)
+CANTIDAD_ESTRELLAS = 24
+COLOR_BRUMA = (255, 60, 170)
+ALFA_BRUMA = 70
+INICIO_BRUMA = 0.45  # la bruma empieza a esta fracción del alto
+COLOR_LUZ_ANTENA = (255, 50, 70)
+CAPAS_FONDO_CIUDAD = (
+    {   # lejana: siluetas azules con pocas ventanas
+        "velocidad": 5, "ancho": (10, 26), "alto": (90, 175), "hueco": (0, 3),
+        "cuerpo": (22, 24, 64), "borde": (40, 46, 100), "cornisa": None,
+        "ventanas": ((44, 52, 120), (64, 44, 116)), "paso_ventana": 3, "densidad_ventanas": 0.18,
+        "prob_antena": 0.25, "prob_letrero": 0.0,
+    },
+    {   # media: torres azul eléctrico con cornisa cian
+        "velocidad": 12, "ancho": (14, 34), "alto": (70, 150), "hueco": (1, 6),
+        "cuerpo": (30, 38, 110), "borde": (70, 120, 220), "cornisa": (90, 220, 255),
+        "ventanas": ((90, 140, 255), (150, 190, 255), (255, 80, 170)), "paso_ventana": 3,
+        "densidad_ventanas": 0.3, "prob_antena": 0.35, "prob_letrero": 0.15,
+    },
+    {   # cercana: edificios oscuros con borde magenta y letreros holográficos
+        "velocidad": 26, "ancho": (24, 48), "alto": (45, 120), "hueco": (2, 10),
+        "cuerpo": (16, 14, 48), "borde": (130, 44, 170), "cornisa": (200, 70, 200),
+        "ventanas": ((255, 90, 180), (255, 140, 90), (120, 90, 220)), "paso_ventana": 4,
+        "densidad_ventanas": 0.16, "prob_antena": 0.2, "prob_letrero": 0.6,
+    },
+    {   # primer plano: azoteas casi negras
+        "velocidad": 48, "ancho": (30, 80), "alto": (10, 30), "hueco": (0, 14),
+        "cuerpo": (9, 7, 24), "borde": (70, 30, 100), "cornisa": (110, 40, 140),
+        "ventanas": ((60, 30, 90),), "paso_ventana": 6, "densidad_ventanas": 0.05,
+        "prob_antena": 0.3, "prob_letrero": 0.0,
+    },
+)
+# Letreros holográficos: textos del universo del juego.
+TEXTOS_LETREROS = ("VERIFICA", "#VIRAL", "FAKE?", "REPORTA", "TRENDING", "FUENTE?", "LIKE x1000",
+                   "NOTICIAS 24H", "CIVITAS", "VOTA")
+COLORES_LETREROS = ((255, 56, 120), (255, 80, 80), (62, 230, 240), (200, 110, 255))
+COLOR_FONDO_LETRERO = (24, 10, 34)
+COLOR_LETRERO_APAGADO = (10, 6, 20, 170)  # RGBA encima del letrero que parpadea
+TAMANIO_FUENTE_LETRERO = 13
+PROB_LETRERO_VERTICAL = 0.35
+LETRAS_MAXIMAS_LETRERO_VERTICAL = 6  # textos más largos van siempre en horizontal
+INTERVALO_PARPADEO_LETRERO = (0.8, 2.5)  # s entre parpadeos
+DURACION_PARPADEO_LETRERO = 0.14
+# Naves: una por profundidad; "capa" = se dibuja justo encima de esa capa.
+PROFUNDIDADES_NAVES = (
+    {"capa": 0, "escala": 2, "velocidad": (35, 55), "altura": (0.12, 0.35), "largo_estela": 24},
+    {"capa": 0, "escala": 2, "velocidad": (40, 60), "altura": (0.1, 0.3), "largo_estela": 24},
+    {"capa": 1, "escala": 3, "velocidad": (70, 100), "altura": (0.15, 0.45), "largo_estela": 40},
+    {"capa": 2, "escala": 4, "velocidad": (130, 180), "altura": (0.2, 0.5), "largo_estela": 70},
+)
+ESPERA_MAXIMA_NAVE = 6.0  # s de pausa máxima antes de volver a cruzar
+COLOR_ESTELA_NAVE = COLOR_CIAN_NEON
+ALFA_ESTELA_NAVE = 170
+# Lluvia
+CANTIDAD_GOTAS_LLUVIA = 120
+VELOCIDAD_LLUVIA = (520, 760)
+LARGO_GOTA_LLUVIA = (8, 16)
+INCLINACION_LLUVIA = 0.18  # px en x por px en y
+COLORES_LLUVIA = ((70, 80, 170), (100, 90, 200), (60, 120, 200))
+
+# ----------------------------------------------------------------------
+# Sonidos (src/core/audio.py). Si existe el archivo se usa; si no, el
+# efecto se genera en código con estos tonos (Hz) y duración (s).
+# ----------------------------------------------------------------------
+RUTAS_SONIDOS = {
+    "navegar": os.path.join("assets", "sonidos", "navegar.wav"),
+    "confirmar": os.path.join("assets", "sonidos", "confirmar.wav"),
+    "volver": os.path.join("assets", "sonidos", "volver.wav"),
+}
+TONOS_SONIDOS = {
+    "navegar": ((880,), 0.04),
+    "confirmar": ((660, 990), 0.12),
+    "volver": ((520, 390), 0.1),
+}
+AMPLITUD_SONIDO_SINTETIZADO = 0.18  # fracción del máximo de 16 bits
+RUTA_MUSICA_MENU = os.path.join("assets", "musica", "menu.ogg")
