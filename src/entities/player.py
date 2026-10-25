@@ -27,6 +27,10 @@ enemigos (registrar_kill) y se gasta completa al usarla.
 Invulnerabilidad: tras un golpe, INVULNERABILIDAD_DURACION segundos sin
 perder vida, con el sprite parpadeando.
 
+Gracia de entrada: mientras `armas_bloqueadas` sea True (Main.py lo
+pone durante el segundo de gracia al entrar a un cuarto) el jugador
+puede moverse pero no dispara ni usa la habilidad.
+
 Apuntado: los ataques salen siempre de `direccion_mirada`. Si el rol
 tiene `apunta_con_mouse = True` (Ciudadano, Influencer, Periodista),
 solo apuntar_a() la cambia, hacia el mouse o el stick derecho; si es
@@ -58,6 +62,7 @@ from src.core.balance import (
     intervalo_disparo,
 )
 from src.core.entrada import DISTANCIA_PUNTO_STICK, direccion_teclado
+from src.dungeon.ciudad_mapa import mover_con_colision
 from src.entities.dash import Dash
 from src.entities.invulnerabilidad import Invulnerabilidad
 from src.entities.projectile import Proyectil
@@ -106,6 +111,8 @@ class JugadorBase:
         # Segundos que faltan para el próximo volley (<= 0: listo).
         self.tiempo_para_disparo = 0.0
         self.tiempo_buff_kill = 0.0
+        # Gracia de entrada al cuarto: sin disparo ni habilidad.
+        self.armas_bloqueadas = False
 
         self.dash = Dash()
         # Posiciones recientes durante el dash: ahí se dibujan las imágenes fantasma.
@@ -202,6 +209,25 @@ class JugadorBase:
         if not self.dash.activo:
             self.rastro_dash.clear()
 
+    def caminar_en_ciudad(self, teclas, dt, es_solida):
+        """Movimiento en Ciudad Nova: misma velocidad del rol, pero contra
+        las casillas sólidas del mapa (mover_con_colision, por ejes
+        separados) en vez de contra los muros de un cuarto."""
+        direccion = pygame.Vector2(direccion_teclado(teclas))
+        if direccion.length_squared() == 0:
+            return
+        delta = direccion * self.velocidad * dt
+        x, y = mover_con_colision(
+            (self.posicion.x, self.posicion.y), (delta.x, delta.y), self.rect.size, es_solida
+        )
+        self.colocar_en((x, y))
+
+    def colocar_en(self, posicion):
+        """Pone el centro del jugador en `posicion` (px), sin inercia pendiente."""
+        self.posicion.update(posicion)
+        self.rect.center = (round(self.posicion.x), round(self.posicion.y))
+        self.detener()
+
     def apuntar_a(self, punto_mouse):
         """Orienta `direccion_mirada` hacia `punto_mouse` (coordenadas del
         mundo). No hace nada si el rol no apunta con el mouse."""
@@ -237,6 +263,8 @@ class JugadorBase:
         if not self.dash.puede_disparar:
             return []
         self.tiempo_para_disparo -= dt
+        if self.armas_bloqueadas:
+            disparando = False
         nuevos = []
         if disparando:
             while self.tiempo_para_disparo <= 0:
@@ -290,8 +318,12 @@ class JugadorBase:
         """Suma `cantidad` de kills (puede ser fracción) sin pasar del máximo."""
         self.carga_habilidad = min(self.carga_habilidad + cantidad, self.carga_maxima)
 
-    def puede_usar_habilidad(self):
+    def habilidad_cargada(self):
+        """La barra está llena (aunque las armas estén bloqueadas)."""
         return self.carga_habilidad >= self.carga_maxima
+
+    def puede_usar_habilidad(self):
+        return self.habilidad_cargada() and not self.armas_bloqueadas
 
     def _gastar_carga(self):
         """Helper para usar_habilidad(): si la carga está completa la

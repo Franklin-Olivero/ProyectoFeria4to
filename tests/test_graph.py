@@ -150,7 +150,8 @@ def test_estructuras_no_importan_pygame():
     raiz = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
     codigo = (
         "import sys, src.structures.graph, src.structures.min_heap, src.dungeon.mazmorra,"
-        " src.dungeon.grafo_ciudad, src.dungeon.partida, src.core.escenas, src.ui.mapa_ciudad;"
+        " src.dungeon.grafo_ciudad, src.dungeon.ciudad_mapa, src.dungeon.noticias, src.dungeon.partida,"
+        " src.core.escenas, src.ui.mapa_ciudad;"
         "print('pygame' in sys.modules)"
     )
     salida = subprocess.run(

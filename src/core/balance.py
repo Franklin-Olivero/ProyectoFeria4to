@@ -12,6 +12,8 @@ sentía el Ciudadano antes de balancear).
 
 from dataclasses import dataclass
 
+from src.core.assets import ESCALA_PIXEL
+
 # Valores base (multiplicador 1.0)
 VELOCIDAD_BASE = 220  # píxeles por segundo
 VIDA_BASE = 5
@@ -210,30 +212,59 @@ PROPAGACION_INCREMENTO = 10.0  # puntos de toxicidad a distancia 1
 TOXICIDAD_MAXIMA_CUARTO = 100.0
 
 # ----------------------------------------------------------------------
-# Mapa de la ciudad (src/dungeon/grafo_ciudad.py)
+# Ciudad Nova: mapa de casillas (src/dungeon/ciudad_mapa.py) y red de
+# calles como grafo (src/dungeon/grafo_ciudad.py)
 # ----------------------------------------------------------------------
+LADO_CASILLA_PIXEL_ART = 16  # píxeles de arte por lado de casilla
+TAM_CASILLA = LADO_CASILLA_PIXEL_ART * ESCALA_PIXEL  # 48 px en pantalla
+ENTRADA_ALCANCE = 60  # px del centro de la puerta para poder entrar con E
+# La Alcaldía sellada queda detrás de sus barricadas: el aviso se
+# muestra desde un poco más lejos que el alcance para entrar.
+ALCANCE_AVISO_SELLADA = 110  # px
+
 ZONA_PLAZA = "Plaza"
 ZONA_COLEGIO = "Colegio"
 ZONA_HOSPITAL = "Hospital"
 ZONA_EMPRESA_MEDIOS = "Empresa de Medios"
 ZONA_ALCALDIA = "Alcaldía"
+CRUCE_NORTE = "Cruce Norte"
+CRUCE_SUR = "Cruce Sur"
+CRUCE_OESTE = "Cruce Oeste"
+CRUCE_ESTE = "Cruce Este"
 
-# Calles (zona, zona, saturación). Ruta corta y peligrosa: Plaza ->
-# Empresa de Medios directo (1 calle, peso 6). Ruta larga y segura:
-# Plaza -> Hospital -> Empresa de Medios (2 calles, peso 3 + 2 = 5).
+# Tramos de calle (nodo, nodo, saturación inicial). El trazado es una
+# rueda: la Plaza al centro unida a 4 cruces y un anillo exterior que
+# pasa frente a los 4 edificios. Ninguna arista es puente y cada
+# edificio tiene dos rutas (una por cada lado del anillo).
+# Ejemplo de Dijkstra: Plaza -> Empresa de Medios por el Cruce Este
+# cuesta 4 + 2 = 6; por el Cruce Sur, 3 + 5 = 8.
 PESOS_INICIALES_CIUDAD = [
-    (ZONA_PLAZA, ZONA_COLEGIO, 2),
-    (ZONA_PLAZA, ZONA_HOSPITAL, 3),
-    (ZONA_PLAZA, ZONA_EMPRESA_MEDIOS, 6),
-    (ZONA_COLEGIO, ZONA_HOSPITAL, 4),
-    (ZONA_HOSPITAL, ZONA_EMPRESA_MEDIOS, 2),
-    (ZONA_COLEGIO, ZONA_ALCALDIA, 5),
-    (ZONA_EMPRESA_MEDIOS, ZONA_ALCALDIA, 3),
+    (ZONA_PLAZA, CRUCE_NORTE, 2),
+    (ZONA_PLAZA, CRUCE_SUR, 3),
+    (ZONA_PLAZA, CRUCE_OESTE, 2),
+    (ZONA_PLAZA, CRUCE_ESTE, 4),
+    (CRUCE_NORTE, ZONA_COLEGIO, 3),
+    (ZONA_COLEGIO, CRUCE_OESTE, 2),
+    (CRUCE_OESTE, ZONA_HOSPITAL, 3),
+    (ZONA_HOSPITAL, CRUCE_SUR, 2),
+    (CRUCE_SUR, ZONA_EMPRESA_MEDIOS, 5),
+    (ZONA_EMPRESA_MEDIOS, CRUCE_ESTE, 2),
+    (CRUCE_ESTE, ZONA_ALCALDIA, 3),
+    (ZONA_ALCALDIA, CRUCE_NORTE, 4),
 ]
 PESO_MINIMO_CIUDAD = 1
 PESO_MAXIMO_CIUDAD = 10
-AJUSTE_PESO_CIUDAD = 1  # Purificación Exitosa baja, Detonación sube
-COSTO_VIAJE_COLAPSO = 0.02  # puntos de colapso por unidad de costo de la ruta
+# Pesos dinámicos al resolver una mazmorra, en las calles de su entrada.
+AJUSTE_DETONACION = 3  # Detonación: +3
+AJUSTE_PURIFICACION = 2  # Purificación Exitosa: -2
+# Histéresis de las barricadas: una calle se bloquea al llegar a
+# BLOQUEO_PESO y se desbloquea al bajar de DESBLOQUEO_PESO. Si
+# bloquearla desconectaría la ciudad, queda abierta con PESO_MAXIMO_CIUDAD.
+BLOQUEO_PESO = 8
+DESBLOQUEO_PESO = 6
+
+# Cintillo de noticias (src/dungeon/noticias.py)
+COLAPSO_TITULAR_ALTO = 50.0  # desde este colapso hay titular de alarma
 
 # Reportes de toxicidad de cada zona con mazmorra (la Alcaldía es la
 # mazmorra final y no usa reportes). Gravedad promedio -> nivel:
@@ -261,3 +292,74 @@ REPORTES_POR_ZONA = {
         {"id": 5, "tipo": "comentario", "gravedad": 2},
     ],
 }
+
+# ----------------------------------------------------------------------
+# Gracia al entrar a un cuarto (src/dungeon/gracia_entrada.py)
+# ----------------------------------------------------------------------
+# Mientras dura, los enemigos quedan congelados (no persiguen, no
+# disparan, no golpean) y el jugador solo puede moverse.
+GRACIA_ENTRADA_CUARTO_S = 1.0
+# Ningún enemigo aparece a menos de esto del punto donde entra el jugador.
+DISTANCIA_MIN_SPAWN_ENEMIGO = 260  # px
+SEPARACION_MIN_SPAWN_ENEMIGOS = 70  # px entre dos enemigos al aparecer
+MARGEN_SPAWN_ENEMIGO = 60  # px libres hasta los muros del cuarto
+PASO_GRILLA_SPAWN = (90, 80)  # px entre posiciones candidatas (x, y)
+
+# ----------------------------------------------------------------------
+# Tipos de enemigo (src/entities/tipos_enemigo.py, src/entities/enemigos.py)
+# ----------------------------------------------------------------------
+# La velocidad final = VELOCIDAD_ENEMIGO (assets) x multiplicador del
+# tramo de toxicidad x velocidad_mult del tipo.
+
+
+@dataclass(frozen=True)
+class StatsTipoEnemigo:
+    velocidad_mult: float
+    vida: float
+
+
+STATS_TIPO_ENEMIGO = {
+    # Cuerpo a cuerpo: rápido, vida media, daño por contacto. No dispara.
+    "perseguidor": StatsTipoEnemigo(velocidad_mult=1.15, vida=3),
+    # A distancia: lento, frágil, dispara apuntado con telegrafía.
+    "tirador": StatsTipoEnemigo(velocidad_mult=0.8, vida=2),
+    # Apoyo: el más lento y frágil, no ataca; cura a sus aliados.
+    "curandero": StatsTipoEnemigo(velocidad_mult=0.7, vida=2),
+}
+
+# Perseguidor: golpe por contacto
+DANIO_CONTACTO_PERSEGUIDOR = 1
+COOLDOWN_CONTACTO_PERSEGUIDOR = 0.8  # s entre golpes
+
+# Tirador: mantiene distancia y dispara apuntado
+RANGO_PREFERIDO_TIRADOR = 320  # px al jugador
+TOLERANCIA_RANGO_TIRADOR = 40  # px: dentro de [rango ± tolerancia] orbita
+FACTOR_ORBITA_TIRADOR = 0.5  # fracción de su velocidad al orbitar
+CADENCIA_TIRADOR_S = 1.8  # s entre disparos
+TELEGRAFIA_TIRADOR_S = 0.25  # s resaltado antes de cada disparo
+VELOCIDAD_PROYECTIL_TIRADOR = 260  # px/s: esquivable
+DANIO_PROYECTIL_TIRADOR = 1
+
+# Curandero: se esconde detrás de sus aliados y los cura
+DISTANCIA_HUIDA_CURANDERO = 200  # px: más cerca que esto, huye
+SEPARACION_DETRAS_CURANDERO = 120  # px detrás del centro de sus aliados
+INTERVALO_CURA_S = 3.0
+FRACCION_CURA = 0.34  # de la vida máxima del aliado por cura
+RADIO_CURA = 280  # px
+MAX_CURAS_POR_ALIADO = 2  # por aliado y por cuarto: nadie es inmatable
+DURACION_EFECTO_CURA_S = 0.4  # s que se ve el rayo de cura
+PANICO_CURANDERO_S = 6.0  # s siendo el único vivo antes de entrar en pánico
+
+# Composición de cada cuarto según el tramo de toxicidad
+# (composicion_cuarto en src/entities/tipos_enemigo.py). Los totales
+# salen de DIFICULTAD_BAJA/MEDIA/ALTA del clasificador (2 / 3 / 5).
+PROB_TIRADOR_FINAL_BAJA = 0.5  # el cuarto final BAJA puede traer 1 tirador
+PROPORCION_TIRADORES_MEDIA = 0.4  # ~60 % perseguidores / ~40 % tiradores
+PROB_CURANDERO_MEDIA = 0.25
+MAX_CURANDEROS_MEDIA = 1
+PROPORCION_TIRADORES_ALTA = 0.4
+PROPORCION_CURANDEROS_ALTA = 0.2
+PROB_CURANDERO_EXTRA_ALTA = 0.3  # chance de un segundo curandero
+MAX_CURANDEROS_ALTA = 2
+MIN_CURANDEROS_FINAL_ALTA = 1
+MIN_TIRADORES_FINAL_ALTA = 2

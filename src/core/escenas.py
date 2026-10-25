@@ -1,10 +1,10 @@
 """Escenas de la máquina de estados de Main.py (sin Pygame).
 
-    MAPA_CIUDAD --(ENTER en una zona)--> MAZMORRA --(cuarto final limpio)--> DECISION
-    DECISION --(resultado)--> RESULTADO --(ENTER)--> MAPA_CIUDAD
-    MAPA_CIUDAD --(ENTER en Alcaldía, si está desbloqueada)--> JEFE --> VICTORIA
-    VICTORIA --(ENTER)--> MAPA_CIUDAD          VICTORIA --(ESC)--> salir
-    cualquiera --(colapso al 100%)--> DERROTA --(ENTER)--> MAPA_CIUDAD (partida nueva)
+    CIUDAD --(E en una entrada)--> MAZMORRA --(cuarto final limpio)--> DECISION
+    DECISION --(resultado)--> RESULTADO --(ENTER)--> CIUDAD (frente a esa puerta)
+    CIUDAD --(E en la Alcaldía abierta)--> JEFE --> VICTORIA
+    VICTORIA --(ENTER)--> CIUDAD          VICTORIA --(ESC)--> salir
+    cualquiera --(colapso al 100%)--> DERROTA --(ENTER)--> CIUDAD (partida nueva, en la Plaza)
 
 Vive aparte de Main.py para poder probar la transición a la derrota
 global sin abrir ventana.
@@ -14,7 +14,7 @@ from enum import Enum
 
 
 class Escena(Enum):
-    MAPA_CIUDAD = "mapa_ciudad"  # elegir zona y viajar: sin combate
+    CIUDAD = "ciudad"  # caminar por Ciudad Nova y entrar a los edificios: sin combate
     MAZMORRA = "mazmorra"  # combate en los cuartos de una mazmorra normal
     DECISION = "decision"  # terminal de decisión: input solo para la terminal
     RESULTADO = "resultado"  # pantalla con el resultado de la decisión: ENTER sigue

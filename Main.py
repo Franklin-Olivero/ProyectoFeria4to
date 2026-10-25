@@ -4,27 +4,34 @@ Antes de la partida va la pantalla de inicio (src/ui/menu_principal.py):
 
     MENÚ PRINCIPAL --JUGAR--> modo (1 o 2 jugadores) --> roles --> partida nueva
     MENÚ PRINCIPAL --CONTINUAR--> la partida en curso (si hay)
-    partida, en el mapa --(ESC)--> MENÚ PRINCIPAL (la partida queda en curso)
+    partida, en la ciudad --(ESC)--> MENÚ PRINCIPAL (la partida queda en curso)
 
 El flujo de la partida es una máquina de estados explícita (Escena,
 src/core/escenas.py):
 
-    MAPA_CIUDAD --(ENTER en una zona)--> MAZMORRA --(cuarto final limpio)--> DECISION
-    DECISION --(resultado)--> RESULTADO --(ENTER)--> MAPA_CIUDAD
-    MAPA_CIUDAD --(ENTER en Alcaldía, si está desbloqueada)--> JEFE --(jefe muere)--> VICTORIA
-    VICTORIA --(ENTER)--> MAPA_CIUDAD           VICTORIA --(ESC)--> salir
-    cualquiera --(colapso al 100%)--> DERROTA --(ENTER)--> partida nueva en MAPA_CIUDAD
+    CIUDAD --(E en una entrada)--> MAZMORRA --(cuarto final limpio)--> DECISION
+    DECISION --(resultado)--> RESULTADO --(ENTER)--> CIUDAD (frente a esa puerta)
+    CIUDAD --(E en la Alcaldía abierta)--> JEFE --(jefe muere)--> VICTORIA
+    VICTORIA --(ENTER)--> CIUDAD           VICTORIA --(ESC)--> salir
+    cualquiera --(colapso al 100%)--> DERROTA --(ENTER)--> partida nueva en la Plaza
+
+En CIUDAD el jugador camina por Ciudad Nova (mapa de casillas,
+src/dungeon/ciudad_mapa.py) con colisión contra casillas sólidas y
+barricadas; G muestra la ruta sugerida (Dijkstra) al destino elegido
+con TAB y M abre el mapa del mundo. Al entrar y salir de un edificio
+hay un fundido corto.
 
 El combate (MAZMORRA y JEFE) usa el mismo loop: la mazmorra de varios
 cuartos y la arena del jefe exponen rect, enemigos, actualizar,
 dibujar y manejar_evento. Solo el cuarto final de una mazmorra normal
 tiene minijuego de decisión.
 
-Cooperativo local: si al empezar hay un control conectado, el J2 elige
-rol con él (o Enter para jugar solo). Cada jugador tiene su lector de
-input (src/core/entrada.py: teclado+mouse para J1, control para J2) y
-su propia lista de proyectiles, así cada kill se acredita a quien la
-hizo. Ambos comparten cuarto, enemigos y colapso.
+Cooperativo local: con "2 jugadores" el J2 elige rol con el control.
+Cada jugador tiene su lector de input (src/core/entrada.py:
+teclado+mouse para J1, control para J2) y su propia lista de
+proyectiles, así cada kill se acredita a quien la hizo. Ambos comparten
+cuarto, enemigos y colapso. En la ciudad camina el J1 y al entrar a un
+edificio pasa todo el equipo.
 
 Presentación: el HUD superior y la barra de controles (src/ui/hud.py)
 se dibujan directo a la pantalla; el mundo se dibuja en un lienzo que
@@ -52,7 +59,9 @@ from src.core.equipo import jugadores_en_combate, registrar_kill_equipo, revivir
 from src.core.escenas import ESCENAS_DE_COMBATE, Escena, escena_tras_colapso
 from src.dungeon.arena_jefe import ArenaJefe
 from src.dungeon.cuarto import FASE_DECISION, FASE_RESUELTO
-from src.dungeon.grafo_ciudad import ZONA_FINAL, ZONAS
+from src.core.balance import ALCANCE_AVISO_SELLADA
+from src.dungeon import ciudad_mapa
+from src.dungeon.grafo_ciudad import EDIFICIOS, ZONA_FINAL
 from src.dungeon.mazmorra import Mazmorra
 from src.dungeon.mazmorra_final import VICTORIA as MAZMORRA_FINAL_GANADA
 from src.dungeon.mazmorra_jugable import MazmorraJugable
@@ -61,13 +70,13 @@ from src.entities.candidato import Candidato
 from src.entities.influencer import Influencer
 from src.entities.periodista import Periodista
 from src.entities.player import ANGULO_ABANICO_GRADOS, Ciudadano
-from src.ui import combate_render, dibujo, hud, navegacion
+from src.ui import ciudad_render, combate_render, dibujo, hud, navegacion
 from src.ui.combate_render import TextosFlotantes
 from src.ui.filtro_color import FiltroColor
 from src.ui.mapa_ciudad import SelectorZona
 from src.ui.menu_principal import JUGAR, SALIR, MenuPrincipal
 from src.ui.menu_principal_render import VistaMenu
-from src.ui.mapa_ciudad_render import dibujar_mapa_ciudad
+from src.ui.mapa_ciudad_render import dibujar_mapa_mundo
 from src.ui.mapa_render import dibujar_minimapa
 from src.ui.pantalla_derrota import dibujar_derrota
 from src.ui.pantalla_resultado import ResultadoMazmorra, dibujar_resultado
@@ -136,13 +145,11 @@ TECLAS_TERMINAL = {
     pygame.K_KP_ENTER: CONFIRMAR,
 }
 
-# Teclas del mapa de la ciudad -> dirección para cambiar de zona.
-TECLAS_MAPA = {
-    pygame.K_LEFT: IZQUIERDA,
-    pygame.K_RIGHT: DERECHA,
-}
-
-TITULO_MAPA = "Mapa de la ciudad"
+# Teclas de la escena CIUDAD
+TECLA_ENTRAR = pygame.K_e
+TECLA_RUTA = pygame.K_g
+TECLA_DESTINO = pygame.K_TAB
+TECLA_MAPA_MUNDO = pygame.K_m
 
 
 def main():
@@ -210,15 +217,23 @@ def _jugar(pantalla, reloj, sesion, preferencias, presentar):
     entradas = sesion.entradas
     jugadores = sesion.jugadores
     jugador = jugadores[0]
-    selector = _nuevo_selector(partida)
+    # En la ciudad camina el J1; al entrar a un edificio pasa todo el equipo.
+    # Al continuar una partida, se reaparece frente a la última puerta.
+    jugador.colocar_en(partida.posicion_aparicion())
+    # Destino de la ruta sugerida (TAB cicla entre los edificios).
+    selector = SelectorZona(EDIFICIOS, EDIFICIOS[0])
+    mostrar_ruta = False  # G
+    mostrar_mapa_mundo = False  # M en la ciudad
+    fundido = 0.0  # s que quedan del fundido al entrar/salir de un edificio
+    tiempo = 0.0  # reloj de animaciones de la ciudad (auras, cintillo)
 
-    escena = Escena.MAPA_CIUDAD
+    escena = Escena.CIUDAD
     mazmorra = None  # MazmorraJugable de la zona que se está recorriendo
     arena = None
     mostrar_minimapa = True
     mostrar_arbol = False  # Tab: globo con el nodo activo del behavior tree
     resultado = None  # ResultadoMazmorra que muestra la escena RESULTADO
-    # Mensaje central del mapa: (texto, color) del último resultado o "Bloqueada".
+    # Mensaje central de la ciudad: (texto, color) del último resultado.
     mensaje_mapa = None
     tiempo_mensaje_mapa = 0.0
     # Se dibuja el mundo aquí y se copia a la pantalla con la sacudida;
@@ -252,6 +267,8 @@ def _jugar(pantalla, reloj, sesion, preferencias, presentar):
         # precisión y los frames salen de 16, 17 o 18 ms, lo que se ve
         # como tirones al moverse. busy_loop da frames regulares.
         dt = reloj.tick_busy_loop(FPS) / 1000
+        tiempo += dt
+        fundido = max(0.0, fundido - dt)
         tiempo_mensaje_mapa = max(0.0, tiempo_mensaje_mapa - dt)
         # Mouse: solo en combate y con un rol que apunta con él (no el
         # Candidato). Ahí se oculta el cursor del sistema y se dibuja la mira.
@@ -269,50 +286,55 @@ def _jugar(pantalla, reloj, sesion, preferencias, presentar):
                 return SALIR
             elif evento.type != pygame.KEYDOWN:
                 continue
-            elif escena == Escena.MAPA_CIUDAD:
+            elif escena == Escena.CIUDAD:
+                # La escena CIUDAD consume todas sus teclas (sin disparo ni F).
                 if evento.key == TECLA_SALIR:
                     return MENU
-                if evento.key in TECLAS_MAPA:
-                    selector.mover(TECLAS_MAPA[evento.key])
-                elif evento.key in TECLAS_CONFIRMAR:
-                    destino = selector.seleccionada
-                    if destino == ZONA_FINAL and not partida.alcaldia_desbloqueada():
-                        mensaje_mapa = (f"{ZONA_FINAL}: Bloqueada", assets.COLOR_MENSAJE_DERROTA)
-                        tiempo_mensaje_mapa = assets.DURACION_MENSAJE_MAPA
+                if evento.key == TECLA_MAPA_MUNDO:
+                    mostrar_mapa_mundo = not mostrar_mapa_mundo
+                elif evento.key == TECLA_DESTINO:
+                    selector.mover(DERECHA)
+                elif evento.key == TECLA_RUTA and not mostrar_mapa_mundo:
+                    mostrar_ruta = not mostrar_ruta
+                elif evento.key == TECLA_ENTRAR and not mostrar_mapa_mundo:
+                    zona = ciudad_mapa.entrada_cercana(_posicion(jugador))
+                    if zona is None or (zona == ZONA_FINAL and not partida.alcaldia_desbloqueada()):
                         continue
-                    partida.viajar(destino)
+                    partida.entrar(zona)
                     limpiar_combate()
                     _curar(jugadores)
-                    if destino == ZONA_FINAL:
+                    if zona == ZONA_FINAL:
                         arena = ArenaJefe(partida.colapso, jugadores)
                         escena = Escena.JEFE
-                    elif partida.ciudad.tiene_mazmorra_normal(destino):
-                        mazmorra = MazmorraJugable(
-                            Mazmorra(partida.ciudad.reportes(destino), destino)
-                        )
+                    else:
+                        mazmorra = MazmorraJugable(Mazmorra(partida.ciudad.reportes(zona), zona))
                         mazmorra.colocar_en_entrada(jugadores)
                         escena = Escena.MAZMORRA
-                    # La Plaza no tiene mazmorra: solo se viaja hasta ella.
+                    fundido = assets.DURACION_FUNDIDO
             elif escena == Escena.DECISION:
                 if evento.key in TECLAS_TERMINAL:
                     mazmorra.cuarto.terminal.navegar(TECLAS_TERMINAL[evento.key])
             elif escena == Escena.RESULTADO:
                 if evento.key in TECLAS_CONFIRMAR:
                     resultado = None
-                    escena = Escena.MAPA_CIUDAD
+                    escena = _volver_a_la_ciudad(jugador, partida)
+                    fundido = assets.DURACION_FUNDIDO
             elif escena in (Escena.VICTORIA, Escena.DERROTA):
                 if evento.key in TECLAS_CONFIRMAR:
                     if escena == Escena.DERROTA:
-                        # Partida completa nueva, con los mismos roles.
+                        # Partida completa nueva, con los mismos roles, en la
+                        # Plaza y con las calles y barricadas restablecidas.
                         partida.reiniciar()
                         jugadores = [type(j)(0, 0) for j in jugadores]
                         sesion.jugadores = jugadores
                         jugador = jugadores[0]
-                        selector = _nuevo_selector(partida)
+                        selector = SelectorZona(EDIFICIOS, EDIFICIOS[0])
+                        mostrar_ruta = mostrar_mapa_mundo = False
                         mensaje_mapa = None
                     arena = None
                     mazmorra = None
-                    escena = Escena.MAPA_CIUDAD
+                    escena = _volver_a_la_ciudad(jugador, partida)
+                    fundido = assets.DURACION_FUNDIDO
                     limpiar_combate()
                 elif evento.key == TECLA_SALIR:
                     return SALIR
@@ -330,7 +352,9 @@ def _jugar(pantalla, reloj, sesion, preferencias, presentar):
         textos.actualizar(dt)
         particulas.actualizar(dt)
 
-        if escena in ESCENAS_DE_COMBATE:
+        if escena == Escena.CIUDAD and not mostrar_mapa_mundo:
+            jugador.caminar_en_ciudad(pygame.key.get_pressed(), dt, partida.es_solida)
+        elif escena in ESCENAS_DE_COMBATE:
             _frame_de_combate(
                 dt, jugadores, entradas, escenario, proyectiles_por_jugador, proyectiles_enemigos,
                 textos, particulas, sacudida,
@@ -374,20 +398,19 @@ def _jugar(pantalla, reloj, sesion, preferencias, presentar):
 
         # --- Dibujo ----------------------------------------------------
         pantalla.fill(assets.COLOR_FONDO)
-        if escena in (Escena.MAPA_CIUDAD, Escena.DERROTA):
-            dibujar_mapa_ciudad(pantalla, partida, selector.seleccionada)
-            hud.dibujar_hud_superior(
-                pantalla, jugador, None, TITULO_MAPA,
-                f"Ubicación: {partida.ubicacion}  ·  Mazmorras completadas: {partida.progreso.mazmorras_completadas}",
-                partida.colapso,
-            )
-            if tiempo_mensaje_mapa > 0 and mensaje_mapa is not None and escena == Escena.MAPA_CIUDAD:
+        if escena in (Escena.CIUDAD, Escena.DERROTA):
+            _dibujar_ciudad(pantalla, partida, jugador, selector.seleccionada, tiempo,
+                            mostrar_ruta, mostrar_mapa_mundo and escena == Escena.CIUDAD)
+            if tiempo_mensaje_mapa > 0 and mensaje_mapa is not None and escena == Escena.CIUDAD:
                 _dibujar_mensaje(pantalla, mensaje_mapa[0], mensaje_mapa[1], assets.POSICION_MENSAJE_MAPA)
             if escena == Escena.DERROTA:
                 dibujar_derrota(pantalla)
                 hud.dibujar_barra_controles(pantalla, hud.CONTROLES_FINAL)
+            elif mostrar_mapa_mundo:
+                hud.dibujar_barra_controles(pantalla, hud.CONTROLES_MAPA_MUNDO)
             else:
-                hud.dibujar_barra_controles(pantalla, hud.CONTROLES_MAPA)
+                hud.dibujar_barra_controles(pantalla, hud.CONTROLES_CIUDAD)
+            ciudad_render.dibujar_fundido(pantalla, fundido)
             presentar()
             sacudida = (0, 0)
             continue
@@ -428,6 +451,8 @@ def _jugar(pantalla, reloj, sesion, preferencias, presentar):
                     combate_render.dibujar_objetivo(lienzo, jugador, objetivo)
         for j in en_combate:
             j.dibujar(lienzo)
+            if escena in ESCENAS_DE_COMBATE and escenario.gracia.activa:
+                combate_render.dibujar_gracia(lienzo, j, escenario.gracia.fraccion)
             if j is not jugador and j.apunta_con_mouse:
                 combate_render.dibujar_indicador_apuntado(lienzo, j)  # J2 no tiene mira
         for proyectiles in proyectiles_por_jugador:
@@ -471,6 +496,7 @@ def _jugar(pantalla, reloj, sesion, preferencias, presentar):
             dibujar_victoria(pantalla)
         if _apunta_con_mouse(escena, jugador) and jugador in en_combate:
             combate_render.dibujar_mira(pantalla, jugador, sacudida)
+        ciudad_render.dibujar_fundido(pantalla, fundido)
         presentar()
 
 
@@ -489,6 +515,8 @@ def _frame_de_combate(
         pedido = _leer_entrada(entrada, teclas, sacudida)
         if jugador not in en_combate:
             continue
+        # Gracia de entrada al cuarto: el jugador solo puede moverse.
+        jugador.armas_bloqueadas = escenario.gracia.activa
         # Mueve, apunta (mouse o stick) y arranca el dash si se pidió.
         jugador.manejar_input(pedido, dt, escenario.rect)
         if jugador.dash.activo:
@@ -542,7 +570,7 @@ def _primer_mando():
 
 def _escenario_activo(escena, arena, mazmorra):
     """Lugar físico activo: la arena mientras dure la pelea final; si no,
-    la mazmorra normal (None en el mapa)."""
+    la mazmorra normal (None en la ciudad)."""
     return arena if escena in (Escena.JEFE, Escena.VICTORIA) else mazmorra
 
 
@@ -554,11 +582,48 @@ def _enemigo_mas_cercano(jugador, enemigos):
     return min(vivos, key=lambda enemigo: centro.distance_squared_to(enemigo.rect.center))
 
 
-def _nuevo_selector(partida):
-    """Selector del mapa apuntando a la primera zona después de la ubicación."""
-    selector = SelectorZona(ZONAS, partida.ubicacion)
-    selector.mover(DERECHA)
-    return selector
+def _posicion(jugador):
+    return (jugador.posicion.x, jugador.posicion.y)
+
+
+def _volver_a_la_ciudad(jugador, partida):
+    """Pone al jugador frente a la puerta de la última zona (o en la
+    Plaza tras un reinicio) y retorna la escena CIUDAD."""
+    jugador.colocar_en(partida.posicion_aparicion())
+    return Escena.CIUDAD
+
+
+def _dibujar_ciudad(pantalla, partida, jugador, destino, tiempo, mostrar_ruta, mostrar_mapa_mundo):
+    """Escena CIUDAD completa salvo la barra de controles: el mundo (o el
+    mapa del mundo con M), el HUD, el cintillo y los avisos."""
+    posicion = _posicion(jugador)
+    ruta = partida.ruta_sugerida(posicion, destino) if mostrar_ruta or mostrar_mapa_mundo else None
+    if mostrar_mapa_mundo:
+        dibujar_mapa_mundo(pantalla, partida, destino, posicion)
+        titulo = assets.TITULO_MAPA_MUNDO
+    else:
+        puntos = ciudad_mapa.polilinea_ruta(posicion, ruta[0]) if mostrar_ruta and ruta else None
+        ciudad_render.dibujar_ciudad(pantalla, partida, jugador, tiempo, puntos)
+        titulo = assets.TITULO_CIUDAD
+    subtitulo = f"Destino: {destino}  ·  Calles bloqueadas: {len(partida.ciudad.bloqueadas)}"
+    hud.dibujar_hud_superior(pantalla, jugador, None, titulo, subtitulo, partida.colapso)
+    ciudad_render.dibujar_cintillo(pantalla, partida.titulares(), tiempo)
+    if mostrar_mapa_mundo:
+        return
+    if mostrar_ruta:
+        texto = (assets.TEXTO_RUTA_DESTINO.format(destino=destino, costo=ruta[1]) if ruta
+                 else assets.TEXTO_SIN_RUTA)
+        dibujo.chip(pantalla, texto, assets.POSICION_AVISO_RUTA, assets.COLOR_RUTA_CIUDAD, assets.COLOR_FONDO_PANEL,
+                    assets.COLOR_RUTA_CIUDAD, assets.TAMANIO_FUENTE_NORMAL, ancla="topright", alto=30, margen=12)
+    zona = ciudad_mapa.entrada_cercana(posicion)
+    sellada = not partida.alcaldia_desbloqueada()
+    if zona is not None and not (zona == ZONA_FINAL and sellada):
+        ciudad_render.dibujar_aviso(
+            pantalla, assets.TEXTO_AVISO_ENTRADA.format(zona=zona, nivel=partida.toxicidad(zona)),
+            assets.COLOR_AVISO_ENTRADA,
+        )
+    elif sellada and ciudad_mapa.entrada_cercana(posicion, ALCANCE_AVISO_SELLADA) == ZONA_FINAL:
+        ciudad_render.dibujar_aviso(pantalla, assets.TEXTO_ALCALDIA_SELLADA, assets.COLOR_AVISO_SELLADA)
 
 
 def _curar(jugadores):

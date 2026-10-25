@@ -1,7 +1,7 @@
 """Pantalla de resultado de una mazmorra normal (solo presentación).
 
 Se muestra justo después de la terminal de decisión, antes de volver
-al mapa de la ciudad: fondo teal para Purificación Exitosa y magenta
+a Ciudad Nova: fondo teal para Purificación Exitosa y magenta
 para Detonación, una ilustración en pixel art, la barra de colapso con
 el valor anterior y el nuevo, y el botón de continuar (ENTER, que
 atiende Main.py en la escena RESULTADO).
@@ -63,7 +63,7 @@ def dibujar_resultado(pantalla, info):
     _dibujar_barra(pantalla, info, acento)
 
     boton = dibujo.panel(pantalla, assets.RECT_BOTON_RESULTADO, acento, None, 0, radio=6)
-    dibujo.texto(pantalla, "Volver al mapa de la ciudad", boton.center, assets.COLOR_FONDO,
+    dibujo.texto(pantalla, "Volver a Ciudad Nova", boton.center, assets.COLOR_FONDO,
                  assets.TAMANIO_FUENTE_MEDIA, negrita=True, ancla="center")
     chip = dibujo.chip(pantalla, "Enter", (cx - 40, boton.bottom + 36), ancla="midright")
     dibujo.texto(pantalla, "para continuar", (chip.right + 8, chip.centery), assets.COLOR_TEXTO_SECUNDARIO,

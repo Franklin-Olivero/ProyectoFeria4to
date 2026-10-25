@@ -8,7 +8,8 @@ se agregue arte real, el cambio se limita a reemplazar esos sprites y
 los valores de este archivo, sin tocar la lógica de juego.
 
 La pantalla es de 1280x720 (src/core/config.py): HUD arriba (0-62),
-barra de controles abajo (660-720) y el cuarto en medio.
+barra de controles abajo (660-720) y el cuarto (o la vista de Ciudad
+Nova, bajo el cintillo de noticias) en medio.
 """
 
 import os
@@ -405,20 +406,25 @@ TAMANIO_CANDADO = 12  # ancho del cuerpo del candado en px
 GROSOR_CANDADO = 2
 
 # ----------------------------------------------------------------------
-# Mapa de la ciudad (escena MAPA_CIUDAD)
+# Mapa del mundo (tecla M en la escena CIUDAD): el grafo de calles en
+# abstracto. Cada nodo se dibuja en ORIGEN + casilla * ESCALA, así el
+# dibujo conserva la forma de la ciudad y el jugador cae en su lugar.
 # ----------------------------------------------------------------------
-POSICIONES_MAPA_CIUDAD = {  # centro de cada zona en pantalla
-    "Plaza": (230, 370),
-    "Colegio": (560, 210),
-    "Hospital": (470, 462),
-    "Empresa de Medios": (880, 470),
-    "Alcaldía": (1040, 230),
+ORIGEN_MAPA_MUNDO = (32, 56)  # px de pantalla de la casilla (0, 0)
+ESCALA_MAPA_MUNDO = (19, 13)  # px de pantalla por casilla, en x y en y
+# Dónde va el nombre de cada zona respecto a su círculo: (ancla del
+# panel, dx, dy) desde el centro. Fuera del anillo de calles para que
+# las líneas no lo crucen.
+ETIQUETAS_MAPA_MUNDO = {
+    "Plaza": ("topleft", 22, 18),
+    "Colegio": ("midbottom", 0, -32),
+    "Alcaldía": ("midbottom", 0, -32),
+    "Hospital": ("midtop", 0, 32),
+    "Empresa de Medios": ("midtop", 0, 32),
 }
-# Zonas con nombre y detalle debajo del círculo (las de abajo del mapa,
-# para que las calles que suben hacia ellas no crucen el nombre).
-ZONAS_ETIQUETA_ABAJO = ("Hospital", "Empresa de Medios")
 MARGEN_FONDO_ETIQUETA = 4  # px de fondo alrededor de cada texto del mapa
-RADIO_ZONA_MAPA = 30
+RADIO_ZONA_MAPA = 22
+RADIO_CRUCE_MAPA = 7
 COLOR_ZONA_MAPA = (66, 60, 120)
 COLOR_ZONA_ALCALDIA = COLOR_MORADO
 COLOR_ZONA_ACTUAL = COLOR_TEAL
@@ -426,21 +432,128 @@ COLOR_ZONA_SELECCIONADA = COLOR_AMARILLO
 GROSOR_ZONA_SELECCIONADA = 3
 COLOR_CALLE = (70, 64, 120)
 GROSOR_CALLE = 3
+COLOR_CALLE_BLOQUEADA = COLOR_MAGENTA
 COLOR_RUTA_SEGURA = COLOR_AMARILLO
 GROSOR_RUTA_SEGURA = 6
-RADIO_ETIQUETA_PESO = 14
+RADIO_ETIQUETA_PESO = 13
 GROSOR_BORDE_ETIQUETA_PESO = 2
 COLOR_FONDO_ETIQUETA_PESO = COLOR_FONDO_PANEL
-SEPARACION_NOMBRE_ZONA = 18  # px entre el borde del círculo y su nombre
-POSICION_TITULO_MAPA = (640, 24)  # centro
-POSICION_TEXTO_UBICACION = (72, 22)
-POSICION_TEXTO_COMPLETADAS = (72, 42)
-RECT_PANEL_RUTA = (40, 580, 600, 70)
-POSICION_TEXTO_RUTA = (56, 592)
-POSICION_TEXTO_COSTO = (56, 618)
-POSICION_TEXTO_AYUDA_MAPA = (20, 572)
-POSICION_MENSAJE_MAPA = (640, 112)  # centro del mensaje del último resultado
-DURACION_MENSAJE_MAPA = 4.0  # s que se muestra el resultado al volver al mapa
+RECT_PANEL_RUTA = (40, 590, 760, 62)
+POSICION_TEXTO_RUTA = (56, 598)
+ESCALA_JUGADOR_MAPA_MUNDO = 2  # el jugador en el mapa del mundo, más chico
+TITULO_MAPA_MUNDO = "Mapa del mundo"
+POSICION_MENSAJE_MAPA = (640, 162)  # centro del mensaje del último resultado (bajo el chip de la ruta)
+DURACION_MENSAJE_MAPA = 4.0  # s que se muestra el resultado al volver a la ciudad
+
+# ----------------------------------------------------------------------
+# Ciudad Nova (escena CIUDAD): casillas en pixel art, edificios, auras,
+# barricadas, ruta sugerida y cintillo de noticias.
+# ----------------------------------------------------------------------
+ALTO_CINTILLO = 28
+# Zona de pantalla donde se ve el mundo: entre el cintillo y la barra de controles.
+RECT_VISTA_CIUDAD = (0, ALTO_HUD + 2 + ALTO_CINTILLO, 1280,
+                     720 - ALTO_HUD - 2 - ALTO_CINTILLO - ALTO_BARRA_CONTROLES)
+RECT_CINTILLO = (0, ALTO_HUD + 2, 1280, ALTO_CINTILLO)
+TITULO_CIUDAD = "Ciudad Nova"
+
+# Casillas (paleta nocturna, misma familia que el piso de los cuartos)
+COLOR_PASTO = (20, 38, 48)
+COLOR_PASTO_BROTE = (30, 60, 64)
+COLOR_PASTO_SOMBRA = (15, 28, 40)
+COLOR_ACERA = (38, 35, 70)
+COLOR_ACERA_JUNTA = (28, 26, 54)
+COLOR_ACERA_BRILLO = (48, 45, 86)
+COLOR_PLAZA = (46, 40, 84)
+COLOR_PLAZA_ROMBO = (56, 50, 102)
+COLOR_PLAZA_JUNTA = (34, 31, 64)
+# Mosaico circular en el centro de la Plaza: anillos (radio en casillas, color)
+ANILLOS_MOSAICO_PLAZA = ((3.2, (40, 70, 92)), (2.6, (30, 28, 58)), (2.2, (70, 56, 128)), (1.3, (30, 28, 58)),
+                         (0.9, (62, 230, 196)), (0.6, (30, 28, 58)))
+COLOR_ASFALTO = (24, 22, 40)
+COLOR_ASFALTO_GRANO = (31, 29, 52)
+COLOR_CARRIL = (150, 116, 50)  # amarillo apagado: la marca del carril no compite con el neón
+COLOR_COPA = (22, 82, 76)
+COLOR_COPA_BRILLO = (40, 124, 108)
+COLOR_COPA_SOMBRA = (14, 52, 54)
+COLOR_COPA_BORDE = (10, 34, 40)
+COLOR_TRONCO = (64, 42, 54)
+COLOR_SOMBRA_SUELO = (12, 24, 34)
+COLOR_POSTE = (84, 80, 130)
+COLOR_POSTE_OSCURO = (52, 48, 90)
+COLOR_LAMPARA = (255, 226, 150)
+COLOR_HALO_FAROLA = (255, 190, 90, 64)  # RGBA del halo de luz
+RADIO_HALO_FAROLA = 78
+DESPLAZAMIENTO_HALO_FAROLA = (0, -14)  # el halo se centra en la lámpara, no en la casilla
+COLOR_MURO_CASA = (42, 38, 80)
+COLOR_MURO_CASA_JUNTA = (34, 30, 66)
+COLOR_TECHO_CASA = (56, 46, 96)
+COLOR_TECHO_CASA_BRILLO = (78, 66, 132)
+COLOR_TECHO_CASA_LINEA = (44, 36, 78)
+COLOR_ALERO = (20, 18, 40)
+COLOR_MARCO_VENTANA = (16, 14, 30)
+COLOR_VENTANA_ENCENDIDA = (255, 204, 110)
+COLOR_VENTANA_APAGADA = (30, 28, 56)
+COLOR_VENTANA_NEON = (120, 220, 255)
+
+# Edificios de zona: muro común y un color de neón por zona (rótulo,
+# ventanas de acento y emblema). La Alcaldía usa su morado de siempre.
+COLOR_MURO_EDIFICIO = COLOR_ZONA_MAPA
+COLOR_MURO_EDIFICIO_LINEA = (54, 48, 100)
+COLOR_BASE_EDIFICIO = (34, 30, 64)
+COLOR_COLUMNA = (150, 144, 200)
+COLORES_NEON_ZONA = {
+    "Colegio": COLOR_TEAL,
+    "Hospital": COLOR_MAGENTA,
+    "Empresa de Medios": COLOR_AMARILLO,
+    "Alcaldía": COLOR_ZONA_ALCALDIA,
+}
+FACTOR_PUERTA_OSCURA = 0.35  # brillo de la puerta respecto al neón de la zona
+ANCHO_ROTULO_CASILLAS = 6  # ancho de la placa del rótulo, en casillas
+TAMANIO_FUENTE_ROTULO = 15
+ALFA_BRILLO_ROTULO = 70  # resplandor detrás de las letras del rótulo
+
+# Aura neón sobre cada edificio: color de toxicidad (verde -> rojo),
+# alfa que pulsa entre MIN y MAX con el periodo dado.
+GROSOR_AURA = 5
+MARGEN_AURA = 8
+ALFA_AURA_MIN = 120
+ALFA_AURA_MAX = 230
+PERIODO_AURA = 1.6  # s
+CAPAS_AURA = 3  # bordes concéntricos cada vez más tenues
+
+# Barricada (franjas amarillo/negro sobre la calle)
+COLOR_BARRICADA_A = COLOR_AMARILLO
+COLOR_BARRICADA_B = (16, 14, 30)
+COLOR_PATA_BARRICADA = (110, 104, 150)
+
+# Ruta sugerida (tecla G): línea punteada sobre las calles
+COLOR_RUTA_CIUDAD = COLOR_AMARILLO
+GROSOR_RUTA_CIUDAD = 4
+LARGO_TRAZO_RUTA = 14
+HUECO_TRAZO_RUTA = 10
+RADIO_DESTINO_RUTA = 10
+
+# Avisos de la ciudad (chips sobre la parte baja de la vista)
+POSICION_AVISO_ENTRADA = (640, 624)
+POSICION_AVISO_RUTA = (1260, 112)  # topright del chip "Ruta: ..." / "Sin ruta"
+COLOR_AVISO_ENTRADA = COLOR_TEAL
+COLOR_AVISO_SELLADA = COLOR_MAGENTA
+TEXTO_AVISO_ENTRADA = "E: entrar a {zona} (Toxicidad {nivel:.0f})"
+TEXTO_ALCALDIA_SELLADA = "Alcaldía sellada: purifica una mazmorra"
+TEXTO_SIN_RUTA = "Sin ruta"
+TEXTO_RUTA_DESTINO = "Ruta a {destino}  ·  saturación {costo:g}"
+
+# Cintillo "Breaking News Civitas"
+ETIQUETA_CINTILLO = "BREAKING NEWS CIVITAS"
+COLOR_FONDO_CINTILLO = COLOR_FONDO_PANEL
+COLOR_ETIQUETA_CINTILLO = COLOR_MAGENTA
+COLOR_TEXTO_CINTILLO = COLOR_TEXTO_HUD
+VELOCIDAD_CINTILLO = 80  # px/s hacia la izquierda
+SEPARADOR_CINTILLO = "   ·   "
+
+# Fundido corto al entrar y salir de un edificio
+DURACION_FUNDIDO = 0.35  # s
+COLOR_FUNDIDO = COLOR_FONDO
 
 # ----------------------------------------------------------------------
 # Mira del apuntado con mouse (se dibuja sobre el HUD, sin sacudida)
@@ -620,3 +733,50 @@ TONOS_SONIDOS = {
 }
 AMPLITUD_SONIDO_SINTETIZADO = 0.18  # fracción del máximo de 16 bits
 RUTA_MUSICA_MENU = os.path.join("assets", "musica", "menu.ogg")
+
+# ----------------------------------------------------------------------
+# Tipos de enemigo: todo lo visual de cada tipo, en un solo lugar. Las
+# claves son los valores de TipoEnemigo (src/entities/tipos_enemigo.py).
+# Para usar arte real basta con dejar <ID_SPRITE_ENEMIGO[tipo]>.png en
+# RUTA_SPRITES_ENEMIGOS (ver sprites.sprite_enemigo).
+# ----------------------------------------------------------------------
+RUTA_SPRITES_ENEMIGOS = os.path.join("assets", "sprites", "enemigos")
+ID_SPRITE_ENEMIGO = {
+    "perseguidor": "perseguidor",
+    "tirador": "tirador",
+    "curandero": "curandero",
+}
+COLOR_PRINCIPAL_ENEMIGO = {
+    "perseguidor": (232, 52, 64),  # rojo: agresivo
+    "tirador": (255, 120, 60),  # naranja
+    "curandero": (70, 200, 120),  # verde
+}
+COLOR_SECUNDARIO_ENEMIGO = {
+    "perseguidor": (120, 20, 40),
+    "tirador": COLOR_MAGENTA,
+    "curandero": (236, 246, 236),
+}
+TAMANIO_ENEMIGO_TIPO = {  # hitbox lógica (px de lado)
+    "perseguidor": 38,
+    "tirador": 40,
+    "curandero": 36,
+}
+COLOR_PROYECTIL_TIRADOR = (255, 140, 70)
+TAMANIO_PROYECTIL_TIRADOR = 10
+COLOR_TELEGRAFIA_TIRADOR = (255, 230, 150)  # el tirador se ilumina antes de disparar
+COLOR_RAYO_CURA = (90, 240, 140)
+GROSOR_RAYO_CURA = 3
+COLOR_PARTICULA_CURA = (140, 255, 170)
+CANTIDAD_PARTICULAS_CURA = 6
+TAMANIO_PARTICULA_CURA = 5
+COLOR_PANICO_CURANDERO = COLOR_MAGENTA  # contorno del curandero en pánico
+
+# Gracia al entrar al cuarto: anillo de cuenta regresiva sobre el
+# jugador y enemigos que parpadean (alfa pulsante) mientras dura.
+COLOR_ANILLO_GRACIA = COLOR_TEAL
+COLOR_FONDO_ANILLO_GRACIA = (40, 60, 80)
+RADIO_ANILLO_GRACIA = 30
+GROSOR_ANILLO_GRACIA = 4
+ALFA_MIN_ENEMIGO_GRACIA = 90
+ALFA_MAX_ENEMIGO_GRACIA = 220
+PERIODO_PARPADEO_GRACIA = 0.35  # s por pulso

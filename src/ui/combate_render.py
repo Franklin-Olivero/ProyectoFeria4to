@@ -7,6 +7,8 @@ globo que muestra qué nodo del behavior tree ejecutó un enemigo en el
 textos flotantes son el único estado y es puramente decorativo.
 """
 
+import math
+
 import pygame
 
 from src.core import assets
@@ -149,3 +151,16 @@ def dibujar_mira(pantalla, jugador, sacudida):
         inicio = (x + dx * radio, y + dy * radio)
         fin = (x + dx * (radio + brazo), y + dy * (radio + brazo))
         pygame.draw.line(pantalla, assets.COLOR_MIRA, inicio, fin, assets.GROSOR_MIRA)
+
+
+def dibujar_gracia(pantalla, jugador, fraccion):
+    """Anillo de cuenta regresiva alrededor del jugador durante la gracia
+    de entrada: el arco lleno se vacía de `fraccion` = 1 a 0."""
+    radio = assets.RADIO_ANILLO_GRACIA
+    caja = pygame.Rect(0, 0, radio * 2, radio * 2)
+    caja.center = jugador.rect.center
+    pygame.draw.circle(pantalla, assets.COLOR_FONDO_ANILLO_GRACIA, caja.center, radio, assets.GROSOR_ANILLO_GRACIA)
+    if fraccion > 0:
+        inicio = math.pi / 2  # desde arriba, en sentido antihorario de pygame
+        pygame.draw.arc(pantalla, assets.COLOR_ANILLO_GRACIA, caja, inicio, inicio + 2 * math.pi * fraccion,
+                        assets.GROSOR_ANILLO_GRACIA)

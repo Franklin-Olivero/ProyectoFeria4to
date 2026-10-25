@@ -15,6 +15,7 @@ from src.core import assets  # noqa: E402
 from src.core.colapso import ColapsoElectoral  # noqa: E402
 from src.dungeon.arena_jefe import ArenaJefe  # noqa: E402
 from src.entities.enemy import Enemigo  # noqa: E402
+from src.entities.tipos_enemigo import TipoEnemigo  # noqa: E402
 
 
 def jugador_en(x, y):
@@ -51,21 +52,24 @@ def test_sin_agro_permanente_usa_el_rango_y_se_queda_quieto():
     assert proyectiles == []
 
 
-def test_subditos_del_jefe_persiguen_y_disparan_desde_lejos():
+def test_subditos_del_jefe_actuan_desde_lejos():
+    """Los súbditos alternan Perseguidor y Tirador (agro_permanente):
+    ambos se acercan desde lejos y el tirador dispara tras su telegrafía."""
     jugador = jugador_en(0, 0)
     arena = ArenaJefe(ColapsoElectoral(), [jugador])
     # Jugador en la esquina inferior izquierda, lejos del jefe (arriba al centro).
     jugador.rect.center = (arena.rect.left + 30, arena.rect.bottom - 30)
     jugador.posicion.update(jugador.rect.center)
     arena._invocar(2)
-    assert len(arena.subditos) == 2
+    assert [s.tipo for s in arena.subditos] == [TipoEnemigo.PERSEGUIDOR, TipoEnemigo.TIRADOR]
     for subdito in arena.subditos:
         assert subdito.agro_permanente
         assert pygame.Vector2(subdito.rect.center).distance_to(jugador.rect.center) > assets.RANGO_DISPARO_ENEMIGO
     distancias = [s.posicion.distance_to(jugador.rect.center) for s in arena.subditos]
     proyectiles = []
-    for subdito in arena.subditos:
-        subdito.actualizar(0.5, jugador, proyectiles)
+    for _ in range(30):  # medio segundo a 60 FPS
+        for subdito in arena.subditos:
+            subdito.actualizar(1 / 60, jugador, proyectiles)
     for subdito, antes in zip(arena.subditos, distancias):
         assert subdito.posicion.distance_to(jugador.rect.center) < antes
-    assert len(proyectiles) == 2
+    assert len(proyectiles) == 1  # solo el tirador dispara

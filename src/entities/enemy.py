@@ -5,11 +5,15 @@ Cada frame, `actualizar` guarda el contexto del frame (jugador, dt,
 lista de salida de proyectiles) y hace tick() al árbol raíz, que es:
 
     Selector
+    ├── Sequence: "¿congelado?" -> "quieto (gracia)"
     ├── Sequence: "¿aggro forzado?" -> "perseguir" -> "disparar"
     ├── Sequence: "¿jugador detectado?" -> "perseguir" -> "disparar"
     └── Action: "quedarse quieto" (siempre EXITO)
 
-Es decir: si alguien le forzó el aggro (Live Stream Viral del
+La primera rama es la gracia de entrada al cuarto
+(src/dungeon/gracia_entrada.py): mientras `congelado` sea True el
+enemigo no hace nada más, con prioridad sobre agro_permanente. Después,
+si alguien le forzó el aggro (Live Stream Viral del
 Influencer), persigue y dispara a ese objetivo sin importar la
 distancia; si no, y el jugador está detectado, lo persigue y le
 dispara; si no, se queda quieto.
@@ -20,6 +24,12 @@ detección siempre tiene éxito: el enemigo persigue y dispara sin
 importar la distancia y nunca llega a "quedarse quieto". Con
 agro_permanente = False vuelve a usar RANGO_DISPARO_ENEMIGO (se
 conserva para poder desactivarlo en un enemigo concreto).
+
+Esta clase es también la base de los tipos de enemigo
+(src/entities/enemigos.py): cada tipo sobreescribe `_construir_arbol`
+y reutiliza vida, empuje, escudo, agro, la rama de congelado y la
+"interfaz de agente" que piden los nodos de src/ai/nodos_combate.py
+(xy, objetivo_xy, dt, mover).
 """
 
 import pygame
@@ -30,8 +40,15 @@ from src.entities.projectile import Proyectil
 
 
 class Enemigo:
-    def __init__(self, x, y, velocidad=assets.VELOCIDAD_ENEMIGO, agro_permanente=True):
-        self.rect = pygame.Rect(0, 0, assets.TAMANIO_ENEMIGO, assets.TAMANIO_ENEMIGO)
+    # Tipo (TipoEnemigo) para el sprite y la composición; None = el
+    # enemigo genérico original (persigue y dispara).
+    tipo = None
+    # Un curandero puede curarlo (el jefe no tiene este atributo).
+    curable = True
+
+    def __init__(self, x, y, velocidad=assets.VELOCIDAD_ENEMIGO, agro_permanente=True,
+                 vida=assets.VIDA_ENEMIGO, tamanio=assets.TAMANIO_ENEMIGO):
+        self.rect = pygame.Rect(0, 0, tamanio, tamanio)
         self.rect.center = (x, y)
         # Posición en punto flotante: pygame.Rect solo guarda enteros,
         # así que mover el rect directamente con incrementos fraccionarios
@@ -39,7 +56,10 @@ class Enemigo:
         # velocidad real termina siendo menor a la configurada. Se
         # acumula aquí y el rect se sincroniza redondeando cada frame.
         self.posicion = pygame.Vector2(self.rect.center)
-        self.vida = assets.VIDA_ENEMIGO
+        self.vida = vida
+        self.vida_maxima = vida
+        # Veces que un curandero lo curó en este cuarto (tope por aliado).
+        self.curaciones_recibidas = 0
         # Píxeles por segundo; el cuarto la ajusta según la toxicidad de
         # la zona (ver src/dungeon/clasificador_toxicidad.py).
         self.velocidad = velocidad
@@ -58,8 +78,12 @@ class Enemigo:
         # mostrarla en pantalla (tecla Tab). Ej.: ("Selector", "Sequence",
         # "Perseguir"). No influye en la IA.
         self.nodo_activo = ()
-        # Alterna el color del sprite para que no todos se vean iguales.
-        self.variante = (round(x) + round(y)) // 40 % 2
+        # Gracia de entrada: lo pone el cuarto/arena cada frame.
+        self.congelado = False
+        # Enemigos del mismo cuarto (los curanderos los leen).
+        self.aliados = []
+        # Segundos vividos: solo para animaciones (parpadeo de la gracia).
+        self.reloj = 0.0
 
         # Contexto del frame actual; lo llena `actualizar` antes del
         # tick para que las acciones del árbol (sin argumentos, por
@@ -68,8 +92,16 @@ class Enemigo:
         self._dt = 0.0
         self._proyectiles_salida = None
 
-        self.arbol = Selector(
+        self.arbol = self._construir_arbol()
+
+    def _rama_congelado(self):
+        """Primera rama de todo árbol de enemigo: la gracia de entrada."""
+        return Sequence([Action(self._esta_congelado), Action(self._quieto_congelado)])
+
+    def _construir_arbol(self):
+        return Selector(
             [
+                self._rama_congelado(),
                 Sequence(
                     [
                         Action(self._aggro_forzado),
@@ -92,11 +124,34 @@ class Enemigo:
     def vivo(self):
         return self.vida > 0
 
+    # ------------------------------------------------------------------
+    # Interfaz de agente (la usan los nodos de src/ai/nodos_combate.py)
+    # ------------------------------------------------------------------
+
+    @property
+    def xy(self):
+        return (self.posicion.x, self.posicion.y)
+
+    @property
+    def objetivo_xy(self):
+        centro = self._objetivo().rect.center
+        return (centro[0], centro[1])
+
+    @property
+    def dt(self):
+        return self._dt
+
+    def mover(self, dx, dy, factor=1.0):
+        """Avanza en la dirección unitaria (dx, dy) a `factor` veces su velocidad."""
+        self.posicion += pygame.Vector2(dx, dy) * self.velocidad * factor * self._dt
+        self.rect.center = (round(self.posicion.x), round(self.posicion.y))
+
     def actualizar(self, dt, jugador, proyectiles_enemigos):
         """Ejecuta un tick del árbol de comportamiento para este frame."""
         self._jugador = jugador
         self._dt = dt
         self._proyectiles_salida = proyectiles_enemigos
+        self.reloj += dt
 
         if self.cooldown_disparo > 0:
             self.cooldown_disparo -= dt
@@ -120,6 +175,13 @@ class Enemigo:
         if self.objetivo_forzado is not None:
             return self.objetivo_forzado
         return self._jugador
+
+    def _esta_congelado(self):
+        return EXITO if self.congelado else FALLO
+
+    def _quieto_congelado(self):
+        self.nodo_activo = ("Selector", "Congelado (gracia)")
+        return EXITO
 
     def _aggro_forzado(self):
         return EXITO if self.objetivo_forzado is not None else FALLO
@@ -185,10 +247,6 @@ class Enemigo:
         self.posicion.update(self.rect.center)
 
     def dibujar(self, pantalla):
-        from src.ui import sprites
+        from src.ui import enemigo_render
 
-        paleta = sprites.PALETA_ENEMIGO if self.variante == 0 else sprites.PALETA_ENEMIGO_MORADO
-        imagen = sprites.sprite(sprites.ENEMIGO, paleta)
-        pantalla.blit(imagen, imagen.get_rect(center=self.rect.center))
-        if self.escudo_anonimato:
-            pygame.draw.rect(pantalla, assets.COLOR_ESCUDO_JEFE, self.rect.inflate(8, 8), 2, border_radius=4)
+        enemigo_render.dibujar_enemigo(pantalla, self)

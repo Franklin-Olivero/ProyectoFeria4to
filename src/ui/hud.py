@@ -34,7 +34,15 @@ CONTROLES_JEFE = [
     ("Tab", "ver árbol"),
 ]
 CONTROLES_TERMINAL = [("← →", "elegir opción"), ("Enter", "confirmar")]
-CONTROLES_MAPA = [("← →", "elegir zona"), ("Enter", "viajar"), ("Esc", "menú principal")]
+CONTROLES_CIUDAD = [
+    ("WASD", "caminar"),
+    ("E", "entrar"),
+    ("G", "ruta sugerida"),
+    ("Tab", "cambiar destino"),
+    ("M", "mapa del mundo"),
+    ("Esc", "menú principal"),
+]
+CONTROLES_MAPA_MUNDO = [("Tab", "cambiar destino"), ("M", "volver a la ciudad")]
 CONTROLES_FINAL = [("Enter", "continuar"), ("Esc", "salir")]
 CONTROLES_MODO = [("← →", "elegir"), ("1-2", "directo"), ("Enter", "confirmar"), ("Esc", "volver")]
 CONTROLES_MENU_PRINCIPAL = [
@@ -124,7 +132,7 @@ def dibujar_habilidad(pantalla, jugador, origen=assets.POSICION_HABILIDAD_HUD,
                       ancho=assets.ANCHO_BARRA_HABILIDAD, tecla="F", etiqueta_abajo=False):
     x, y = origen
     fraccion = jugador.carga_habilidad / jugador.carga_maxima if jugador.carga_maxima else 0
-    lista = jugador.puede_usar_habilidad()
+    lista = jugador.habilidad_cargada()
     color = assets.COLOR_TEAL if lista else assets.COLOR_MORADO
     dibujo.texto(pantalla, tecla, (x, y - 3), color, assets.TAMANIO_FUENTE_PEQUENA, negrita=True)
     inicio_barra = x + 8 + 8 * len(tecla)

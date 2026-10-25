@@ -9,13 +9,20 @@
 
 ## Visión completa del juego
 
-Civitas es un action-RPG top-down **cooperativo, de 1 a 4 jugadores** (soporta solitario, online más adelante). Inspirado en *The Binding of Isaac*: el jugador recorre una ciudad y entra a distintas mazmorras repartidas por ella. (Hoy: 1 o 2 jugadores locales —el J2 con control de PS4—; la ciudad es un **mapa de selección** sobre un grafo ponderado — Plaza, Colegio, Hospital, Empresa de Medios y Alcaldía — desde donde se viaja a 3 mazmorras normales de varios cuartos y a la mazmorra final. Ciudad Nova como mundo abierto caminable y el multijugador son visión futura.)
+Civitas es un action-RPG top-down **cooperativo, de 1 a 4 jugadores** (soporta solitario, online más adelante). Inspirado en *The Binding of Isaac*: el jugador recorre una ciudad y entra a distintas mazmorras repartidas por ella. (Hoy: 1 o 2 jugadores locales —el J2 con control de PS4—; la ciudad es **Ciudad Nova**, un mapa 2D de casillas visto desde arriba, estilo Pokémon, por el que el J1 camina y entra por la puerta de cada edificio con todo el equipo — Colegio, Hospital y Empresa de Medios con mazmorra normal de varios cuartos, Alcaldía con la mazmorra final. El multijugador en red es visión futura.)
 
 Cada mazmorra tiene un **nivel de toxicidad por mal uso de redes** propio de su contexto (ciberbullying, acoso, desinformación posteada, etc.) — ese nivel determina su dificultad (más/menos enemigos, más/menos agresivos). Dentro de la mazmorra: cuartos con enemigos que el jugador limpia con sus poderes, al estilo Isaac.
 
-## Mapa de la ciudad (grafo ponderado)
+## Ciudad Nova (mapa de casillas + grafo de calles)
 
-`src/dungeon/grafo_ciudad.py`: cada zona es un nodo y cada calle una arista cuyo peso es su saturación (pesos iniciales en `balance.PESOS_INICIALES_CIUDAD`; Plaza → Empresa de Medios directo pesa 6, por el Hospital 3 + 2 = 5). En la escena MAPA_CIUDAD las flechas izquierda/derecha eligen zona, se resalta la ruta más segura (Dijkstra con `MinHeap` manual) desde la ubicación actual y su costo; ENTER viaja: el colapso sube `COSTO_VIAJE_COLAPSO` (0.02) por unidad de costo y la ubicación pasa a ser esa zona. Pesos dinámicos: tras la decisión de una mazmorra, Purificación Exitosa baja en 1 las calles de esa zona (mínimo 1) y Detonación las sube en 1 (máximo 10). Colegio tiene reportes de gravedad alta, Hospital media y Empresa de Medios baja; la Plaza es solo el inicio y la Alcaldía es la mazmorra final.
+**Regla:** las calles de Ciudad Nova son un grafo: Dijkstra marca la ruta sugerida y una calle saturada se bloquea solo si la ciudad sigue conexa.
+
+* `src/dungeon/ciudad_mapa.py` (puro): el mapa como lista de cadenas (64x44 casillas de `TAM_CASILLA` = 16 × `ESCALA_PIXEL` = 48 px; pasto, acera/plaza, calle, edificio, casa, árbol, farola, entrada, barricada), los 4 edificios con su puerta, el spawn en la Plaza, `NODOS_CALLE` y `TRAMOS` (casillas de cada calle y su sección de barricada). Funciones: `es_solida`, `casilla_de`, `entrada_cercana` (`ENTRADA_ALCANCE` = 60 px), `mover_con_colision` (ejes separados: resbala por el eje libre), `calcular_camara` (limitada a los bordes), `grafo_casillas` y `polilinea_ruta`.
+* `src/dungeon/grafo_ciudad.py` (puro): 9 nodos — Plaza, 4 cruces y la entrada de cada edificio — y 12 calles con su saturación (`balance.PESOS_INICIALES_CIUDAD`). El trazado es una rueda: ninguna arista es puente y cada edificio tiene dos rutas. `nodo_mas_cercano` (BFS sobre casillas, nunca al otro lado de una barricada) y `ruta_sugerida` (Dijkstra con `MinHeap` manual ignorando calles bloqueadas). Pesos dinámicos al resolver una mazmorra, en las calles del nodo de entrada de esa zona: Detonación +3, Purificación Exitosa -2 (rango [1, 10]). Una calle se bloquea al llegar a `BLOQUEO_PESO` = 8 y se desbloquea al bajar de `DESBLOQUEO_PESO` = 6; `puede_bloquearse` copia el grafo sin las bloqueadas y sin ella y pregunta `es_conexo` (DFS); si no puede, queda abierta al máximo (10). La barricada es física: las casillas de su sección se vuelven sólidas.
+* Caminar es gratis (ya no existe costo de viaje en colapso): el costo de una calle saturada es que se bloquea y hay que rodear.
+* La Alcaldía empieza sellada con barricadas frente a su puerta; desaparecen cuando `esta_desbloqueada(colapso, mazmorras_completadas)` es True. Sellada, al acercarse se ve "Alcaldía sellada: purifica una mazmorra".
+* Escena CIUDAD (`Main.py`, dibujo en `src/ui/ciudad_render.py`, pixel art en `src/ui/casillas_ciudad.py`): se arranca aquí tras elegir rol. WASD/flechas caminan con la velocidad del rol, sin disparar ni apuntar (cursor visible). Junto a una puerta: "E: entrar a <zona> (Toxicidad N)". G alterna la ruta sugerida (línea punteada sobre las calles) al destino que TAB cicla entre edificios ("Sin ruta" si no hay). M abre el mapa del mundo (`src/ui/mapa_ciudad_render.py`): el grafo en abstracto, solo lectura, con tu ubicación, los pesos y las calles bloqueadas. Aura neón pulsante sobre cada edificio con el color de su toxicidad y cintillo "Breaking News Civitas" con titulares de `generar_titulares(estado)` (`src/dungeon/noticias.py`, puro). Fundido corto al entrar y salir de un edificio.
+* Colegio tiene reportes de gravedad alta, Hospital media y Empresa de Medios baja; la Plaza es solo el inicio y la Alcaldía es la mazmorra final.
 
 ## Mazmorras normales de varios cuartos (grafo de cuartos)
 
@@ -27,7 +34,7 @@ Al matar a todos los monstruos del **cuarto final** de una mazmorra **normal** (
 
 Árbol actual (`construir_arbol_publicacion()` en `src/ui/terminal_decision.py`): raíz "Publicación Viral" → Verificar / Compartir / Reportar / Ignorar → cada opción lleva directo a su hoja: Verificar y Reportar → Purificación Exitosa; Compartir e Ignorar → Detonación. Contra reloj (10 s); si se acaba el tiempo, Detonación. (Un nivel intermedio tipo "Contrastar con fuente oficial / Creer rumor" es idea de diseño, no está implementado.)
 
-Purificación Exitosa resta Colapso Electoral; Detonación (o no decidir a tiempo) lo suma. Al resolverse, se ajustan los pesos de las calles de esa zona y se vuelve al mapa de la ciudad.
+Purificación Exitosa resta Colapso Electoral; Detonación (o no decidir a tiempo) lo suma. Al resolverse, se ajustan los pesos (y barricadas) de las calles de esa zona y se vuelve a Ciudad Nova, frente a la puerta de ese edificio.
 
 **Regla de desbloqueo:** una mazmorra normal cuenta como *completada* SOLO si su decisión termina en Purificación Exitosa. Una Detonación suma colapso pero no cuenta como completada (`src/dungeon/progreso.py`).
 
@@ -42,20 +49,32 @@ Como está implementada: jefe "Servidor Central" en un solo cuarto grande, con 3
 * Fase 2: espiral de 2 brazos que gira lento (50°/s), con balas a la velocidad de la fase 1, + disparo dirigido.
 * Fase 3: ciclo de 8 s en vez de todo junto: ráfagas con hueco en 0 y 1.2 s, espiral de 4.0 a 6.5 s y 1.5 s de descanso sin ataques (ventana para castigar). El disparo dirigido nunca sale junto a una ráfaga (espera 0.8 s). Charcos: uno cada 6 s, máximo 2 vivos, nunca a menos de 90 px del jugador ni sobre el jefe.
 * Nunca hay más de `MAX_PROYECTILES_JEFE` = 40 balas del jefe vivas: con el tope lleno omite emitir.
-* Todas estas constantes viven en `balance.py`. Tiempo agotado o jugador muerto → derrota: suma colapso y la pelea se reinicia. Jefe muerto → resta colapso y pantalla de victoria: ENTER vuelve al mapa de la ciudad (colapso y progreso se conservan), ESC cierra el juego.
+* Todas estas constantes viven en `balance.py`. Tiempo agotado o jugador muerto → derrota: suma colapso y la pelea se reinicia. Jefe muerto → resta colapso y pantalla de victoria: ENTER vuelve a Ciudad Nova frente a la Alcaldía (colapso y progreso se conservan), ESC cierra el juego.
 
-**Regla de desbloqueo:** se entra eligiendo la Alcaldía en el mapa de la ciudad, solo si el colapso es mayor a 80% o si hay al menos 1 mazmorra completada (con Purificación Exitosa). Si no, se muestra "Alcaldía: Bloqueada" y no se viaja.
+**Regla de desbloqueo:** se entra por la puerta de la Alcaldía (E), solo si el colapso es mayor a 80% o si hay al menos 1 mazmorra completada (con Purificación Exitosa). Si no, sus barricadas tapan la puerta y se muestra "Alcaldía sellada: purifica una mazmorra".
 
 ## Enemigos: agresividad absoluta
-Los enemigos nunca se quedan quietos ni huyen: con `agro_permanente = True` (por defecto, en los cuartos normales y en los súbditos del jefe) el nodo de detección del behavior tree siempre tiene éxito y persiguen y disparan desde cualquier distancia. `RANGO_DISPARO_ENEMIGO` se conserva para el caso `agro_permanente = False`.
+Los enemigos nunca se quedan quietos: con `agro_permanente = True` (por defecto, en los cuartos normales y en los súbditos del jefe) el nodo de detección del behavior tree siempre tiene éxito y cada tipo hace lo suyo desde cualquier distancia. `RANGO_DISPARO_ENEMIGO` se conserva para el caso `agro_permanente = False`. (La única huida es la del Curandero, que es su rol, y nunca bloquea el cuarto: ver abajo.)
+
+## Gracia de entrada (1 s al entrar a un cuarto)
+`GRACIA_ENTRADA_CUARTO_S` = 1.0 (`src/dungeon/gracia_entrada.py`, objeto puro `GraciaEntrada`): se reinicia al empezar la mazmorra, en cada puerta cruzada (también al volver a un cuarto limpio) y al entrar o reiniciar la arena del jefe. Mientras dura, la rama "¿congelado?" es la PRIMERA del Selector de todo enemigo (prioridad sobre `agro_permanente`): no persiguen, no disparan ni golpean; en la arena el jefe ni se actualiza. El jugador puede moverse pero no dispara ni usa F (`JugadorBase.armas_bloqueadas`, lo pone Main.py). Se ve como un anillo de cuenta regresiva alrededor del jugador y enemigos con alfa pulsante. Los proyectiles en vuelo se limpian al cambiar de cuarto. Los enemigos de un cuarto nuevo aparecen a >= `DISTANCIA_MIN_SPAWN_ENEMIGO` (260 px) del punto por donde entra el jugador (`src/dungeon/spawn.py`).
+
+## Tipos de enemigo
+`src/entities/tipos_enemigo.py` (puro: `TipoEnemigo`, `CONFIG_TIPO` desde `balance.STATS_TIPO_ENEMIGO`, `composicion_cuarto`) + `src/entities/enemigos.py` (`Perseguidor`, `Tirador`, `Curandero` heredan de `Enemigo`: reutilizan vida, empuje, escudo, agro, aggro forzado y carga por kill; solo cambia su behavior tree, armado con `src/ai/behavior_tree.py` y los nodos puros de `src/ai/nodos_combate.py`: `DistanciaMenorQue`, `MantenerDistancia`, `Huir`, `CurarAliado`, `DispararApuntado`).
+* Perseguidor: velocidad ×1.15, vida 3, daño por contacto 1 cada 0.8 s, no dispara.
+* Tirador: velocidad ×0.8, vida 2; mantiene 320 ± 40 px (retrocede, se acerca u orbita) y dispara apuntado cada 1.8 s tras 0.25 s de telegrafía (se ilumina); bala a 260 px/s.
+* Curandero: velocidad ×0.7, vida 2, no ataca; se esconde detrás de sus aliados, huye si el jugador está a < 200 px y cada 3 s cura el 34 % de la vida máxima al aliado más herido a <= 280 px. Nunca a sí mismo ni al jefe, máximo 2 curas por aliado por cuarto. Tras 6 s siendo el único vivo entra en pánico: persigue a velocidad normal y deja de curar. El cuarto no se libera mientras quede cualquier enemigo vivo.
+* Composición por tramo (`composicion_cuarto(nivel_dificultad, es_cuarto_final, rng, es_cuarto_inicial)`): BAJA (2) solo perseguidores, el final puede traer 1 tirador; MEDIA (3) 2 perseguidores + 1 tirador o 1 + 1 + 1 curandero (25 %); ALTA (5) 2 tiradores, 1-2 curanderos (nunca más que los demás) y el resto perseguidores, el final con ≥ 1 curandero y ≥ 2 tiradores. La entrada y sus vecinos (cuartos iniciales) nunca tienen curanderos; siempre hay ≥ 1 enemigo que no es curandero. Los curanderos aparecen en las posiciones más lejanas a la entrada. Porcentajes y máximos en `balance.py`.
+* Los súbditos del jefe alternan Perseguidor y Tirador.
+* Arte: todo el render de enemigos pide su imagen a `sprites.sprite_enemigo(tipo)`. Hoy devuelve un pixel art distinto por tipo (`PIXEL_ART_ENEMIGO`); si existe `assets/sprites/enemigos/<ID_SPRITE_ENEMIGO[tipo]>.png` lo carga (con caché) y si no, cae al placeholder. Colores, tamaño de hitbox e id de sprite por tipo en `assets.py`.
 
 ## Colapso Electoral
-Barra 0.0%-100.0%: +0.2 por cada fallo (Detonación o derrota contra el jefe), -0.1 por cada éxito (Purificación Exitosa o jefe derrotado), y +0.02 por unidad de costo de cada viaje por la ciudad. **Derrota global:** si llega a 100% (en cualquier escena), la escena DERROTA muestra "Colapso total" con el input de combate desactivado; ENTER reinicia la partida completa (colapso 0, progreso 0, ubicación en la Plaza, pesos de la ciudad restablecidos, mismo rol) y ESC sale.
+Barra 0.0%-100.0%: +0.2 por cada fallo (Detonación o derrota contra el jefe) y -0.1 por cada éxito (Purificación Exitosa o jefe derrotado). Caminar por la ciudad no cuesta colapso. **Derrota global:** si llega a 100% (en cualquier escena), la escena DERROTA muestra "Colapso total" con el input de combate desactivado; ENTER reinicia la partida completa (colapso 0, progreso 0, en la Plaza, pesos de las calles restablecidos y sin barricadas, mismo rol) y ESC sale.
 
 ## Pantalla de inicio (menú principal)
 
 Lo primero que se ve: ciudad nocturna pixel art animada (`src/ui/fondo_ciudad.py`: cielo con nubes, 4 capas de edificios con parallax generadas una vez en baja resolución, letreros holográficos que parpadean, naves con estela a 3 profundidades, bruma rosada y lluvia), el título CIVITAS en letras pixel art dibujadas en código con resplandor violeta, scanlines y un glitch breve cada 2.5-6 s (`src/ui/titulo_civitas.py`), el menú central y un engranaje arriba a la derecha.
-* Opciones: **JUGAR** (pantalla de modo → roles → partida nueva), **CONTINUAR** (vuelve a la partida en curso de esta sesión; deshabilitada y con el texto "SIN PARTIDA EN CURSO" si no hay; no existe guardado en disco), **EXTRAS** (contenido pendiente), **CRÉDITOS** (solo datos reales del repo; los nombres del equipo están pendientes en `LINEAS_CREDITOS`), **AJUSTES** y **SALIR**. ESC en el mapa de la ciudad vuelve a este menú con la partida en curso.
+* Opciones: **JUGAR** (pantalla de modo → roles → partida nueva), **CONTINUAR** (vuelve a la partida en curso de esta sesión; deshabilitada y con el texto "SIN PARTIDA EN CURSO" si no hay; no existe guardado en disco), **EXTRAS** (contenido pendiente), **CRÉDITOS** (solo datos reales del repo; los nombres del equipo están pendientes en `LINEAS_CREDITOS`), **AJUSTES** y **SALIR**. ESC en Ciudad Nova vuelve a este menú con la partida en curso (CONTINUAR reaparece frente a la última puerta).
 * Navegación: ↑ ↓ (o W/S), Enter/Espacio, Esc/Retroceso para volver; control: cruceta o stick izquierdo, ✕ confirma, ○ vuelve, L1/R1 cambian de pestaña (Q/E en teclado); ratón: hover enfoca y clic confirma. El foco recorre las opciones habilitadas y el engranaje. Seleccionada = `[ J U G A R ]` violeta con resplandor y entrada deslizante; pulsada = fondo violeta 0.14 s antes de actuar; deshabilitada = texto apagado con la razón.
 * Sonidos: cada acción devuelve el sonido de un cambio real (navegar, confirmar, volver), así nunca se duplica.
 Lógica pura en `src/ui/menu_principal.py` (`MenuPrincipal`), `src/ui/ajustes.py` (`ModalAjustes`) y `src/ui/navegacion.py` (acciones abstractas); dibujo y ratón en `src/ui/menu_principal_render.py` y `src/ui/ajustes_render.py`. El loop vive en `Main._menu_principal`.
@@ -79,11 +98,12 @@ Lógica pura en `src/ui/seleccion.py` (`SelectorModo`, `CursorRol`, `SeleccionRo
 
 ## Controles
 
-* WASD o flechas: mover. El movimiento tiene inercia: la velocidad real se acerca a la pedida con un suavizado exponencial (`ACELERACION_MOVIMIENTO` = 16/s al caminar, `FRENADO_MOVIMIENTO` = 22/s al soltar, en `balance.py`) y el avance de cada frame es la integral exacta, así se siente igual a cualquier framerate. La posición se guarda en float y no se redondea entre frames (solo al chocar con un muro, que además anula la velocidad en ese eje). El loop usa `reloj.tick_busy_loop(FPS)`: en Windows `tick()` da frames irregulares (16/17/18 ms) que se ven como tirones.
-* Mouse: apuntar (Ciudadano, Influencer y Periodista). En combate el cursor del sistema se oculta y se dibuja una mira con una línea tenue desde el jugador (`MOSTRAR_LINEA_APUNTADO` en `balance.py`). El Candidato no usa el mouse: cursor normal, sin mira.
+* WASD o flechas: mover (en combate y caminando por Ciudad Nova). En combate el movimiento tiene inercia: la velocidad real se acerca a la pedida con un suavizado exponencial (`ACELERACION_MOVIMIENTO` = 16/s al caminar, `FRENADO_MOVIMIENTO` = 22/s al soltar, en `balance.py`) y el avance de cada frame es la integral exacta, así se siente igual a cualquier framerate. La posición se guarda en float y no se redondea entre frames (solo al chocar con un muro, que además anula la velocidad en ese eje). El loop usa `reloj.tick_busy_loop(FPS)`: en Windows `tick()` da frames irregulares (16/17/18 ms) que se ven como tirones.
+* En Ciudad Nova (la recorre el J1): E entra al edificio cercano (pasa todo el equipo), G muestra/oculta la ruta sugerida, TAB cambia el destino, M abre/cierra el mapa del mundo, ESC vuelve al menú principal.
+* Mouse: apuntar en combate (Ciudadano, Influencer y Periodista). En combate el cursor del sistema se oculta y se dibuja una mira con una línea tenue desde el jugador (`MOSTRAR_LINEA_APUNTADO` en `balance.py`). El Candidato no usa el mouse: cursor normal, sin mira.
 * SPACE o click izquierdo (mantenidos): disparar (`CLICK_DISPARA` en `balance.py`). Mismo cooldown y cadencia con cualquiera de los dos.
-* F: habilidad. Shift: dash. M: minimapa (`TECLA_MINIMAPA` y `TECLA_ARBOL` viven en `entrada.py`).
-* ENTER y flechas: menús, mapa de la ciudad y terminal de decisión. ESC en el mapa: menú principal.
+* F: habilidad. Shift: dash. M: minimapa en la mazmorra (`TECLA_MINIMAPA` y `TECLA_ARBOL` viven en `entrada.py`).
+* ENTER y flechas: menús y terminal de decisión.
 * J2 (control de PS4, cooperativo): stick izquierdo mover, stick derecho apuntar, R2 disparar, L1 habilidad, ✕ (Cruz) dash. Se lee con `pygame._sdl2.controller` (API GameController de SDL), que normaliza el mapeo entre drivers; los índices crudos de `pygame.joystick` cambian según el sistema.
 
 **Regla de input:** el combate no usa eventos sino el estado de cada frame. `src/core/entrada.py` convierte teclado+mouse (`EntradaTeclado`) o el control (`EntradaMando`) en un `InputJugador` (movimiento, punto o dirección de apuntado, disparando, y los pulsos habilidad/dash, True solo el frame en que se aprieta), y `JugadorBase.manejar_input()` lo aplica igual para cualquier jugador.
@@ -140,13 +160,13 @@ PruebaPythonGame/
 │-- src/
 │   │-- core/          # constantes, balance, configuración de pantalla, reloj, escenas, apuntado, input por jugador, reglas de equipo, preferencias, audio
 │   │-- structures/     # árbol N-ario, grafo y min-heap puros, sin dependencias de Pygame
-│   │-- ai/             # behavior tree genérico, sin dependencias de Pygame
-│   │-- entities/       # jugadores (roles), dash, proyectiles, enemigos, jefe
-│   │-- dungeon/        # cuartos, mazmorra multi-cuarto, grafo de la ciudad, partida, clasificador, mazmorra final
-│   │-- ui/             # menú principal y ajustes, filtro de daltonismo, minijuego de decisión, menú de modo y roles, mapa de ciudad, minimapa, victoria/derrota, HUD, partículas
+│   │-- ai/             # behavior tree genérico y nodos de combate, sin dependencias de Pygame
+│   │-- entities/       # jugadores (roles), dash, proyectiles, enemigos y sus tipos, jefe
+│   │-- dungeon/        # cuartos, mazmorra multi-cuarto, mapa de casillas y grafo de calles de Ciudad Nova, noticias, partida, clasificador, mazmorra final
+│   │-- ui/             # menú principal y ajustes, filtro de daltonismo, minijuego de decisión, menú de modo y roles, Ciudad Nova (casillas y render), mapa del mundo, minimapa, victoria/derrota, HUD, partículas
 │   └-- network/        # (aún no existe) protocolo sockets, serialización, server/client
 ```
-No mezclar responsabilidades entre carpetas. `structures/` y `ai/` no deben importar `pygame`. La lógica de jefe, charcos, mazmorra final, invulnerabilidad, dash, reglas de equipo, progreso, balance, terminal de decisión, mazmorra multi-cuarto, grafo de la ciudad, partida, escenas, selector del mapa, menú de inicio, menú principal, modal de ajustes y preferencias también es pura (sin `pygame`) para poder probarse en aislado; su dibujo vive en módulos aparte.
+No mezclar responsabilidades entre carpetas. `structures/` y `ai/` no deben importar `pygame`. La lógica de jefe, charcos, mazmorra final, invulnerabilidad, dash, reglas de equipo, progreso, balance, terminal de decisión, mazmorra multi-cuarto, mapa de casillas de Ciudad Nova, grafo de calles, noticias, partida, escenas, selector de destino, gracia de entrada, posiciones de aparición, tipos de enemigo y su composición, menú de inicio, menú principal, modal de ajustes y preferencias también es pura (sin `pygame`) para poder probarse en aislado; su dibujo vive en módulos aparte.
 
 ## Estado real del MVP
 
@@ -166,20 +186,23 @@ No mezclar responsabilidades entre carpetas. `structures/` y `ai/` no deben impo
 14. `MinHeap` binario manual (`src/structures/min_heap.py`) — completado
 15. `Grafo` con lista de adyacencia, CRUD, BFS, DFS iterativo, `es_conexo`, `camino` y Dijkstra (`src/structures/graph.py`) — completado
 16. Mazmorra normal de 6 cuartos sobre el grafo: generación DFS 3x3 con un ciclo, cuarto final por BFS, generación perezosa y propagación de toxicidad por BFS (`src/dungeon/mazmorra.py`, `mazmorra_jugable.py`) — completado
-17. Mapa de la ciudad con Dijkstra, costo de viaje en colapso y pesos dinámicos (`src/dungeon/grafo_ciudad.py`, escena MAPA_CIUDAD, `src/ui/mapa_ciudad*.py`); reemplaza la tecla B — completado
+17. Grafo de la ciudad con Dijkstra y pesos dinámicos (`src/dungeon/grafo_ciudad.py`); hoy es la red de calles de Ciudad Nova (punto 22) — completado
 18. Minimapa de la mazmorra con la tecla M (`src/ui/mapa_render.py`) — completado
 19. Apuntado con mouse para Ciudadano, Influencer y Periodista (`src/core/apuntado.py`, `JugadorBase.apuntar_a`, mira en `Main.py`) y click izquierdo como segundo gatillo; el Candidato sigue apuntando al caminar — completado
 20. Sello del cuarto final: solo se entra con todos los demás cuartos limpios (también por el ciclo), el final nunca es punto de corte y la decisión cierra la mazmorra una sola vez — completado
 21. Jefe esquivable (ráfaga con hueco, espiral lenta, fase 3 por ciclos con descanso, tope de 40 balas, charcos justos) y agresividad absoluta de enemigos y súbditos (`agro_permanente`) — completado
-22. Dash con invulnerabilidad corta para los 4 roles (`src/entities/dash.py`, Shift / ✕) — completado
-23. Rastro de partículas e imágenes fantasma del dash (`src/ui/particulas.py`) — completado
-24. Cooperativo local de 2 jugadores con control de PS4 (`src/core/entrada.py`, reglas en `src/core/equipo.py`, panel del J2) — completado; probado con control simulado, falta probarlo con un DualShock 4 real
-25. Movimiento fluido: inercia con integración exacta, posición sin redondeo entre frames y frames regulares con `tick_busy_loop` — completado
-26. Menú de inicio: pantalla de 1 o 2 jugadores y selección de rol simultánea con un cursor por jugador (`src/ui/seleccion.py`, `src/ui/pantalla_modo.py`) — completado
-27. Paneles laterales de HUD en cooperativo con indicador animado del cooldown del dash (aura, ola, destello) y dash con cooldown de 5 s — completado
-28. Pantalla de inicio retrofuturista (ciudad pixel art con parallax, naves y lluvia; título CIVITAS con glitch), menú JUGAR/CONTINUAR/EXTRAS/CRÉDITOS/AJUSTES/SALIR con teclado, ratón y control, modal de ajustes (audio real por `pygame.mixer`, filtro de daltonismo global, reducir movimiento, guía de controles y cono de apuntado ajustable) y preferencias persistentes en `preferencias.json` — completado; CONTINUAR reanuda solo la partida de la sesión (no hay guardado en disco), no hay archivos de audio ni subtítulos que mostrar
+22. Ciudad Nova caminable: mapa de casillas con colisión y cámara (`src/dungeon/ciudad_mapa.py`), red de calles como grafo con ruta sugerida (Dijkstra), barricadas por saturación con histéresis 8/6 que nunca desconectan la ciudad, Alcaldía sellada con barricadas, escena CIUDAD con fundido, mapa del mundo (M), auras de toxicidad y cintillo de noticias (`src/dungeon/noticias.py`, `src/ui/ciudad_render.py`, `src/ui/casillas_ciudad.py`); sin costo de viaje — completado
+23. Segundo de gracia al entrar a cada cuarto (enemigos congelados, jugador sin armas, aparición a >= 260 px) y tres tipos de enemigo (Perseguidor, Tirador, Curandero) con composición por tramo de toxicidad y arte intercambiable vía `sprite_enemigo` (`src/dungeon/gracia_entrada.py`, `src/dungeon/spawn.py`, `src/entities/tipos_enemigo.py`, `src/entities/enemigos.py`, `src/ai/nodos_combate.py`, `src/ui/enemigo_render.py`); capturas en `docs/capturas/` — completado
+24. Dash con invulnerabilidad corta para los 4 roles (`src/entities/dash.py`, Shift / ✕) — completado
+25. Rastro de partículas e imágenes fantasma del dash (`src/ui/particulas.py`) — completado
+26. Cooperativo local de 2 jugadores con control de PS4 (`src/core/entrada.py`, reglas en `src/core/equipo.py`, panel del J2) — completado; probado con control simulado, falta probarlo con un DualShock 4 real
+27. Movimiento fluido: inercia con integración exacta, posición sin redondeo entre frames y frames regulares con `tick_busy_loop` — completado
+28. Menú de inicio: pantalla de 1 o 2 jugadores y selección de rol simultánea con un cursor por jugador (`src/ui/seleccion.py`, `src/ui/pantalla_modo.py`) — completado
+29. Paneles laterales de HUD en cooperativo con indicador animado del cooldown del dash (aura, ola, destello) y dash con cooldown de 5 s — completado
+30. Pantalla de inicio retrofuturista (ciudad pixel art con parallax, naves y lluvia; título CIVITAS con glitch), menú JUGAR/CONTINUAR/EXTRAS/CRÉDITOS/AJUSTES/SALIR con teclado, ratón y control, modal de ajustes (audio real por `pygame.mixer`, filtro de daltonismo global, reducir movimiento, guía de controles y cono de apuntado ajustable) y preferencias persistentes en `preferencias.json` — completado; CONTINUAR reanuda solo la partida de la sesión (no hay guardado en disco), no hay archivos de audio ni subtítulos que mostrar
+31. Integración de las ramas `franklin` y `maikel`: Ciudad Nova y la gracia de entrada conviven con el menú principal y el cooperativo (en la ciudad camina el J1 y al entrar pasa todo el equipo; los enemigos de los 3 tipos apuntan al jugador en pie más cercano; la gracia bloquea las armas de cada jugador y se dibuja en cada uno) — completado
 
-No agregues código de Ciudad Nova como mundo abierto caminable (la ciudad hoy es solo el mapa de selección) ni sockets / `src/network/` salvo que se te pida explícitamente — son alcance de entregas futuras.
+Ciudad Nova es un mapa de casillas sin NPCs: no agregues NPCs ni sockets / `src/network/` salvo que se te pida explícitamente — son alcance de entregas futuras.
 
 ## Convenciones de código
 
@@ -187,7 +210,7 @@ No agregues código de Ciudad Nova como mundo abierto caminable (la ciudad hoy e
 * Priorizar código explicable sobre código optimizado en exceso — se sustenta en voz alta ante la profesora.
 * Todo árbol/grafo debe exponer sus operaciones de forma que se puedan probar de forma aislada (sin Pygame).
 * Todo elemento visual debe referenciar una constante o ruta de sprite centralizada en `src/core/assets.py`, nunca un color hardcodeado disperso. Las rutas de sonido y música y los tonos de los efectos sintetizados también viven ahí. Los números de balance (stats de roles, jefe, charcos, invulnerabilidad) van en `src/core/balance.py`.
-* Placeholders (rectángulos de color) intencionales mientras se valida la mecánica; el arte real solo reemplaza la ruta del sprite, sin tocar lógica.
+* El arte es pixel art dibujado en código dentro de `src/ui` (filas de caracteres + paleta, cacheadas: `sprites.py`, `casillas_ciudad.py`), con paleta y tamaños centralizados en `assets.py`. Cuando llegue arte real solo se cambia cómo se obtienen las imágenes, sin tocar la lógica. Los enemigos ya cargan su PNG si existe (`sprite_enemigo`, fallback al placeholder).
 
 ## Instrucciones de Git
 

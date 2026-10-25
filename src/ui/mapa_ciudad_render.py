@@ -1,66 +1,105 @@
-"""Dibujo del mapa de la ciudad (escena MAPA_CIUDAD, solo presentación).
+"""Mapa del mundo: el grafo de calles de Ciudad Nova en abstracto
+(tecla M en la escena CIUDAD, solo presentación y solo lectura).
 
-Pinta el GrafoCiudad de la Partida: calles como líneas con su peso
-(saturación) encima, zonas como círculos con su nombre, la ruta más
-segura (Dijkstra) desde la ubicación actual hasta la zona seleccionada
-resaltada, y su costo en colapso en un panel inferior. No modifica la
-partida. El HUD superior y la barra de controles los dibuja Main.py.
+Cada nodo se dibuja en su casilla del mapa escalada
+(ORIGEN_MAPA_MUNDO + casilla * ESCALA_MAPA_MUNDO), así el dibujo
+conserva la forma de la ciudad: calles como líneas (por sus codos) con
+su peso encima, las bloqueadas en magenta con su barricada, zonas como
+círculos con nombre y toxicidad, cruces como puntos, el jugador en su
+lugar y la ruta sugerida (Dijkstra) hasta el destino elegido con TAB,
+con su saturación total en un panel inferior. No modifica la partida.
 """
 
 import pygame
 
 from src.core import assets
-from src.core.balance import COSTO_VIAJE_COLAPSO
-from src.dungeon.clasificador_toxicidad import calcular_nivel_toxicidad, construir_arbol_reportes
-from src.dungeon.grafo_ciudad import ZONA_FINAL, ZONA_INICIO
-from src.ui import dibujo
-
-TITULO = "Mapa de la ciudad"
+from src.dungeon import ciudad_mapa
+from src.dungeon.grafo_ciudad import CRUCES, ZONA_FINAL, ZONA_INICIO
+from src.ui import casillas_ciudad, dibujo, sprites
+from src.ui.fuentes import fuente
 
 
-def dibujar_mapa_ciudad(pantalla, partida, seleccionada):
+def a_pantalla(col, fila):
+    """Casilla (puede ser fraccionaria) -> px de pantalla del mapa."""
+    ox, oy = assets.ORIGEN_MAPA_MUNDO
+    sx, sy = assets.ESCALA_MAPA_MUNDO
+    return (round(ox + (col + 0.5) * sx), round(oy + (fila + 0.5) * sy))
+
+
+def _puntos_tramo(a, b):
+    return [a_pantalla(*punto) for punto in ciudad_mapa.tramo(a, b).puntos]
+
+
+def _punto_medio(puntos):
+    """Punto a mitad de largo de una polilínea (para poner el peso)."""
+    largos = [pygame.Vector2(p).distance_to(q) for p, q in zip(puntos, puntos[1:])]
+    restante = sum(largos) / 2
+    for (p, q), largo in zip(zip(puntos, puntos[1:]), largos):
+        if restante <= largo:
+            return pygame.Vector2(p).lerp(q, restante / largo if largo else 0)
+        restante -= largo
+    return pygame.Vector2(puntos[-1])
+
+
+def dibujar_mapa_mundo(pantalla, partida, seleccionada, posicion_jugador):
     ciudad = partida.ciudad
-    posiciones = assets.POSICIONES_MAPA_CIUDAD
-    camino, costo = partida.ruta_hasta(seleccionada)
-    camino = camino or []
-    tramos_ruta = set()
-    for a, b in zip(camino, camino[1:]):
-        tramos_ruta.add(frozenset((a, b)))
+    ruta = partida.ruta_sugerida(posicion_jugador, seleccionada)
+    camino = ruta[0] if ruta else []
+    tramos_ruta = {frozenset(par) for par in zip(camino, camino[1:])}
 
     _dibujar_fondo(pantalla)
 
-    # Calles: primero las líneas (la ruta segura más gruesa), luego los
-    # pesos encima para que ninguna línea los tape.
+    # Primero las líneas (la ruta más gruesa), luego los pesos encima.
     calles = ciudad.calles()
     for a, b, _ in calles:
+        puntos = _puntos_tramo(a, b)
+        if ciudad.esta_bloqueada(a, b):
+            for p, q in zip(puntos, puntos[1:]):
+                dibujo.linea_punteada(pantalla, assets.COLOR_CALLE_BLOQUEADA, p, q, 8, 6, assets.GROSOR_CALLE)
+            continue
         en_ruta = frozenset((a, b)) in tramos_ruta
         color = assets.COLOR_RUTA_SEGURA if en_ruta else assets.COLOR_CALLE
         grosor = assets.GROSOR_RUTA_SEGURA if en_ruta else assets.GROSOR_CALLE
-        pygame.draw.line(pantalla, color, posiciones[a], posiciones[b], grosor)
+        pygame.draw.lines(pantalla, color, False, puntos, grosor)
     for a, b, peso in calles:
-        _dibujar_peso(pantalla, posiciones[a], posiciones[b], peso, frozenset((a, b)) in tramos_ruta)
+        _dibujar_peso(pantalla, a, b, peso, frozenset((a, b)) in tramos_ruta, ciudad.esta_bloqueada(a, b))
 
+    for cruce in CRUCES:
+        centro = a_pantalla(*ciudad_mapa.NODOS_CALLE[cruce])
+        pygame.draw.circle(pantalla, assets.COLOR_ZONA_MAPA, centro, assets.RADIO_CRUCE_MAPA)
+        pygame.draw.circle(pantalla, assets.COLOR_FONDO, centro, assets.RADIO_CRUCE_MAPA, 2)
     for zona in ciudad.zonas():
         _dibujar_zona(pantalla, partida, zona, zona == seleccionada)
 
-    _dibujar_panel_ruta(pantalla, camino, costo)
+    # El jugador, donde está en el mundo.
+    col = posicion_jugador[0] / ciudad_mapa.TAM_CASILLA - 0.5
+    fila = posicion_jugador[1] / ciudad_mapa.TAM_CASILLA - 0.5
+    imagen = sprites.sprite_jugador(assets.COLOR_ZONA_ACTUAL, assets.ESCALA_JUGADOR_MAPA_MUNDO)
+    sprites.dibujar_centrado(pantalla, imagen, a_pantalla(col, fila))
+
+    _dibujar_panel_ruta(pantalla, seleccionada, ruta)
 
 
 def _dibujar_fondo(pantalla):
-    """Cuadrícula tenue entre el HUD y la barra de controles."""
-    area = pygame.Rect(0, assets.ALTO_HUD, pantalla.get_width(),
-                       pantalla.get_height() - assets.ALTO_HUD - assets.ALTO_BARRA_CONTROLES)
+    """Cuadrícula tenue en la zona de la vista."""
+    area = pygame.Rect(assets.RECT_VISTA_CIUDAD)
+    pygame.draw.rect(pantalla, assets.COLOR_FONDO, area)
     paso = 40
-    color = (22, 20, 46)
+    color = assets.COLOR_FONDO_PANEL
     for x in range(area.left, area.right, paso):
         pygame.draw.line(pantalla, color, (x, area.top), (x, area.bottom))
     for y in range(area.top, area.bottom, paso):
         pygame.draw.line(pantalla, color, (area.left, y), (area.right, y))
 
 
-def _dibujar_peso(pantalla, a, b, peso, en_ruta):
-    centro = ((a[0] + b[0]) // 2, (a[1] + b[1]) // 2)
-    borde = assets.COLOR_RUTA_SEGURA if en_ruta else assets.COLOR_CALLE
+def _dibujar_peso(pantalla, a, b, peso, en_ruta, bloqueada):
+    centro = _punto_medio(_puntos_tramo(a, b))
+    if bloqueada:
+        imagen = casillas_ciudad.casilla_barricada()
+        pantalla.blit(imagen, imagen.get_rect(center=(centro.x, centro.y - 18)))
+        borde = assets.COLOR_CALLE_BLOQUEADA
+    else:
+        borde = assets.COLOR_RUTA_SEGURA if en_ruta else assets.COLOR_CALLE
     pygame.draw.circle(pantalla, assets.COLOR_FONDO_ETIQUETA_PESO, centro, assets.RADIO_ETIQUETA_PESO)
     pygame.draw.circle(pantalla, borde, centro, assets.RADIO_ETIQUETA_PESO, assets.GROSOR_BORDE_ETIQUETA_PESO)
     dibujo.texto(pantalla, str(peso), centro, assets.COLOR_TEXTO_HUD, assets.TAMANIO_FUENTE_PEQUENA,
@@ -68,14 +107,14 @@ def _dibujar_peso(pantalla, a, b, peso, en_ruta):
 
 
 def _dibujar_zona(pantalla, partida, zona, seleccionada):
-    centro = assets.POSICIONES_MAPA_CIUDAD[zona]
+    centro = a_pantalla(*ciudad_mapa.NODOS_CALLE[zona])
     radio = assets.RADIO_ZONA_MAPA
-    if zona == partida.ubicacion:
+    if zona == ZONA_INICIO:
         color = assets.COLOR_ZONA_ACTUAL
     elif zona == ZONA_FINAL:
         color = assets.COLOR_ZONA_ALCALDIA
     else:
-        color = assets.COLOR_ZONA_MAPA
+        color = assets.COLORES_NEON_ZONA.get(zona, assets.COLOR_ZONA_MAPA)
     if seleccionada:
         halo = pygame.Surface((radio * 4, radio * 4), pygame.SRCALPHA)
         pygame.draw.circle(halo, (*assets.COLOR_ZONA_SELECCIONADA, 40), (radio * 2, radio * 2), round(radio * 1.6))
@@ -85,23 +124,16 @@ def _dibujar_zona(pantalla, partida, zona, seleccionada):
     if seleccionada:
         pygame.draw.circle(pantalla, assets.COLOR_ZONA_SELECCIONADA, centro,
                            radio + assets.GROSOR_ZONA_SELECCIONADA + 2, assets.GROSOR_ZONA_SELECCIONADA)
-    # Inicial de la zona dentro del círculo.
     dibujo.texto(pantalla, zona[0], centro, assets.COLOR_FONDO, assets.TAMANIO_FUENTE_TITULO,
                  negrita=True, ancla="center")
 
     color_nombre = assets.COLOR_ZONA_SELECCIONADA if seleccionada else assets.COLOR_TEXTO_HUD
-    detalle = _detalle_zona(partida, zona)
-    separacion = assets.SEPARACION_NOMBRE_ZONA
-    if zona in assets.ZONAS_ETIQUETA_ABAJO:
-        _etiqueta(pantalla, zona, detalle, (centro[0], centro[1] + radio + separacion), color_nombre, "midtop")
-    else:
-        _etiqueta(pantalla, zona, detalle, (centro[0], centro[1] - radio - separacion), color_nombre, "midbottom")
+    ancla, ox, oy = assets.ETIQUETAS_MAPA_MUNDO[zona]
+    _etiqueta(pantalla, zona, _detalle_zona(partida, zona), (centro[0] + ox, centro[1] + oy), color_nombre, ancla)
 
 
 def _etiqueta(pantalla, nombre, detalle, posicion, color_nombre, ancla):
     """Nombre + detalle sobre un panel, para que las calles no los tapen."""
-    from src.ui.fuentes import fuente
-
     ancho = max(fuente(assets.TAMANIO_FUENTE_MEDIA, True).size(nombre)[0],
                 fuente(assets.TAMANIO_FUENTE_PEQUENA).size(detalle)[0]) + 24
     rect = pygame.Rect(0, 0, ancho, 48)
@@ -116,26 +148,20 @@ def _etiqueta(pantalla, nombre, detalle, posicion, color_nombre, ancla):
 def _detalle_zona(partida, zona):
     """Texto bajo cada zona: inicio, estado de la Alcaldía o toxicidad."""
     if zona == ZONA_INICIO:
-        detalle = "Inicio"
-    elif zona == ZONA_FINAL:
-        detalle = "Jefe final" if partida.alcaldia_desbloqueada() else "Bloqueada"
-    else:
-        reportes = partida.ciudad.reportes(zona)
-        nivel = calcular_nivel_toxicidad(construir_arbol_reportes(reportes, zona))
-        detalle = f"Toxicidad {nivel:.0f}"
-    if zona == partida.ubicacion:
-        detalle += " · aquí"
-    return detalle
+        return "Inicio"
+    if zona == ZONA_FINAL:
+        return "Jefe final" if partida.alcaldia_desbloqueada() else "Sellada"
+    return f"Toxicidad {partida.toxicidad(zona):.0f}"
 
 
-def _dibujar_panel_ruta(pantalla, camino, costo):
+def _dibujar_panel_ruta(pantalla, destino, ruta):
     panel = dibujo.panel(pantalla, assets.RECT_PANEL_RUTA)
     x, y = assets.POSICION_TEXTO_RUTA
-    dibujo.texto(pantalla, "Ruta más segura (Dijkstra)", (x, y), assets.COLOR_TEXTO_SECUNDARIO,
-                 assets.TAMANIO_FUENTE_PEQUENA)
-    ruta = " › ".join(camino) if camino else "sin ruta"
-    dibujo.texto(pantalla, ruta, (x, y + 18), assets.COLOR_TEXTO_HUD, assets.TAMANIO_FUENTE_NORMAL, negrita=True)
-    texto_costo = f"Costo {costo:g}  ·  +{costo * COSTO_VIAJE_COLAPSO:.2f}% colapso"
-    dibujo.chip(pantalla, texto_costo, (panel.right - 16, panel.centery), assets.COLOR_AMARILLO,
-                assets.COLOR_FONDO, assets.COLOR_AMARILLO, assets.TAMANIO_FUENTE_NORMAL, ancla="midright",
-                alto=32, margen=12)
+    dibujo.texto(pantalla, f"Ruta sugerida a {destino} (Dijkstra, sin calles bloqueadas)", (x, y),
+                 assets.COLOR_TEXTO_SECUNDARIO, assets.TAMANIO_FUENTE_PEQUENA)
+    texto_ruta = " › ".join(ruta[0]) if ruta else assets.TEXTO_SIN_RUTA
+    dibujo.texto(pantalla, texto_ruta, (x, y + 22), assets.COLOR_TEXTO_HUD, assets.TAMANIO_FUENTE_NORMAL, negrita=True)
+    if ruta:
+        dibujo.chip(pantalla, f"Saturación {ruta[1]:g}", (panel.right - 16, panel.centery), assets.COLOR_AMARILLO,
+                    assets.COLOR_FONDO, assets.COLOR_AMARILLO, assets.TAMANIO_FUENTE_NORMAL, ancla="midright",
+                    alto=32, margen=12)
