@@ -19,7 +19,7 @@ from src.ui import sprites
 
 
 def dibujar_enemigo(pantalla, enemigo):
-    imagen = sprites.sprite_enemigo(enemigo.tipo)
+    imagen = sprites.sprite_enemigo(enemigo.tipo, tiempo=enemigo.reloj)
     if getattr(enemigo, "telegrafia", 0) > 0:
         imagen = imagen.copy()
         imagen.fill(assets.COLOR_TELEGRAFIA_TIRADOR, special_flags=pygame.BLEND_RGB_MAX)

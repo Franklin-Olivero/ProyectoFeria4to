@@ -1,0 +1,207 @@
+{
+  "version": 1,
+  "name": "servidor_central",
+  "width": 24,
+  "height": 24,
+  "palette": {
+    "k": "#100e1e",
+    "v": "#8a4cff",
+    "u": "#5a2cb8",
+    "x": "#3a1c80",
+    "m": "#ff3878",
+    "g": "#2ee6c8",
+    "w": "#f6f6fc",
+    "o": "#ff9a3c",
+    "a": "#1c1838",
+    "r": "#c83c5c",
+    "q": "#8a2440"
+  },
+  "symbols": {
+    "torre": [
+      "..kkkkkkkkkkkkkkkkkkkk..",
+      ".kvvvvvvvvvvvvvvvvvvvvk.",
+      ".kvwwkvvvvvvvvvvvvkwwvk.",
+      ".kvwkkvvvvvvvvvvvvkkwvk.",
+      ".kvvvvvvvvvvvvvvvvvvvvk.",
+      ".kuuuuuuuuuuuuuuuuuuuuk.",
+      ".kuaaaaaaaaaaaaaaaaaauk.",
+      ".kuaaaaaaaaaaaaaaaaaauk.",
+      ".kuaaaaaaaaaaaaaaaaaauk.",
+      ".kuuuuuuuuuuuuuuuuuuuuk.",
+      ".kuaaaaaaaaaaaaaaaaaauk.",
+      ".kuaaaaaaaaaaaaaaaaaauk.",
+      ".kuaaaaaaaaaaaaaaaaaauk.",
+      ".kuuuuuuuuuuuuuuuuuuuuk.",
+      ".kuaaaaaaaaaaaaaaaaaauk.",
+      ".kuaaaaaaaaaaaaaaaaaauk.",
+      ".kuaaaaaaaaaaaaaaaaaauk.",
+      ".kuuuuuuuuuuuuuuuuuuuuk.",
+      ".kxxxxxxxxxxxxxxxxxxxxk.",
+      ".kxggxxxxxxxxxxxxxxggxk.",
+      ".kxxxxxxxxxxxxxxxxxxxxk.",
+      ".kxxkkxxxxxxxxxxxxkkxxk.",
+      "..kkkkkkkkkkkkkkkkkkkk..",
+      "...kk..............kk..."
+    ],
+    "luces_a": [
+      "m..g..m..g..m..g.."
+    ],
+    "luces_b": [
+      "g..m..g..m..g..m.."
+    ],
+    "luces_c": [
+      "m..m..g..g..m..m.."
+    ]
+  },
+  "frames": [
+    {
+      "name": "a",
+      "duration": 220,
+      "ops": [
+        {
+          "op": "stamp",
+          "symbol": "torre",
+          "x": 0,
+          "y": 0
+        },
+        {
+          "op": "stamp",
+          "symbol": "luces_a",
+          "x": 3,
+          "y": 7
+        },
+        {
+          "op": "stamp",
+          "symbol": "luces_b",
+          "x": 3,
+          "y": 11
+        },
+        {
+          "op": "stamp",
+          "symbol": "luces_c",
+          "x": 3,
+          "y": 15
+        }
+      ]
+    },
+    {
+      "name": "b",
+      "duration": 220,
+      "ops": [
+        {
+          "op": "stamp",
+          "symbol": "torre",
+          "x": 0,
+          "y": 0
+        },
+        {
+          "op": "stamp",
+          "symbol": "luces_b",
+          "x": 3,
+          "y": 7
+        },
+        {
+          "op": "stamp",
+          "symbol": "luces_c",
+          "x": 3,
+          "y": 11
+        },
+        {
+          "op": "stamp",
+          "symbol": "luces_a",
+          "x": 3,
+          "y": 15
+        }
+      ]
+    },
+    {
+      "name": "c",
+      "duration": 220,
+      "ops": [
+        {
+          "op": "stamp",
+          "symbol": "torre",
+          "x": 0,
+          "y": 0
+        },
+        {
+          "op": "stamp",
+          "symbol": "luces_c",
+          "x": 3,
+          "y": 7
+        },
+        {
+          "op": "stamp",
+          "symbol": "luces_a",
+          "x": 3,
+          "y": 11
+        },
+        {
+          "op": "stamp",
+          "symbol": "luces_b",
+          "x": 3,
+          "y": 15
+        }
+      ]
+    },
+    {
+      "name": "furia_a",
+      "duration": 120,
+      "from": "a",
+      "ops": [
+        {
+          "op": "replace",
+          "from": "v",
+          "to": "r"
+        },
+        {
+          "op": "replace",
+          "from": "u",
+          "to": "q"
+        },
+        {
+          "op": "replace",
+          "from": "g",
+          "to": "o"
+        }
+      ]
+    },
+    {
+      "name": "furia_b",
+      "duration": 120,
+      "from": "c",
+      "ops": [
+        {
+          "op": "replace",
+          "from": "v",
+          "to": "r"
+        },
+        {
+          "op": "replace",
+          "from": "u",
+          "to": "q"
+        },
+        {
+          "op": "replace",
+          "from": "g",
+          "to": "o"
+        }
+      ]
+    }
+  ],
+  "animations": {
+    "idle": {
+      "frames": [
+        "a",
+        "b",
+        "c"
+      ]
+    },
+    "furia": {
+      "frames": [
+        "furia_a",
+        "furia_b"
+      ]
+    }
+  }
+}

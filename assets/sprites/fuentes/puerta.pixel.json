@@ -1,0 +1,196 @@
+{
+  "version": 1,
+  "name": "puerta",
+  "width": 27,
+  "height": 6,
+  "palette": {
+    "k": "#100e1e",
+    "f": "#1e1b3e",
+    "t": "#2ee6c8",
+    "u": "#1a9a88",
+    "m": "#ff3878",
+    "n": "#a01e50",
+    "g": "#aa821e",
+    "h": "#d8a830",
+    "x": "#32230a"
+  },
+  "frames": [
+    {
+      "name": "abierta",
+      "duration": 100,
+      "ops": [
+        {
+          "op": "rect",
+          "x": 0,
+          "y": 0,
+          "w": 27,
+          "h": 6,
+          "color": "k",
+          "filled": true
+        },
+        {
+          "op": "rect",
+          "x": 1,
+          "y": 0,
+          "w": 25,
+          "h": 6,
+          "color": "u",
+          "filled": true
+        },
+        {
+          "op": "rect",
+          "x": 2,
+          "y": 0,
+          "w": 23,
+          "h": 6,
+          "color": "t",
+          "filled": true
+        },
+        {
+          "op": "rect",
+          "x": 4,
+          "y": 0,
+          "w": 19,
+          "h": 6,
+          "color": "f",
+          "filled": true
+        },
+        {
+          "op": "rect",
+          "x": 5,
+          "y": 0,
+          "w": 17,
+          "h": 6,
+          "color": "u",
+          "filled": true
+        },
+        {
+          "op": "rect",
+          "x": 6,
+          "y": 0,
+          "w": 15,
+          "h": 6,
+          "color": "t",
+          "filled": true
+        }
+      ]
+    },
+    {
+      "name": "bloqueada",
+      "duration": 100,
+      "ops": [
+        {
+          "op": "rect",
+          "x": 0,
+          "y": 0,
+          "w": 27,
+          "h": 6,
+          "color": "k",
+          "filled": true
+        },
+        {
+          "op": "rect",
+          "x": 1,
+          "y": 0,
+          "w": 25,
+          "h": 6,
+          "color": "f",
+          "filled": true
+        },
+        {
+          "op": "rect",
+          "x": 1,
+          "y": 0,
+          "w": 25,
+          "h": 6,
+          "color": "m",
+          "filled": false
+        },
+        {
+          "op": "grid",
+          "x": 3,
+          "y": 0,
+          "rows": [
+            "..n..n..n..n..n..n..n",
+            "..m..m..m..m..m..m..m",
+            "..m..m..m..m..m..m..m",
+            "..m..m..m..m..m..m..m",
+            "..m..m..m..m..m..m..m",
+            "..n..n..n..n..n..n..n"
+          ]
+        }
+      ]
+    },
+    {
+      "name": "sellada",
+      "duration": 100,
+      "ops": [
+        {
+          "op": "rect",
+          "x": 0,
+          "y": 0,
+          "w": 27,
+          "h": 6,
+          "color": "k",
+          "filled": true
+        },
+        {
+          "op": "rect",
+          "x": 1,
+          "y": 0,
+          "w": 25,
+          "h": 6,
+          "color": "g",
+          "filled": true
+        },
+        {
+          "op": "line",
+          "x": 1,
+          "y": 0,
+          "x2": 25,
+          "y2": 0,
+          "color": "h"
+        },
+        {
+          "op": "grid",
+          "x": 8,
+          "y": 0,
+          "rows": [
+            "x.........x",
+            ".x.......x.",
+            "..x.....x..",
+            "...x...x...",
+            "....x.x....",
+            ".....x....."
+          ]
+        },
+        {
+          "op": "grid",
+          "x": 8,
+          "y": 0,
+          "rows": [
+            "...........",
+            "...........",
+            "...........",
+            "...........",
+            "....x.x....",
+            "...x...x..."
+          ]
+        },
+        {
+          "op": "grid",
+          "x": 8,
+          "y": 0,
+          "rows": [
+            ".....x.....",
+            "....x.x....",
+            "...x...x...",
+            "..x.....x..",
+            ".x.......x.",
+            "x.........x"
+          ]
+        }
+      ]
+    }
+  ]
+}

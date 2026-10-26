@@ -104,6 +104,8 @@ class JugadorBase:
         self.direccion_movimiento = pygame.Vector2(0, 0)
         # Velocidad real (px/s): sigue a la pedida con inercia (ver mover).
         self.velocidad_actual = pygame.Vector2(0, 0)
+        # Si caminó en Ciudad Nova este frame (solo para animar el sprite).
+        self.caminando_en_ciudad = False
 
         # Puede tener fracciones por la carga compartida del equipo.
         self.carga_habilidad = 0.0
@@ -214,7 +216,9 @@ class JugadorBase:
         las casillas sólidas del mapa (mover_con_colision, por ejes
         separados) en vez de contra los muros de un cuarto."""
         direccion = pygame.Vector2(direccion_teclado(teclas))
-        if direccion.length_squared() == 0:
+        # Solo para el dibujo (animación de caminar en la ciudad).
+        self.caminando_en_ciudad = direccion.length_squared() > 0
+        if not self.caminando_en_ciudad:
             return
         delta = direccion * self.velocidad * dt
         x, y = mover_con_colision(
@@ -354,7 +358,10 @@ class JugadorBase:
         # colisión y sobresale un poco por arriba, como en un top-down.
         from src.ui import sprites
 
-        imagen = sprites.sprite_jugador(self.COLOR)
+        imagen = sprites.sprite_jugador(
+            self.COLOR, rol=self.rol, tiempo=pygame.time.get_ticks() / 1000.0,
+            caminando=self.velocidad_actual.length_squared() > 0, dash=self.dash.activo,
+        )
         # Imágenes fantasma del dash: la más nueva (última del rastro) es la más opaca.
         for alfa, centro in zip(assets.DASH_AFTERIMAGE_ALFA, reversed(self.rastro_dash)):
             fantasma = imagen.copy()

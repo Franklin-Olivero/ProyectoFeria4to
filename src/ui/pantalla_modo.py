@@ -38,11 +38,11 @@ def dibujar_modo(pantalla, selector, nombre_mando, aviso_activo):
                     color, assets.TAMANIO_FUENTE_MEDIA, alto=30, margen=11)
 
         # Un muñeco por jugador (modo 3 tiene 2 jugadores en red).
-        colores = [assets.COLOR_CIUDADANO, assets.COLOR_INFLUENCER][:min(modo, 2)]
+        munecos = [(assets.COLOR_CIUDADANO, "ciudadano"), (assets.COLOR_INFLUENCER, "influencer")][:min(modo, 2)]
         separacion = 90
-        inicio = tarjeta.centerx - separacion * (len(colores) - 1) / 2
-        for i, color_sprite in enumerate(colores):
-            imagen = sprites.sprite_jugador(color_sprite, escala=5)
+        inicio = tarjeta.centerx - separacion * (len(munecos) - 1) / 2
+        for i, (color_sprite, rol) in enumerate(munecos):
+            imagen = sprites.sprite_jugador(color_sprite, escala=5, rol=rol)
             pantalla.blit(imagen, imagen.get_rect(midtop=(round(inicio + i * separacion), tarjeta.top + 60)))
 
         nombre, lineas = OPCIONES[modo]

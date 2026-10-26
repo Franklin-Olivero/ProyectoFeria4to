@@ -739,6 +739,40 @@ AMPLITUD_SONIDO_SINTETIZADO = 0.18  # fracción del máximo de 16 bits
 RUTA_MUSICA_MENU = os.path.join("assets", "musica", "menu.ogg")
 
 # ----------------------------------------------------------------------
+# Hojas de sprites (arte real, pixel art hecho con Pixelbolt). Cada hoja
+# es <carpeta>/<id>.png (tira horizontal a resolución nativa) con su
+# <id>.atlas.json al lado (rect y duración de cada cuadro, animaciones).
+# Si falta el PNG se usa el pixel art dibujado en código (sprites.py).
+# Las recetas editables viven en assets/sprites/fuentes/<id>.pixel.json.
+# ----------------------------------------------------------------------
+RUTA_SPRITES_JUGADORES = os.path.join("assets", "sprites", "jugadores")  # <rol>.png, 16x20
+RUTA_SPRITES_JEFE = os.path.join("assets", "sprites", "jefe")
+ID_SPRITE_JEFE = "servidor_central"  # 24x24
+RUTA_SPRITES_RETRATOS = os.path.join("assets", "sprites", "retratos")  # <rol>.png (ilustración grande)
+ANIMACION_CAMINAR = "caminar"  # jugadores y enemigos
+ANIMACION_DASH = "dash"  # jugadores (un solo cuadro)
+ANIMACION_JEFE_IDLE = "idle"
+ANIMACION_JEFE_FURIA = "furia"  # fase 3
+ESCALA_SPRITE_JEFE = 4  # 24 px * 4 = 96 px (TAMANIO_JEFE = 90)
+ALTO_RETRATO_SELECCION = 92  # alto del retrato en la tarjeta de selección
+# Cuarto: piso y muro (cuarto.png, 16x16 por cuadro), puertas (puerta.png,
+# 27x6: abierta / bloqueada / sellada) y charco tóxico (charco.png, 30x30:
+# aviso / activo). Sin el PNG se dibujan con formas, como antes.
+RUTA_SPRITES_CUARTO = os.path.join("assets", "sprites", "cuarto")
+ID_SPRITE_CUARTO = "cuarto"
+ID_SPRITE_PUERTA = "puerta"
+ID_SPRITE_CHARCO = "charco"
+CUADROS_PISO = ("piso_a", "piso_b")  # tablero: (fila + columna) par / impar
+CUADROS_PISO_DETALLE = ("piso_grieta", "piso_rejilla")  # reemplazan a una baldosa de vez en cuando
+PROBABILIDAD_PISO_DETALLE = 0.06
+CUADRO_MURO = "muro"
+TAMANIO_BALDOSA_HOJA = 16 * ESCALA_PIXEL  # 48 px por baldosa cuando hay hoja
+CUADRO_PUERTA = {"abierta": "abierta", "bloqueada": "bloqueada", "sellada": "sellada"}
+ANIMACION_CHARCO_AVISO = "aviso"
+ANIMACION_CHARCO_ACTIVO = "activo"
+ALFA_CHARCO_SPRITE = 215  # el charco dibujado deja ver un poco el piso
+
+# ----------------------------------------------------------------------
 # Tipos de enemigo: todo lo visual de cada tipo, en un solo lugar. Las
 # claves son los valores de TipoEnemigo (src/entities/tipos_enemigo.py).
 # Para usar arte real basta con dejar <ID_SPRITE_ENEMIGO[tipo]>.png en

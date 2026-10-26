@@ -1,0 +1,190 @@
+{
+  "version": 1,
+  "name": "charco",
+  "width": 30,
+  "height": 30,
+  "palette": {
+    "g": "#78e650",
+    "d": "#3c9a30",
+    "l": "#b8ff80",
+    "e": "#1e4a1e",
+    "o": "#78e650"
+  },
+  "frames": [
+    {
+      "name": "aviso",
+      "duration": 100,
+      "ops": [
+        {
+          "op": "ellipse",
+          "x": 1,
+          "y": 1,
+          "w": 28,
+          "h": 28,
+          "color": "g",
+          "filled": false
+        },
+        {
+          "op": "ellipse",
+          "x": 2,
+          "y": 2,
+          "w": 26,
+          "h": 26,
+          "color": "d",
+          "filled": false
+        }
+      ]
+    },
+    {
+      "name": "activo_a",
+      "duration": 260,
+      "ops": [
+        {
+          "op": "ellipse",
+          "x": 1,
+          "y": 1,
+          "w": 28,
+          "h": 28,
+          "color": "e",
+          "filled": true
+        },
+        {
+          "op": "ellipse",
+          "x": 2,
+          "y": 2,
+          "w": 26,
+          "h": 26,
+          "color": "d",
+          "filled": true
+        },
+        {
+          "op": "ellipse",
+          "x": 4,
+          "y": 4,
+          "w": 22,
+          "h": 22,
+          "color": "g",
+          "filled": true
+        },
+        {
+          "op": "ellipse",
+          "x": 8,
+          "y": 6,
+          "w": 4,
+          "h": 4,
+          "color": "l",
+          "filled": false
+        },
+        {
+          "op": "ellipse",
+          "x": 18,
+          "y": 16,
+          "w": 5,
+          "h": 5,
+          "color": "d",
+          "filled": false
+        },
+        {
+          "op": "pixel",
+          "x": 20,
+          "y": 9,
+          "color": "l"
+        },
+        {
+          "op": "pixel",
+          "x": 10,
+          "y": 20,
+          "color": "l"
+        },
+        {
+          "op": "pixel",
+          "x": 7,
+          "y": 14,
+          "color": "d"
+        }
+      ]
+    },
+    {
+      "name": "activo_b",
+      "duration": 260,
+      "ops": [
+        {
+          "op": "ellipse",
+          "x": 1,
+          "y": 1,
+          "w": 28,
+          "h": 28,
+          "color": "e",
+          "filled": true
+        },
+        {
+          "op": "ellipse",
+          "x": 2,
+          "y": 2,
+          "w": 26,
+          "h": 26,
+          "color": "d",
+          "filled": true
+        },
+        {
+          "op": "ellipse",
+          "x": 4,
+          "y": 4,
+          "w": 22,
+          "h": 22,
+          "color": "g",
+          "filled": true
+        },
+        {
+          "op": "ellipse",
+          "x": 17,
+          "y": 7,
+          "w": 5,
+          "h": 5,
+          "color": "l",
+          "filled": false
+        },
+        {
+          "op": "ellipse",
+          "x": 8,
+          "y": 15,
+          "w": 4,
+          "h": 4,
+          "color": "d",
+          "filled": false
+        },
+        {
+          "op": "pixel",
+          "x": 10,
+          "y": 8,
+          "color": "l"
+        },
+        {
+          "op": "pixel",
+          "x": 21,
+          "y": 19,
+          "color": "l"
+        },
+        {
+          "op": "pixel",
+          "x": 15,
+          "y": 22,
+          "color": "d"
+        }
+      ]
+    }
+  ],
+  "animations": {
+    "aviso": {
+      "frames": [
+        "aviso"
+      ]
+    },
+    "activo": {
+      "frames": [
+        "activo_a",
+        "activo_b"
+      ]
+    }
+  }
+}

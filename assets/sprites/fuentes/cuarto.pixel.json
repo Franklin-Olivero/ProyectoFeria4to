@@ -1,0 +1,223 @@
+{
+  "version": 1,
+  "name": "cuarto",
+  "width": 16,
+  "height": 16,
+  "palette": {
+    "a": "#1e1b3e",
+    "b": "#242148",
+    "c": "#2a2654",
+    "d": "#181534",
+    "e": "#302c60",
+    "m": "#342c62",
+    "n": "#4e4286",
+    "o": "#685aaa",
+    "p": "#261f4a"
+  },
+  "frames": [
+    {
+      "name": "piso_a",
+      "duration": 100,
+      "ops": [
+        {
+          "op": "rect",
+          "x": 0,
+          "y": 0,
+          "w": 16,
+          "h": 16,
+          "color": "a",
+          "filled": true
+        },
+        {
+          "op": "line",
+          "x": 0,
+          "y": 0,
+          "x2": 15,
+          "y2": 0,
+          "color": "c"
+        },
+        {
+          "op": "line",
+          "x": 0,
+          "y": 0,
+          "x2": 0,
+          "y2": 15,
+          "color": "c"
+        },
+        {
+          "op": "line",
+          "x": 15,
+          "y": 1,
+          "x2": 15,
+          "y2": 15,
+          "color": "d"
+        },
+        {
+          "op": "line",
+          "x": 1,
+          "y": 15,
+          "x2": 15,
+          "y2": 15,
+          "color": "d"
+        },
+        {
+          "op": "pixel",
+          "x": 5,
+          "y": 9,
+          "color": "b"
+        },
+        {
+          "op": "pixel",
+          "x": 11,
+          "y": 4,
+          "color": "b"
+        }
+      ]
+    },
+    {
+      "name": "piso_b",
+      "duration": 100,
+      "ops": [
+        {
+          "op": "rect",
+          "x": 0,
+          "y": 0,
+          "w": 16,
+          "h": 16,
+          "color": "b",
+          "filled": true
+        },
+        {
+          "op": "line",
+          "x": 0,
+          "y": 0,
+          "x2": 15,
+          "y2": 0,
+          "color": "e"
+        },
+        {
+          "op": "line",
+          "x": 0,
+          "y": 0,
+          "x2": 0,
+          "y2": 15,
+          "color": "e"
+        },
+        {
+          "op": "line",
+          "x": 15,
+          "y": 1,
+          "x2": 15,
+          "y2": 15,
+          "color": "d"
+        },
+        {
+          "op": "line",
+          "x": 1,
+          "y": 15,
+          "x2": 15,
+          "y2": 15,
+          "color": "d"
+        },
+        {
+          "op": "pixel",
+          "x": 9,
+          "y": 10,
+          "color": "c"
+        },
+        {
+          "op": "pixel",
+          "x": 3,
+          "y": 6,
+          "color": "c"
+        }
+      ]
+    },
+    {
+      "name": "piso_grieta",
+      "duration": 100,
+      "from": "piso_a",
+      "ops": [
+        {
+          "op": "grid",
+          "x": 3,
+          "y": 2,
+          "rows": [
+            "d....",
+            ".d...",
+            ".dd..",
+            "..d..",
+            "..dd.",
+            "...d.",
+            "...dd"
+          ]
+        }
+      ]
+    },
+    {
+      "name": "piso_rejilla",
+      "duration": 100,
+      "from": "piso_b",
+      "ops": [
+        {
+          "op": "grid",
+          "x": 4,
+          "y": 4,
+          "rows": [
+            "dddddddd",
+            "dpppppd.",
+            "dddddddd",
+            "dpppppd.",
+            "dddddddd",
+            "dpppppd.",
+            "dddddddd"
+          ]
+        }
+      ]
+    },
+    {
+      "name": "muro",
+      "duration": 100,
+      "ops": [
+        {
+          "op": "rect",
+          "x": 0,
+          "y": 0,
+          "w": 16,
+          "h": 16,
+          "color": "m",
+          "filled": true
+        },
+        {
+          "op": "grid",
+          "x": 0,
+          "y": 0,
+          "rows": [
+            "nnnnnnnnnnnnnnnn",
+            "mmmmmmmpmmmmmmmp",
+            "mmmmmmmpmmmmmmmp",
+            "ppppppppppppppp.",
+            "mmmpmmmmmmmpmmmm",
+            "mmmpmmmmmmmpmmmm",
+            "pppppppppppppppp",
+            "mmmmmmmpmmmmmmmp",
+            "mmmmmmmpmmmmmmmp",
+            "pppppppppppppppp",
+            "mmmpmmmmmmmpmmmm",
+            "mmmpmmmmmmmpmmmm",
+            "pppppppppppppppp",
+            "mmmmmmmpmmmmmmmp",
+            "mmmmmmmpmmmmmmmp",
+            "pppppppppppppppp"
+          ]
+        },
+        {
+          "op": "pixel",
+          "x": 15,
+          "y": 3,
+          "color": "p"
+        }
+      ]
+    }
+  ]
+}

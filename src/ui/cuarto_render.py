@@ -32,7 +32,7 @@ def fondo_cuarto(rect, semilla, cantidad_grafitis):
     # Orden: muro (todo el fondo), luego el piso encima y los grafitis
     # sobre el piso; al final solo las juntas y bordes del muro.
     _dibujar_muros(superficie, interior)
-    _dibujar_baldosas(superficie, interior)
+    _dibujar_baldosas(superficie, interior, random.Random(semilla))
     _dibujar_grafitis(superficie, interior, random.Random(semilla), cantidad_grafitis)
     _dibujar_bordes_muro(superficie, interior)
 
@@ -44,7 +44,11 @@ def origen_fondo(rect):
     return (rect.left - assets.GROSOR_MURO, rect.top - assets.GROSOR_MURO)
 
 
-def _dibujar_baldosas(superficie, interior):
+def _dibujar_baldosas(superficie, interior, rng=None):
+    baldosas = [sprites.cuadro_cuarto(nombre) for nombre in assets.CUADROS_PISO]
+    if all(b is not None for b in baldosas):
+        _dibujar_baldosas_hoja(superficie, interior, baldosas, rng or random.Random(0))
+        return
     lado = assets.TAMANIO_BALDOSA
     pygame.draw.rect(superficie, assets.COLOR_BALDOSA_A, interior)
     for fila, y in enumerate(range(interior.top, interior.bottom, lado)):
@@ -53,6 +57,23 @@ def _dibujar_baldosas(superficie, interior):
                 continue
             baldosa = pygame.Rect(x, y, lado, lado).clip(interior)
             pygame.draw.rect(superficie, assets.COLOR_BALDOSA_B, baldosa)
+
+
+def _dibujar_baldosas_hoja(superficie, interior, baldosas, rng):
+    """Piso con la hoja de sprites: tablero de dos baldosas y, de vez en
+    cuando, una con detalle (grieta, rejilla). Se recorta al interior."""
+    lado = assets.TAMANIO_BALDOSA_HOJA
+    detalles = [sprites.cuadro_cuarto(nombre) for nombre in assets.CUADROS_PISO_DETALLE]
+    detalles = [d for d in detalles if d is not None]
+    recorte = superficie.get_clip()
+    superficie.set_clip(interior)
+    for fila, y in enumerate(range(interior.top, interior.bottom, lado)):
+        for columna, x in enumerate(range(interior.left, interior.right, lado)):
+            imagen = baldosas[(fila + columna) % 2]
+            if detalles and rng.random() < assets.PROBABILIDAD_PISO_DETALLE:
+                imagen = rng.choice(detalles)
+            superficie.blit(imagen, (x, y))
+    superficie.set_clip(recorte)
 
 
 def _dibujar_grafitis(superficie, interior, rng, cantidad):
@@ -88,12 +109,28 @@ def _dibujar_grafitis(superficie, interior, rng, cantidad):
 def _dibujar_muros(superficie, interior):
     g = assets.GROSOR_MURO
     exterior = interior.inflate(2 * g, 2 * g)
-    pygame.draw.rect(superficie, assets.COLOR_MURO, exterior)
+    ladrillo = sprites.cuadro_cuarto(assets.CUADRO_MURO)
+    if ladrillo is None:
+        pygame.draw.rect(superficie, assets.COLOR_MURO, exterior)
+        return
+    # Ladrillos de la hoja repetidos por toda la franja (el piso tapa el
+    # centro después).
+    recorte = superficie.get_clip()
+    superficie.set_clip(exterior)
+    for y in range(exterior.top, exterior.bottom, ladrillo.get_height()):
+        for x in range(exterior.left, exterior.right, ladrillo.get_width()):
+            superficie.blit(ladrillo, (x, y))
+    superficie.set_clip(recorte)
 
 
 def _dibujar_bordes_muro(superficie, interior):
     g = assets.GROSOR_MURO
     exterior = interior.inflate(2 * g, 2 * g)
+    if sprites.cuadro_cuarto(assets.CUADRO_MURO) is not None:
+        # Con la hoja de ladrillos solo hacen falta los dos bordes.
+        pygame.draw.rect(superficie, assets.COLOR_MURO_BORDE, exterior, 2)
+        pygame.draw.rect(superficie, assets.COLOR_MURO_BORDE, interior, 2)
+        return
     # Ladrillos: juntas horizontales y verticales alternadas, recortadas al muro.
     capa = pygame.Surface(exterior.size, pygame.SRCALPHA)
     for fila, y in enumerate(range(0, exterior.height, assets.ALTO_LADRILLO)):
@@ -130,6 +167,13 @@ def _rect_visual_puerta(puerta, rect_cuarto):
 def dibujar_puerta(pantalla, puerta, rect_cuarto):
     visual = _rect_visual_puerta(puerta, rect_cuarto)
     color = puerta.color()
+    estado = "bloqueada" if puerta.bloqueada else "sellada" if puerta.sellada else "abierta"
+    imagen = sprites.cuadro_puerta(estado)
+    if imagen is not None:
+        if puerta.direccion in ("E", "W"):
+            imagen = pygame.transform.rotate(imagen, 90)
+        pantalla.blit(imagen, imagen.get_rect(center=visual.center))
+        return
     pygame.draw.rect(pantalla, assets.COLOR_FONDO, visual)
     pygame.draw.rect(pantalla, color, visual, 2)
     if puerta.bloqueada:
