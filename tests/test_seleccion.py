@@ -9,6 +9,7 @@ sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")
 from src.ui.seleccion import (  # noqa: E402
     DOS_JUGADORES,
     UN_JUGADOR,
+    ONLINE,
     CursorRol,
     SeleccionRoles,
     SelectorModo,
@@ -31,9 +32,11 @@ def test_modo_empieza_en_un_jugador_y_alterna():
     selector.mover(DERECHA)
     assert selector.seleccionado == DOS_JUGADORES
     selector.mover(DERECHA)
+    assert selector.seleccionado == ONLINE
+    selector.mover(DERECHA)
     assert selector.seleccionado == UN_JUGADOR
     selector.mover(IZQUIERDA)
-    assert selector.seleccionado == DOS_JUGADORES
+    assert selector.seleccionado == ONLINE
 
 
 def test_cursor_da_la_vuelta_y_se_bloquea_al_confirmar():

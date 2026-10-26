@@ -255,7 +255,11 @@ POSICION_ESTADO_SELECCION = (640, 590)  # centro de "J1: ... · J2: ..."
 # ----------------------------------------------------------------------
 # Pantalla de modo: 1 o 2 jugadores (antes de elegir personaje)
 # ----------------------------------------------------------------------
-RECTS_OPCION_MODO = ((250, 170, 360, 340), (670, 170, 360, 340))  # x, y, ancho, alto
+RECTS_OPCION_MODO = (
+    (130, 170, 320, 340),
+    (480, 170, 320, 340),
+    (830, 170, 320, 340),
+)  # x, y, ancho, alto para 1 jugador, 2 jugadores y Online
 POSICION_AVISO_MODO = (640, 570)  # centro del estado del control / aviso
 DURACION_AVISO_MODO = 2.5  # s que se muestra "Conecta un control..."
 
