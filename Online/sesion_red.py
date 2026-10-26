@@ -123,48 +123,45 @@ def aplicar_estado_remoto(estado, jugadores):
 
 
 class AdaptadorOnlineHost:
-    """El host usa este adaptador para enviar estado y recibir input.
+    """El host usa este adaptador para enviar estado y recibir input de hasta 3 invitados.
 
     Cada frame:
-        1. Llama a recibir_input() → obtiene el input del invitado.
+        1. Llama a recibir_input(id_jugador) → obtiene el input de ese cliente.
         2. Ejecuta la lógica de juego normalmente.
-        3. Llama a enviar_estado() → serializa y envía al invitado.
+        3. Llama a enviar_estado() → serializa y envía a todos los clientes.
     """
 
     def __init__(self, servidor):
         self.servidor = servidor
-        self._ultimo_input = None
+        self._ultimos_inputs = {}  # id_jugador -> InputRed
         self._contador_frames = 0
         self._intervalo_estado = 2  # enviar estado cada N frames
 
-    def recibir_input(self):
-        """Retorna el último InputRed del invitado, o None."""
+    def recibir_input(self, id_jugador=1):
+        """Retorna el último InputRed de un jugador remoto específico."""
         for msg in self.servidor.leer_mensajes():
             if msg.get("tipo") == INPUT:
-                self._ultimo_input = deserializar_input(msg.get("input", {}))
+                jid = msg.get("id", 1)
+                self._ultimos_inputs[jid] = deserializar_input(msg.get("input", {}))
             elif msg.get("tipo") == DESCONEXION:
-                self._ultimo_input = None
-        return self._ultimo_input
+                jid = msg.get("id", 1)
+                self._ultimos_inputs.pop(jid, None)
+        return self._ultimos_inputs.get(id_jugador)
 
     def enviar_estado(self, jugadores, escenario, colapso):
-        """Serializa y envía el estado actual al invitado."""
+        """Serializa y envía el estado actual a todos los invitados."""
         self._contador_frames += 1
         if self._contador_frames % self._intervalo_estado != 0:
             return
         estado = serializar_estado(jugadores, escenario, colapso)
-        self.servidor.enviar_a_invitado(msg_estado(estado))
+        self.servidor.enviar_a_todos(msg_estado(estado))
 
     def detener(self):
         self.servidor.detener()
 
 
 class AdaptadorOnlineJoin:
-    """El invitado usa este adaptador para enviar input y recibir estado.
-
-    Cada frame:
-        1. Llama a enviar_input() → serializa y envía su input al host.
-        2. Llama a recibir_estado() → obtiene el último snapshot.
-    """
+    """El invitado usa este adaptador para enviar input y recibir estado."""
 
     def __init__(self, cliente):
         self.cliente = cliente
@@ -193,14 +190,16 @@ class _MandoFicticio:
 
 
 class EntradaRed:
-    """Entrada que lee el input del J2 recibido a través del socket."""
-    def __init__(self, adaptador):
+    """Entrada que lee el input de un jugador remoto recibido a través del socket."""
+
+    def __init__(self, adaptador, id_jugador=1):
         self.adaptador = adaptador
+        self.id_jugador = id_jugador
         self.mando = _MandoFicticio()
 
     def leer(self):
         from src.core.entrada import InputJugador
-        inp = self.adaptador.recibir_input()
+        inp = self.adaptador.recibir_input(self.id_jugador)
         if inp is None:
             return InputJugador()
         return InputJugador(

@@ -216,7 +216,10 @@ def _nueva_sesion(clases, mando, entrada_extra=None):
     # terminal de decisión y apunta con la mira del mouse.
     entradas = [EntradaTeclado()]
     if entrada_extra is not None:
-        entradas.append(entrada_extra)
+        if isinstance(entrada_extra, list):
+            entradas.extend(entrada_extra)
+        else:
+            entradas.append(entrada_extra)
     elif len(clases) > 1:
         entradas.append(EntradaMando(mando))
     return _Sesion(Partida(), [clase(0, 0) for clase in clases], entradas)
@@ -711,9 +714,12 @@ def _menu_inicio(pantalla, reloj, mando, presentar):
             if res == "volver":
                 continue
             clases, conexion, es_host = res
-            adaptador = AdaptadorOnlineHost(conexion) if es_host else None
-            entrada_red = EntradaRed(adaptador) if adaptador else None
-            return clases, mando, entrada_red
+            if es_host:
+                adaptador = AdaptadorOnlineHost(conexion)
+                entradas_red = [EntradaRed(adaptador, id_jugador=jid) for jid in range(1, len(clases))]
+                return clases, mando, entradas_red
+            else:
+                return clases, mando, None
         clases = _elegir_roles(pantalla, reloj, modo, mando, presentar)
         if clases is None:
             return None

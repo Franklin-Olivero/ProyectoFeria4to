@@ -48,6 +48,7 @@ INICIAR = "INICIAR"
 INPUT = "INPUT"
 ESTADO = "ESTADO"
 DESCONEXION = "DESCONEXION"
+POSICION_LOBBY = "POSICION_LOBBY"
 PING = "PING"
 PONG = "PONG"
 
@@ -226,3 +227,8 @@ def msg_ping(timestamp):
 
 def msg_pong(timestamp):
     return serializar(crear_mensaje(PONG, t=timestamp))
+
+
+def msg_posicion_lobby(id_jugador, x, y):
+    return serializar(crear_mensaje(POSICION_LOBBY, id=id_jugador, x=round(x, 1), y=round(y, 1)))
+

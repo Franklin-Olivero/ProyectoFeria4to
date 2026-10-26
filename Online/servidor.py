@@ -1,25 +1,19 @@
-"""Servidor TCP para el multijugador en red de Civitas.
+"""Servidor TCP para el multijugador en red de Civitas (hasta 4 jugadores).
 
-El host ejecuta este servidor en un hilo aparte. Acepta exactamente 1
-conexión (el invitado) y retransmite mensajes entre ambos. El estado
-del lobby se modela con un GrafoSala (Online/protocolo.py), que es un
-grafo no dirigido donde cada nodo = jugador y cada arista = conexión
-activa en la sala.
+El host ejecuta este servidor en un hilo aparte. Acepta hasta 3 invitados
+(4 jugadores en total con el host) y retransmite mensajes entre todos.
+El estado del lobby se modela con un GrafoSala (Online/protocolo.py),
+un grafo no dirigido donde cada nodo = jugador y cada arista = conexión
+activa entre ellos.
 
 Flujo:
     1. El host llama a iniciar(puerto) → abre socket, escucha.
-    2. El invitado se conecta → el servidor le envía BIENVENIDA con su
-       id y el estado del lobby.
-    3. Ambos eligen rol (ELEGIR_ROL) → el servidor actualiza el grafo
-       y reenvía LOBBY a todos.
-    4. El host envía INICIAR → el servidor lo reenvía al invitado.
-    5. Durante la partida: cada INPUT del invitado se reenvía al host,
-       cada ESTADO del host se reenvía al invitado.
-
-Complejidad:
-    - Aceptar conexión: O(1)
-    - Procesar mensaje: O(n) donde n = tamaño del mensaje
-    - Broadcast a k clientes: O(k × n) — con k=1 es O(n)
+    2. Los invitados se conectan (IDs 1, 2, 3) → el servidor les envía
+       BIENVENIDA y sincroniza el lobby con todos.
+    3. Cada jugador puede moverse en la sala de espera y elegir su rol.
+    4. El host inicia la partida cuando hay al menos 2 jugadores listos.
+    5. Durante la partida: los inputs de los clientes se envían al host,
+       y los estados del juego se difunden a todos los clientes.
 """
 
 import socket
@@ -28,27 +22,20 @@ import time
 
 from Online.protocolo import (
     BIENVENIDA, DESCONEXION, ELEGIR_ROL, ESTADO, HOLA, INICIAR, INPUT,
-    LOBBY, PING, PONG, GrafoSala, deserializar_buffer, msg_bienvenida,
-    msg_desconexion, msg_lobby, msg_pong, serializar, crear_mensaje,
+    LOBBY, PING, PONG, POSICION_LOBBY, GrafoSala, deserializar_buffer,
+    msg_bienvenida, msg_desconexion, msg_lobby, msg_pong,
+    msg_posicion_lobby, serializar, crear_mensaje,
 )
 
-# Puerto por defecto para la sala.
 PUERTO_DEFAULT = 7777
-BACKLOG = 1  # solo 1 invitado en esta versión
+MAX_JUGADORES = 4
+BACKLOG = 5
 BUFFER_SIZE = 4096
-TIMEOUT_ACEPTAR = 0.5  # segundos entre checks de cancelación
+TIMEOUT_ACEPTAR = 0.05  # polling rápido para no bloquear
 
 
 class Servidor:
-    """Servidor TCP que gestiona una sala de 2 jugadores.
-
-    Atributos públicos (leídos desde el hilo principal / Pygame):
-        sala        — GrafoSala con los jugadores conectados
-        iniciado    — True cuando el host envió INICIAR
-        error       — str con el último error, o None
-        corriendo   — True mientras el servidor acepta conexiones
-        mensajes_host — cola de mensajes dirigidos al host (list)
-    """
+    """Servidor TCP que gestiona una sala de hasta 4 jugadores."""
 
     def __init__(self):
         self.sala = GrafoSala()
@@ -57,14 +44,15 @@ class Servidor:
         self.corriendo = False
         self.mensajes_host = []  # mensajes que el host debe procesar
         self._socket = None
-        self._cliente = None  # socket del invitado
+        self._clientes = {}      # id_jugador (1..3) -> socket
+        self._buffers = {}       # id_jugador -> bytes acumulados
+        self.posiciones_lobby = {}  # id_jugador -> (x, y)
         self._hilo = None
         self._cancelar = threading.Event()
         self._lock = threading.Lock()
-        self._buffer_cliente = b""
 
     # ------------------------------------------------------------------
-    # API pública (llamada desde el hilo de Pygame)
+    # API pública (llamada desde Pygame)
     # ------------------------------------------------------------------
 
     def iniciar(self, puerto=PUERTO_DEFAULT):
@@ -77,7 +65,7 @@ class Servidor:
             self.error = f"No se pudo abrir el puerto {puerto}: {e}"
             return None
         self._socket.listen(BACKLOG)
-        self._socket.settimeout(TIMEOUT_ACEPTAR)
+        self._socket.setblocking(False)
         self.corriendo = True
 
         # El host es el jugador 0.
@@ -89,30 +77,60 @@ class Servidor:
         return _ip_local()
 
     def detener(self):
-        """Cierra todo limpiamente."""
+        """Cierra todos los sockets y detiene el servidor."""
         self._cancelar.set()
         self.corriendo = False
-        if self._cliente:
-            try:
-                self._cliente.close()
-            except OSError:
-                pass
+        with self._lock:
+            for sock in list(self._clientes.values()):
+                try:
+                    sock.close()
+                except OSError:
+                    pass
+            self._clientes.clear()
+            self._buffers.clear()
         if self._socket:
             try:
                 self._socket.close()
             except OSError:
                 pass
 
+    def enviar_a_todos(self, datos_bytes, excluir_id=None):
+        """Envía bytes a todos los clientes conectados (excepto excluir_id)."""
+        with self._lock:
+            desconectados = []
+            for jid, sock in self._clientes.items():
+                if jid == excluir_id:
+                    continue
+                try:
+                    sock.sendall(datos_bytes)
+                except OSError:
+                    desconectados.append(jid)
+            for jid in desconectados:
+                self._desconectar_cliente_interno(jid)
+
     def enviar_a_invitado(self, datos_bytes):
-        """Envía bytes crudos al invitado (llamado desde el hilo de Pygame)."""
-        if self._cliente:
-            try:
-                self._cliente.sendall(datos_bytes)
-            except OSError:
-                self._desconectar_invitado()
+        """Compatibilidad con código anterior: difunde a todos los clientes."""
+        self.enviar_a_todos(datos_bytes)
+
+    def enviar_a_cliente(self, id_jugador, datos_bytes):
+        """Envía bytes a un cliente específico."""
+        with self._lock:
+            sock = self._clientes.get(id_jugador)
+            if sock:
+                try:
+                    sock.sendall(datos_bytes)
+                except OSError:
+                    self._desconectar_cliente_interno(id_jugador)
+
+    def hay_invitados(self):
+        with self._lock:
+            return len(self._clientes) > 0
 
     def hay_invitado(self):
-        return self._cliente is not None
+        return self.hay_invitados()
+
+    def cantidad_jugadores(self):
+        return self.sala.cantidad()
 
     def leer_mensajes(self):
         """Retorna y vacía la cola de mensajes para el host."""
@@ -124,103 +142,156 @@ class Servidor:
     @property
     def puerto(self):
         if self._socket:
-            return self._socket.getsockname()[1]
-        return None
+            try:
+                return self._socket.getsockname()[1]
+            except OSError:
+                pass
+        return PUERTO_DEFAULT
 
     # ------------------------------------------------------------------
-    # Loop interno (hilo aparte)
+    # Loop interno (hilo en segundo plano)
     # ------------------------------------------------------------------
 
     def _loop(self):
-        """Espera la conexión del invitado y luego procesa sus mensajes."""
-        # Fase 1: esperar al invitado.
         while not self._cancelar.is_set():
-            try:
-                conn, addr = self._socket.accept()
-                conn.setblocking(False)
-                self._cliente = conn
-                break
-            except socket.timeout:
-                continue
-            except OSError:
+            # 1. Aceptar nuevos clientes si hay cupo disponible.
+            if len(self._clientes) < MAX_JUGADORES - 1:
+                try:
+                    conn, _ = self._socket.accept()
+                    conn.setblocking(False)
+                    self._registrar_nuevo_cliente(conn)
+                except BlockingIOError:
+                    pass
+                except OSError:
+                    break
+
+            # 2. Leer datos de los clientes conectados.
+            with self._lock:
+                clientes_activos = list(self._clientes.items())
+
+            for jid, sock in clientes_activos:
+                try:
+                    datos = sock.recv(BUFFER_SIZE)
+                except BlockingIOError:
+                    continue
+                except OSError:
+                    self._desconectar_cliente(jid)
+                    continue
+
+                if not datos:
+                    self._desconectar_cliente(jid)
+                    continue
+
+                self._buffers[jid] = self._buffers.get(jid, b"") + datos
+                mensajes, self._buffers[jid] = deserializar_buffer(self._buffers[jid])
+                for msg in mensajes:
+                    self._procesar(jid, msg)
+
+            time.sleep(0.004)  # ~250 Hz
+
+    def _registrar_nuevo_cliente(self, sock):
+        with self._lock:
+            # Asignar el primer id disponible entre 1 y 3.
+            usados = set(self._clientes.keys())
+            nuevo_id = None
+            for candidato in range(1, MAX_JUGADORES):
+                if candidato not in usados:
+                    nuevo_id = candidato
+                    break
+            if nuevo_id is None:
+                try:
+                    sock.close()
+                except OSError:
+                    pass
                 return
 
-        if self._cancelar.is_set():
-            return
+            self._clientes[nuevo_id] = sock
+            self._buffers[nuevo_id] = b""
+            self.sala.conectar(nuevo_id)
 
-        # Fase 2: leer mensajes del invitado.
-        while not self._cancelar.is_set():
+            # Enviar bienvenida al recién conectado.
+            bienvenida = msg_bienvenida(nuevo_id, self.sala.a_dict())
             try:
-                datos = self._cliente.recv(BUFFER_SIZE)
-            except BlockingIOError:
-                time.sleep(0.005)  # ~200 Hz de polling
-                continue
+                sock.sendall(bienvenida)
             except OSError:
-                self._desconectar_invitado()
-                break
+                self._desconectar_cliente_interno(nuevo_id)
+                return
 
-            if not datos:
-                self._desconectar_invitado()
-                break
+            # Broadcast del lobby actualizado a todos.
+            lobby_bytes = msg_lobby(self.sala.a_dict())
+            for cid, s in self._clientes.items():
+                if cid != nuevo_id:
+                    try:
+                        s.sendall(lobby_bytes)
+                    except OSError:
+                        pass
 
-            self._buffer_cliente += datos
-            mensajes, self._buffer_cliente = deserializar_buffer(self._buffer_cliente)
-            for msg in mensajes:
-                self._procesar(msg)
+            self.mensajes_host.append({"tipo": LOBBY, "sala": self.sala.a_dict()})
 
-    def _procesar(self, msg):
-        """Procesa un mensaje del invitado."""
+    def _procesar(self, jid, msg):
         tipo = msg.get("tipo")
 
         if tipo == HOLA:
-            # Registrar al invitado (jugador 1) en el grafo de sala.
-            self.sala.conectar(1)
-            bienvenida = msg_bienvenida(1, self.sala.a_dict())
-            self.enviar_a_invitado(bienvenida)
-            # Notificar al host del estado del lobby.
-            with self._lock:
-                self.mensajes_host.append({"tipo": LOBBY, "sala": self.sala.a_dict()})
+            # Ya se envió bienvenida al aceptar conexión.
+            pass
 
         elif tipo == ELEGIR_ROL:
-            id_j = msg.get("id", 1)
             rol = msg.get("rol")
-            self.sala.elegir_rol(id_j, rol)
-            # Broadcast del lobby actualizado.
+            self.sala.elegir_rol(jid, rol)
             lobby = msg_lobby(self.sala.a_dict())
-            self.enviar_a_invitado(lobby)
+            self.enviar_a_todos(lobby)
             with self._lock:
                 self.mensajes_host.append({"tipo": LOBBY, "sala": self.sala.a_dict()})
 
+        elif tipo == POSICION_LOBBY:
+            x, y = msg.get("x", 0), msg.get("y", 0)
+            self.posiciones_lobby[jid] = (x, y)
+            # Retransmitir a los otros clientes y al host.
+            pos_bytes = msg_posicion_lobby(jid, x, y)
+            self.enviar_a_todos(pos_bytes, excluir_id=jid)
+            with self._lock:
+                self.mensajes_host.append({"tipo": POSICION_LOBBY, "id": jid, "x": x, "y": y})
+
         elif tipo == INPUT:
-            # Reenviar el input del invitado al host.
+            msg["id"] = jid
             with self._lock:
                 self.mensajes_host.append(msg)
 
         elif tipo == PING:
             pong = msg_pong(msg.get("t", 0))
-            self.enviar_a_invitado(pong)
+            self.enviar_a_cliente(jid, pong)
 
         elif tipo == PONG:
-            # Calcular latencia y actualizar el grafo.
             t_envio = msg.get("t", 0)
             latencia = int((time.time() * 1000) - t_envio)
-            self.sala.actualizar_latencia(0, 1, latencia)
+            self.sala.actualizar_latencia(0, jid, latencia)
 
-    def _desconectar_invitado(self):
-        """Limpia la conexión del invitado."""
-        if self._cliente:
+    def _desconectar_cliente(self, jid):
+        with self._lock:
+            self._desconectar_cliente_interno(jid)
+
+    def _desconectar_cliente_interno(self, jid):
+        sock = self._clientes.pop(jid, None)
+        self._buffers.pop(jid, None)
+        self.posiciones_lobby.pop(jid, None)
+        if sock:
             try:
-                self._cliente.close()
+                sock.close()
             except OSError:
                 pass
-            self._cliente = None
-        self.sala.desconectar(1)
-        with self._lock:
-            self.mensajes_host.append({"tipo": DESCONEXION, "id": 1})
+        self.sala.desconectar(jid)
+        lobby_bytes = msg_lobby(self.sala.a_dict())
+        for s in self._clientes.values():
+            try:
+                s.sendall(lobby_bytes)
+            except OSError:
+                pass
+        self.mensajes_host.append({"tipo": DESCONEXION, "id": jid})
+        self.mensajes_host.append({"tipo": LOBBY, "sala": self.sala.a_dict()})
 
 
 def _ip_local():
-    """Obtiene la IP local de la máquina (la que otros en la LAN ven)."""
+    """Obtiene la IP local de la máquina."""
     try:
         s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
         s.connect(("8.8.8.8", 80))

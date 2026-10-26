@@ -21,7 +21,8 @@ import time
 
 from Online.protocolo import (
     BIENVENIDA, DESCONEXION, ESTADO, GrafoSala, INICIAR, LOBBY, PONG,
-    deserializar_buffer, msg_elegir_rol, msg_hola, msg_input, msg_ping,
+    POSICION_LOBBY, deserializar_buffer, msg_elegir_rol, msg_hola,
+    msg_input, msg_ping, msg_posicion_lobby,
 )
 
 BUFFER_SIZE = 4096
@@ -48,6 +49,7 @@ class Cliente:
         self.error = None
         self.mensajes = []
         self.latencia_ms = 0
+        self.posiciones_lobby = {}  # id -> (x, y)
         self._socket = None
         self._hilo = None
         self._cancelar = threading.Event()
@@ -90,11 +92,16 @@ class Cliente:
 
     def enviar_rol(self, rol):
         """Notifica al servidor la elección de rol."""
-        self._enviar(msg_elegir_rol(self.id_jugador or 1, rol))
+        self._enviar(msg_elegir_rol(self.id_jugador if self.id_jugador is not None else 1, rol))
+
+    def enviar_posicion_lobby(self, x, y):
+        """Envía la posición del jugador en la sala de espera."""
+        if self.id_jugador is not None:
+            self._enviar(msg_posicion_lobby(self.id_jugador, x, y))
 
     def enviar_input(self, datos_input):
         """Envía el input de este frame al servidor."""
-        self._enviar(msg_input(self.id_jugador or 1, datos_input))
+        self._enviar(msg_input(self.id_jugador if self.id_jugador is not None else 1, datos_input))
 
     def enviar_ping(self):
         """Envía un ping para medir latencia."""
@@ -155,6 +162,11 @@ class Cliente:
         elif tipo == PONG:
             t_envio = msg.get("t", 0)
             self.latencia_ms = int((time.time() * 1000) - t_envio)
+
+        elif tipo == POSICION_LOBBY:
+            jid = msg.get("id")
+            if jid is not None and jid != self.id_jugador:
+                self.posiciones_lobby[jid] = (msg.get("x", 0), msg.get("y", 0))
 
         elif tipo == DESCONEXION:
             self.conectado = False

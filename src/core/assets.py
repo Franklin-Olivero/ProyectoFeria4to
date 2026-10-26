@@ -80,7 +80,12 @@ COLOR_FONDO_BARRA = (38, 36, 74)
 COLOR_BORDE_BARRA = (74, 70, 120)
 # Paneles laterales (cooperativo): J1 en el margen izquierdo y J2 en el
 # derecho, entre el muro del cuarto (x 122-1158) y el borde de la pantalla.
-RECTS_PANEL_JUGADOR = ((4, 80, 114, 330), (1162, 80, 114, 330))  # x, y, ancho, alto
+RECTS_PANEL_JUGADOR = (
+    (4, 75, 114, 270),     # J1 (arriba izq)
+    (1162, 75, 114, 270),   # J2 (arriba der)
+    (4, 360, 114, 270),    # J3 (abajo izq)
+    (1162, 360, 114, 270),  # J4 (abajo der)
+)  # x, y, ancho, alto para hasta 4 jugadores
 CORAZONES_POR_FILA_PANEL = 4
 ANCHO_BARRA_HABILIDAD_PANEL = 70
 TAMANIO_FUENTE_MINI = 10  # controles clave del panel ("Stick R Apuntar" debe caber en 96 px)
