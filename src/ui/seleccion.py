@@ -15,7 +15,8 @@ from src.ui.terminal_decision import DERECHA, IZQUIERDA
 
 UN_JUGADOR = 1
 DOS_JUGADORES = 2
-MODOS = (UN_JUGADOR, DOS_JUGADORES)
+ONLINE = 3
+MODOS = (UN_JUGADOR, DOS_JUGADORES, ONLINE)
 
 
 class SelectorModo:
@@ -29,8 +30,10 @@ class SelectorModo:
         return MODOS[self.indice]
 
     def mover(self, direccion):
-        if direccion in (IZQUIERDA, DERECHA):
+        if direccion == DERECHA:
             self.indice = (self.indice + 1) % len(MODOS)
+        elif direccion == IZQUIERDA:
+            self.indice = (self.indice - 1) % len(MODOS)
 
     def elegir(self, modo):
         self.indice = MODOS.index(modo)

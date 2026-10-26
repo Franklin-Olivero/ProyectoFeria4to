@@ -14,6 +14,7 @@ SUBTITULO = "¿Cuántos jugadores?"
 OPCIONES = {
     1: ("1 jugador", ["Teclado y ratón"]),
     2: ("2 jugadores", ["J1: teclado y ratón", "J2: control de PS4", "Cooperativo, misma pantalla"]),
+    3: ("Online", ["Multijugador en red", "J1 y J2 por TCP / IP", "Lobby con Grafos"]),
 }
 AVISO_SIN_CONTROL = "Conecta un control de PS4 para jugar de a dos"
 
@@ -36,8 +37,8 @@ def dibujar_modo(pantalla, selector, nombre_mando, aviso_activo):
         dibujo.chip(pantalla, str(modo), (tarjeta.left + 20, tarjeta.top + 18), color, assets.COLOR_FONDO,
                     color, assets.TAMANIO_FUENTE_MEDIA, alto=30, margen=11)
 
-        # Un muñeco por jugador.
-        colores = [assets.COLOR_CIUDADANO, assets.COLOR_INFLUENCER][:modo]
+        # Un muñeco por jugador (modo 3 tiene 2 jugadores en red).
+        colores = [assets.COLOR_CIUDADANO, assets.COLOR_INFLUENCER][:min(modo, 2)]
         separacion = 90
         inicio = tarjeta.centerx - separacion * (len(colores) - 1) / 2
         for i, color_sprite in enumerate(colores):

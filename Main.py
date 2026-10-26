@@ -83,10 +83,13 @@ from src.ui.pantalla_resultado import ResultadoMazmorra, dibujar_resultado
 from src.ui.pantalla_victoria import dibujar_victoria
 from src.ui.pantalla_modo import dibujar_modo
 from src.ui.particulas import SistemaParticulas
-from src.ui.seleccion import DOS_JUGADORES, UN_JUGADOR, SeleccionRoles, SelectorModo
+from src.ui.seleccion import DOS_JUGADORES, UN_JUGADOR, ONLINE, SeleccionRoles, SelectorModo
 from src.ui.seleccion_rol import dibujar_seleccion
 from src.ui.terminal_decision import CONFIRMAR, DERECHA, IZQUIERDA
 from src.ui.terminal_decision_render import dibujar_terminal
+
+from Online.lobby import menu_online
+from Online.sesion_red import AdaptadorOnlineHost, EntradaRed
 
 TECLAS_CONFIRMAR = (pygame.K_RETURN, pygame.K_KP_ENTER)
 TECLA_SALIR = pygame.K_ESCAPE
@@ -94,7 +97,14 @@ TECLA_SALIR = pygame.K_ESCAPE
 # Tarjetas de la pantalla de selección, en orden (tecla 1 = la primera).
 CLASES_ROL = [Ciudadano, Influencer, Periodista, Candidato]
 TECLAS_ROL = {pygame.K_1: 0, pygame.K_2: 1, pygame.K_3: 2, pygame.K_4: 3}
-TECLAS_MODO = {pygame.K_1: UN_JUGADOR, pygame.K_2: DOS_JUGADORES}
+TECLAS_MODO = {
+    pygame.K_1: UN_JUGADOR,
+    pygame.K_2: DOS_JUGADORES,
+    pygame.K_3: ONLINE,
+    pygame.K_KP1: UN_JUGADOR,
+    pygame.K_KP2: DOS_JUGADORES,
+    pygame.K_KP3: ONLINE,
+}
 
 # Menús: J1 con flechas o A/D, Enter o Espacio confirma, Retroceso se arrepiente.
 TECLAS_MENU_J1 = {
@@ -182,8 +192,8 @@ def main():
                 break
             if eleccion == VOLVER:
                 continue
-            clases, mando = eleccion
-            sesion = _nueva_sesion(clases, mando)
+            clases, mando, entrada_extra = eleccion
+            sesion = _nueva_sesion(clases, mando, entrada_extra)
         if _jugar(pantalla, reloj, sesion, preferencias, presentar) == SALIR:
             break
     guardar_preferencias(preferencias)
@@ -201,11 +211,13 @@ class _Sesion:
     entradas: list
 
 
-def _nueva_sesion(clases, mando):
+def _nueva_sesion(clases, mando, entrada_extra=None):
     # J1 (jugadores[0]) es el del teclado: su HUD va arriba, maneja la
     # terminal de decisión y apunta con la mira del mouse.
     entradas = [EntradaTeclado()]
-    if len(clases) > 1:
+    if entrada_extra is not None:
+        entradas.append(entrada_extra)
+    elif len(clases) > 1:
         entradas.append(EntradaMando(mando))
     return _Sesion(Partida(), [clase(0, 0) for clase in clases], entradas)
 
@@ -685,18 +697,28 @@ def _accion_menu(evento, sticks):
 
 def _menu_inicio(pantalla, reloj, mando, presentar):
     """Pantalla de modo y luego la de roles (Esc en roles vuelve al modo).
-    Retorna (clases de rol en orden J1, J2..., control o None), VOLVER
+    Retorna (clases de rol en orden J1, J2..., control o None, entrada_extra), VOLVER
     con Esc en la pantalla de modo, o None si se cierra la ventana."""
     while True:
         modo = _elegir_modo(pantalla, reloj, mando, presentar)
         if modo is None or modo == VOLVER:
             return modo
         modo, mando = modo
+        if modo == ONLINE:
+            res = menu_online(pantalla, reloj, presentar, CLASES_ROL)
+            if res is None:
+                return None
+            if res == "volver":
+                continue
+            clases, conexion, es_host = res
+            adaptador = AdaptadorOnlineHost(conexion) if es_host else None
+            entrada_red = EntradaRed(adaptador) if adaptador else None
+            return clases, mando, entrada_red
         clases = _elegir_roles(pantalla, reloj, modo, mando, presentar)
         if clases is None:
             return None
         if clases != VOLVER:
-            return clases, mando
+            return clases, mando, None
 
 
 def _elegir_modo(pantalla, reloj, mando, presentar):
