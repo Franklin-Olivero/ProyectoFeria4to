@@ -4,7 +4,8 @@ Características:
     1. Sala física interactiva para hasta 4 jugadores simultáneos.
     2. Los jugadores se mueven libremente por la sala con WASD o flechas.
     3. Laptop central interactiva y atajos [1-4] para seleccionar personaje.
-    4. Panel lateral con la IP de la sala, capacidad (X/4) y latencia.
+    4. Panel lateral con el código de sala, capacidad (X/4), Wi-Fi, ping real
+       (con la sala y con internet) y, en el Host, el estado del Firewall ([F]).
     5. Radar en tiempo real con el Grafo de Sala (GrafoSala de Estructura de Datos 2).
     6. Botón central de inicio: requiere mínimo 2 jugadores y solo el Host puede iniciar.
 """
@@ -20,6 +21,8 @@ from src.ui import dibujo, hud, sprites
 from Online.servidor import Servidor, PUERTO_DEFAULT, MAX_JUGADORES
 from Online.cliente import Cliente
 from Online.codigo_sala import generar_codigo, resolver_entrada, ip_local
+from Online import firewall
+from Online.red_local import CONSEJOS, OTRO, InfoRed, MedidorInternet, formatear_ms
 from Online.protocolo import (
     ROLES, GrafoSala, ELEGIR_ROL, INICIAR, LOBBY, ESTADO, POSICION_LOBBY,
     msg_elegir_rol, msg_iniciar, msg_lobby, msg_posicion_lobby,
@@ -142,8 +145,8 @@ def pantalla_elegir_modo_online(pantalla, reloj, presentar):
         reloj.tick(FPS)
 
 
-def _pantalla_ingresar_ip(pantalla, reloj, presentar):
-    """Pantalla para ingresar la IP del Host."""
+def _pantalla_ingresar_ip(pantalla, reloj, presentar, info_red=None):
+    """Pantalla para ingresar el código de sala (o la IP) del Host."""
     ip_texto = ""
     cursor_visible = True
     cursor_timer = 0.0
@@ -192,14 +195,19 @@ def _pantalla_ingresar_ip(pantalla, reloj, presentar):
                      (640, 400), assets.COLOR_TEAL, assets.TAMANIO_FUENTE_NORMAL, ancla="center")
         dibujo.texto(pantalla, "Presiona Enter para conectar", (640, 434),
                      assets.COLOR_TEXTO_SECUNDARIO, assets.TAMANIO_FUENTE_PEQUENA, ancla="center")
+        if info_red is not None:
+            dibujo.texto(pantalla, info_red.describir() + " — debe ser la misma red del Host",
+                         (640, 480), assets.COLOR_TEXTO_APAGADO, assets.TAMANIO_FUENTE_PEQUENA,
+                         ancla="center")
 
         hud.dibujar_barra_controles(pantalla,
                                     [("A-Z 0-9", "escribir código"), ("Enter", "conectar"), ("Esc", "volver")])
         presentar()
 
 
-def _pantalla_error(pantalla, reloj, presentar, mensaje):
-    """Muestra un modal de error y retorna 'volver'."""
+def _pantalla_error(pantalla, reloj, presentar, mensaje, consejos=()):
+    """Muestra un modal de error (con consejos opcionales debajo) y retorna 'volver'."""
+    corrimiento = 30 * len(consejos) // 2 + (20 if consejos else 0)
     while True:
         for evento in pygame.event.get():
             if evento.type == pygame.QUIT:
@@ -209,21 +217,48 @@ def _pantalla_error(pantalla, reloj, presentar, mensaje):
                     return "volver"
 
         pantalla.fill(assets.COLOR_FONDO)
-        dibujo.texto(pantalla, "Error de Conexión", (640, 280), assets.COLOR_MAGENTA,
+        dibujo.texto(pantalla, "Error de Conexión", (640, 280 - corrimiento), assets.COLOR_MAGENTA,
                      assets.TAMANIO_FUENTE_GRANDE, negrita=True, ancla="center")
-        dibujo.texto(pantalla, str(mensaje), (640, 340), assets.COLOR_TEXTO_SECUNDARIO,
+        dibujo.texto(pantalla, str(mensaje), (640, 340 - corrimiento), assets.COLOR_TEXTO_SECUNDARIO,
                      assets.TAMANIO_FUENTE_NORMAL, ancla="center")
-        dibujo.texto(pantalla, "Presiona Enter o Esc para volver", (640, 420),
+        y = 390 - corrimiento
+        for i, consejo in enumerate(consejos):
+            color = assets.COLOR_AMARILLO if i == 0 else assets.COLOR_TEXTO_HUD
+            dibujo.texto(pantalla, consejo, (640, y), color, assets.TAMANIO_FUENTE_NORMAL,
+                         negrita=(i == 0), ancla="center")
+            y += 30
+        dibujo.texto(pantalla, "Presiona Enter o Esc para volver", (640, max(420, y + 30)),
                      assets.COLOR_TEXTO_APAGADO, assets.TAMANIO_FUENTE_NORMAL, ancla="center")
         presentar()
         reloj.tick(FPS)
+
+
+def _consejos_conexion(cliente, ip_host, info_red):
+    """Qué revisar según por qué falló la conexión, más las IPs de ambas PCs."""
+    consejos = list(CONSEJOS.get(cliente.tipo_error or OTRO, CONSEJOS[OTRO]))
+    consejos.append(f"{info_red.describir()} · Host: {ip_host}")
+    return consejos
+
+
+class _DiagnosticoSala:
+    """Lo que muestra ROOM SETTINGS además del código: Wi-Fi, ping a internet
+    y (solo el Host) el estado del Firewall. Todo se lee en hilos."""
+
+    def __init__(self, es_host, puerto):
+        self.info_red = InfoRed()
+        self.internet = MedidorInternet().iniciar()
+        self.firewall = firewall.EstadoFirewall(puerto) if es_host else None
+
+    def detener(self):
+        self.internet.detener()
 
 
 # =========================================================================
 # Sala de Espera Interactiva (Estilo Among Us)
 # =========================================================================
 
-def pantalla_sala_espera(pantalla, reloj, presentar, clases_rol, es_host, conexion, ip):
+def pantalla_sala_espera(pantalla, reloj, presentar, clases_rol, es_host, conexion, ip,
+                         diagnostico=None):
     """Lobby interactivo tipo Among Us para hasta 4 jugadores simultáneos.
 
     Retorna (clases_elegidas, conexion, es_host) o 'volver' o None.
@@ -263,7 +298,7 @@ def pantalla_sala_espera(pantalla, reloj, presentar, clases_rol, es_host, conexi
             sala = conexion.sala
             posiciones = dict(conexion.posiciones_lobby)
             posiciones[0] = (pos_x, pos_y)
-            latencia = 0
+            latencia = conexion.latencia_promedio()
         else:
             for msg in conexion.leer_mensajes():
                 tipo = msg.get("tipo")
@@ -276,7 +311,7 @@ def pantalla_sala_espera(pantalla, reloj, presentar, clases_rol, es_host, conexi
             id_local = conexion.id_jugador if conexion.id_jugador is not None else 1
             posiciones = dict(conexion.posiciones_lobby)
             posiciones[id_local] = (pos_x, pos_y)
-            latencia = conexion.latencia_ms
+            latencia = conexion.latencia_ms if conexion.ping_medido else None
 
         jugadores_conectados = sala.jugadores()
         cantidad_conectados = len(jugadores_conectados)
@@ -322,6 +357,11 @@ def pantalla_sala_espera(pantalla, reloj, presentar, clases_rol, es_host, conexi
                 # Abrir / cerrar modal de roles
                 elif evento.key == pygame.K_e:
                     modal_roles_abierto = not modal_roles_abierto
+
+                # Permitir la sala en el Firewall de Windows (solo Host)
+                elif (evento.key == pygame.K_f and diagnostico is not None
+                      and diagnostico.firewall is not None):
+                    diagnostico.firewall.permitir()
 
                 # Atajos 1-4 para cambio rápido de personaje
                 elif evento.key in (pygame.K_1, pygame.K_2, pygame.K_3, pygame.K_4):
@@ -425,7 +465,7 @@ def pantalla_sala_espera(pantalla, reloj, presentar, clases_rol, es_host, conexi
 
         # Dibujar el Panel Lateral de Información de Sala
         _dibujar_panel_sala(pantalla, ip, conexion.puerto if es_host else PUERTO_DEFAULT,
-                            cantidad_conectados, es_host, latencia)
+                            cantidad_conectados, es_host, latencia, diagnostico)
 
         # Dibujar el Radar del Grafo de Sala (Estructuras de Datos 2)
         _dibujar_radar_grafo(pantalla, sala)
@@ -435,12 +475,16 @@ def pantalla_sala_espera(pantalla, reloj, presentar, clases_rol, es_host, conexi
             _dibujar_modal_roles(pantalla, indice_rol_selector, rol_local)
 
         # Barra de Controles inferior
-        hud.dibujar_barra_controles(pantalla, [
+        controles = [
             ("WASD / Flechas", "caminar"),
             ("E / 1-4", "personalizar rol"),
             ("Enter", "iniciar partida" if es_host else "esperar"),
             ("Esc", "salir"),
-        ])
+        ]
+        if diagnostico is not None and diagnostico.firewall is not None \
+                and diagnostico.firewall.estado != firewall.NO_APLICA:
+            controles.insert(3, ("F", "firewall"))
+        hud.dibujar_barra_controles(pantalla, controles)
 
         presentar()
 
@@ -622,7 +666,49 @@ def _dibujar_boton_inicio(pantalla, rect, es_host, cantidad, todos_listos, aviso
                      assets.COLOR_MAGENTA, assets.TAMANIO_FUENTE_PEQUENA, negrita=True, ancla="center")
 
 
-def _dibujar_panel_sala(pantalla, ip, puerto, cantidad, es_host, latencia):
+_TEXTOS_FIREWALL = {
+    firewall.REVISANDO: ("FIREWALL: revisando...", assets.COLOR_TEXTO_APAGADO),
+    firewall.FALTA: ("FIREWALL: [F] permitir entrada", assets.COLOR_AMARILLO),
+    firewall.ESPERANDO: ("FIREWALL: acepta el permiso...", assets.COLOR_AMARILLO),
+    firewall.PERMITIDO: ("FIREWALL: permitido (TCP {puerto})", assets.COLOR_TEAL),
+    firewall.DENEGADO: ("FIREWALL: sin permiso · [F] otra vez", assets.COLOR_MAGENTA),
+}
+PING_BUENO_MS = 60
+PING_REGULAR_MS = 150
+
+
+def _color_ping(ms):
+    if ms is None:
+        return assets.COLOR_TEXTO_APAGADO
+    if ms < PING_BUENO_MS:
+        return COLOR_CONECTADO
+    if ms < PING_REGULAR_MS:
+        return assets.COLOR_AMARILLO
+    return assets.COLOR_MAGENTA
+
+
+def _texto_red(diagnostico):
+    if diagnostico is None:
+        return "LAN / Wi-Fi Privada"
+    if not diagnostico.info_red.listo:
+        return "..."
+    wifi = diagnostico.info_red.wifi
+    return f"Wi-Fi {wifi[:20]}" if wifi else "cable / sin Wi-Fi"
+
+
+def _texto_ping_sala(latencia, es_host, cantidad):
+    if latencia is not None:
+        return formatear_ms(latencia)
+    return "sin invitados" if (es_host and cantidad < 2) else "midiendo..."
+
+
+def _texto_internet(medidor):
+    if not medidor.medido:
+        return "midiendo..."
+    return "sin conexión" if medidor.ms is None else formatear_ms(medidor.ms)
+
+
+def _dibujar_panel_sala(pantalla, ip, puerto, cantidad, es_host, latencia, diagnostico=None):
     """Panel lateral derecho estilo Among Us con los ajustes de la sala."""
     rect = pygame.Rect(960, 50, 260, 275)
     dibujo.panel(pantalla, rect, assets.COLOR_FONDO_PANEL, COLOR_ONLINE, grosor=2, radio=12)
@@ -661,14 +747,25 @@ def _dibujar_panel_sala(pantalla, ip, puerto, cantidad, es_host, latencia):
 
     # Red y Host
     y += 20
-    dibujo.texto(pantalla, "RED: LAN / Wi-Fi Privada", (rect.left + 16, y),
+    dibujo.texto(pantalla, f"RED: {_texto_red(diagnostico)}", (rect.left + 16, y),
                  assets.COLOR_TEXTO_APAGADO, assets.TAMANIO_FUENTE_MINI)
     y += 18
     dibujo.texto(pantalla, f"ROL: {'HOST (Creador)' if es_host else 'INVITADO'}", (rect.left + 16, y),
                  COLOR_ONLINE, assets.TAMANIO_FUENTE_MINI, negrita=True)
+    # Ping real: con la sala (PING/PONG por el socket del juego) y con internet.
     y += 18
-    dibujo.texto(pantalla, f"PING: {latencia} ms", (rect.left + 16, y),
-                 COLOR_CONECTADO, assets.TAMANIO_FUENTE_MINI)
+    dibujo.texto(pantalla, f"PING SALA: {_texto_ping_sala(latencia, es_host, cantidad)}",
+                 (rect.left + 16, y), _color_ping(latencia), assets.TAMANIO_FUENTE_MINI)
+    if diagnostico is None:
+        return
+    y += 18
+    dibujo.texto(pantalla, f"INTERNET: {_texto_internet(diagnostico.internet)}", (rect.left + 16, y),
+                 _color_ping(diagnostico.internet.ms), assets.TAMANIO_FUENTE_MINI)
+    if diagnostico.firewall is not None and diagnostico.firewall.estado in _TEXTOS_FIREWALL:
+        y += 18
+        texto, color = _TEXTOS_FIREWALL[diagnostico.firewall.estado]
+        dibujo.texto(pantalla, texto.format(puerto=puerto), (rect.left + 16, y), color,
+                     assets.TAMANIO_FUENTE_MINI, negrita=True)
 
 
 def _dibujar_radar_grafo(pantalla, sala):
@@ -704,6 +801,16 @@ def _dibujar_radar_grafo(pantalla, sala):
             p2 = pos_nodos[b]
             pygame.draw.line(pantalla, COLOR_ONLINE, p1, p2, 2)
 
+    # Peso de cada arista = ping medido entre esos dos jugadores (ms)
+    for i, a in enumerate(jugadores):
+        for b in jugadores[i + 1:]:
+            if sala.grafo.existe_arista(a, b) and sala.grafo.peso(a, b) > 0:
+                medio = ((pos_nodos[a][0] + pos_nodos[b][0]) // 2,
+                         (pos_nodos[a][1] + pos_nodos[b][1]) // 2)
+                dibujo.chip(pantalla, f"{sala.grafo.peso(a, b)} ms", medio, assets.COLOR_TEXTO_HUD,
+                            (16, 14, 30), COLOR_ONLINE, assets.TAMANIO_FUENTE_MINI,
+                            ancla="center", alto=16, margen=4)
+
     # Dibujar Nodos (Vértices)
     for jid, pos in pos_nodos.items():
         rol_nom = sala.rol_de(jid) or "Ciudadano"
@@ -724,6 +831,9 @@ def _dibujar_radar_grafo(pantalla, sala):
     y += 18
     dibujo.texto(pantalla, f"Topología: Grafo Completo K_{n}", (rect.left + 16, y),
                  COLOR_ONLINE, assets.TAMANIO_FUENTE_MINI)
+    y += 18
+    dibujo.texto(pantalla, "Peso de arista: ping medido (ms)", (rect.left + 16, y),
+                 assets.COLOR_TEXTO_SECUNDARIO, assets.TAMANIO_FUENTE_MINI)
 
 
 def _dibujar_modal_roles(pantalla, indice_sel, rol_actual):
@@ -806,8 +916,11 @@ def menu_online(pantalla, reloj, presentar, clases_rol):
                 _pantalla_error(pantalla, reloj, presentar, servidor.error)
                 continue
 
+            diagnostico = _DiagnosticoSala(es_host=True, puerto=servidor.puerto)
             res = pantalla_sala_espera(pantalla, reloj, presentar, clases_rol,
-                                       es_host=True, conexion=servidor, ip=ip)
+                                       es_host=True, conexion=servidor, ip=ip,
+                                       diagnostico=diagnostico)
+            diagnostico.detener()
             if res is None:
                 servidor.detener()
                 return None
@@ -817,21 +930,29 @@ def menu_online(pantalla, reloj, presentar, clases_rol):
             return res
 
         elif opcion == "join":
-            entrada = _pantalla_ingresar_ip(pantalla, reloj, presentar)
+            info_red = InfoRed()
+            entrada = _pantalla_ingresar_ip(pantalla, reloj, presentar, info_red)
             if entrada is None:
                 return None
             if entrada == "volver":
                 continue
 
             try:
-                ip, puerto = resolver_entrada(entrada, ip_local(), PUERTO_DEFAULT)
+                ip, puerto = resolver_entrada(entrada, info_red.ip or ip_local(), PUERTO_DEFAULT)
             except ValueError as e:
                 _pantalla_error(pantalla, reloj, presentar, e)
                 continue
 
+            # connect() bloquea hasta 5 s: se deja dibujado a dónde se está conectando.
+            pantalla.fill(assets.COLOR_FONDO)
+            dibujo.texto(pantalla, f"Conectando a {ip}:{puerto}...", (640, 360), COLOR_ONLINE,
+                         assets.TAMANIO_FUENTE_TITULO, negrita=True, ancla="center")
+            presentar()
+
             cliente = Cliente()
             if not cliente.conectar(ip, puerto):
-                _pantalla_error(pantalla, reloj, presentar, cliente.error)
+                _pantalla_error(pantalla, reloj, presentar, cliente.error,
+                                _consejos_conexion(cliente, ip, info_red))
                 continue
 
             # Esperar bienvenida inicial
@@ -858,8 +979,11 @@ def menu_online(pantalla, reloj, presentar, clases_rol):
                 _pantalla_error(pantalla, reloj, presentar, "Tiempo de espera de conexión agotado")
                 continue
 
+            diagnostico = _DiagnosticoSala(es_host=False, puerto=puerto)
             res = pantalla_sala_espera(pantalla, reloj, presentar, clases_rol,
-                                       es_host=False, conexion=cliente, ip=ip)
+                                       es_host=False, conexion=cliente, ip=ip,
+                                       diagnostico=diagnostico)
+            diagnostico.detener()
             if res is None:
                 cliente.desconectar()
                 return None

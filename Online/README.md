@@ -47,15 +47,33 @@ Define las reglas de comunicación y la serialización de datos:
 ### 📄 `Online/servidor.py`
 Servidor TCP para el Host:
 - Corre en un hilo en segundo plano (`threading.Thread(daemon=True)`).
-- Escucha en el puerto `5000` (configurable) y obtiene automáticamente la IP local de la máquina.
-- Usa sockets no bloqueantes (`timeout=0.1`) para permitir la detención limpia sin congelar la ventana.
+- Escucha en el puerto `7777` (`PUERTO_DEFAULT`) y obtiene automáticamente la IP local de la máquina. `iniciar(puerto, interfaz="0.0.0.0")`: los tests usan `interfaz="127.0.0.1"` para no disparar el aviso del Firewall.
+- Usa sockets no bloqueantes para permitir la detención limpia sin congelar la ventana; envía con `enviar_todo()` (ver `red_local.py`).
 - Mantiene una instancia de `GrafoSala` para registrar al Host y al Invitado.
+- Cada 1 s manda `PING` a cada invitado y con su `PONG` calcula el ping (`latencias`, `latencia_promedio()`); ese ping es el **peso de la arista** host–invitado en el `GrafoSala`.
 
 ### 📄 `Online/cliente.py`
 Cliente TCP para el Invitado:
-- Se conecta a la IP y puerto especificados por el usuario.
+- Se conecta a la IP y puerto especificados por el usuario. Si falla, `tipo_error` dice por qué (`timeout`, `rechazada`, `sin_ruta`...).
 - Ejecuta un hilo lector en segundo plano que acumula los mensajes entrantes en una cola.
-- Provee métodos simples como `enviar_rol()`, `enviar_input()` y `leer_mensajes()`.
+- Provee métodos simples como `enviar_rol()`, `enviar_input()`, `leer_mensajes()` y `detener()` (mismo nombre que en `Servidor`).
+- Cada 1 s manda `PING` al host (`latencia_ms`, `ping_medido`) y responde con `PONG` los `PING` del host. Esos dos mensajes no pasan a la cola del lobby.
+
+### 📄 `Online/red_local.py` (diagnóstico de red, sin pygame)
+- **Ping real:** `ahora_ms()` usa `time.perf_counter()` (en Windows, `time.time()` con Python < 3.13 avanza de a ~16 ms y en una LAN mediría 0). `suavizar()` es un promedio móvil para que el número no salte. `formatear_ms()` → `"—"`, `"<1 ms"` o `"9 ms"`.
+- **`MedidorInternet`:** hilo que cada 2 s mide el ping a internet como el tiempo de abrir una conexión TCP a `1.1.1.1:443` y `8.8.8.8:443` (se queda con el menor). Un `connect` TCP tarda un viaje de ida y vuelta (SYN → SYN/ACK) y, a diferencia del ping ICMP, no pide permisos de administrador.
+- **`sin_retraso(sock)`:** activa `TCP_NODELAY` (apaga Nagle) para que los mensajes pequeños salgan al instante.
+- **`enviar_todo(sock, datos)`:** reemplazo de `sendall()` para sockets no bloqueantes: si el búfer está lleno espera con `select()` (máx. 1 s) en vez de cortar el mensaje a la mitad.
+- **`clasificar_error_conexion(e)` + `CONSEJOS`:** traduce la excepción de `connect()` a un tipo y a consejos en español para la pantalla de error.
+- **`InfoRed` / `nombre_red_wifi()`:** IP y nombre del Wi-Fi de esta PC (`netsh wlan show interfaces`), leídos en un hilo.
+- Tests: `tests/test_red_online.py`.
+
+### 📄 `Online/firewall.py` (Firewall de Windows)
+- **`EstadoFirewall`:** estado que dibuja la sala del Host (`revisando` / `falta` / `esperando` / `permitido` / `denegado`). Revisa con `netsh advfirewall firewall show rule name=Civitas-Online-TCP-7777` (sale con 0 si la regla existe).
+- **Tecla `F` en la sala (solo Host):** `pedir_permiso()` abre el permiso de administrador de Windows (UAC) y corre un PowerShell oculto (`-EncodedCommand`, ruta fija de System32) que:
+  1. crea la regla **`Civitas-Online-TCP-7777`**: entrante, solo TCP en el puerto 7777, en todos los tipos de red;
+  2. desactiva (no borra) las reglas de **bloqueo** entrante de *este* `python.exe`, que Windows crea cuando alguien cierra su aviso del Firewall con "Cancelar" (una regla de bloqueo le gana a cualquier regla que permita).
+- No abre otros puertos ni cambia el tipo de red. Para deshacerlo: *Firewall de Windows Defender → Configuración avanzada → Reglas de entrada → `Civitas-Online-TCP-7777` → Eliminar*.
 
 ### 📄 `Online/codigo_sala.py` (código de sala de 4 caracteres)
 Reemplaza el escribir la IP por un **código de sala** corto, estilo Among Us (ej. `JPVM`):
@@ -139,8 +157,10 @@ Para mantener el código existente intacto y cumplir la restricción de diseño,
    - El Host presiona **Enter** para iniciar la partida.
 
 ### Demostración entre 2 Computadoras (Red Wi-Fi / LAN)
-1. **PC 1 (Host):** Crear sala. ROOM SETTINGS muestra el **código de sala** (ej. `JPVM`) y la IP en pequeño.
-2. **PC 2 (Invitado):** Unirse escribiendo ese código (o la IP completa).
+1. **Ambas PCs con la misma versión del código** (los mismos archivos de `Online/`).
+2. **PC 1 (Host):** Crear sala. ROOM SETTINGS muestra el **código de sala** (ej. `JPVM`), el Wi-Fi y la IP en pequeño.
+3. **Solo la primera vez en esa PC:** si dice `FIREWALL: [F] permitir entrada`, presiona **F** y acepta el permiso de Windows → `FIREWALL: permitido (TCP 7777)`.
+4. **PC 2 (Invitado):** Unirse escribiendo ese código (o la IP completa). Debajo del campo aparece su IP y su Wi-Fi: debe ser la **misma red** que muestra el Host.
 
 ---
 
@@ -159,6 +179,36 @@ Para mantener el código existente intacto y cumplir la restricción de diseño,
 1. PC Host: JUGAR → Online → Crear sala. Leer el código de ROOM SETTINGS (ej. `J P V M`).
 2. PC Invitado (misma Wi-Fi): JUGAR → Online → Unirse → escribir `JPVM` → Enter.
 3. Misma PC: el código también funciona (o escribir `127.0.0.1`).
+
+### Conexión entre dos PCs ("timed out"), Firewall y ping real
+**Síntoma:** el invitado escribía el código, se resolvía bien (`SAMN` → `192.168.1.108:7777`) pero salía `No se pudo conectar ... — timed out`. Además el panel mostraba `PING: 0 ms`.
+
+**Diagnóstico (hecho en la PC del Host):**
+- Windows tenía el Wi-Fi marcado como red **Pública**: ahí el Firewall descarta toda conexión entrante que ninguna regla permita, sin responder; por eso el invitado veía *timed out* y no *rechazada*.
+- En esa PC hay **dos Python con pygame**: 3.14 (`...\Programs\Python\Python314\python.exe`) tiene regla de entrada permitida, pero 3.11 (`...\Local\Python\pythoncore-3.11-64\python.exe`, el que abre el `python` del *Python Install Manager*) **no tiene ninguna**. Si el juego se abre con ese Python, la sala no recibe a nadie.
+- `PING: 0 ms`: el Host tenía la latencia fija en `0` y el invitado nunca enviaba `PING`.
+
+**Qué se cambió:**
+- **Nuevo** `Online/firewall.py`: tecla **F** en la sala del Host = regla `Civitas-Online-TCP-7777` + desactivar bloqueos de este Python (detalle arriba, en la sección 2).
+- **Nuevo** `Online/red_local.py`: ping real, ping a internet, Wi-Fi, envío seguro, `TCP_NODELAY` y clasificación de errores.
+- `Online/servidor.py`: `PING` a cada invitado cada 1 s, `latencias` + `latencia_promedio()`, el ping como **peso de la arista** del `GrafoSala`, `TCP_NODELAY` al aceptar, `enviar_todo()` en vez de `sendall()`, parámetro opcional `interfaz` en `iniciar()`.
+- `Online/cliente.py`: `PING` al host cada 1 s y `PONG` a los del host, `ping_medido`, `tipo_error`, `TCP_NODELAY`, lock de envío (el hilo lector también envía), `enviar_todo()`, y `detener()` (la sala llamaba `conexion.detener()` también en el invitado y Esc lo cerraba con `AttributeError`).
+- `Online/lobby.py`: ROOM SETTINGS muestra `RED` (nombre del Wi-Fi), `PING SALA`, `INTERNET` y, en el Host, `FIREWALL` (+ `F` en la barra de controles); el radar escribe el ping sobre cada arista; la pantalla de unirse muestra la IP y el Wi-Fi propios; si la conexión falla, la pantalla de error explica qué revisar según el tipo de error.
+
+**Qué significa cada error al unirse:**
+
+| Error | Qué pasa | Qué hacer |
+|---|---|---|
+| `timed out` | Los paquetes no reciben respuesta: Firewall del Host o la red los descarta | En el Host: **F** en la sala y aceptar. Misma red Wi-Fi. Redes de invitados/universidad aíslan equipos: usar el hotspot de un celular |
+| `rechazada` | La PC existe pero no tiene sala abierta | Que el Host esté en la sala de espera; revisar el código |
+| `sin ruta` | No hay camino de red hasta esa IP | Las PCs están en redes distintas: conectarlas al mismo Wi-Fi |
+
+**Cómo se mide el ping (para la exposición):**
+- **PING SALA:** cada segundo cada lado manda `PING` con su hora (`perf_counter` en ms); el otro lo devuelve tal cual como `PONG`; ping = hora actual − hora del mensaje. Como la hora vuelve a la misma PC que la puso, no importa que los relojes de las dos PCs sean distintos. Incluye el tiempo de procesamiento del juego (los hilos revisan el socket cada ~5 ms), así que en la misma PC da ~5–9 ms.
+- **INTERNET:** tiempo de abrir una conexión TCP a `1.1.1.1:443` / `8.8.8.8:443` (se queda con el menor), cada 2 s.
+- **Grafo:** el ping del invitado `j` es el peso de la arista `(0, j)` del `GrafoSala` y se dibuja sobre la arista en el radar del lobby.
+
+**Pendiente (no es parte de este cambio):** al iniciar la partida, la pantalla del invitado todavía no se sincroniza con la del Host (`AdaptadorOnlineJoin` no se usa y el Host no llama a `enviar_estado()`): el invitado juega su propia partida local.
 
 ### Validación de Tests
 Para verificar que ningún cambio rompió el juego base ni los tests del sistema:

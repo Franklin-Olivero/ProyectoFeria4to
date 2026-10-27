@@ -20,12 +20,14 @@ import socket
 import threading
 import time
 
+from Online import red_local
 from Online.protocolo import (
     BIENVENIDA, DESCONEXION, ELEGIR_ROL, ESTADO, HOLA, INICIAR, INPUT,
     LOBBY, PING, PONG, POSICION_LOBBY, GrafoSala, deserializar_buffer,
-    msg_bienvenida, msg_desconexion, msg_lobby, msg_pong,
+    msg_bienvenida, msg_desconexion, msg_lobby, msg_ping, msg_pong,
     msg_posicion_lobby, serializar, crear_mensaje,
 )
+from Online.red_local import ahora_ms, enviar_todo, sin_retraso, suavizar
 
 PUERTO_DEFAULT = 7777
 MAX_JUGADORES = 4
@@ -47,20 +49,23 @@ class Servidor:
         self._clientes = {}      # id_jugador (1..3) -> socket
         self._buffers = {}       # id_jugador -> bytes acumulados
         self.posiciones_lobby = {}  # id_jugador -> (x, y)
+        self.latencias = {}         # id_jugador -> ping medido con PING/PONG (ms)
         self._hilo = None
         self._cancelar = threading.Event()
         self._lock = threading.Lock()
+        self._proximo_ping = 0.0
 
     # ------------------------------------------------------------------
     # API pública (llamada desde Pygame)
     # ------------------------------------------------------------------
 
-    def iniciar(self, puerto=PUERTO_DEFAULT):
-        """Arranca el servidor en un hilo aparte. Retorna la IP local."""
+    def iniciar(self, puerto=PUERTO_DEFAULT, interfaz="0.0.0.0"):
+        """Arranca el servidor en un hilo aparte. Retorna la IP local.
+        `interfaz` = "127.0.0.1" solo acepta conexiones de esta PC (tests)."""
         self._socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         self._socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
         try:
-            self._socket.bind(("0.0.0.0", puerto))
+            self._socket.bind((interfaz, puerto))
         except OSError as e:
             self.error = f"No se pudo abrir el puerto {puerto}: {e}"
             return None
@@ -102,7 +107,7 @@ class Servidor:
                 if jid == excluir_id:
                     continue
                 try:
-                    sock.sendall(datos_bytes)
+                    enviar_todo(sock, datos_bytes)
                 except OSError:
                     desconectados.append(jid)
             for jid in desconectados:
@@ -118,7 +123,7 @@ class Servidor:
             sock = self._clientes.get(id_jugador)
             if sock:
                 try:
-                    sock.sendall(datos_bytes)
+                    enviar_todo(sock, datos_bytes)
                 except OSError:
                     self._desconectar_cliente_interno(id_jugador)
 
@@ -139,6 +144,13 @@ class Servidor:
             self.mensajes_host.clear()
         return msgs
 
+    def latencia_promedio(self):
+        """Ping promedio (ms) con los invitados conectados, o None si
+        ninguno ha respondido aún (o no hay invitados)."""
+        with self._lock:
+            valores = [self.latencias[jid] for jid in self._clientes if jid in self.latencias]
+        return sum(valores) / len(valores) if valores else None
+
     @property
     def puerto(self):
         if self._socket:
@@ -152,13 +164,22 @@ class Servidor:
     # Loop interno (hilo en segundo plano)
     # ------------------------------------------------------------------
 
+    def _quizas_enviar_pings(self):
+        """Cada INTERVALO_PING_S manda PING a todos; cada invitado lo devuelve como PONG."""
+        ahora = time.perf_counter()
+        if ahora >= self._proximo_ping:
+            self._proximo_ping = ahora + red_local.INTERVALO_PING_S
+            self.enviar_a_todos(msg_ping(ahora_ms()))
+
     def _loop(self):
         while not self._cancelar.is_set():
+            self._quizas_enviar_pings()
             # 1. Aceptar nuevos clientes si hay cupo disponible.
             if len(self._clientes) < MAX_JUGADORES - 1:
                 try:
                     conn, _ = self._socket.accept()
                     conn.setblocking(False)
+                    sin_retraso(conn)
                     self._registrar_nuevo_cliente(conn)
                 except BlockingIOError:
                     pass
@@ -212,7 +233,7 @@ class Servidor:
             # Enviar bienvenida al recién conectado.
             bienvenida = msg_bienvenida(nuevo_id, self.sala.a_dict())
             try:
-                sock.sendall(bienvenida)
+                enviar_todo(sock, bienvenida)
             except OSError:
                 self._desconectar_cliente_interno(nuevo_id)
                 return
@@ -222,7 +243,7 @@ class Servidor:
             for cid, s in self._clientes.items():
                 if cid != nuevo_id:
                     try:
-                        s.sendall(lobby_bytes)
+                        enviar_todo(s, lobby_bytes)
                     except OSError:
                         pass
 
@@ -262,9 +283,14 @@ class Servidor:
             self.enviar_a_cliente(jid, pong)
 
         elif tipo == PONG:
-            t_envio = msg.get("t", 0)
-            latencia = int((time.time() * 1000) - t_envio)
-            self.sala.actualizar_latencia(0, jid, latencia)
+            # `t` es la hora (reloj de ESTA PC) en que se mandó el PING: el
+            # invitado lo devuelve igual, así no importa que su reloj sea otro.
+            rtt = max(0.0, ahora_ms() - msg.get("t", 0))
+            with self._lock:
+                if jid not in self._clientes:
+                    return
+                self.latencias[jid] = suavizar(self.latencias.get(jid), rtt)
+                self.sala.actualizar_latencia(0, jid, round(self.latencias[jid]))
 
     def _desconectar_cliente(self, jid):
         with self._lock:
@@ -274,6 +300,7 @@ class Servidor:
         sock = self._clientes.pop(jid, None)
         self._buffers.pop(jid, None)
         self.posiciones_lobby.pop(jid, None)
+        self.latencias.pop(jid, None)
         if sock:
             try:
                 sock.close()
@@ -283,7 +310,7 @@ class Servidor:
         lobby_bytes = msg_lobby(self.sala.a_dict())
         for s in self._clientes.values():
             try:
-                s.sendall(lobby_bytes)
+                enviar_todo(s, lobby_bytes)
             except OSError:
                 pass
         self.mensajes_host.append({"tipo": DESCONEXION, "id": jid})

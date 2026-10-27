@@ -19,10 +19,14 @@ import socket
 import threading
 import time
 
+from Online import red_local
 from Online.protocolo import (
-    BIENVENIDA, DESCONEXION, ESTADO, GrafoSala, INICIAR, LOBBY, PONG,
+    BIENVENIDA, DESCONEXION, ESTADO, GrafoSala, INICIAR, LOBBY, PING, PONG,
     POSICION_LOBBY, deserializar_buffer, msg_elegir_rol, msg_hola,
-    msg_input, msg_ping, msg_posicion_lobby,
+    msg_input, msg_ping, msg_pong, msg_posicion_lobby,
+)
+from Online.red_local import (
+    ahora_ms, clasificar_error_conexion, enviar_todo, sin_retraso, suavizar,
 )
 
 BUFFER_SIZE = 4096
@@ -37,8 +41,10 @@ class Cliente:
         iniciado    — True cuando recibe INICIAR
         conectado   — True mientras el socket está abierto
         error       — str con el último error, o None
+        tipo_error  — por qué falló conectar (red_local.TIMEOUT, RECHAZADA...)
         mensajes    — cola de mensajes recibidos (list)
-        latencia_ms — última latencia medida (ms)
+        latencia_ms — ping con el host (ms, promedio móvil)
+        ping_medido — True desde que llegó el primer PONG
     """
 
     def __init__(self):
@@ -47,14 +53,19 @@ class Cliente:
         self.iniciado = False
         self.conectado = False
         self.error = None
+        self.tipo_error = None
         self.mensajes = []
         self.latencia_ms = 0
+        self.ping_medido = False
         self.posiciones_lobby = {}  # id -> (x, y)
         self._socket = None
         self._hilo = None
         self._cancelar = threading.Event()
         self._lock = threading.Lock()
+        self._lock_envio = threading.Lock()  # el hilo lector también envía (ping)
         self._buffer = b""
+        self._rtt = None
+        self._proximo_ping = 0.0
 
     # ------------------------------------------------------------------
     # API pública
@@ -66,10 +77,12 @@ class Cliente:
             self._socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
             self._socket.settimeout(5.0)
             self._socket.connect((ip, puerto))
+            sin_retraso(self._socket)
             self._socket.setblocking(False)
             self.conectado = True
         except (OSError, ConnectionRefusedError) as e:
             self.error = f"No se pudo conectar a {ip}:{puerto} — {e}"
+            self.tipo_error = clasificar_error_conexion(e)
             return False
 
         # Enviar saludo.
@@ -90,6 +103,11 @@ class Cliente:
             except OSError:
                 pass
 
+    def detener(self):
+        """Mismo nombre que Servidor.detener(): la sala de espera llama
+        conexion.detener() sin saber si es host o invitado."""
+        self.desconectar()
+
     def enviar_rol(self, rol):
         """Notifica al servidor la elección de rol."""
         self._enviar(msg_elegir_rol(self.id_jugador if self.id_jugador is not None else 1, rol))
@@ -104,8 +122,8 @@ class Cliente:
         self._enviar(msg_input(self.id_jugador if self.id_jugador is not None else 1, datos_input))
 
     def enviar_ping(self):
-        """Envía un ping para medir latencia."""
-        self._enviar(msg_ping(time.time() * 1000))
+        """Envía un ping para medir latencia (el host lo devuelve como PONG)."""
+        self._enviar(msg_ping(ahora_ms()))
 
     def leer_mensajes(self):
         """Retorna y vacía la cola de mensajes recibidos."""
@@ -121,13 +139,32 @@ class Cliente:
     def _enviar(self, datos_bytes):
         if self._socket and self.conectado:
             try:
-                self._socket.sendall(datos_bytes)
+                with self._lock_envio:
+                    enviar_todo(self._socket, datos_bytes)
             except OSError:
                 self.conectado = False
+
+    def _quizas_enviar_ping(self):
+        ahora = time.perf_counter()
+        if ahora >= self._proximo_ping:
+            self._proximo_ping = ahora + red_local.INTERVALO_PING_S
+            self.enviar_ping()
+
+    def _registrar_rtt(self, t_envio):
+        self._rtt = suavizar(self._rtt, max(0.0, ahora_ms() - t_envio))
+        self.latencia_ms = round(self._rtt)
+        self.ping_medido = True
+        self._pesar_arista_propia()
+
+    def _pesar_arista_propia(self):
+        """El peso de la arista host-yo en el grafo de sala es el ping medido."""
+        if self.ping_medido and self.id_jugador is not None:
+            self.sala.actualizar_latencia(0, self.id_jugador, self.latencia_ms)
 
     def _loop(self):
         """Lee mensajes del servidor en un hilo aparte."""
         while not self._cancelar.is_set():
+            self._quizas_enviar_ping()
             try:
                 datos = self._socket.recv(BUFFER_SIZE)
             except BlockingIOError:
@@ -152,16 +189,23 @@ class Cliente:
         if tipo == BIENVENIDA:
             self.id_jugador = msg.get("id", 1)
             self.sala = GrafoSala.de_dict(msg.get("sala", {}))
+            self._pesar_arista_propia()
 
         elif tipo == LOBBY:
             self.sala = GrafoSala.de_dict(msg.get("sala", {}))
+            self._pesar_arista_propia()
 
         elif tipo == INICIAR:
             self.iniciado = True
 
+        elif tipo == PING:
+            # El host mide su ping con este invitado: se le devuelve tal cual.
+            self._enviar(msg_pong(msg.get("t", 0)))
+            return
+
         elif tipo == PONG:
-            t_envio = msg.get("t", 0)
-            self.latencia_ms = int((time.time() * 1000) - t_envio)
+            self._registrar_rtt(msg.get("t", 0))
+            return
 
         elif tipo == POSICION_LOBBY:
             jid = msg.get("id")
