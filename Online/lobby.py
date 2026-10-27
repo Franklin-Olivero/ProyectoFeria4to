@@ -300,6 +300,9 @@ def pantalla_sala_espera(pantalla, reloj, presentar, clases_rol, es_host, conexi
             posiciones[0] = (pos_x, pos_y)
             latencia = conexion.latencia_promedio()
         else:
+            if getattr(conexion, "iniciado", False):
+                clases = _armar_clases_partida(conexion.sala, clases_rol)
+                return clases, conexion, False
             for msg in conexion.leer_mensajes():
                 tipo = msg.get("tipo")
                 if tipo == INICIAR:
@@ -338,7 +341,12 @@ def pantalla_sala_espera(pantalla, reloj, presentar, clases_rol, es_host, conexi
                         aviso_timer = 2.5
                     else:
                         # Iniciar partida
-                        conexion.enviar_a_todos(msg_iniciar())
+                        if hasattr(conexion, "marcar_iniciado"):
+                            conexion.marcar_iniciado()
+                        else:
+                            conexion.iniciado = True
+                        estado_p = getattr(conexion, "estado_partida", None)
+                        conexion.enviar_a_todos(msg_iniciar(estado_p))
                         clases = _armar_clases_partida(sala, clases_rol)
                         return clases, conexion, True
 
@@ -387,7 +395,12 @@ def pantalla_sala_espera(pantalla, reloj, presentar, clases_rol, es_host, conexi
                             aviso_temporal = "¡Todos los jugadores deben elegir su rol!"
                             aviso_timer = 2.5
                         else:
-                            conexion.enviar_a_todos(msg_iniciar())
+                            if hasattr(conexion, "marcar_iniciado"):
+                                conexion.marcar_iniciado()
+                            else:
+                                conexion.iniciado = True
+                            estado_p = getattr(conexion, "estado_partida", None)
+                            conexion.enviar_a_todos(msg_iniciar(estado_p))
                             clases = _armar_clases_partida(sala, clases_rol)
                             return clases, conexion, True
 

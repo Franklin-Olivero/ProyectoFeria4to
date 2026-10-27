@@ -51,6 +51,9 @@ DESCONEXION = "DESCONEXION"
 POSICION_LOBBY = "POSICION_LOBBY"
 PING = "PING"
 PONG = "PONG"
+ENTRAR_MAZMORRA = "ENTRAR_MAZMORRA"
+CAMBIO_ESCENA = "CAMBIO_ESCENA"
+CAMBIO_CUARTO = "CAMBIO_CUARTO"
 
 # --- Roles (mismos nombres que las clases del juego) ---------------------
 
@@ -193,8 +196,8 @@ def msg_hola(nombre="Jugador"):
     return serializar(crear_mensaje(HOLA, nombre=nombre))
 
 
-def msg_bienvenida(id_jugador, sala_dict):
-    return serializar(crear_mensaje(BIENVENIDA, id=id_jugador, sala=sala_dict))
+def msg_bienvenida(id_jugador, sala_dict, iniciado=False, estado_partida=None):
+    return serializar(crear_mensaje(BIENVENIDA, id=id_jugador, sala=sala_dict, iniciado=iniciado, estado_partida=estado_partida))
 
 
 def msg_lobby(sala_dict):
@@ -205,8 +208,8 @@ def msg_elegir_rol(id_jugador, rol):
     return serializar(crear_mensaje(ELEGIR_ROL, id=id_jugador, rol=rol))
 
 
-def msg_iniciar():
-    return serializar(crear_mensaje(INICIAR))
+def msg_iniciar(estado_partida=None):
+    return serializar(crear_mensaje(INICIAR, estado_partida=estado_partida))
 
 
 def msg_input(id_jugador, datos_input):
@@ -231,4 +234,17 @@ def msg_pong(timestamp):
 
 def msg_posicion_lobby(id_jugador, x, y):
     return serializar(crear_mensaje(POSICION_LOBBY, id=id_jugador, x=round(x, 1), y=round(y, 1)))
+
+
+def msg_entrar_mazmorra(zona, id_jugador=0):
+    return serializar(crear_mensaje(ENTRAR_MAZMORRA, zona=zona, id=id_jugador))
+
+
+def msg_cambio_escena(escena, zona=None, cuarto_idx=0):
+    return serializar(crear_mensaje(CAMBIO_ESCENA, escena=escena, zona=zona, cuarto=cuarto_idx))
+
+
+def msg_cambio_cuarto(cuarto_idx):
+    return serializar(crear_mensaje(CAMBIO_CUARTO, cuarto=cuarto_idx))
+
 

@@ -112,6 +112,9 @@ class EntradaMando:
 
     def __init__(self, mando):
         self.mando = mando
+        if self.mando is None:
+            from Online.sesion_red import _MandoFicticio
+            self.mando = _MandoFicticio()
         self._pulsos = _Pulsos()
 
     def leer(self):

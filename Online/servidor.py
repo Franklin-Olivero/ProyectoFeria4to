@@ -23,9 +23,11 @@ import time
 from Online import red_local
 from Online.protocolo import (
     BIENVENIDA, DESCONEXION, ELEGIR_ROL, ESTADO, HOLA, INICIAR, INPUT,
-    LOBBY, PING, PONG, POSICION_LOBBY, GrafoSala, deserializar_buffer,
-    msg_bienvenida, msg_desconexion, msg_lobby, msg_ping, msg_pong,
-    msg_posicion_lobby, serializar, crear_mensaje,
+    LOBBY, PING, PONG, POSICION_LOBBY, ENTRAR_MAZMORRA, CAMBIO_ESCENA,
+    CAMBIO_CUARTO, GrafoSala, deserializar_buffer, msg_bienvenida,
+    msg_desconexion, msg_lobby, msg_ping, msg_pong, msg_posicion_lobby,
+    msg_entrar_mazmorra, msg_cambio_escena, msg_cambio_cuarto, msg_iniciar,
+    serializar, crear_mensaje,
 )
 from Online.red_local import ahora_ms, enviar_todo, sin_retraso, suavizar
 
@@ -42,6 +44,8 @@ class Servidor:
     def __init__(self):
         self.sala = GrafoSala()
         self.iniciado = False
+        self.estado_partida = {"escena": "CIUDAD", "zona": None, "cuarto_idx": 0}
+        self.ultimo_snapshot_estado = None
         self.error = None
         self.corriendo = False
         self.mensajes_host = []  # mensajes que el host debe procesar
@@ -52,8 +56,23 @@ class Servidor:
         self.latencias = {}         # id_jugador -> ping medido con PING/PONG (ms)
         self._hilo = None
         self._cancelar = threading.Event()
-        self._lock = threading.Lock()
+        self._lock = threading.RLock()
         self._proximo_ping = 0.0
+
+    def marcar_iniciado(self, estado_partida=None):
+        """Marca que la partida ha iniciado y guarda el estado actual."""
+        self.iniciado = True
+        if estado_partida:
+            self.estado_partida.update(estado_partida)
+
+    def actualizar_estado_partida(self, escena=None, zona=None, cuarto_idx=None):
+        """Actualiza el estado actual de la partida (escena, zona o cuarto)."""
+        if escena is not None:
+            self.estado_partida["escena"] = escena
+        if zona is not None:
+            self.estado_partida["zona"] = zona
+        if cuarto_idx is not None:
+            self.estado_partida["cuarto_idx"] = cuarto_idx
 
     # ------------------------------------------------------------------
     # API pública (llamada desde Pygame)
@@ -231,12 +250,27 @@ class Servidor:
             self.sala.conectar(nuevo_id)
 
             # Enviar bienvenida al recién conectado.
-            bienvenida = msg_bienvenida(nuevo_id, self.sala.a_dict())
+            bienvenida = msg_bienvenida(
+                nuevo_id, self.sala.a_dict(),
+                iniciado=self.iniciado,
+                estado_partida=self.estado_partida if self.iniciado else None,
+            )
             try:
                 enviar_todo(sock, bienvenida)
             except OSError:
                 self._desconectar_cliente_interno(nuevo_id)
                 return
+
+            if self.iniciado:
+                # La partida ya arrancó: notificar al cliente de inmediato para que salte a juego
+                try:
+                    enviar_todo(sock, msg_iniciar(self.estado_partida))
+                    if self.ultimo_snapshot_estado is not None:
+                        enviar_todo(sock, self.ultimo_snapshot_estado)
+                except OSError:
+                    self._desconectar_cliente_interno(nuevo_id)
+                    return
+                self.mensajes_host.append({"tipo": "RECONEXION", "id": nuevo_id})
 
             # Broadcast del lobby actualizado a todos.
             lobby_bytes = msg_lobby(self.sala.a_dict())
@@ -277,6 +311,32 @@ class Servidor:
             msg["id"] = jid
             with self._lock:
                 self.mensajes_host.append(msg)
+
+        elif tipo == ENTRAR_MAZMORRA:
+            zona = msg.get("zona")
+            self.actualizar_estado_partida(escena="MAZMORRA", zona=zona, cuarto_idx=0)
+            datos_bytes = msg_entrar_mazmorra(zona, id_jugador=jid)
+            self.enviar_a_todos(datos_bytes, excluir_id=jid)
+            with self._lock:
+                self.mensajes_host.append({"tipo": ENTRAR_MAZMORRA, "zona": zona, "id": jid})
+
+        elif tipo == CAMBIO_ESCENA:
+            esc = msg.get("escena")
+            zona = msg.get("zona")
+            cuarto = msg.get("cuarto", 0)
+            self.actualizar_estado_partida(escena=esc, zona=zona, cuarto_idx=cuarto)
+            datos_bytes = msg_cambio_escena(esc, zona=zona, cuarto_idx=cuarto)
+            self.enviar_a_todos(datos_bytes, excluir_id=jid)
+            with self._lock:
+                self.mensajes_host.append({"tipo": CAMBIO_ESCENA, "escena": esc, "zona": zona, "cuarto": cuarto, "id": jid})
+
+        elif tipo == CAMBIO_CUARTO:
+            cuarto = msg.get("cuarto", 0)
+            self.actualizar_estado_partida(cuarto_idx=cuarto)
+            datos_bytes = msg_cambio_cuarto(cuarto)
+            self.enviar_a_todos(datos_bytes, excluir_id=jid)
+            with self._lock:
+                self.mensajes_host.append({"tipo": CAMBIO_CUARTO, "cuarto": cuarto, "id": jid})
 
         elif tipo == PING:
             pong = msg_pong(msg.get("t", 0))

@@ -194,6 +194,8 @@ def main():
                 continue
             clases, mando, entrada_extra = eleccion
             sesion = _nueva_sesion(clases, mando, entrada_extra)
+            if hasattr(entrada_extra, "configurar_sesion"):
+                sesion = entrada_extra.configurar_sesion(sesion)
         if _jugar(pantalla, reloj, sesion, preferencias, presentar) == SALIR:
             break
     guardar_preferencias(preferencias)
@@ -232,6 +234,10 @@ def _jugar(pantalla, reloj, sesion, preferencias, presentar):
     entradas = sesion.entradas
     jugadores = sesion.jugadores
     jugador = jugadores[0]
+    if hasattr(sesion, "id_local") and sesion.id_local < len(jugadores):
+        jugador = jugadores[sesion.id_local]
+    for _idx_j, _j_extra in enumerate(jugadores):
+        _j_extra.colocar_en((partida.posicion_aparicion()[0] + _idx_j * 28, partida.posicion_aparicion()[1]))
     # En la ciudad camina el J1; al entrar a un edificio pasa todo el equipo.
     # Al continuar una partida, se reaparece frente a la última puerta.
     jugador.colocar_en(partida.posicion_aparicion())
@@ -294,6 +300,9 @@ def _jugar(pantalla, reloj, sesion, preferencias, presentar):
         # eventos: cada frame se lee el estado del teclado/control (ver
         # _frame_de_combate). Aquí solo van menús y teclas de interfaz.
         for evento in pygame.event.get():
+            if len(entradas) > 1 and getattr(entradas[1], "mando", None) is None:
+                from Online.sesion_red import _MandoFicticio
+                entradas[1].mando = _MandoFicticio()
             if len(entradas) > 1 and not entradas[1].mando.attached():
                 # El control del J2 se desconectó: al volver a conectarlo, sigue jugando.
                 entradas[1].mando = _actualizar_mando(evento, None) or entradas[1].mando
@@ -367,8 +376,15 @@ def _jugar(pantalla, reloj, sesion, preferencias, presentar):
         textos.actualizar(dt)
         particulas.actualizar(dt)
 
+        if hasattr(sesion, "adaptador_red") and sesion.adaptador_red is not None:
+            escena, arena, mazmorra, fundido = sesion.adaptador_red.actualizar(
+                escena, arena, mazmorra, fundido, dt, sesion, partida, jugadores, jugador
+            )
+
         if escena == Escena.CIUDAD and not mostrar_mapa_mundo:
             jugador.caminar_en_ciudad(pygame.key.get_pressed(), dt, partida.es_solida)
+            if hasattr(sesion, "adaptador_red") and sesion.adaptador_red is not None:
+                sesion.adaptador_red.actualizar_ciudad(dt, partida, jugadores, jugador)
         elif escena in ESCENAS_DE_COMBATE:
             _frame_de_combate(
                 dt, jugadores, entradas, escenario, proyectiles_por_jugador, proyectiles_enemigos,
@@ -619,6 +635,16 @@ def _dibujar_ciudad(pantalla, partida, jugador, destino, tiempo, mostrar_ruta, m
     else:
         puntos = ciudad_mapa.polilinea_ruta(posicion, ruta[0]) if mostrar_ruta and ruta else None
         ciudad_render.dibujar_ciudad(pantalla, partida, jugador, tiempo, puntos)
+        if hasattr(partida, "jugadores_online") and not mostrar_mapa_mundo:
+            for _j_otro in partida.jugadores_online:
+                if _j_otro is not jugador and getattr(_j_otro.invulnerabilidad, "visible", True):
+                    from src.ui import sprites
+                    _rect_v = ciudad_render.vista()
+                    _cam = ciudad_render.camara_para((jugador.posicion.x, jugador.posicion.y))
+                    _dx, _dy = _rect_v.x - _cam[0], _rect_v.y - _cam[1]
+                    _img = sprites.sprite_jugador(_j_otro.COLOR, rol=_j_otro.rol, tiempo=tiempo,
+                                                  caminando=getattr(_j_otro, "caminando_en_ciudad", False))
+                    sprites.dibujar_centrado(pantalla, _img, (round(_j_otro.posicion.x + _dx), round(_j_otro.posicion.y + _dy - 6)))
         titulo = assets.TITULO_CIUDAD
     subtitulo = f"Destino: {destino}  ·  Calles bloqueadas: {len(partida.ciudad.bloqueadas)}"
     hud.dibujar_hud_superior(pantalla, jugador, None, titulo, subtitulo, partida.colapso)
@@ -714,6 +740,10 @@ def _menu_inicio(pantalla, reloj, mando, presentar):
             if res == "volver":
                 continue
             clases, conexion, es_host = res
+            from Online.sesion_red import preparar_sesion_online
+            config_online = preparar_sesion_online(clases, mando, conexion, es_host)
+            if config_online is not None:
+                return config_online
             if es_host:
                 adaptador = AdaptadorOnlineHost(conexion)
                 entradas_red = [EntradaRed(adaptador, id_jugador=jid) for jid in range(1, len(clases))]

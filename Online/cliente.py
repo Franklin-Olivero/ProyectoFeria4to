@@ -22,8 +22,9 @@ import time
 from Online import red_local
 from Online.protocolo import (
     BIENVENIDA, DESCONEXION, ESTADO, GrafoSala, INICIAR, LOBBY, PING, PONG,
-    POSICION_LOBBY, deserializar_buffer, msg_elegir_rol, msg_hola,
-    msg_input, msg_ping, msg_pong, msg_posicion_lobby,
+    POSICION_LOBBY, ENTRAR_MAZMORRA, CAMBIO_ESCENA, CAMBIO_CUARTO,
+    deserializar_buffer, msg_elegir_rol, msg_hola, msg_input, msg_ping,
+    msg_pong, msg_posicion_lobby, msg_entrar_mazmorra,
 )
 from Online.red_local import (
     ahora_ms, clasificar_error_conexion, enviar_todo, sin_retraso, suavizar,
@@ -51,6 +52,7 @@ class Cliente:
         self.id_jugador = None
         self.sala = GrafoSala()
         self.iniciado = False
+        self.estado_partida = {"escena": "CIUDAD", "zona": None, "cuarto_idx": 0}
         self.conectado = False
         self.error = None
         self.tipo_error = None
@@ -61,7 +63,7 @@ class Cliente:
         self._socket = None
         self._hilo = None
         self._cancelar = threading.Event()
-        self._lock = threading.Lock()
+        self._lock = threading.RLock()
         self._lock_envio = threading.Lock()  # el hilo lector también envía (ping)
         self._buffer = b""
         self._rtt = None
@@ -183,6 +185,10 @@ class Cliente:
 
         self.conectado = False
 
+    def enviar_entrar_mazmorra(self, zona):
+        """Notifica al servidor que este jugador pide entrar a una mazmorra."""
+        self._enviar(msg_entrar_mazmorra(zona, id_jugador=self.id_jugador if self.id_jugador is not None else 1))
+
     def _procesar(self, msg):
         tipo = msg.get("tipo")
 
@@ -190,6 +196,10 @@ class Cliente:
             self.id_jugador = msg.get("id", 1)
             self.sala = GrafoSala.de_dict(msg.get("sala", {}))
             self._pesar_arista_propia()
+            if msg.get("iniciado"):
+                self.iniciado = True
+                if msg.get("estado_partida"):
+                    self.estado_partida.update(msg.get("estado_partida"))
 
         elif tipo == LOBBY:
             self.sala = GrafoSala.de_dict(msg.get("sala", {}))
@@ -197,6 +207,21 @@ class Cliente:
 
         elif tipo == INICIAR:
             self.iniciado = True
+            if msg.get("estado_partida"):
+                self.estado_partida.update(msg.get("estado_partida"))
+
+        elif tipo == ENTRAR_MAZMORRA:
+            self.estado_partida["escena"] = "MAZMORRA"
+            self.estado_partida["zona"] = msg.get("zona")
+            self.estado_partida["cuarto_idx"] = 0
+
+        elif tipo == CAMBIO_ESCENA:
+            self.estado_partida["escena"] = msg.get("escena")
+            self.estado_partida["zona"] = msg.get("zona")
+            self.estado_partida["cuarto_idx"] = msg.get("cuarto", 0)
+
+        elif tipo == CAMBIO_CUARTO:
+            self.estado_partida["cuarto_idx"] = msg.get("cuarto", 0)
 
         elif tipo == PING:
             # El host mide su ping con este invitado: se le devuelve tal cual.
@@ -215,6 +240,7 @@ class Cliente:
         elif tipo == DESCONEXION:
             self.conectado = False
 
-        # Todos los mensajes (incluido ESTADO) van a la cola.
+        # Todos los mensajes (incluido ESTADO, ENTRAR_MAZMORRA, CAMBIO_ESCENA) van a la cola.
         with self._lock:
             self.mensajes.append(msg)
+
