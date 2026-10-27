@@ -1662,3 +1662,51 @@ def cerrar_red_de_sesion(sesion):
         adaptador.detener()
     except Exception:
         registro_errores.registrar("cerrar_red_de_sesion")
+
+
+def compartir_combate_con_sesion(sesion, limpiar_combate, proyectiles_enemigos, textos):
+    """Main._jugar deja en la sesión lo que los adaptadores necesitan del
+    frame: limpiar el combate al cambiar de lugar, los proyectiles
+    enemigos (el host los manda y el invitado los dibuja) y los números
+    de daño. Sin esto el invitado no veía las balas enemigas."""
+    try:
+        sesion.limpiar_combate = limpiar_combate
+        sesion.proyectiles_enemigos = proyectiles_enemigos
+        sesion.textos = textos
+    except Exception:
+        registro_errores.registrar("compartir_combate_con_sesion")
+
+
+def normalizar_escena(escena, arena, mazmorra, resultado, jugador, partida):
+    """Escena que Main._jugar puede usar sin romperse.
+
+    El adaptador cambia escena/arena/mazmorra en mitad del frame (el
+    invitado es llevado a la mazmorra en la que entró el host). Si alguna
+    vez llega una escena de combate sin su lugar (MAZMORRA sin mazmorra,
+    JEFE sin arena, DECISION sin terminal, RESULTADO sin resultado), Main
+    hacía `escenario.gracia` sobre None y el juego se cerraba
+    (AttributeError: 'NoneType' object has no attribute 'gracia'). Aquí se
+    corrige a la escena válida más cercana y se anota en el registro."""
+    try:
+        corregida = escena
+        if escena in (Escena.MAZMORRA, Escena.DECISION) and mazmorra is None:
+            corregida = Escena.CIUDAD
+        elif escena == Escena.DECISION and getattr(mazmorra.cuarto, "terminal", None) is None:
+            corregida = Escena.MAZMORRA
+        elif escena in (Escena.JEFE, Escena.VICTORIA) and arena is None:
+            corregida = Escena.CIUDAD
+        elif escena == Escena.RESULTADO and resultado is None:
+            corregida = Escena.CIUDAD
+        if corregida is escena:
+            return escena
+        registro_errores.registrar(
+            "normalizar_escena",
+            RuntimeError(f"{escena.name} sin su lugar (arena={arena is not None}, "
+                         f"mazmorra={mazmorra is not None}): se pasa a {corregida.name}"),
+        )
+        if corregida == Escena.CIUDAD and jugador is not None and partida is not None:
+            _volver_a_la_ciudad(jugador, partida)
+        return corregida
+    except Exception:
+        registro_errores.registrar("normalizar_escena")
+        return escena

@@ -250,9 +250,34 @@ Para mantener el código existente intacto y cumplir la restricción de diseño,
   - Se conectó `sesion.adaptador_red.actualizar` y `actualizar_ciudad` en el loop principal sin borrar ninguna línea preexistente.
   - Se renderizan ambos avatares en la ciudad mediante `partida.jugadores_online`.
 
+---
+
+## 4. Corrección de Cierre al Entrar a Mazmorras y Registro Seguro
+
+### Diagnóstico de Fallas Reportadas
+1. **Cierre en la PC secundaria al entrar a una mazmorra:**
+   - **Causa raíz:** En `Main.py`, `escenario = _escenario_activo(escena, arena, mazmorra)` se calculaba en cada frame *antes* de invocar `adaptador_red.actualizar(...)`. Cuando el adaptador transportaba al jugador a la escena `MAZMORRA`, la variable local `escenario` mantenía el valor `None` (propio de la ciudad). Al ejecutarse el bloque `_frame_de_combate`, la instrucción `restriccion_armas = escenario.gracia.activa` causaba un `AttributeError: 'NoneType' object has no attribute 'gracia'` que cerraba el juego inesperadamente.
+   - Adicionalmente, el pipeline de renderizado y el despachador de eventos ejecutaban llamadas sobre `escenario.dibujar()`, `escenario.manejar_evento()` y `_titulo_mazmorra(mazmorra)` sin guards defensivos para estados transitorios.
+
+### Mejoras Implementadas
+1. **Normalización Dinámica de Escena (`Online/sesion_red.py`):**
+   - Función `normalizar_escena(escena, arena, mazmorra, resultado, jugador, partida)`: asegura la coherencia estructural de la escena actual. Si por latencia o desfase de red se recibe una escena de combate sin su estructura activa (`MAZMORRA` sin mazmorra o `JEFE` sin arena), la redirige a un estado seguro sin interrumpir la ejecución.
+2. **Recálculo de Escenario y Guardias de Seguridad (`Main.py`):**
+   - Inmediatamente después de `adaptador_red.actualizar(...)`, `Main.py` normaliza la escena y recalcula `escenario = _escenario_activo(...)`.
+   - Se añadió un guard temprano en `_frame_de_combate`: si `escenario is None` durante un frame de cambio de escena, omite la simulación de combate de ese ciclo sin fallar.
+   - En el loop de dibujo, si `escenario is None`, se realiza un `presentar()` defensivo y continúa al siguiente frame.
+   - En `manejar_evento`, cálculo de sacudida y `_titulo_mazmorra`, se verifican las referencias nulas.
+3. **Módulo de Registro de Errores (`Online/registro_errores.py`):**
+   - Garantiza que ninguna anomalía o excepción en la sincronización de red tumbe el proceso del juego a escritorio.
+   - Centraliza el registro en `Online/errores_online.log` con traceback detallado y control de repeticiones para proteger el rendimiento y disco.
+4. **Protección Integral de Partida (`proteger_partida_online`):**
+   - Decorador aplicado sobre `Main._jugar`: si surge un fallo no controlado durante una sesión de red, se captura limpiamente, se registra el error y se devuelve el control al menú principal (`MENU`), preservando el estado de la sesión para reanudar con la opción `CONTINUAR`.
+5. **Sincronización de Balas y Limpieza de Combate (`compartir_combate_con_sesion`):**
+   - Conecta el vaciado de proyectiles (`limpiar_combate`) y la lista de proyectiles enemigos de la sesión para que los clientes invitados visualicen y limpien proyectiles enemigos de forma espejo sincronizada con el anfitrión.
+
 ### Validación de Tests
 Para verificar que ningún cambio rompió el juego base ni los tests del sistema:
 ```powershell
 pytest tests/
 ```
-*(Todos los 573 tests pasan exitosamente al 100%).*
+*(Todos los 577 tests pasan exitosamente al 100%).*

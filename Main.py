@@ -90,6 +90,7 @@ from src.ui.terminal_decision_render import dibujar_terminal
 
 from Online.lobby import menu_online
 from Online.sesion_red import AdaptadorOnlineHost, EntradaRed
+from Online.sesion_red import compartir_combate_con_sesion, normalizar_escena, proteger_partida_online
 
 TECLAS_CONFIRMAR = (pygame.K_RETURN, pygame.K_KP_ENTER)
 TECLA_SALIR = pygame.K_ESCAPE
@@ -283,6 +284,9 @@ def _jugar(pantalla, reloj, sesion, preferencias, presentar):
         textos.limpiar()
         particulas.limpiar()
 
+    # Online: los adaptadores de red usan estas listas (Online/sesion_red.py).
+    compartir_combate_con_sesion(sesion, limpiar_combate, proyectiles_enemigos, textos)
+
     while True:
         # tick_busy_loop y no tick: en Windows tick() duerme con poca
         # precisión y los frames salen de 16, 17 o 18 ms, lo que se ve
@@ -367,7 +371,9 @@ def _jugar(pantalla, reloj, sesion, preferencias, presentar):
             elif evento.key == TECLA_ARBOL and escena in ESCENAS_DE_COMBATE:
                 mostrar_arbol = not mostrar_arbol
             else:
-                _escenario_activo(escena, arena, mazmorra).manejar_evento(evento)
+                escenario_evento = _escenario_activo(escena, arena, mazmorra)
+                if escenario_evento is not None and hasattr(escenario_evento, "manejar_evento"):
+                    escenario_evento.manejar_evento(evento)
 
         # --- Actualización, según la escena ----------------------------
         escenario = _escenario_activo(escena, arena, mazmorra)
@@ -380,6 +386,11 @@ def _jugar(pantalla, reloj, sesion, preferencias, presentar):
             escena, arena, mazmorra, fundido = sesion.adaptador_red.actualizar(
                 escena, arena, mazmorra, fundido, dt, sesion, partida, jugadores, jugador
             )
+            # El adaptador pudo llevar al jugador a otra escena (p. ej. a la
+            # mazmorra donde entró el otro): el escenario se vuelve a calcular,
+            # si no, el combate corría sobre el de la ciudad (None) y se cerraba.
+            escena = normalizar_escena(escena, arena, mazmorra, resultado, jugador, partida)
+            escenario = _escenario_activo(escena, arena, mazmorra)
 
         if escena == Escena.CIUDAD and not mostrar_mapa_mundo:
             jugador.caminar_en_ciudad(pygame.key.get_pressed(), dt, partida.es_solida)
@@ -391,36 +402,37 @@ def _jugar(pantalla, reloj, sesion, preferencias, presentar):
                 textos, particulas, sacudida,
             )
             if escena == Escena.MAZMORRA:
-                if mazmorra.cambio_de_cuarto:
+                if mazmorra is not None and mazmorra.cambio_de_cuarto:
                     limpiar_combate()
                     revivir_caidos(jugadores)  # cooperativo: el caído vuelve en el cuarto nuevo
                     for j in jugadores:
                         j.detener()  # se aparece quieto junto a la puerta
-                if mazmorra.cuarto.fase == FASE_DECISION:
+                if mazmorra is not None and getattr(mazmorra, "cuarto", None) is not None and mazmorra.cuarto.fase == FASE_DECISION:
                     escena = Escena.DECISION
-            elif escena == Escena.JEFE and arena.mazmorra.estado == MAZMORRA_FINAL_GANADA:
+            elif escena == Escena.JEFE and arena is not None and arena.mazmorra.estado == MAZMORRA_FINAL_GANADA:
                 escena = Escena.VICTORIA
         elif escena == Escena.DECISION:
             # El combate terminó: se descartan los proyectiles en vuelo.
             limpiar_combate()
-            terminal = mazmorra.cuarto.terminal
-            terminal.actualizar(dt)
-            if terminal.resultado is not None:
-                # Única vía para aplicar la decisión: una vez por mazmorra.
-                colapso_antes = partida.colapso.valor
-                partida.cerrar_mazmorra(mazmorra.mazmorra, terminal.resultado)
-                mazmorra.cuarto.fase = FASE_RESUELTO
-                resultado = ResultadoMazmorra(
-                    terminal.resultado, terminal.opcion_elegida,
-                    colapso_antes, partida.colapso.valor, mazmorra.mazmorra.nombre_zona,
-                )
-                mazmorra = None
-                mensaje_mapa = (
-                    f"{partida.ubicacion}: {terminal.resultado}",
-                    assets.COLOR_TEAL if resultado.exito else assets.COLOR_MAGENTA,
-                )
-                tiempo_mensaje_mapa = assets.DURACION_MENSAJE_MAPA
-                escena = Escena.RESULTADO
+            if mazmorra is not None and getattr(mazmorra, "cuarto", None) is not None and mazmorra.cuarto.terminal is not None:
+                terminal = mazmorra.cuarto.terminal
+                terminal.actualizar(dt)
+                if terminal.resultado is not None:
+                    # Única vía para aplicar la decisión: una vez por mazmorra.
+                    colapso_antes = partida.colapso.valor
+                    partida.cerrar_mazmorra(mazmorra.mazmorra, terminal.resultado)
+                    mazmorra.cuarto.fase = FASE_RESUELTO
+                    resultado = ResultadoMazmorra(
+                        terminal.resultado, terminal.opcion_elegida,
+                        colapso_antes, partida.colapso.valor, mazmorra.mazmorra.nombre_zona,
+                    )
+                    mazmorra = None
+                    mensaje_mapa = (
+                        f"{partida.ubicacion}: {terminal.resultado}",
+                        assets.COLOR_TEAL if resultado.exito else assets.COLOR_MAGENTA,
+                    )
+                    tiempo_mensaje_mapa = assets.DURACION_MENSAJE_MAPA
+                    escena = Escena.RESULTADO
         # RESULTADO, VICTORIA y DERROTA: el mundo queda quieto hasta ENTER o ESC.
 
         # La pantalla de resultado se muestra completa antes de la derrota global.
@@ -447,11 +459,12 @@ def _jugar(pantalla, reloj, sesion, preferencias, presentar):
             continue
 
         if escena == Escena.DECISION:
-            dibujar_terminal(
-                pantalla, mazmorra.cuarto.terminal,
-                f"Cuarto final  ·  {mazmorra.mazmorra.nombre_zona}  ·  Mazmorra normal",
-            )
-            hud.dibujar_barra_controles(pantalla, hud.CONTROLES_TERMINAL)
+            if mazmorra is not None and getattr(mazmorra, "cuarto", None) is not None and mazmorra.cuarto.terminal is not None:
+                dibujar_terminal(
+                    pantalla, mazmorra.cuarto.terminal,
+                    f"Cuarto final  ·  {mazmorra.mazmorra.nombre_zona}  ·  Mazmorra normal",
+                )
+                hud.dibujar_barra_controles(pantalla, hud.CONTROLES_TERMINAL)
             presentar()
             sacudida = (0, 0)
             continue
@@ -463,6 +476,12 @@ def _jugar(pantalla, reloj, sesion, preferencias, presentar):
             continue
 
         escenario = _escenario_activo(escena, arena, mazmorra)
+        if escenario is None:
+            ciudad_render.dibujar_fundido(pantalla, fundido)
+            presentar()
+            sacudida = (0, 0)
+            continue
+
         en_combate = jugadores_en_combate(jugadores)  # los caídos no se dibujan
         lienzo.fill(assets.COLOR_FONDO)
         escenario.dibujar(lienzo)
@@ -498,7 +517,7 @@ def _jugar(pantalla, reloj, sesion, preferencias, presentar):
                 combate_render.dibujar_globo_arbol(lienzo, enemigo_globo)
         # La sacudida es decorativa: reducir movimiento la quita.
         temblar = escena == Escena.JEFE and not preferencias.reducir_movimiento
-        sacudida = arena.mazmorra.desplazamiento_sacudida() if temblar else (0, 0)
+        sacudida = arena.mazmorra.desplazamiento_sacudida() if (temblar and arena is not None) else (0, 0)
         pantalla.blit(lienzo, sacudida)
 
         # Solitario: el J1 va en el HUD superior. Cooperativo: arriba solo
@@ -506,18 +525,21 @@ def _jugar(pantalla, reloj, sesion, preferencias, presentar):
         coop = len(jugadores) > 1
         jugador_hud, etiqueta_hud = (None, None) if coop else (jugador, "J1")
         if escena in (Escena.JEFE, Escena.VICTORIA):
-            hud.dibujar_hud_superior(pantalla, jugador_hud, len(escenario.enemigos), None, None, partida.colapso,
+            enemigos_cant = len(escenario.enemigos) if escenario is not None else 0
+            hud.dibujar_hud_superior(pantalla, jugador_hud, enemigos_cant, None, None, partida.colapso,
                                      etiqueta_hud)
-            arena.dibujar_hud(pantalla)
+            if arena is not None:
+                arena.dibujar_hud(pantalla)
             hud.dibujar_barra_controles(pantalla, hud.CONTROLES_FINAL if escena == Escena.VICTORIA else hud.CONTROLES_JEFE)
         else:
             titulo, subtitulo = _titulo_mazmorra(mazmorra)
-            hud.dibujar_hud_superior(pantalla, jugador_hud, len(escenario.enemigos), titulo, subtitulo,
+            enemigos_cant = len(escenario.enemigos) if escenario is not None else 0
+            hud.dibujar_hud_superior(pantalla, jugador_hud, enemigos_cant, titulo, subtitulo,
                                      partida.colapso, etiqueta_hud)
-            if mazmorra.mensaje is not None:
+            if mazmorra is not None and mazmorra.mensaje is not None:
                 _dibujar_mensaje(pantalla, mazmorra.mensaje[0], assets.COLOR_MENSAJE_MAZMORRA,
                                  assets.POSICION_MENSAJE_MAZMORRA)
-            if mostrar_minimapa:
+            if mostrar_minimapa and mazmorra is not None and getattr(mazmorra, "mazmorra", None) is not None:
                 dibujar_minimapa(pantalla, mazmorra.mazmorra)
             hud.dibujar_barra_controles(pantalla, hud.CONTROLES_COMBATE)
         if coop:
@@ -531,11 +553,19 @@ def _jugar(pantalla, reloj, sesion, preferencias, presentar):
         presentar()
 
 
+# Online: si algo falla en una partida en red, se anota en
+# Online/errores_online.log y se vuelve al menú (CONTINUAR la retoma) en
+# vez de cerrar el juego. Una partida local se comporta igual que antes.
+_jugar = proteger_partida_online(_jugar)
+
+
 def _frame_de_combate(
     dt, jugadores, entradas, escenario, proyectiles_por_jugador, proyectiles_enemigos, textos,
     particulas, sacudida=(0, 0),
 ):
     """Un frame de combate, igual en la mazmorra y en la arena, para 1 o 2 jugadores."""
+    if escenario is None:
+        return  # sin lugar de combate (cambio de escena a medio frame en Online): nada que simular
     teclas = pygame.key.get_pressed()
     en_combate = jugadores_en_combate(jugadores)
     for jugador, entrada, proyectiles in zip(jugadores, entradas, proyectiles_por_jugador):
@@ -884,9 +914,11 @@ def _actualizar_mando(evento, mando):
 def _titulo_mazmorra(mazmorra):
     """Título y subtítulo del HUD en una mazmorra normal: la zona y en
     qué cuarto se está ("Cuarto 2 de 6 · Limpios 1/6")."""
+    if mazmorra is None or getattr(mazmorra, "mazmorra", None) is None:
+        return "Mazmorra infectada", ""
     m = mazmorra.mazmorra
     cuartos = sorted(m.grafo.nodos())
-    numero = cuartos.index(m.actual) + 1
+    numero = (cuartos.index(m.actual) + 1) if m.actual in cuartos else 1
     limpios, total = m.cuartos_limpios()
     subtitulo = f"Cuarto {numero} de {len(cuartos)}  ·  Limpios {limpios}/{total}"
     if m.actual == m.cuarto_final:

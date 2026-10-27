@@ -156,3 +156,75 @@ def test_protocolo_mensajes_mazmorra():
     assert len(msgs) == 1
     assert msgs[0]["tipo"] == CAMBIO_CUARTO
     assert msgs[0]["cuarto"] == 3
+
+
+def test_normalizar_escena_evita_crash_sin_lugar():
+    """Valida que normalizar_escena rescate el juego si una escena de combate
+    no tiene su mazmorra o arena cargada."""
+    from src.core.escenas import Escena
+    from Online.sesion_red import normalizar_escena
+
+    # MAZMORRA sin mazmorra -> vuelve a CIUDAD
+    corregida = normalizar_escena(Escena.MAZMORRA, arena=None, mazmorra=None,
+                                  resultado=None, jugador=None, partida=None)
+    assert corregida == Escena.CIUDAD
+
+    # JEFE sin arena -> vuelve a CIUDAD
+    corregida_jefe = normalizar_escena(Escena.JEFE, arena=None, mazmorra=None,
+                                       resultado=None, jugador=None, partida=None)
+    assert corregida_jefe == Escena.CIUDAD
+
+    # CIUDAD normal permanece igual
+    assert normalizar_escena(Escena.CIUDAD, None, None, None, None, None) == Escena.CIUDAD
+
+
+def test_proteger_partida_online_captura_excepciones():
+    """Valida que en una partida online una excepción no cierre el juego a escritorio
+    sino que retorne MENU de forma segura."""
+    from Online.sesion_red import proteger_partida_online, MENU
+
+    def funcion_que_falla(*args):
+        raise ValueError("Error simulado en sincronización")
+
+    protegida = proteger_partida_online(funcion_que_falla)
+
+    class SesionLocal:
+        adaptador_red = None
+
+    class SesionOnline:
+        adaptador_red = object()
+
+    # Si es local, debe lanzar la excepción
+    with pytest.raises(ValueError):
+        protegida(None, None, SesionLocal(), None, None)
+
+    # Si es online, debe atraparla y retornar MENU sin tumbar el juego
+    resultado = protegida(None, None, SesionOnline(), None, None)
+    assert resultado == MENU
+
+
+def test_compartir_combate_con_sesion():
+    """Valida que compartir_combate_con_sesion adjunte las referencias en la sesión."""
+    from Online.sesion_red import compartir_combate_con_sesion
+
+    class DummySesion:
+        pass
+
+    sesion = DummySesion()
+    limpiar = lambda: None
+    proyectiles = []
+    textos = object()
+
+    compartir_combate_con_sesion(sesion, limpiar, proyectiles, textos)
+    assert sesion.limpiar_combate is limpiar
+    assert sesion.proyectiles_enemigos is proyectiles
+    assert sesion.textos is textos
+
+
+def test_frame_de_combate_con_escenario_none():
+    """Valida que _frame_de_combate retorne sin error si escenario es None."""
+    from Main import _frame_de_combate
+
+    # No debe levantar ninguna excepción
+    _frame_de_combate(0.016, [], [], None, [], [], None, None)
+

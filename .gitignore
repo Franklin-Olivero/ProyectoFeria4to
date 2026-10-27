@@ -6,3 +6,5 @@ __pycache__/
 preferencias.json
 preferencias.json.tmp
 .DS_Store
+*.log
+
