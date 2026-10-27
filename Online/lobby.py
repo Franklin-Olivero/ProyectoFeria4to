@@ -19,6 +19,7 @@ from src.ui import dibujo, hud, sprites
 
 from Online.servidor import Servidor, PUERTO_DEFAULT, MAX_JUGADORES
 from Online.cliente import Cliente
+from Online.codigo_sala import generar_codigo, resolver_entrada, ip_local
 from Online.protocolo import (
     ROLES, GrafoSala, ELEGIR_ROL, INICIAR, LOBBY, ESTADO, POSICION_LOBBY,
     msg_elegir_rol, msg_iniciar, msg_lobby, msg_posicion_lobby,
@@ -127,9 +128,9 @@ def pantalla_elegir_modo_online(pantalla, reloj, presentar):
         dibujo.texto(pantalla, "Unirse a sala (Join)", (rect_join.centerx, rect_join.top + 200),
                      assets.COLOR_TEXTO_HUD if sel_j else assets.COLOR_TEXTO_SECUNDARIO,
                      assets.TAMANIO_FUENTE_TITULO, negrita=True, ancla="center")
-        dibujo.texto(pantalla, "Ingresa la IP del Host", (rect_join.centerx, rect_join.top + 236),
+        dibujo.texto(pantalla, "Ingresa el código de sala", (rect_join.centerx, rect_join.top + 236),
                      assets.COLOR_TEXTO_SECUNDARIO, assets.TAMANIO_FUENTE_NORMAL, ancla="center")
-        dibujo.texto(pantalla, "Misma red Wi-Fi o 127.0.0.1", (rect_join.centerx, rect_join.top + 264),
+        dibujo.texto(pantalla, "4 caracteres, misma red Wi-Fi", (rect_join.centerx, rect_join.top + 264),
                      assets.COLOR_TEAL, assets.TAMANIO_FUENTE_NORMAL, ancla="center")
         dibujo.texto(pantalla, "Espera a que el anfitrión inicie", (rect_join.centerx, rect_join.top + 292),
                      assets.COLOR_TEXTO_APAGADO, assets.TAMANIO_FUENTE_PEQUENA, ancla="center")
@@ -164,33 +165,36 @@ def _pantalla_ingresar_ip(pantalla, reloj, presentar):
                         return ip_texto.strip()
                 elif evento.key == pygame.K_BACKSPACE:
                     ip_texto = ip_texto[:-1]
+                elif evento.key == pygame.K_KP_PERIOD and len(ip_texto) < 21:
+                    ip_texto += "."
                 else:
                     char = evento.unicode
-                    if char and (char.isdigit() or char == "." or char == ":"):
-                        ip_texto += char
+                    if (char and char.isascii() and (char.isalnum() or char in ".:")
+                            and len(ip_texto) < 21):
+                        ip_texto += char.upper()
 
         pantalla.fill(assets.COLOR_FONDO)
         dibujo.texto(pantalla, "Modo Online", (640, 70), COLOR_ONLINE,
                      assets.TAMANIO_FUENTE_GRANDE, negrita=True, ancla="center")
-        dibujo.texto(pantalla, "Ingresa la IP de la sala del Host:", (640, 240),
+        dibujo.texto(pantalla, "Ingresa el código de sala del Host:", (640, 240),
                      assets.COLOR_TEXTO_HUD, assets.TAMANIO_FUENTE_TITULO, ancla="center")
 
         rect_input = pygame.Rect(400, 310, 480, 56)
         dibujo.panel(pantalla, rect_input, assets.COLOR_FONDO_PANEL, COLOR_ONLINE, 2, radio=8)
-        mostrar = (ip_texto if ip_texto else "Ej: 192.168.1.15 o 127.0.0.1")
+        mostrar = (ip_texto if ip_texto else "Ej: K7QX")
         color_texto = assets.COLOR_TEXTO_HUD if ip_texto else assets.COLOR_TEXTO_APAGADO
         cursor = "|" if (cursor_visible and ip_texto) else ""
         dibujo.texto(pantalla, ip_texto + cursor if ip_texto else mostrar,
                      (rect_input.left + 18, rect_input.centery),
                      color_texto, assets.TAMANIO_FUENTE_TITULO, ancla="midleft")
 
-        dibujo.texto(pantalla, "Si juegas en la misma PC usa: 127.0.0.1", (640, 400),
-                     assets.COLOR_TEAL, assets.TAMANIO_FUENTE_NORMAL, ancla="center")
+        dibujo.texto(pantalla, "El código aparece en ROOM SETTINGS del Host (también vale una IP)",
+                     (640, 400), assets.COLOR_TEAL, assets.TAMANIO_FUENTE_NORMAL, ancla="center")
         dibujo.texto(pantalla, "Presiona Enter para conectar", (640, 434),
                      assets.COLOR_TEXTO_SECUNDARIO, assets.TAMANIO_FUENTE_PEQUENA, ancla="center")
 
         hud.dibujar_barra_controles(pantalla,
-                                    [("0-9 y .", "escribir IP"), ("Enter", "conectar"), ("Esc", "volver")])
+                                    [("A-Z 0-9", "escribir código"), ("Enter", "conectar"), ("Esc", "volver")])
         presentar()
 
 
@@ -626,15 +630,17 @@ def _dibujar_panel_sala(pantalla, ip, puerto, cantidad, es_host, latencia):
     dibujo.texto(pantalla, "ROOM SETTINGS", (rect.centerx, rect.top + 16),
                  COLOR_ONLINE, assets.TAMANIO_FUENTE_TITULO, negrita=True, ancla="center")
 
-    # IP / Room code
+    # Código de sala (la IP queda debajo, pequeña, por si alguien la necesita)
     y = rect.top + 45
-    dibujo.texto(pantalla, "IP DE LA SALA:", (rect.left + 16, y),
+    dibujo.texto(pantalla, "CÓDIGO DE SALA:", (rect.left + 16, y),
                  assets.COLOR_TEXTO_SECUNDARIO, assets.TAMANIO_FUENTE_MINI)
     y += 18
     ip_rect = pygame.Rect(rect.left + 14, y, rect.width - 28, 38)
     dibujo.panel(pantalla, ip_rect, (14, 20, 36), COLOR_IP, grosor=1, radio=6)
-    dibujo.texto(pantalla, f"{ip}:{puerto}", (ip_rect.centerx, ip_rect.centery),
-                 COLOR_IP, assets.TAMANIO_FUENTE_MEDIA, negrita=True, ancla="center")
+    dibujo.texto(pantalla, " ".join(generar_codigo(ip)), (ip_rect.centerx, ip_rect.centery),
+                 COLOR_IP, assets.TAMANIO_FUENTE_TITULO, negrita=True, ancla="center")
+    dibujo.texto(pantalla, f"IP: {ip}:{puerto}", (rect.centerx, rect.bottom - 14),
+                 assets.COLOR_TEXTO_APAGADO, assets.TAMANIO_FUENTE_MINI, ancla="center")
 
     # Capacidad (X/4)
     y += 48
@@ -811,14 +817,20 @@ def menu_online(pantalla, reloj, presentar, clases_rol):
             return res
 
         elif opcion == "join":
-            ip = _pantalla_ingresar_ip(pantalla, reloj, presentar)
-            if ip is None:
+            entrada = _pantalla_ingresar_ip(pantalla, reloj, presentar)
+            if entrada is None:
                 return None
-            if ip == "volver":
+            if entrada == "volver":
+                continue
+
+            try:
+                ip, puerto = resolver_entrada(entrada, ip_local(), PUERTO_DEFAULT)
+            except ValueError as e:
+                _pantalla_error(pantalla, reloj, presentar, e)
                 continue
 
             cliente = Cliente()
-            if not cliente.conectar(ip, PUERTO_DEFAULT):
+            if not cliente.conectar(ip, puerto):
                 _pantalla_error(pantalla, reloj, presentar, cliente.error)
                 continue
 

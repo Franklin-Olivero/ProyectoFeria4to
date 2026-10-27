@@ -57,6 +57,15 @@ Cliente TCP para el Invitado:
 - Ejecuta un hilo lector en segundo plano que acumula los mensajes entrantes en una cola.
 - Provee métodos simples como `enviar_rol()`, `enviar_input()` y `leer_mensajes()`.
 
+### 📄 `Online/codigo_sala.py` (código de sala de 4 caracteres)
+Reemplaza el escribir la IP por un **código de sala** corto, estilo Among Us (ej. `JPVM`):
+- **Cómo funciona:** el código guarda los **últimos 20 bits** de la IP del host en base 32 (4 caracteres × 5 bits). El invitado completa los 12 bits altos con **su propia IP**: en la misma red Wi-Fi/LAN esos bits son iguales (`10.20.x.x`, `192.168.x.x`...). No necesita servidor externo ni broadcast.
+- **Alfabeto:** `ABCDEFGHJKLMNPQRSTUVWXYZ23456789` (sin `I`, `O`, `0`, `1` para no confundirlos al dictarlo).
+- **Funciones (puras, sin pygame):** `generar_codigo(ip)`, `resolver_codigo(codigo, ip_propia)`, `resolver_entrada(texto, ip_propia, puerto_default)` (acepta código, IP o `IP:puerto`; lanza `ValueError` si no es nada de eso) e `ip_local()`.
+- **El puerto no va en el código:** siempre es `PUERTO_DEFAULT` (7777).
+- **Limitación:** si host e invitado están en redes distintas en los 12 bits altos de la IP, el código no sirve; en ese caso se puede escribir la IP completa en el mismo campo.
+- Tests: `tests/test_codigo_sala.py`.
+
 ### 📄 `Online/lobby.py`
 Interfaz visual del modo Online construida con Pygame:
 - **Sub-pantalla 1 (Elegir Modo):** Tarjetas interactivas para elegir entre **Crear Sala (Host)** o **Unirse (Join)**.
@@ -130,12 +139,30 @@ Para mantener el código existente intacto y cumplir la restricción de diseño,
    - El Host presiona **Enter** para iniciar la partida.
 
 ### Demostración entre 2 Computadoras (Red Wi-Fi / LAN)
-1. **PC 1 (Host):** Crear sala. La pantalla indicará la IP local (ej. `192.168.1.35`).
-2. **PC 2 (Invitado):** Unirse ingresando esa misma IP.
+1. **PC 1 (Host):** Crear sala. ROOM SETTINGS muestra el **código de sala** (ej. `JPVM`) y la IP en pequeño.
+2. **PC 2 (Invitado):** Unirse escribiendo ese código (o la IP completa).
+
+---
+
+## 5. Registro de Cambios
+
+### Código de sala en vez de IP
+- **Bug corregido:** al unirse, los puntos de la IP se perdían (p. ej. con el punto del teclado numérico) y el `:7777` escrito se pegaba otra vez al puerto, quedando `1020541077777:7777` → `getaddrinfo failed`.
+- **Nuevo:** `Online/codigo_sala.py` y `tests/test_codigo_sala.py`.
+- **`Online/lobby.py` (ajustes puntuales, sin quitar funciones):**
+  - Panel ROOM SETTINGS: "IP DE LA SALA" → **"CÓDIGO DE SALA"** con el código en grande; la IP queda en pequeño al pie del panel.
+  - Pantalla de unirse: pide el código de sala; acepta letras y números (se pasan a mayúsculas), el punto del teclado numérico y también una IP o `IP:puerto` como respaldo.
+  - `menu_online()`: traduce lo escrito con `resolver_entrada()` antes de conectar; si no es válido muestra la pantalla de error en vez de intentar conectar.
+  - Tarjeta "Unirse": textos actualizados al código de sala.
+
+### Cómo probarlo
+1. PC Host: JUGAR → Online → Crear sala. Leer el código de ROOM SETTINGS (ej. `J P V M`).
+2. PC Invitado (misma Wi-Fi): JUGAR → Online → Unirse → escribir `JPVM` → Enter.
+3. Misma PC: el código también funciona (o escribir `127.0.0.1`).
 
 ### Validación de Tests
 Para verificar que ningún cambio rompió el juego base ni los tests del sistema:
 ```powershell
 pytest tests/
 ```
-*(Todos los 535 tests pasan exitosamente).*
+*(Todos los 549 tests pasan exitosamente).*
