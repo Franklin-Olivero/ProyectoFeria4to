@@ -55,7 +55,7 @@ from src.core.config import FPS, crear_pantalla, crear_reloj
 from src.core.entrada import TECLA_ARBOL, TECLA_MINIMAPA, EJE_MAXIMO, EntradaMando, EntradaTeclado
 from src.core.preferencias import cargar as cargar_preferencias
 from src.core.preferencias import guardar as guardar_preferencias
-from src.core.equipo import jugadores_en_combate, registrar_kill_equipo, revivir_caidos
+from src.core.equipo import jugadores_en_combate, registrar_kill_equipo, revivir_caidos, todos_caidos
 from src.core.escenas import ESCENAS_DE_COMBATE, Escena, escena_tras_colapso
 from src.dungeon.arena_jefe import ArenaJefe
 from src.dungeon.cuarto import FASE_DECISION, FASE_RESUELTO
@@ -85,7 +85,7 @@ from src.ui.pantalla_modo import dibujar_modo
 from src.ui.particulas import SistemaParticulas
 from src.ui.seleccion import DOS_JUGADORES, UN_JUGADOR, ONLINE, SeleccionRoles, SelectorModo
 from src.ui.seleccion_rol import dibujar_seleccion
-from src.ui.terminal_decision import CONFIRMAR, DERECHA, IZQUIERDA
+from src.ui.terminal_decision import CONFIRMAR, DERECHA, DETONACION, IZQUIERDA
 from src.ui.terminal_decision_render import dibujar_terminal
 
 from Online.lobby import menu_online
@@ -341,7 +341,11 @@ def _jugar(pantalla, reloj, sesion, preferencias, presentar):
                     fundido = assets.DURACION_FUNDIDO
             elif escena == Escena.DECISION:
                 if evento.key in TECLAS_TERMINAL:
-                    mazmorra.cuarto.terminal.navegar(TECLAS_TERMINAL[evento.key])
+                    direccion_terminal = TECLAS_TERMINAL[evento.key]
+                    if hasattr(sesion, "adaptador_red") and sesion.adaptador_red is not None and hasattr(sesion.adaptador_red, "enviar_decision_nav"):
+                        sesion.adaptador_red.enviar_decision_nav(direccion_terminal)
+                    if mazmorra is not None and getattr(mazmorra, "cuarto", None) is not None and mazmorra.cuarto.terminal is not None:
+                        mazmorra.cuarto.terminal.navegar(direccion_terminal)
             elif escena == Escena.RESULTADO:
                 if evento.key in TECLAS_CONFIRMAR:
                     resultado = None
@@ -386,6 +390,9 @@ def _jugar(pantalla, reloj, sesion, preferencias, presentar):
             escena, arena, mazmorra, fundido = sesion.adaptador_red.actualizar(
                 escena, arena, mazmorra, fundido, dt, sesion, partida, jugadores, jugador
             )
+            if getattr(sesion.adaptador_red, "resultado_remoto", None) is not None:
+                resultado = sesion.adaptador_red.resultado_remoto
+                sesion.adaptador_red.resultado_remoto = None
             # El adaptador pudo llevar al jugador a otra escena (p. ej. a la
             # mazmorra donde entró el otro): el escenario se vuelve a calcular,
             # si no, el combate corría sobre el de la ciudad (None) y se cerraba.
@@ -409,6 +416,24 @@ def _jugar(pantalla, reloj, sesion, preferencias, presentar):
                         j.detener()  # se aparece quieto junto a la puerta
                 if mazmorra is not None and getattr(mazmorra, "cuarto", None) is not None and mazmorra.cuarto.fase == FASE_DECISION:
                     escena = Escena.DECISION
+                elif mazmorra is not None and todos_caidos(jugadores):
+                    colapso_antes = partida.colapso.valor
+                    partida.registrar_decision(mazmorra.mazmorra.nombre_zona, DETONACION)
+                    colapso_despues = partida.colapso.valor
+                    resultado = ResultadoMazmorra(
+                        DETONACION, "Derrota", colapso_antes, colapso_despues, mazmorra.mazmorra.nombre_zona
+                    )
+                    zona_nombre = mazmorra.mazmorra.nombre_zona
+                    if hasattr(sesion, "adaptador_red") and sesion.adaptador_red is not None and hasattr(sesion.adaptador_red, "notificar_resultado"):
+                        sesion.adaptador_red.notificar_resultado(resultado)
+                    mazmorra = None
+                    mensaje_mapa = (
+                        f"{zona_nombre}: {DETONACION}",
+                        assets.COLOR_MAGENTA,
+                    )
+                    tiempo_mensaje_mapa = assets.DURACION_MENSAJE_MAPA
+                    escena = Escena.RESULTADO
+                    limpiar_combate()
             elif escena == Escena.JEFE and arena is not None and arena.mazmorra.estado == MAZMORRA_FINAL_GANADA:
                 escena = Escena.VICTORIA
         elif escena == Escena.DECISION:
@@ -426,6 +451,8 @@ def _jugar(pantalla, reloj, sesion, preferencias, presentar):
                         terminal.resultado, terminal.opcion_elegida,
                         colapso_antes, partida.colapso.valor, mazmorra.mazmorra.nombre_zona,
                     )
+                    if hasattr(sesion, "adaptador_red") and sesion.adaptador_red is not None and hasattr(sesion.adaptador_red, "notificar_resultado"):
+                        sesion.adaptador_red.notificar_resultado(resultado)
                     mazmorra = None
                     mensaje_mapa = (
                         f"{partida.ubicacion}: {terminal.resultado}",

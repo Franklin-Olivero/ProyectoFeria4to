@@ -48,13 +48,13 @@ import pygame
 from Online import registro_errores
 from Online.protocolo import (
     INPUT, ESTADO, DESCONEXION, ENTRAR_MAZMORRA, CAMBIO_ESCENA, CAMBIO_CUARTO,
-    crear_mensaje, serializar, deserializar_buffer, msg_estado, msg_input,
+    DECISION_NAV, crear_mensaje, serializar, deserializar_buffer, msg_estado, msg_input,
     msg_cambio_escena, msg_cambio_cuarto, msg_entrar_mazmorra, ROLES,
 )
 from src.core import assets
 from src.core.colapso import COLAPSO_MAXIMO
 from src.core.entrada import EntradaTeclado, InputJugador
-from src.core.equipo import revivir_caidos
+from src.core.equipo import revivir_caidos, todos_caidos
 from src.core.escenas import ESCENAS_DE_COMBATE, Escena
 from src.dungeon import ciudad_mapa
 from src.dungeon.arena_jefe import ArenaJefe
@@ -68,8 +68,10 @@ from src.entities.enemigos import crear_enemigo
 from src.entities.projectile import Proyectil, ProyectilConEstela
 from src.entities.tipos_enemigo import TipoEnemigo
 from src.ui.terminal_decision import (
-    DETONACION, PURIFICACION_EXITOSA, TerminalDecision, construir_arbol_publicacion,
+    CONFIRMAR, DERECHA, DETONACION, IZQUIERDA, PURIFICACION_EXITOSA, TerminalDecision,
+    construir_arbol_publicacion,
 )
+from src.ui.pantalla_resultado import ResultadoMazmorra
 
 VERSION_ESTADO = 2
 INTERVALO_REPORTE_CIUDAD_S = 1 / 30  # el invitado avisa su posición en la ciudad ~30 veces por s
@@ -766,6 +768,7 @@ class AdaptadorOnlineHost(_AdaptadorBase):
         self._siguiente_id_subdito = 0
         self._terminal = None  # (terminal, zona, semilla) de la última decisión
         self._fin = None  # {"zona", "sem", "res"}: la última decisión ya resuelta
+        self._solicitudes_decision = []  # direcciones de navegación enviadas por invitados
 
     # --- Mensajes ---------------------------------------------------------
 
@@ -783,6 +786,8 @@ class AdaptadorOnlineHost(_AdaptadorBase):
                 self._ultimos_inputs[indice] = deserializar_input(datos)
                 self._pulsos.anotar(indice, datos)
                 self._reporte_nuevo.add(indice)
+            elif tipo == DECISION_NAV and isinstance(msg.get("dir"), str):
+                self._solicitudes_decision.append(msg["dir"])
             elif tipo == ENTRAR_MAZMORRA and isinstance(msg.get("zona"), str):
                 self._solicitudes.append(msg["zona"])
             elif tipo == DESCONEXION and indice is not None:
@@ -839,6 +844,21 @@ class AdaptadorOnlineHost(_AdaptadorBase):
             _etiquetar_cuarto(mazmorra.cuarto)
         if arena is not None:
             self._etiquetar_arena(arena)
+        if escena == Escena.DECISION and mazmorra is not None and getattr(mazmorra, "cuarto", None) is not None and mazmorra.cuarto.terminal is not None:
+            for d in self._solicitudes_decision:
+                if d in (IZQUIERDA, DERECHA, CONFIRMAR):
+                    mazmorra.cuarto.terminal.navegar(d)
+            self._solicitudes_decision.clear()
+        if escena == Escena.MAZMORRA and mazmorra is not None and todos_caidos(jugadores):
+            if self._fin is None:
+                self._fin = {
+                    "zona": mazmorra.mazmorra.nombre_zona,
+                    "sem": self._semilla,
+                    "res": DETONACION,
+                    "opcion": "Derrota",
+                    "antes": getattr(partida.colapso, "valor", 0.0),
+                    "despues": min(1.0, getattr(partida.colapso, "valor", 0.0) + 0.2),
+                }
         self._seguir_decision(escena, mazmorra)
         if escena not in ESCENAS_DE_COMBATE:
             entrada_host = (getattr(sesion, "entradas", None) or [None])[0]
@@ -848,6 +868,21 @@ class AdaptadorOnlineHost(_AdaptadorBase):
         self._aplicar_posiciones(escena, arena, mazmorra, jugadores)
         self._enviar_estado(escena, arena, mazmorra, partida, jugadores)
         return escena, arena, mazmorra, fundido
+
+    def notificar_resultado(self, resultado):
+        """Anota el resultado para enviarlo de inmediato a los invitados."""
+        if resultado is not None:
+            zona_nombre = getattr(resultado, "zona", None)
+            if not zona_nombre and self._mazmorra_sembrada is not None:
+                zona_nombre = self._mazmorra_sembrada.mazmorra.nombre_zona
+            self._fin = {
+                "zona": zona_nombre,
+                "sem": self._semilla,
+                "res": getattr(resultado, "resultado", None),
+                "opcion": getattr(resultado, "opcion", None),
+                "antes": getattr(resultado, "colapso_antes", None),
+                "despues": getattr(resultado, "colapso_despues", None),
+            }
 
     def actualizar_ciudad(self, dt, partida, jugadores, jugador):
         """En la ciudad cada invitado camina en su PC y avisa su posición:
@@ -933,7 +968,15 @@ class AdaptadorOnlineHost(_AdaptadorBase):
         if self._terminal is not None and self._fin is None:
             terminal, zona, semilla = self._terminal
             if terminal.resultado is not None:
-                self._fin = {"zona": zona, "sem": semilla, "res": terminal.resultado}
+                antes_val = getattr(self._partida.colapso, "valor", 0.0) if self._partida else 0.0
+                self._fin = {
+                    "zona": zona,
+                    "sem": semilla,
+                    "res": terminal.resultado,
+                    "opcion": getattr(terminal, "opcion_elegida", None),
+                    "antes": antes_val,
+                    "despues": antes_val,
+                }
 
     def _lugar(self, escena, arena, mazmorra):
         """Dónde está físicamente el equipo: la posición que manda un
@@ -1014,6 +1057,7 @@ class AdaptadorOnlineHost(_AdaptadorBase):
             "tox": [[c, round(t, 3)] for c, t in m.toxicidad.items()] if m is not None else [],
             "arena": self._n_arena if arena is not None else None,
             "fin": self._fin,
+            "res_info": self._fin,
         })
         if escena in ESCENAS_DE_COMBATE:
             estado["ins"] = self._pedidos(jugadores)
@@ -1073,9 +1117,18 @@ class AdaptadorOnlineJoin(_AdaptadorBase):
         self._ultimo_reporte = 0.0
         self._e_antes = False
         self._ultimo_pedido = (None, 0.0)
+        self.resultado_remoto = None
 
     def _conectado(self):
         return bool(getattr(self.cliente, "conectado", False))
+
+    def enviar_decision_nav(self, direccion):
+        """Notifica al host que este jugador navega o confirma en la terminal de decisión."""
+        try:
+            if hasattr(self.cliente, "enviar_decision_nav"):
+                self.cliente.enviar_decision_nav(direccion)
+        except Exception:
+            registro_errores.registrar("AdaptadorOnlineJoin.enviar_decision_nav")
 
     # --- Envío ------------------------------------------------------------
 
@@ -1229,23 +1282,40 @@ class AdaptadorOnlineJoin(_AdaptadorBase):
             if escena_host == Escena.DECISION:
                 escena = self._seguir_decision(mazmorra, estado.get("term"))
         elif escena_host == Escena.RESULTADO:
-            # El host ya resolvió: si este invitado sigue en esa mazmorra, se
-            # le lleva a la decisión con el mismo resultado (Main.py la cierra).
-            fin = estado.get("fin")
-            if isinstance(fin, dict) and fin.get("res") in RESULTADOS_DECISION \
-                    and mazmorra is not None and mazmorra is self._mazmorra_propia \
-                    and escena in (Escena.MAZMORRA, Escena.DECISION) and _entero(fin.get("sem")) == self._semilla:
-                escena = self._seguir_decision(mazmorra, {"res": fin["res"]})
+            fin = estado.get("res_info") or estado.get("fin")
+            if isinstance(fin, dict) and fin.get("res") in RESULTADOS_DECISION:
+                res_val = fin.get("res")
+                opcion_val = fin.get("opcion")
+                antes_val = _numero(fin.get("antes"), 0.0, 1.0)
+                despues_val = _numero(fin.get("despues"), 0.0, 1.0)
+                if antes_val is None:
+                    antes_val = getattr(partida.colapso, "valor", 0.0)
+                if despues_val is None:
+                    despues_val = getattr(partida.colapso, "valor", 0.0)
+                zona_val = fin.get("zona") or (mazmorra.mazmorra.nombre_zona if mazmorra else partida.ubicacion)
+
+                self.resultado_remoto = ResultadoMazmorra(
+                    resultado=res_val,
+                    opcion=opcion_val,
+                    colapso_antes=antes_val,
+                    colapso_despues=despues_val,
+                    zona=zona_val,
+                )
+                self._limpiar_combate()
+                self._mazmorra_propia = None
+                self._semilla = None
+                return Escena.RESULTADO, None, None, fundido
         elif escena_host in (Escena.JEFE, Escena.VICTORIA):
             numero = _entero(estado.get("arena"))
             if escena_host == Escena.JEFE and (arena is None or arena is not self._arena_propia
                                                or self._arena_n != numero
                                                or escena not in (Escena.JEFE, Escena.VICTORIA)):
                 escena, arena, mazmorra, fundido = self._entrar_arena(numero, partida, jugadores)
-        elif escena_host == Escena.CIUDAD and escena in (Escena.MAZMORRA, Escena.DECISION, Escena.JEFE):
+        elif escena_host == Escena.CIUDAD and escena in (Escena.MAZMORRA, Escena.DECISION, Escena.JEFE, Escena.RESULTADO):
             self._limpiar_combate()
             self._mazmorra_propia = self._arena_propia = None
             self._semilla = None
+            self.resultado_remoto = None
             return _volver_a_la_ciudad(jugador, partida), None, None, assets.DURACION_FUNDIDO
         return escena, arena, mazmorra, fundido
 

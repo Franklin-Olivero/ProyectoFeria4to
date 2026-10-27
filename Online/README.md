@@ -280,4 +280,67 @@ Para verificar que ningún cambio rompió el juego base ni los tests del sistema
 ```powershell
 pytest tests/
 ```
-*(Todos los 577 tests pasan exitosamente al 100%).*
+*(Todos los 580 tests pasan exitosamente al 100%).*
+
+---
+
+## 5. Derrota por Muerte de Equipo, Decisiones Colaborativas y Sincronización de Detonación
+
+### Diagnóstico de Fallas Reportadas
+1. **Los jugadores no pierden al morir en la mazmorra:**
+   - **Problema:** En cooperativo/online, cuando todos los jugadores se quedaban sin corazones (mostrando "CAÍDO"), la mazmorra no terminaba. Los jugadores quedaban atrapados con 0 vidas en el cuarto mientras los enemigos seguían disparándoles.
+   - **Causa raíz:** En `Main.py`, dentro de `escena == Escena.MAZMORRA`, no existía una verificación de `todos_caidos(jugadores)`. A diferencia de `Escena.JEFE` (que llama a `_derrota()`), la mazmorra normal solo evaluaba cambios de cuarto o la llegada a la fase de decisión.
+2. **Los invitados no podían interactuar ni tomar decisiones en la Terminal:**
+   - **Problema:** En el cuarto final, solo el Host podía moverse en el árbol y elegir opciones; el teclado de los invitados no respondía.
+   - **Causa raíz:** En `Online/sesion_red.py`, la función `_congelar_terminal(terminal)` reemplazaba `terminal.navegar = _nada`, bloqueando cualquier entrada en los clientes invitados sin reenviarla al anfitrión.
+3. **La pantalla de Detonación por tiempo solo salía en el Host:**
+   - **Problema:** Cuando el cronómetro llegaba a `0.0 s`, el Host pasaba a la pantalla de "Detonación" ("Se acabó el tiempo sin decidir. La publicación se propagó y la incursión falló"), pero el invitado se quedaba congelado en la pantalla de la terminal mostrando "Tiempo restante 0.0 s".
+   - **Causa raíz:** En el frame donde el tiempo se agotaba, el Host cerraba la mazmorra y pasaba a `Escena.RESULTADO` borrando la referencia local de `mazmorra`. El snapshot de red dejaba de enviar el paquete `term`, y `AdaptadorOnlineJoin._converger` recibía `escena_host == Escena.RESULTADO`, pero devolvía `Escena.DECISION` sin instanciar un `ResultadoMazmorra` en el invitado. Como la terminal del invitado estaba congelada con `_nada`, no se actualizaba ni cerraba nunca.
+
+### Soluciones Implementadas
+
+1. **Derrota y Detonación por Equipo Caído (`Main.py`, `src/ui/pantalla_resultado.py`, `Online/sesion_red.py`):**
+   - Se importó `todos_caidos` en `Main.py` desde `src.core.equipo`.
+   - En `Escena.MAZMORRA`, se agregó la condición:
+     ```python
+     elif mazmorra is not None and todos_caidos(jugadores):
+         colapso_antes = partida.colapso.valor
+         partida.registrar_decision(mazmorra.mazmorra.nombre_zona, DETONACION)
+         colapso_despues = partida.colapso.valor
+         resultado = ResultadoMazmorra(
+             DETONACION, "Derrota", colapso_antes, colapso_despues, mazmorra.mazmorra.nombre_zona
+         )
+         if hasattr(sesion, "adaptador_red") and sesion.adaptador_red is not None and hasattr(sesion.adaptador_red, "notificar_resultado"):
+             sesion.adaptador_red.notificar_resultado(resultado)
+         mazmorra = None
+         escena = Escena.RESULTADO
+         limpiar_combate()
+     ```
+   - En `src/ui/pantalla_resultado.py`: se agregó la explicación de derrota a `EXPLICACIONES`:
+     ```python
+     "Derrota": "Todo el equipo cayó en combate. La zona detonó y la incursión falló."
+     ```
+   - En `Online/sesion_red.py`: `AdaptadorOnlineHost` detecta el wipe o recibe `notificar_resultado(...)` y difunde el dict `_fin` a todos los invitados.
+
+2. **Decisiones Colaborativas en la Terminal (`Online/protocolo.py`, `Online/cliente.py`, `Online/servidor.py`, `Online/sesion_red.py`, `Main.py`):**
+   - **Protocolo:** Nuevo tipo de mensaje `DECISION_NAV` y función `msg_decision_nav(direccion, id_jugador)`.
+   - **Cliente:** `Cliente.enviar_decision_nav(direccion)` y `AdaptadorOnlineJoin.enviar_decision_nav(direccion)`.
+   - **Servidor:** Al recibir `DECISION_NAV` de cualquier cliente, lo encola en `mensajes_host`.
+   - **Host autoritativo:** `AdaptadorOnlineHost` extrae los comandos de navegación de la cola (`IZQUIERDA`, `DERECHA`, `CONFIRMAR`) y los aplica sobre la terminal autoritativa (`terminal.navegar(d)`).
+   - **Sincronización:** Cada frame, el Host difunde `estado["term"]` con el `nodo_actual`, `indice_seleccionado` y `tiempo_restante`. Todos los invitados ven el cursor moverse y avanzar en tiempo real cuando cualquier jugador presiona una tecla.
+   - **Intercepción en Main:** En `Main.py` para `Escena.DECISION`, las teclas de `TECLAS_TERMINAL` se envían al adaptador mediante `sesion.adaptador_red.enviar_decision_nav(...)`.
+
+3. **Sincronización de Pantalla de Detonación y Resultados (`Online/sesion_red.py`, `Main.py`):**
+   - **Envío de Resultado:** Al terminar la decisión (por opción elegida, por agotamiento del tiempo a 0.0 s o por caída en combate), el Host notifica a `AdaptadorOnlineHost.notificar_resultado(resultado)` y envía en el snapshot de red el bloque `res_info` con: `res`, `opcion`, `antes`, `despues` y `zona`.
+   - **Recepción en Invitados:** En `AdaptadorOnlineJoin._converger`, al detectar `escena_host == Escena.RESULTADO`:
+     - Se extrae `res_info` o `fin`.
+     - Se instancia un `ResultadoMazmorra` completo y se asigna a `self.resultado_remoto`.
+     - Se limpia el combate y se retorna `Escena.RESULTADO`.
+   - **Transición en `Main.py`:** Si `sesion.adaptador_red.resultado_remoto` existe, se asigna a la variable `resultado` local de `Main._jugar`. `normalizar_escena` valida que `resultado is not None` y la escena permanece en `Escena.RESULTADO`.
+   - **Retorno a Ciudad Nova:** Al presionar Enter en la pantalla de resultado, o cuando el Host regresa a `Escena.CIUDAD`, todos los clientes invitados regresan en sincronía a `Escena.CIUDAD` con las barricadas y el colapso electoral actualizados.
+
+### Suite de Tests Añadida
+En `tests/test_online_sincronizacion.py`:
+- `test_derrota_cuando_todos_caen_en_mazmorra()`: Verifica la caída total del equipo y la generación de la pantalla de Detonación con la explicación de derrota.
+- `test_decision_nav_protocolo_y_cliente_servidor()`: Verifica la serialización del mensaje `DECISION_NAV`, el despacho en el servidor y la navegación autoritativa en el terminal del host.
+- `test_sincronizacion_pantalla_resultado_a_invitados()`: Verifica la convergencia a `Escena.RESULTADO`, la construcción del objeto `ResultadoMazmorra` en el invitado y el retorno coordinado a la ciudad.

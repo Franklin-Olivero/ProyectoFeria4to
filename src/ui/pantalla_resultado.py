@@ -21,6 +21,7 @@ EXPLICACIONES = {
     "Reportar": "Reportaste la publicación antes de que siguiera creciendo. La zona queda purificada.",
     "Compartir": "Compartiste el rumor y se propagó. La zona detonó y la incursión falló.",
     "Ignorar": "Ignoraste la publicación y siguió creciendo. La zona detonó y la incursión falló.",
+    "Derrota": "Todo el equipo cayó en combate. La zona detonó y la incursión falló.",
 }
 EXPLICACION_TIEMPO = "Se acabó el tiempo sin decidir. La publicación se propagó y la incursión falló."
 EXPLICACION_EXITO = "La zona queda purificada."

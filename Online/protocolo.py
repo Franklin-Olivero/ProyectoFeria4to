@@ -54,6 +54,7 @@ PONG = "PONG"
 ENTRAR_MAZMORRA = "ENTRAR_MAZMORRA"
 CAMBIO_ESCENA = "CAMBIO_ESCENA"
 CAMBIO_CUARTO = "CAMBIO_CUARTO"
+DECISION_NAV = "DECISION_NAV"
 
 # --- Roles (mismos nombres que las clases del juego) ---------------------
 
@@ -246,5 +247,9 @@ def msg_cambio_escena(escena, zona=None, cuarto_idx=0):
 
 def msg_cambio_cuarto(cuarto_idx):
     return serializar(crear_mensaje(CAMBIO_CUARTO, cuarto=cuarto_idx))
+
+
+def msg_decision_nav(direccion, id_jugador=None):
+    return serializar(crear_mensaje(DECISION_NAV, dir=direccion, id=id_jugador))
 
 

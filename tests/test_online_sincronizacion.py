@@ -228,3 +228,100 @@ def test_frame_de_combate_con_escenario_none():
     # No debe levantar ninguna excepción
     _frame_de_combate(0.016, [], [], None, [], [], None, None)
 
+
+def test_derrota_cuando_todos_caen_en_mazmorra():
+    """Valida que cuando todos los jugadores caen en combate se genere la derrota/detonación."""
+    from src.core.equipo import todos_caidos
+    from src.ui.pantalla_resultado import ResultadoMazmorra, EXPLICACIONES
+    from src.ui.terminal_decision import DETONACION
+
+    j1 = Ciudadano(0, 0)
+    j2 = Candidato(0, 0)
+    j1.vida = 0
+    j2.vida = 0
+    assert todos_caidos([j1, j2]) is True
+
+    # Comprobar la explicación de derrota
+    res = ResultadoMazmorra(DETONACION, "Derrota", 0.0, 0.2, "Colegio")
+    assert res.exito is False
+    assert "Todo el equipo cayó en combate" in res.explicacion
+    assert EXPLICACIONES["Derrota"] == res.explicacion
+
+
+def test_decision_nav_protocolo_y_cliente_servidor():
+    """Valida que los mensajes de navegación de decisión lleguen del cliente al host."""
+    from Online.protocolo import DECISION_NAV, msg_decision_nav
+    from src.ui.terminal_decision import IZQUIERDA, DERECHA, CONFIRMAR, TerminalDecision, construir_arbol_publicacion
+
+    datos = msg_decision_nav(IZQUIERDA, id_jugador=1)
+    msgs, _ = deserializar_buffer(datos)
+    assert len(msgs) == 1
+    assert msgs[0]["tipo"] == DECISION_NAV
+    assert msgs[0]["dir"] == IZQUIERDA
+    assert msgs[0]["id"] == 1
+
+    # Probar que AdaptadorOnlineHost procese el mensaje de decisión
+    class FakeServidor:
+        def __init__(self):
+            self.mensajes = [{"tipo": DECISION_NAV, "dir": DERECHA, "id": 1}]
+        def leer_mensajes(self):
+            m = list(self.mensajes)
+            self.mensajes.clear()
+            return m
+
+    host = AdaptadorOnlineHost(FakeServidor())
+    host._procesar_mensajes()
+    assert host._solicitudes_decision == [DERECHA]
+
+    terminal = TerminalDecision(construir_arbol_publicacion())
+    terminal.iniciar()
+    assert terminal.indice_seleccionado == 0
+    for d in host._solicitudes_decision:
+        terminal.navegar(d)
+    assert terminal.indice_seleccionado == 1
+
+
+def test_sincronizacion_pantalla_resultado_a_invitados():
+    """Valida que el invitado transicione a Escena.RESULTADO al recibir el estado del host."""
+    from src.core.escenas import Escena
+    from src.ui.terminal_decision import DETONACION
+    from src.dungeon.partida import Partida
+
+    cliente = Cliente()
+    join = AdaptadorOnlineJoin(cliente, id_local=1)
+    partida = Partida()
+
+    estado = {
+        "escena": "RESULTADO",
+        "fin": {
+            "zona": "Colegio",
+            "sem": 12345,
+            "res": DETONACION,
+            "opcion": None,
+            "antes": 0.0,
+            "despues": 0.2,
+        },
+    }
+
+    escena, arena, mazmorra, fundido = join._converger(
+        estado, Escena.DECISION, arena=None, mazmorra=None, fundido=0.0,
+        partida=partida, jugadores=[], jugador=None
+    )
+
+    assert escena == Escena.RESULTADO
+    assert join.resultado_remoto is not None
+    assert join.resultado_remoto.resultado == DETONACION
+    assert join.resultado_remoto.opcion is None
+    assert join.resultado_remoto.colapso_antes == 0.0
+    assert join.resultado_remoto.colapso_despues == 0.2
+    assert "Se acabó el tiempo sin decidir" in join.resultado_remoto.explicacion
+
+    # Ahora el host vuelve a la ciudad -> el invitado también vuelve a la ciudad
+    estado_ciudad = {"escena": "CIUDAD"}
+    escena_c, arena_c, maz_c, fun_c = join._converger(
+        estado_ciudad, Escena.RESULTADO, arena=None, mazmorra=None, fundido=0.0,
+        partida=partida, jugadores=[], jugador=Ciudadano(0, 0)
+    )
+    assert escena_c == Escena.CIUDAD
+    assert join.resultado_remoto is None
+

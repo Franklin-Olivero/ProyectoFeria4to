@@ -24,7 +24,7 @@ from Online import red_local
 from Online.protocolo import (
     BIENVENIDA, DESCONEXION, ELEGIR_ROL, ESTADO, HOLA, INICIAR, INPUT,
     LOBBY, PING, PONG, POSICION_LOBBY, ENTRAR_MAZMORRA, CAMBIO_ESCENA,
-    CAMBIO_CUARTO, GrafoSala, deserializar_buffer, msg_bienvenida,
+    CAMBIO_CUARTO, DECISION_NAV, GrafoSala, deserializar_buffer, msg_bienvenida,
     msg_desconexion, msg_lobby, msg_ping, msg_pong, msg_posicion_lobby,
     msg_entrar_mazmorra, msg_cambio_escena, msg_cambio_cuarto, msg_iniciar,
     serializar, crear_mensaje,
@@ -308,6 +308,11 @@ class Servidor:
                 self.mensajes_host.append({"tipo": POSICION_LOBBY, "id": jid, "x": x, "y": y})
 
         elif tipo == INPUT:
+            msg["id"] = jid
+            with self._lock:
+                self.mensajes_host.append(msg)
+
+        elif tipo == DECISION_NAV:
             msg["id"] = jid
             with self._lock:
                 self.mensajes_host.append(msg)
