@@ -11,6 +11,7 @@ entidades que los usan.
 """
 
 import json
+import os
 
 import pygame
 
@@ -572,6 +573,11 @@ def sprite_enemigo(tipo, frame=0, tiempo=None):
     if tipo is None:
         return sprite(ENEMIGO, PALETA_ENEMIGO)
     clave = getattr(tipo, "value", tipo)
+    cuadros_v2 = _cuadros_enemigo_v2(clave)
+    if cuadros_v2:
+        if tiempo is None:
+            return cuadros_v2[frame % len(cuadros_v2)]
+        return cuadros_v2[int(tiempo / assets.DURACION_CUADRO_ENEMIGO_V2) % len(cuadros_v2)]
     hoja = _cargar_hoja(ruta_sprite_enemigo(assets.ID_SPRITE_ENEMIGO[clave]), assets.ESCALA_PIXEL)
     if hoja is not None:
         superficies, duraciones = hoja.get(assets.ANIMACION_CAMINAR) or next(iter(hoja.values()))
@@ -583,7 +589,37 @@ def sprite_enemigo(tipo, frame=0, tiempo=None):
     return _cache_enemigos[clave]
 
 
+_cache_enemigos_v2 = {}
+
+
+def _cuadros_enemigo_v2(clave):
+    """Cuadros de la tira Walk de "enemigos 2.0" para el tipo `clave`,
+    recortados a una caja común (así no vibra al animar) y escalados;
+    None si el tipo no usa el arte nuevo o falta el PNG."""
+    nombre = assets.ENEMIGO_V2.get(clave)
+    if nombre is None:
+        return None
+    if clave not in _cache_enemigos_v2:
+        ruta = os.path.join(assets.RUTA_SPRITES_ENEMIGOS_V2, nombre, nombre, f"{nombre}_Walk.png")
+        _cache_enemigos_v2[clave] = _leer_tira_v2(ruta)
+    return _cache_enemigos_v2[clave]
+
+
+def _leer_tira_v2(ruta):
+    tira = _cargar_png(ruta)
+    if tira is None:
+        return None
+    lado = assets.CUADRO_ENEMIGO_V2
+    cuadros = [tira.subsurface((x, 0, lado, tira.get_height())) for x in range(0, tira.get_width(), lado)]
+    caja = cuadros[0].get_bounding_rect()
+    for cuadro in cuadros[1:]:
+        caja.union_ip(cuadro.get_bounding_rect())
+    escala = assets.ESCALA_ENEMIGO_V2
+    return [pygame.transform.scale(c.subsurface(caja), (caja.w * escala, caja.h * escala)) for c in cuadros]
+
+
 def limpiar_cache_enemigos():
+    _cache_enemigos_v2.clear()
     """Olvida las imágenes cargadas (p. ej. tras copiar arte nuevo)."""
     limpiar_cache_hojas()
 

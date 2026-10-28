@@ -789,6 +789,17 @@ ID_SPRITE_ENEMIGO = {
     "tirador": "tirador",
     "curandero": "curandero",
 }
+# Arte "enemigos 2.0" (prueba): tiras <nombre>_Walk.png de cuadros de 100x100
+# con el personaje mirando a la derecha. Solo los tipos listados lo usan;
+# los demás siguen con su hoja anterior. Vaciar el dict desactiva la prueba.
+RUTA_SPRITES_ENEMIGOS_V2 = os.path.join("assets", "sprites", "enemigos 2.0", "Characters(100x100 split)")
+CUADRO_ENEMIGO_V2 = 100  # lado de cada cuadro de la tira
+DURACION_CUADRO_ENEMIGO_V2 = 0.1  # s por cuadro de la animación
+ESCALA_ENEMIGO_V2 = 2
+ENEMIGO_V2 = {
+    "perseguidor": "Hellhound",
+    "tirador": "Warlock",
+}
 COLOR_PRINCIPAL_ENEMIGO = {
     "perseguidor": (232, 52, 64),  # rojo: agresivo
     "tirador": (255, 120, 60),  # naranja
