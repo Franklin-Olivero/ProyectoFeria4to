@@ -526,9 +526,26 @@ def sprite_jugador(color_rol, escala=assets.ESCALA_PIXEL, rol=None, tiempo=0.0,
     return cuadro_de_hoja(hoja, assets.ANIMACION_CAMINAR, tiempo if caminando else 0.0)
 
 
+def _cuadros_jefe_v2(animacion):
+    """Cuadros del jefe con arte "enemigos 2.0" (`animacion` = "Idle" o
+    "Walk"), o None si no está activado o falta el PNG."""
+    if not assets.JEFE_V2:
+        return None
+    clave = ("jefe", animacion)
+    if clave not in _cache_enemigos_v2:
+        nombre = assets.JEFE_V2
+        ruta = os.path.join(assets.RUTA_SPRITES_ENEMIGOS_V2, nombre, nombre, f"{nombre}_{animacion}.png")
+        _cache_enemigos_v2[clave] = _leer_tira_v2(ruta, assets.ESCALA_JEFE_V2)
+    return _cache_enemigos_v2[clave]
+
+
 def sprite_jefe(tiempo=0.0, furia=False, escala=assets.ESCALA_SPRITE_JEFE):
     """Cuadro del jefe para `tiempo` ("furia" en la última fase); sin hoja,
     el pixel art JEFE."""
+    cuadros_v2 = _cuadros_jefe_v2("Walk" if furia else "Idle")
+    if cuadros_v2:
+        duracion = assets.DURACION_CUADRO_JEFE_V2_FURIA if furia else assets.DURACION_CUADRO_JEFE_V2
+        return cuadros_v2[int(tiempo / duracion) % len(cuadros_v2)]
     hoja = _cargar_hoja(ruta_sprite(assets.ID_SPRITE_JEFE, assets.RUTA_SPRITES_JEFE), escala)
     if hoja is None:
         return sprite(JEFE, PALETA_JEFE, escala)
@@ -601,11 +618,12 @@ def _cuadros_enemigo_v2(clave):
         return None
     if clave not in _cache_enemigos_v2:
         ruta = os.path.join(assets.RUTA_SPRITES_ENEMIGOS_V2, nombre, nombre, f"{nombre}_Walk.png")
-        _cache_enemigos_v2[clave] = _leer_tira_v2(ruta)
+        escala = assets.ESCALA_ENEMIGO_V2.get(clave, assets.ESCALA_ENEMIGO_V2_BASE)
+        _cache_enemigos_v2[clave] = _leer_tira_v2(ruta, escala)
     return _cache_enemigos_v2[clave]
 
 
-def _leer_tira_v2(ruta):
+def _leer_tira_v2(ruta, escala):
     tira = _cargar_png(ruta)
     if tira is None:
         return None
@@ -614,7 +632,6 @@ def _leer_tira_v2(ruta):
     caja = cuadros[0].get_bounding_rect()
     for cuadro in cuadros[1:]:
         caja.union_ip(cuadro.get_bounding_rect())
-    escala = assets.ESCALA_ENEMIGO_V2
     return [pygame.transform.scale(c.subsurface(caja), (caja.w * escala, caja.h * escala)) for c in cuadros]
 
 

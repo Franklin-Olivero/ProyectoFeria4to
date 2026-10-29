@@ -88,7 +88,17 @@ def test_sprite_jugador_usa_la_hoja_del_rol_y_escala(tmp_path, monkeypatch):
     assert sprites.sprite_jugador((1, 2, 3), rol="candidato").get_size() == (36, 48)
 
 
+def test_sprite_jefe_v2_es_el_flame_golem_y_su_hitbox_lo_contiene_casi():
+    sprites.limpiar_cache_hojas()
+    idle = sprites.sprite_jefe(0.0)
+    furia = sprites.sprite_jefe(0.0, furia=True)
+    assert idle.get_width() > 2 * assets.TAMANIO_ENEMIGO_TIPO["perseguidor"]
+    assert idle.get_width() >= assets.TAMANIO_JEFE and furia.get_height() >= assets.TAMANIO_JEFE
+    assert sprites.sprite_jefe(0.0) is idle  # cacheado
+
+
 def test_sprite_jefe_con_y_sin_hoja(tmp_path, monkeypatch):
+    monkeypatch.setattr(assets, "JEFE_V2", None)
     monkeypatch.setattr(assets, "RUTA_SPRITES_JEFE", str(tmp_path))
     placeholder = sprites.sprite_jefe(0.0)
     assert placeholder.get_size() == (22 * assets.ESCALA_SPRITE_JEFE, 22 * assets.ESCALA_SPRITE_JEFE)

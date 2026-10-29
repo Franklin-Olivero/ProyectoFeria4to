@@ -340,7 +340,7 @@ POSICION_TEXTO_CUARTOS_LIMPIOS = (10, 70)
 ANCHO_ARENA = 1000
 ALTO_ARENA = 540
 CENTRO_ARENA = (640, 370)  # deja libre la franja superior para el HUD
-TAMANIO_JEFE = 90
+TAMANIO_JEFE = 128  # hitbox del Flame Golem (el sprite mide 160x140)
 COLOR_JEFE = COLOR_MORADO
 COLOR_DESTELLO_JEFE = (255, 255, 255)
 COLOR_ESCUDO_JEFE = (90, 230, 255)
@@ -758,7 +758,13 @@ ANIMACION_CAMINAR = "caminar"  # jugadores y enemigos
 ANIMACION_DASH = "dash"  # jugadores (un solo cuadro)
 ANIMACION_JEFE_IDLE = "idle"
 ANIMACION_JEFE_FURIA = "furia"  # fase 3
-ESCALA_SPRITE_JEFE = 4  # 24 px * 4 = 96 px (TAMANIO_JEFE = 90)
+ESCALA_SPRITE_JEFE = 4  # hoja anterior: 24 px * 4 = 96 px
+# Jefe final con arte "enemigos 2.0": Flame Golem (32x28 nativo). Si es None
+# o falta el PNG se usa la hoja anterior del Servidor Central.
+JEFE_V2 = "Flame Golem"
+ESCALA_JEFE_V2 = 5  # 160x140 px
+DURACION_CUADRO_JEFE_V2 = 0.12
+DURACION_CUADRO_JEFE_V2_FURIA = 0.06  # en fase 3 camina el doble de rápido
 ALTO_RETRATO_SELECCION = 92  # alto del retrato en la tarjeta de selección
 # Cuarto: piso y muro (cuarto.png, 16x16 por cuadro), puertas (puerta.png,
 # 27x6: abierta / bloqueada / sellada) y charco tóxico (charco.png, 30x30:
@@ -795,7 +801,13 @@ ID_SPRITE_ENEMIGO = {
 RUTA_SPRITES_ENEMIGOS_V2 = os.path.join("assets", "sprites", "enemigos 2.0", "Characters(100x100 split)")
 CUADRO_ENEMIGO_V2 = 100  # lado de cada cuadro de la tira
 DURACION_CUADRO_ENEMIGO_V2 = 0.1  # s por cuadro de la animación
-ESCALA_ENEMIGO_V2 = 2
+# Escala por tipo (px nativos * escala): el Hellhound queda pequeño y el
+# Warlock se ve mucho más grande. Un tipo sin entrada usa ESCALA_ENEMIGO_V2_BASE.
+ESCALA_ENEMIGO_V2_BASE = 2
+ESCALA_ENEMIGO_V2 = {
+    "perseguidor": 2,  # Hellhound 29x17 -> 58x34
+    "tirador": 4,  # Warlock 21x26 -> 84x104
+}
 ENEMIGO_V2 = {
     "perseguidor": "Hellhound",
     "tirador": "Warlock",
@@ -812,7 +824,7 @@ COLOR_SECUNDARIO_ENEMIGO = {
 }
 TAMANIO_ENEMIGO_TIPO = {  # hitbox lógica (px de lado)
     "perseguidor": 38,
-    "tirador": 40,
+    "tirador": 56,  # Warlock grande (el sprite mide 84x104)
     "curandero": 36,
 }
 COLOR_PROYECTIL_TIRADOR = (255, 140, 70)
