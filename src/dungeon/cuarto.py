@@ -44,6 +44,7 @@ from src.dungeon.clasificador_toxicidad import (
 from src.dungeon.spawn import posiciones_spawn
 from src.entities.enemigos import crear_enemigo
 from src.entities.tipos_enemigo import composicion_cuarto
+from src.entities.variantes_enemigo import elegir_variantes
 from src.ui import cuarto_render
 from src.ui.terminal_decision import TerminalDecision, construir_arbol_publicacion
 
@@ -142,6 +143,7 @@ class Cuarto:
         punto_entrada=None,
         rng=None,
         es_cuarto_inicial=False,
+        usos_variantes=None,
     ):
         self.rect = pygame.Rect(0, 0, ANCHO_CUARTO, ALTO_CUARTO)
         self.rect.center = assets.CENTRO_CUARTO
@@ -160,6 +162,9 @@ class Cuarto:
         self.congelado = False  # gracia de entrada (ver gracia_entrada.py)
 
         self.puertas = self._crear_puertas(direcciones_puertas)
+        # Veces que cada variante apareció en la mazmorra (la comparte la
+        # mazmorra para que cada cuarto traiga caras distintas).
+        self.usos_variantes = usos_variantes if usos_variantes is not None else {}
         self.enemigos = self._crear_enemigos_iniciales(
             punto_entrada if punto_entrada is not None else self.rect.center,
             rng if rng is not None else random.Random(),
@@ -190,7 +195,9 @@ class Cuarto:
         r = self.rect
         posiciones = posiciones_spawn((r.left, r.top, r.right, r.bottom), punto_entrada, len(tipos), rng)
         velocidad = assets.VELOCIDAD_ENEMIGO * self.dificultad["multiplicador_velocidad"]
-        return [crear_enemigo(tipo, x, y, velocidad) for tipo, (x, y) in zip(tipos, posiciones)]
+        variantes = elegir_variantes(tipos, rng, self.usos_variantes)
+        return [crear_enemigo(tipo, x, y, velocidad, variante=variante)
+                for tipo, variante, (x, y) in zip(tipos, variantes, posiciones)]
 
     def _actualizar_estado_puertas(self):
         bloqueadas = len(self.enemigos) > 0

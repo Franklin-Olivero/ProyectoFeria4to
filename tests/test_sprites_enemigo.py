@@ -21,23 +21,10 @@ from src.ui.ruta_sprites import ruta_sprite_enemigo  # noqa: E402
 
 
 @pytest.fixture(autouse=True)
-def cache_limpio(monkeypatch):
-    # Estos tests cubren el arte anterior; la prueba de "enemigos 2.0" va aparte.
-    monkeypatch.setattr(assets, "ENEMIGO_V2", {})
+def cache_limpio():
     sprites.limpiar_cache_enemigos()
     yield
     sprites.limpiar_cache_enemigos()
-
-
-def test_enemigos_v2_recorta_escala_y_anima(monkeypatch):
-    monkeypatch.setattr(assets, "ENEMIGO_V2", {"perseguidor": "Hellhound"})
-    sprites.limpiar_cache_enemigos()
-    cuadros = sprites._cuadros_enemigo_v2("perseguidor")
-    assert len(cuadros) == 8
-    assert len({c.get_size() for c in cuadros}) == 1  # caja común: no vibra
-    assert sprites.sprite_enemigo("perseguidor", tiempo=0.0) is cuadros[0]
-    assert sprites.sprite_enemigo("perseguidor", tiempo=assets.DURACION_CUADRO_ENEMIGO_V2) is cuadros[1]
-    assert sprites._cuadros_enemigo_v2("curandero") is None  # sin arte nuevo
 
 
 def test_ruta_con_y_sin_archivo():

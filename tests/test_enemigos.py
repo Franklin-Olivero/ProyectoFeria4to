@@ -145,7 +145,7 @@ def test_sin_dano_durante_la_gracia_y_con_dano_despues():
         jugador.rect.center = perseguidor.rect.center
     assert mj.gracia.activa
     assert jugador.golpes == [] and proyectiles == []
-    for _ in range(20):
+    for _ in range(90):  # el golpe de una variante cae a mitad de su animación (<= 0.6 s)
         mj.actualizar(DT, [jugador], proyectiles)
         jugador.rect.center = perseguidor.rect.center
     assert not mj.gracia.activa and jugador.golpes

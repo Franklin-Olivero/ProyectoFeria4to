@@ -795,23 +795,43 @@ ID_SPRITE_ENEMIGO = {
     "tirador": "tirador",
     "curandero": "curandero",
 }
-# Arte "enemigos 2.0" (prueba): tiras <nombre>_Walk.png de cuadros de 100x100
-# con el personaje mirando a la derecha. Solo los tipos listados lo usan;
-# los demás siguen con su hoja anterior. Vaciar el dict desactiva la prueba.
+# Arte "enemigos 2.0": cada variante (balance.STATS_VARIANTE_ENEMIGO) es un
+# personaje de esta carpeta. Cada tira <carpeta>_<Tira>.png es una fila de
+# cuadros de 100x100 con el personaje mirando a la derecha.
 RUTA_SPRITES_ENEMIGOS_V2 = os.path.join("assets", "sprites", "enemigos 2.0", "Characters(100x100 split)")
 CUADRO_ENEMIGO_V2 = 100  # lado de cada cuadro de la tira
-DURACION_CUADRO_ENEMIGO_V2 = 0.1  # s por cuadro de la animación
-# Escala por tipo (px nativos * escala): el Hellhound queda pequeño y el
-# Warlock se ve mucho más grande. Un tipo sin entrada usa ESCALA_ENEMIGO_V2_BASE.
-ESCALA_ENEMIGO_V2_BASE = 2
-ESCALA_ENEMIGO_V2 = {
-    "perseguidor": 2,  # Hellhound 29x17 -> 58x34
-    "tirador": 4,  # Warlock 21x26 -> 84x104
+DURACION_CUADRO_ENEMIGO_V2 = 0.1  # s por cuadro al caminar
+# Arte de cada variante: tira de movimiento ("Walk" o "Flying"), tira de
+# ataque, escala (px nativos * escala), hitbox (px de lado) y color de su
+# proyectil. El Hellhound (escala 2) queda pequeño y el Warlock (escala 4)
+# grande. Los números de combate viven en balance.STATS_VARIANTE_ENEMIGO.
+ARTE_VARIANTE = {
+    "Hellhound": dict(tira_mov="Walk", tira_ataque="Attack01", escala=2, tamanio=38, color=(232, 52, 64)),
+    "Minotaur": dict(tira_mov="Walk", tira_ataque="Attack01", escala=3, tamanio=56, color=(200, 120, 60)),
+    "Blood Monster_A": dict(tira_mov="Walk", tira_ataque="Attack01", escala=3, tamanio=40, color=(200, 30, 50)),
+    "Blood Monster_B": dict(tira_mov="Flying", tira_ataque="Attack01", escala=3, tamanio=34, color=(220, 40, 70)),
+    "Hellbat": dict(tira_mov="Flying", tira_ataque="Attack01", escala=3, tamanio=38, color=(180, 60, 200)),
+    "Demon_A": dict(tira_mov="Walk", tira_ataque="Attack01", escala=3, tamanio=42, color=(230, 80, 50)),
+    "Demon_E": dict(tira_mov="Walk", tira_ataque="Attack01", escala=2, tamanio=48, color=(210, 40, 60)),
+    "Black Knight_A": dict(tira_mov="Walk", tira_ataque="Attack01", escala=3, tamanio=44, color=(120, 120, 150)),
+    "Black Knight_C": dict(tira_mov="Walk", tira_ataque="Attack01", escala=3, tamanio=64, color=(150, 80, 200)),
+    "Demoness_A": dict(tira_mov="Walk", tira_ataque="Attack01", escala=3, tamanio=54, color=(240, 90, 160)),
+    "Warlock": dict(tira_mov="Walk", tira_ataque="Attack01", escala=4, tamanio=56, color=(190, 90, 255)),
+    "Demon_B": dict(tira_mov="Walk", tira_ataque="Attack01", escala=3, tamanio=40, color=(255, 200, 80)),
+    "Black Knight_B": dict(tira_mov="Walk", tira_ataque="Attack01", escala=3, tamanio=44, color=(255, 150, 60)),
+    "Eyeball Monster": dict(tira_mov="Walk", tira_ataque="Attack01", escala=3, tamanio=36, color=(255, 70, 200)),
+    "Lava Slime": dict(tira_mov="Walk", tira_ataque="Attack01", escala=3, tamanio=40, color=(255, 110, 30)),
+    "Demon_C": dict(tira_mov="Walk", tira_ataque="Attack01", escala=3, tamanio=48, color=(255, 90, 90)),
+    "Demon_D": dict(tira_mov="Walk", tira_ataque="Attack01", escala=3, tamanio=52, color=(255, 60, 120)),
+    "Ghostfire": dict(tira_mov="Flying", tira_ataque="Attack01", escala=3, tamanio=36, color=(120, 255, 200)),
+    "Demoness_B": dict(tira_mov="Walk", tira_ataque="Attack01", escala=3, tamanio=40, color=(255, 180, 220)),
 }
-ENEMIGO_V2 = {
-    "perseguidor": "Hellhound",
-    "tirador": "Warlock",
-}
+# Debug de balance: nombre exacto de la variante flotando sobre cada
+# enemigo. Poner en False cuando termine el balanceo.
+MOSTRAR_NOMBRE_ENEMIGO = True
+COLOR_NOMBRE_ENEMIGO = (255, 255, 255)
+COLOR_SOMBRA_NOMBRE_ENEMIGO = (10, 10, 20)
+SEPARACION_NOMBRE_ENEMIGO = 4  # px entre el texto y lo alto del sprite
 COLOR_PRINCIPAL_ENEMIGO = {
     "perseguidor": (232, 52, 64),  # rojo: agresivo
     "tirador": (255, 120, 60),  # naranja

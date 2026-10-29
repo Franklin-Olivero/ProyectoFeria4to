@@ -327,6 +327,65 @@ STATS_TIPO_ENEMIGO = {
     "curandero": StatsTipoEnemigo(velocidad_mult=0.7, vida=2),
 }
 
+# Variantes: cada personaje de assets/sprites/enemigos 2.0 es un tipo de
+# comportamiento (perseguidor / tirador / curandero) con sus propios
+# números (ver src/entities/variantes_enemigo.py). `alcance` es el
+# margen extra de golpe de los cuerpo a cuerpo y el rango preferido de
+# los tiradores; `cooldown_s` es el tiempo entre golpes o entre disparos;
+# `cuadros_ataque` son los cuadros de su tira de ataque. El golpe cae a
+# FRACCION_IMPACTO_ATAQUE de la animación (así se ve venir) y el tirador
+# usa ese mismo tiempo como telegrafía.
+DURACION_CUADRO_ATAQUE_S = 0.07
+FRACCION_IMPACTO_ATAQUE = 0.5
+
+
+@dataclass(frozen=True)
+class StatsVariante:
+    tipo: str  # clave de STATS_TIPO_ENEMIGO
+    velocidad_mult: float
+    vida: float
+    cuadros_ataque: int
+    danio: float = 0
+    cooldown_s: float = 0.0
+    alcance: float = 0
+    proyectiles: int = 1  # tiradores: balas por disparo (abanico)
+    apertura_grados: float = 0  # ángulo entre balas del abanico
+    velocidad_proyectil: float = 0
+    tamanio_proyectil: int = 10
+
+
+STATS_VARIANTE_ENEMIGO = {
+    # Cuerpo a cuerpo
+    "Hellhound": StatsVariante("perseguidor", 1.15, 3, 8, danio=1, cooldown_s=0.8, alcance=8),
+    "Minotaur": StatsVariante("perseguidor", 0.8, 5, 8, danio=2, cooldown_s=1.6, alcance=14),
+    "Blood Monster_A": StatsVariante("perseguidor", 1.0, 3, 8, danio=1, cooldown_s=0.9, alcance=8),
+    "Blood Monster_B": StatsVariante("perseguidor", 1.3, 2, 8, danio=1, cooldown_s=0.7, alcance=6),
+    "Hellbat": StatsVariante("perseguidor", 1.35, 2, 6, danio=1, cooldown_s=0.9, alcance=8),
+    "Demon_A": StatsVariante("perseguidor", 1.05, 3, 7, danio=1, cooldown_s=0.9, alcance=10),
+    "Demon_E": StatsVariante("perseguidor", 0.95, 4, 8, danio=1, cooldown_s=1.0, alcance=16),
+    "Black Knight_A": StatsVariante("perseguidor", 0.85, 4, 16, danio=2, cooldown_s=1.8, alcance=12),
+    "Black Knight_C": StatsVariante("perseguidor", 0.75, 6, 8, danio=2, cooldown_s=1.6, alcance=16),
+    "Demoness_A": StatsVariante("perseguidor", 1.0, 3, 9, danio=1, cooldown_s=0.8, alcance=14),
+    # A distancia
+    "Warlock": StatsVariante("tirador", 0.8, 2, 7, danio=1, cooldown_s=1.8, alcance=320,
+                             velocidad_proyectil=260, tamanio_proyectil=12),
+    "Demon_B": StatsVariante("tirador", 0.9, 2, 9, danio=1, cooldown_s=1.5, alcance=340,
+                             velocidad_proyectil=380, tamanio_proyectil=8),
+    "Black Knight_B": StatsVariante("tirador", 0.7, 3, 7, danio=2, cooldown_s=2.6, alcance=300,
+                                    velocidad_proyectil=200, tamanio_proyectil=12),
+    "Eyeball Monster": StatsVariante("tirador", 0.9, 2, 8, danio=1, cooldown_s=1.6, alcance=300,
+                                     velocidad_proyectil=320, tamanio_proyectil=8),
+    "Lava Slime": StatsVariante("tirador", 0.7, 3, 6, danio=1, cooldown_s=2.2, alcance=260,
+                                proyectiles=3, apertura_grados=30, velocidad_proyectil=220),
+    "Demon_C": StatsVariante("tirador", 0.85, 2, 6, danio=1, cooldown_s=2.0, alcance=300,
+                             proyectiles=2, apertura_grados=14, velocidad_proyectil=260),
+    "Demon_D": StatsVariante("tirador", 0.8, 3, 11, danio=1, cooldown_s=2.4, alcance=300,
+                             proyectiles=3, apertura_grados=24, velocidad_proyectil=240),
+    # Apoyo (su "ataque" es el hechizo de cura)
+    "Ghostfire": StatsVariante("curandero", 0.7, 2, 6),
+    "Demoness_B": StatsVariante("curandero", 0.7, 2, 8),
+}
+
 # Perseguidor: golpe por contacto
 DANIO_CONTACTO_PERSEGUIDOR = 1
 COOLDOWN_CONTACTO_PERSEGUIDOR = 0.8  # s entre golpes

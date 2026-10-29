@@ -41,6 +41,7 @@ class MazmorraJugable:
     def __init__(self, mazmorra):
         self.mazmorra = mazmorra
         self.cuartos = {}  # id de cuarto -> Cuarto ya creado
+        self.usos_variantes = {}  # variante de enemigo -> veces que apareció en la mazmorra
         # True el frame en que se cambia de cuarto (Main.py limpia los
         # proyectiles del jugador que quedaron en el cuarto anterior).
         self.cambio_de_cuarto = False
@@ -83,6 +84,7 @@ class MazmorraJugable:
             punto_entrada=punto_entrada,
             rng=random.Random(m.rng.random()),
             es_cuarto_inicial=self._distancia_entrada[id_cuarto] <= 1,
+            usos_variantes=self.usos_variantes,
         )
 
     def actualizar(self, dt, jugadores, proyectiles_enemigos):

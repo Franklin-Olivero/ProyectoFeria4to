@@ -16,6 +16,8 @@ dibujar, manejar_evento), así Main.py usa el mismo loop de combate,
 colisiones y carga de habilidad. Nunca hay minijuego de decisión aquí.
 """
 
+import random
+
 import pygame
 
 from src.core import assets
@@ -25,6 +27,7 @@ from src.dungeon.gracia_entrada import GraciaEntrada
 from src.dungeon.mazmorra_final import EN_COMBATE, VICTORIA, MazmorraFinal
 from src.dungeon.mazmorra_jugable import ubicar_en_fila
 from src.entities.enemigos import crear_enemigo
+from src.entities.variantes_enemigo import elegir_variantes
 from src.entities.tipos_enemigo import TipoEnemigo
 from src.entities.projectile import ProyectilConEstela
 from src.ui import cuarto_render, dibujo, sprites
@@ -45,6 +48,7 @@ class ArenaJefe:
         self.mazmorra = MazmorraFinal(colapso, limites)
         self.subditos = []
         self._invocados = 0  # para alternar el tipo de cada súbdito
+        self._usos_variantes = {}  # variantes ya invocadas (reparte caras distintas)
         self._tiempo = 0.0  # reloj visual para el parpadeo
         self.gracia = GraciaEntrada()
         self.gracia.iniciar()
@@ -142,9 +146,10 @@ class ArenaJefe:
             tipo = TIPOS_SUBDITOS[self._invocados % len(TIPOS_SUBDITOS)]
             self._invocados += 1
             # Agresividad absoluta: cada uno hace lo suyo desde cualquier distancia.
+            variante = elegir_variantes([tipo], random, self._usos_variantes)[0]
             subdito = crear_enemigo(
                 tipo, self.jefe.x + lado * assets.SEPARACION_INVOCACION, self.jefe.y, velocidad,
-                agro_permanente=True,
+                agro_permanente=True, variante=variante,
             )
             subdito.mantener_dentro(self.rect)
             self.subditos.append(subdito)

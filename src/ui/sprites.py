@@ -15,7 +15,7 @@ import os
 
 import pygame
 
-from src.core import assets
+from src.core import assets, balance
 from src.ui.ruta_sprites import (
     cuadros_de_atlas,
     cuadros_por_nombre,
@@ -590,12 +590,7 @@ def sprite_enemigo(tipo, frame=0, tiempo=None):
     if tipo is None:
         return sprite(ENEMIGO, PALETA_ENEMIGO)
     clave = getattr(tipo, "value", tipo)
-    cuadros_v2 = _cuadros_enemigo_v2(clave)
-    if cuadros_v2:
-        if tiempo is None:
-            return cuadros_v2[frame % len(cuadros_v2)]
-        return cuadros_v2[int(tiempo / assets.DURACION_CUADRO_ENEMIGO_V2) % len(cuadros_v2)]
-    hoja = _cargar_hoja(ruta_sprite_enemigo(assets.ID_SPRITE_ENEMIGO[clave]), assets.ESCALA_PIXEL)
+    hoja =_cargar_hoja(ruta_sprite_enemigo(assets.ID_SPRITE_ENEMIGO[clave]), assets.ESCALA_PIXEL)
     if hoja is not None:
         superficies, duraciones = hoja.get(assets.ANIMACION_CAMINAR) or next(iter(hoja.values()))
         if tiempo is None:
@@ -609,35 +604,88 @@ def sprite_enemigo(tipo, frame=0, tiempo=None):
 _cache_enemigos_v2 = {}
 
 
-def _cuadros_enemigo_v2(clave):
-    """Cuadros de la tira Walk de "enemigos 2.0" para el tipo `clave`,
-    recortados a una caja común (así no vibra al animar) y escalados;
-    None si el tipo no usa el arte nuevo o falta el PNG."""
-    nombre = assets.ENEMIGO_V2.get(clave)
-    if nombre is None:
-        return None
-    if clave not in _cache_enemigos_v2:
-        ruta = os.path.join(assets.RUTA_SPRITES_ENEMIGOS_V2, nombre, nombre, f"{nombre}_Walk.png")
-        escala = assets.ESCALA_ENEMIGO_V2.get(clave, assets.ESCALA_ENEMIGO_V2_BASE)
-        _cache_enemigos_v2[clave] = _leer_tira_v2(ruta, escala)
-    return _cache_enemigos_v2[clave]
-
-
-def _leer_tira_v2(ruta, escala):
+def _celdas_tira_v2(ruta):
+    """Cuadros de 100x100 de una tira de "enemigos 2.0", o None si falta."""
     tira = _cargar_png(ruta)
     if tira is None:
         return None
     lado = assets.CUADRO_ENEMIGO_V2
-    cuadros = [tira.subsurface((x, 0, lado, tira.get_height())) for x in range(0, tira.get_width(), lado)]
-    caja = cuadros[0].get_bounding_rect()
-    for cuadro in cuadros[1:]:
-        caja.union_ip(cuadro.get_bounding_rect())
-    return [pygame.transform.scale(c.subsurface(caja), (caja.w * escala, caja.h * escala)) for c in cuadros]
+    return [tira.subsurface((x, 0, lado, tira.get_height())) for x in range(0, tira.get_width(), lado)]
+
+
+def _caja_comun(celdas):
+    caja = celdas[0].get_bounding_rect()
+    for celda in celdas[1:]:
+        caja.union_ip(celda.get_bounding_rect())
+    return caja
+
+
+def _leer_tira_v2(ruta, escala):
+    """Tira recortada a una caja común (así no vibra al animar) y escalada."""
+    celdas = _celdas_tira_v2(ruta)
+    if celdas is None:
+        return None
+    caja = _caja_comun(celdas)
+    return [pygame.transform.scale(c.subsurface(caja), (caja.w * escala, caja.h * escala)) for c in celdas]
+
+
+def _leer_variante(nombre):
+    """{"mover": [...], "ataque": [...]} de la variante, o None sin arte.
+
+    Los cuadros de las dos tiras se recortan con la MISMA caja, centrada en
+    la del movimiento: así el cuerpo no salta al empezar a atacar y, al
+    dibujar centrado en el rect del enemigo, el personaje queda donde
+    estaba al caminar."""
+    arte = assets.ARTE_VARIANTE.get(nombre)
+    if arte is None:
+        return None
+    base = os.path.join(assets.RUTA_SPRITES_ENEMIGOS_V2, nombre, nombre, f"{nombre}_%s.png")
+    mover = _celdas_tira_v2(base % arte["tira_mov"])
+    ataque = _celdas_tira_v2(base % arte["tira_ataque"])
+    if mover is None or ataque is None:
+        return None
+    caja_mov = _caja_comun(mover)
+    caja = caja_mov.union(_caja_comun(ataque))
+    cx, cy = caja_mov.center
+    mitad_x = max(cx - caja.left, caja.right - cx)
+    mitad_y = max(cy - caja.top, caja.bottom - cy)
+    escala = arte["escala"]
+
+    def recortado(celda):
+        lienzo = pygame.Surface((2 * mitad_x, 2 * mitad_y), pygame.SRCALPHA)
+        lienzo.blit(celda, (mitad_x - cx, mitad_y - cy))
+        return pygame.transform.scale(lienzo, (lienzo.get_width() * escala, lienzo.get_height() * escala))
+
+    mover = [recortado(c) for c in mover]
+    ataque = [recortado(c) for c in ataque]
+    return {
+        "mover": mover, "ataque": ataque,
+        "mover_izq": [pygame.transform.flip(c, True, False) for c in mover],
+        "ataque_izq": [pygame.transform.flip(c, True, False) for c in ataque],
+    }
+
+
+def sprite_variante(nombre, tiempo=0.0, ataque_t=None, mirando_izquierda=False):
+    """Cuadro de la variante `nombre`: el de su tira de ataque según
+    `ataque_t` (segundos desde que empezó el ataque; None = no ataca) o el
+    de caminar según `tiempo`. Volteado si mira a la izquierda; None si
+    la variante no tiene arte."""
+    if nombre not in _cache_enemigos_v2:
+        _cache_enemigos_v2[nombre] = _leer_variante(nombre)
+    cuadros = _cache_enemigos_v2[nombre]
+    if cuadros is None:
+        return None
+    sufijo = "_izq" if mirando_izquierda else ""
+    if ataque_t is not None:
+        lista = cuadros["ataque" + sufijo]
+        return lista[min(len(lista) - 1, int(ataque_t / balance.DURACION_CUADRO_ATAQUE_S))]
+    lista = cuadros["mover" + sufijo]
+    return lista[int(tiempo / assets.DURACION_CUADRO_ENEMIGO_V2) % len(lista)]
 
 
 def limpiar_cache_enemigos():
-    _cache_enemigos_v2.clear()
     """Olvida las imágenes cargadas (p. ej. tras copiar arte nuevo)."""
+    _cache_enemigos_v2.clear()
     limpiar_cache_hojas()
 
 

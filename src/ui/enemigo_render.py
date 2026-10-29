@@ -15,12 +15,42 @@ import math
 import pygame
 
 from src.core import assets
-from src.ui import sprites
+from src.ui import fuentes, sprites
+
+
+_cache_nombres = {}
+
+
+def _etiqueta_nombre(nombre):
+    """Texto del nombre (blanco con sombra), cacheado."""
+    if nombre not in _cache_nombres:
+        fuente = fuentes.fuente(assets.TAMANIO_FUENTE_PEQUENA, negrita=True)
+        texto = fuente.render(nombre, True, assets.COLOR_NOMBRE_ENEMIGO)
+        sombra = fuente.render(nombre, True, assets.COLOR_SOMBRA_NOMBRE_ENEMIGO)
+        lienzo = pygame.Surface((texto.get_width() + 2, texto.get_height() + 2), pygame.SRCALPHA)
+        lienzo.blit(sombra, (2, 2))
+        lienzo.blit(texto, (0, 0))
+        _cache_nombres[nombre] = lienzo
+    return _cache_nombres[nombre]
+
+
+def dibujar_nombre(pantalla, enemigo, arriba):
+    """Debug de balance: el nombre exacto de la variante, centrado sobre
+    el sprite (`arriba` = y de lo alto del sprite)."""
+    etiqueta = _etiqueta_nombre(enemigo.nombre)
+    pantalla.blit(etiqueta, etiqueta.get_rect(midbottom=(enemigo.rect.centerx, arriba - assets.SEPARACION_NOMBRE_ENEMIGO)))
 
 
 def dibujar_enemigo(pantalla, enemigo):
-    imagen = sprites.sprite_enemigo(enemigo.tipo, tiempo=enemigo.reloj)
-    if getattr(enemigo, "telegrafia", 0) > 0:
+    variante = getattr(enemigo, "variante", None)
+    imagen = None
+    if variante is not None:
+        imagen = sprites.sprite_variante(
+            variante.nombre, enemigo.reloj, enemigo.ataque_t, enemigo.mirando_izquierda)
+    con_variante = imagen is not None
+    if imagen is None:
+        imagen = sprites.sprite_enemigo(enemigo.tipo, tiempo=enemigo.reloj)
+    if not con_variante and getattr(enemigo, "telegrafia", 0) > 0:
         imagen = imagen.copy()
         imagen.fill(assets.COLOR_TELEGRAFIA_TIRADOR, special_flags=pygame.BLEND_RGB_MAX)
     if enemigo.congelado:
@@ -28,7 +58,10 @@ def dibujar_enemigo(pantalla, enemigo):
         imagen = imagen.copy()
         imagen.set_alpha(round(assets.ALFA_MIN_ENEMIGO_GRACIA
                                + (assets.ALFA_MAX_ENEMIGO_GRACIA - assets.ALFA_MIN_ENEMIGO_GRACIA) * pulso))
-    pantalla.blit(imagen, imagen.get_rect(center=enemigo.rect.center))
+    destino = imagen.get_rect(center=enemigo.rect.center)
+    pantalla.blit(imagen, destino)
+    if con_variante and assets.MOSTRAR_NOMBRE_ENEMIGO:
+        dibujar_nombre(pantalla, enemigo, destino.top)
 
     if enemigo.escudo_anonimato:
         pygame.draw.rect(pantalla, assets.COLOR_ESCUDO_JEFE, enemigo.rect.inflate(8, 8), 2, border_radius=4)
