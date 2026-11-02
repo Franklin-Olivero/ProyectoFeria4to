@@ -121,7 +121,8 @@ def dibujar_ciudad(pantalla, partida, jugador, tiempo, ruta=None):
         _dibujar_ruta(pantalla, ruta, dx, dy, tiempo)
     if jugador.invulnerabilidad.visible:
         imagen = sprites.sprite_jugador(jugador.COLOR, rol=jugador.rol, tiempo=tiempo,
-                                        caminando=jugador.caminando_en_ciudad)
+                                        caminando=jugador.caminando_en_ciudad,
+                                        apariencia=getattr(jugador, "apariencia", None))
         sprites.dibujar_centrado(pantalla, imagen, (round(posicion[0] + dx), round(posicion[1] + dy - 6)))
     pantalla.set_clip(None)
 

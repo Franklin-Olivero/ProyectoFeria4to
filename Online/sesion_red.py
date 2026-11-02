@@ -35,7 +35,10 @@ Arquitectura: HOST AUTORITATIVO + ESPEJO EN EL INVITADO
 
 Cada jugador se identifica por su ÍNDICE en `jugadores` (0 = host). La
 red usa ids de conexión (0..3); `ids_red[indice]` es el id de cada uno
-(el lobby los fija al iniciar: Online/lobby.py).
+(el lobby los fija al iniciar: Online/lobby.py). Con ese mismo orden,
+cada PC viste a cada jugador con la apariencia de su nodo en el grafo
+de sala (_vestir_jugadores); no viaja en el ESTADO porque no cambia
+durante la partida.
 """
 
 import functools
@@ -52,6 +55,7 @@ from Online.protocolo import (
     msg_cambio_escena, msg_cambio_cuarto, msg_entrar_mazmorra, ROLES,
 )
 from src.core import assets
+from src.core.apariencia import Apariencia
 from src.core.colapso import COLAPSO_MAXIMO
 from src.core.entrada import EntradaTeclado, InputJugador
 from src.core.equipo import revivir_caidos, todos_caidos
@@ -1637,6 +1641,7 @@ class ConfigSesionHost:
         for jid in range(1, len(self.clases)):
             entradas.append(EntradaRed(adaptador, id_jugador=jid))
         sesion.entradas = entradas
+        _vestir_jugadores(sesion, self.conexion, self.ids_red)
         return sesion
 
 
@@ -1661,6 +1666,7 @@ class ConfigSesionJoin:
             else:
                 entradas.append(EntradaRemotaHost(adaptador, id_jugador=jid))
         sesion.entradas = entradas
+        _vestir_jugadores(sesion, self.conexion, self.ids_red)
         return sesion
 
 
@@ -1680,6 +1686,39 @@ def _ids_de_sala(conexion):
         return sala.jugadores() if sala is not None else None
     except Exception:
         return None
+
+
+def _vestir_jugadores(sesion, conexion, ids_red):
+    """Cada jugador de `sesion.jugadores` toma la apariencia que eligió en
+    los vestidores del lobby: la de su nodo en el grafo de sala, por el
+    orden de `ids_red` (None = el de _ids_de_partida). Como todas las PCs
+    usan el mismo orden, todas ven igual a cada jugador. Nunca rompe la
+    sesión: sin sala, sin jugadores o con un error se anota y cada uno
+    queda con la hoja de su rol."""
+    try:
+        jugadores = getattr(sesion, "jugadores", None)
+        sala = getattr(conexion, "sala", None)
+        if not jugadores or sala is None:
+            faltante = "jugadores en la sesión" if not jugadores else "grafo de sala"
+            registro_errores.registrar(
+                "_vestir_jugadores",
+                RuntimeError(f"sin {faltante}: cada jugador queda con la hoja de su rol"),
+            )
+            return
+        ids = ids_red if ids_red is not None else _ids_de_partida(conexion, len(jugadores))
+        apariencias = []
+        for id_red in ids:
+            apariencia = sala.apariencia_de(id_red)
+            # Se valida igual que lo que llega por red (Apariencia.de_dict): así
+            # esta PC ve a cada uno como las demás y el dibujo de cada frame
+            # nunca recibe un tono o un rol inválido.
+            datos = apariencia.a_dict() if isinstance(apariencia, Apariencia) else apariencia
+            apariencias.append(Apariencia.de_dict(datos))
+        # Se asignan al final: si la sala falla a medias, nadie queda vestido.
+        for jugador, apariencia in zip(jugadores, apariencias):
+            jugador.apariencia = apariencia
+    except Exception:
+        registro_errores.registrar("_vestir_jugadores")
 
 
 def preparar_sesion_online(clases, mando, conexion, es_host):

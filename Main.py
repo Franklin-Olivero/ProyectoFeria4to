@@ -357,7 +357,7 @@ def _jugar(pantalla, reloj, sesion, preferencias, presentar):
                         # Partida completa nueva, con los mismos roles, en la
                         # Plaza y con las calles y barricadas restablecidas.
                         partida.reiniciar()
-                        jugadores = [type(j)(0, 0) for j in jugadores]
+                        jugadores = _jugadores_nuevos(jugadores)
                         sesion.jugadores = jugadores
                         jugador = jugadores[0]
                         selector = SelectorZona(EDIFICIOS, EDIFICIOS[0])
@@ -700,7 +700,8 @@ def _dibujar_ciudad(pantalla, partida, jugador, destino, tiempo, mostrar_ruta, m
                     _cam = ciudad_render.camara_para((jugador.posicion.x, jugador.posicion.y))
                     _dx, _dy = _rect_v.x - _cam[0], _rect_v.y - _cam[1]
                     _img = sprites.sprite_jugador(_j_otro.COLOR, rol=_j_otro.rol, tiempo=tiempo,
-                                                  caminando=getattr(_j_otro, "caminando_en_ciudad", False))
+                                                  caminando=getattr(_j_otro, "caminando_en_ciudad", False),
+                                                  apariencia=getattr(_j_otro, "apariencia", None))
                     sprites.dibujar_centrado(pantalla, _img, (round(_j_otro.posicion.x + _dx), round(_j_otro.posicion.y + _dy - 6)))
         titulo = assets.TITULO_CIUDAD
     subtitulo = f"Destino: {destino}  ·  Calles bloqueadas: {len(partida.ciudad.bloqueadas)}"
@@ -731,6 +732,16 @@ def _curar(jugadores):
         jugador.invulnerabilidad.reiniciar()
         jugador.dash.reiniciar()
         jugador.detener()
+
+
+def _jugadores_nuevos(jugadores):
+    """Los mismos roles desde cero para la partida nueva tras la derrota
+    global. La apariencia del vestidor (modo Online) no es progreso de la
+    partida: se conserva."""
+    nuevos = [type(j)(0, 0) for j in jugadores]
+    for nuevo, viejo in zip(nuevos, jugadores):
+        nuevo.apariencia = getattr(viejo, "apariencia", None)
+    return nuevos
 
 
 def _menu_principal(pantalla, reloj, vista, hay_partida, preferencias, audio, presentar, mando):

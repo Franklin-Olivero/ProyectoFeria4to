@@ -36,13 +36,14 @@ Define la carpeta como un paquete de Python y expone los módulos principales.
 Define las reglas de comunicación y la serialización de datos:
 - **Formato de Mensajes:** Diccionarios codificados en JSON terminados en salto de línea (`\n`).
 - **Tipos de Mensajes:**
-  - `LOBBY`: Actualización del estado de la sala (nodos del grafo, roles elegidos).
+  - `LOBBY`: Actualización del estado de la sala (nodos del grafo, roles elegidos y apariencias).
   - `ELEGIR_ROL`: Envío de la selección o confirmación de rol.
+  - `ELEGIR_APARIENCIA`: Un jugador cambió su color de piel, cabeza o traje en un vestidor (ver sección 6).
   - `INICIAR`: Comando emitido por el host para arrancar la partida cuando todos están listos.
   - `INPUT`: Envío de teclas, dirección y botones del jugador invitado hacia el host.
   - `ESTADO`: Snapshot con posiciones y vidas enviado desde el host al invitado.
   - `DESCONEXION`: Notificación de desconexión limpia.
-- **Clase `GrafoSala`:** Implementación orientada a grafos para gestionar jugadores, adyacencias y estados de confirmación.
+- **Clase `GrafoSala`:** Implementación orientada a grafos para gestionar jugadores, adyacencias y estados de confirmación. Cada nodo guarda además la `Apariencia` de su jugador (`elegir_apariencia`, `apariencia_de`).
 
 ### 📄 `Online/servidor.py`
 Servidor TCP para el Host:
@@ -90,7 +91,11 @@ Interfaz visual del modo Online construida con Pygame:
 - **Sub-pantalla 2A (Lobby Host):** Muestra la IP del anfitrión, espera al invitado, permite elegir rol y presionar Enter para iniciar cuando ambos estén listos.
 - **Sub-pantalla 2B (Lobby Invitado):** Input interactivo para ingresar la IP del Host, confirmación de rol y espera de inicio.
 - **Visualizador del Grafo:** Dibuja los nodos (círculos de colores correspondientes a cada jugador) y la arista conectora en la parte inferior de la pantalla.
+- **Vestidores:** las 4 cajas de la sala abren el modal de personalización (sección 6).
 - **Función integradora `menu_online()`:** Orquesta todo el flujo previo a la partida y retorna las clases elegidas y la conexión de red activa.
+
+### 📄 `Online/personalizacion.py` y `Online/personalizacion_render.py`
+El vestidor estilo Among Us: `Vestidor` (lógica pura: pestañas COLOR / HAT / SKIN, cuadrícula, qué se equipa) y su dibujo + clics. Detalle en la sección 6.
 
 ### 📄 `Online/sesion_red.py`
 Adaptador entre el bucle de juego de Civitas y la capa de red:
@@ -344,3 +349,45 @@ En `tests/test_online_sincronizacion.py`:
 - `test_derrota_cuando_todos_caen_en_mazmorra()`: Verifica la caída total del equipo y la generación de la pantalla de Detonación con la explicación de derrota.
 - `test_decision_nav_protocolo_y_cliente_servidor()`: Verifica la serialización del mensaje `DECISION_NAV`, el despacho en el servidor y la navegación autoritativa en el terminal del host.
 - `test_sincronizacion_pantalla_resultado_a_invitados()`: Verifica la convergencia a `Escena.RESULTADO`, la construcción del objeto `ResultadoMazmorra` en el invitado y el retorno coordinado a la ciudad.
+
+---
+
+## 6. Vestidores estilo Among Us (personalizar el personaje)
+
+### Qué hace
+Las 4 cajas de la sala de espera (`VESTIDOR-01` a `VESTIDOR-04`) son vestidores. Al acercarse a una, la caja se ilumina y aparece **"Presiona [E] o Click: Vestidor"**. Se abre un modal como el de Among Us, con tres pestañas:
+
+| Pestaña | Qué cambia | Opciones |
+|---|---|---|
+| **COLOR** | Tono de piel (cara y manos) | AUTO + 8 tonos |
+| **HAT** | La parte de arriba: pelo, cara y lentes | AUTO + la cabeza de cada uno de los 4 roles |
+| **SKIN** | El traje: camisa, pantalón y zapatos | AUTO + el traje de cada uno de los 4 roles |
+
+- **AUTO** = lo de tu rol: quien nunca usa un vestidor se ve igual que siempre, y si cambias de rol en la laptop, lo que esté en AUTO cambia solo.
+- El **accesorio** (megáfono, palo selfie, micrófono, mano) siempre es el de tu **rol**, porque identifica su habilidad.
+- Los cambios se equipan al instante y **toda la sala los ve** (en su avatar del lobby). La apariencia también se ve **durante la partida**: en Ciudad Nova y en combate, en todas las PCs.
+- Controles: flechas/WASD eligen, `Tab` / `1-3` cambian de pestaña, clic en una casilla o pestaña, `E` / `Esc` / `Enter` (o clic fuera / en la X) cierran.
+
+### Sin arte nuevo: el personaje se arma por partes
+No se agregó ningún sprite. Cada personaje viene de una receta de Pixelbolt (`assets/sprites/fuentes/<rol>.pixel.json`) que dibuja sus cuadros "estampando" símbolos: `cabeza`, `torso`, `piernas_*` y el accesorio del rol, cada uno con la paleta de su rol. `src/ui/receta_jugador.py` repite las estampas del rol del jugador, pero toma la `cabeza` de la receta elegida en HAT y el `torso`/`piernas` de la elegida en SKIN; la letra de la piel (`s`) se pinta con el tono de COLOR. Con todo en AUTO el resultado es **idéntico píxel a píxel** a la hoja PNG del rol (está probado en los tests).
+
+### Estructura de datos: atributo del nodo del grafo
+La apariencia es un atributo más de cada **nodo** del `GrafoSala`, igual que el rol:
+- `src/core/apariencia.py`: `Apariencia(piel, cabeza, traje)`, inmutable; `None` = lo del rol. `de_dict()` valida campo por campo, así un dato roto o de otra versión del juego nunca tumba el lobby.
+- `GrafoSala.elegir_apariencia(id, apariencia)` / `apariencia_de(id)`: O(1). `a_dict()` / `de_dict()` la incluyen en cada nodo (una versión vieja sin el campo queda con la predeterminada).
+
+### Flujo por red
+1. **Invitado:** cada cambio llama `Cliente.enviar_apariencia(ap)` → mensaje `ELEGIR_APARIENCIA`.
+2. **Servidor (host):** guarda la apariencia en el nodo de **esa conexión** (usa el id del socket, no el del mensaje: nadie puede vestir a otro) y difunde `LOBBY` a todos.
+3. **Host:** sus propios cambios van directo a `servidor.sala` + `LOBBY` a todos (igual que su rol).
+4. **Al iniciar la partida:** `ConfigSesionHost` / `ConfigSesionJoin` (`Online/sesion_red.py`) copian la apariencia de cada nodo a su jugador (`JugadorBase.apariencia`), y `sprite_jugador(..., apariencia=)` la dibuja en la ciudad y en combate.
+
+### Archivos
+- Nuevos: `src/core/apariencia.py`, `src/ui/receta_jugador.py`, `Online/personalizacion.py`, `Online/personalizacion_render.py` y sus tests.
+- Modificados: `src/core/assets.py` (tonos de piel, partes de las recetas y colores del modal), `src/ui/sprites.py` (`sprite_jugador(..., apariencia=)`, `sprite_parte_jugador`), `Online/protocolo.py`, `Online/servidor.py`, `Online/cliente.py`, `Online/lobby.py`, `Online/sesion_red.py`, `src/entities/player.py`, `src/ui/ciudad_render.py` y `Main.py`.
+
+### Cómo probarlo
+1. Host y un invitado en la sala (misma PC o dos PCs).
+2. Camina hasta cualquier caja → `E` → elige un tono, una cabeza y un traje.
+3. En la otra pantalla tu avatar cambia al instante.
+4. Inicia la partida: en Ciudad Nova y en las mazmorras cada jugador conserva lo que eligió.

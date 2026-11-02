@@ -8,6 +8,8 @@ Características:
        (con la sala y con internet) y, en el Host, el estado del Firewall ([F]).
     5. Radar en tiempo real con el Grafo de Sala (GrafoSala de Estructura de Datos 2).
     6. Botón central de inicio: requiere mínimo 2 jugadores y solo el Host puede iniciar.
+    7. Las 4 cajas son vestidores (estilo Among Us): de cerca, [E] o clic abre
+       el modal COLOR / HAT / SKIN y toda la sala ve el cambio al instante.
 """
 
 import math
@@ -15,12 +17,15 @@ import time
 import pygame
 
 from src.core import assets
+from src.core.apariencia import PREDETERMINADA
 from src.core.config import FPS
 from src.ui import dibujo, hud, sprites
 
 from Online.servidor import Servidor, PUERTO_DEFAULT, MAX_JUGADORES
 from Online.cliente import Cliente
 from Online.codigo_sala import generar_codigo, resolver_entrada, ip_local
+from Online.personalizacion import PESTANAS, Vestidor
+from Online.personalizacion_render import CERRAR, FUERA, OPCION, PESTANA, dibujar_vestidor, objetivo_en
 from Online import firewall
 from Online.red_local import CONSEJOS, OTRO, InfoRed, MedidorInternet, formatear_ms
 from Online.protocolo import (
@@ -40,6 +45,7 @@ COLOR_MURO_LOBBY = (32, 28, 56)
 COLOR_BORDE_NEON = (70, 190, 240)
 COLOR_CAJA = (44, 40, 72)
 COLOR_CAJA_BORDE = (90, 84, 140)
+COLOR_FONDO_AVISO = (20, 40, 60)  # chip flotante de la laptop y de los vestidores
 
 # Mapeo de nombres de rol a sus identificadores de sprite y colores
 ROLES_INFO = {
@@ -68,6 +74,24 @@ SPAWNS = [
     (430, 430),
     (680, 430),
 ]
+
+# Las 4 cajas de carga son vestidores (Online/personalizacion.py).
+CAJAS_VESTIDOR = OBSTACULOS[1:]
+ALCANCE_VESTIDOR = 95  # px del centro del jugador al centro de la caja (igual que la laptop)
+# Con el vestidor abierto: flechas/WASD eligen, Tab o 1-3 cambian de pestaña.
+TECLAS_MOVER_VESTIDOR = {
+    pygame.K_LEFT: (-1, 0), pygame.K_a: (-1, 0),
+    pygame.K_RIGHT: (1, 0), pygame.K_d: (1, 0),
+    pygame.K_UP: (0, -1), pygame.K_w: (0, -1),
+    pygame.K_DOWN: (0, 1), pygame.K_s: (0, 1),
+}
+TECLAS_PESTANA_VESTIDOR = {
+    pygame.K_1: 0, pygame.K_2: 1, pygame.K_3: 2,
+    pygame.K_KP1: 0, pygame.K_KP2: 1, pygame.K_KP3: 2,
+}
+TECLAS_CERRAR_VESTIDOR = (pygame.K_ESCAPE, pygame.K_e, pygame.K_RETURN, pygame.K_KP_ENTER)
+CAMBIO_VESTIDOR = "cambio"
+CERRAR_VESTIDOR = "cerrar"
 
 
 def pantalla_elegir_modo_online(pantalla, reloj, presentar):
@@ -272,6 +296,9 @@ def pantalla_sala_espera(pantalla, reloj, presentar, clases_rol, es_host, conexi
     rol_local = "Ciudadano"  # Por defecto el primer rol
     modal_roles_abierto = False
     indice_rol_selector = 0
+    apariencia_local = PREDETERMINADA  # lo elegido en los vestidores
+    vestidor = None  # Vestidor abierto o None
+    pestana_vestidor = PESTANAS[0]  # al reabrir, vuelve a la última pestaña usada
 
     # Registrar el rol inicial
     if es_host:
@@ -324,11 +351,23 @@ def pantalla_sala_espera(pantalla, reloj, presentar, clases_rol, es_host, conexi
         rect_boton_inicio = pygame.Rect(320, 576, 370, 50)
         rect_laptop = OBSTACULOS[0]
         cerca_laptop = math.hypot(pos_x - rect_laptop.centerx, pos_y - rect_laptop.centery) < 95
+        caja_cercana = _caja_cercana(pos_x, pos_y)
 
         for evento in pygame.event.get():
             if evento.type == pygame.QUIT:
                 conexion.detener()
                 return None
+
+            # Con el vestidor abierto, el teclado y el ratón son solo suyos.
+            if vestidor is not None:
+                accion = _evento_vestidor(evento, vestidor)
+                if accion == CAMBIO_VESTIDOR:
+                    apariencia_local = vestidor.apariencia
+                    _actualizar_apariencia(es_host, conexion, apariencia_local)
+                elif accion == CERRAR_VESTIDOR:
+                    pestana_vestidor = vestidor.pestana
+                    vestidor = None
+                continue
 
             if evento.type == pygame.MOUSEBUTTONDOWN and evento.button == 1:
                 # Clic en botón de inicio
@@ -350,6 +389,11 @@ def pantalla_sala_espera(pantalla, reloj, presentar, clases_rol, es_host, conexi
                         clases = _armar_clases_partida(sala, clases_rol)
                         return clases, conexion, True
 
+                # Clic en la caja-vestidor que está al lado
+                if (caja_cercana is not None and not modal_roles_abierto
+                        and CAJAS_VESTIDOR[caja_cercana].collidepoint(mouse_pos)):
+                    vestidor = Vestidor(apariencia_local, pestana_vestidor)
+
                 # Clic en la laptop central
                 if rect_laptop.collidepoint(mouse_pos) or cerca_laptop:
                     modal_roles_abierto = not modal_roles_abierto
@@ -362,9 +406,12 @@ def pantalla_sala_espera(pantalla, reloj, presentar, clases_rol, es_host, conexi
                         conexion.detener()
                         return "volver"
 
-                # Abrir / cerrar modal de roles
+                # E: junto a una caja abre el vestidor; si no, abre / cierra el modal de roles
                 elif evento.key == pygame.K_e:
-                    modal_roles_abierto = not modal_roles_abierto
+                    if modal_roles_abierto or caja_cercana is None:
+                        modal_roles_abierto = not modal_roles_abierto
+                    else:
+                        vestidor = Vestidor(apariencia_local, pestana_vestidor)
 
                 # Permitir la sala en el Firewall de Windows (solo Host)
                 elif (evento.key == pygame.K_f and diagnostico is not None
@@ -416,7 +463,7 @@ def pantalla_sala_espera(pantalla, reloj, presentar, clases_rol, es_host, conexi
                         _actualizar_rol(es_host, conexion, id_local, rol_local)
 
         # 3. Movimiento del jugador local
-        if not modal_roles_abierto:
+        if not modal_roles_abierto and vestidor is None:
             teclas = pygame.key.get_pressed()
             dx, dy = 0.0, 0.0
             if teclas[pygame.K_w] or teclas[pygame.K_UP]:
@@ -466,11 +513,12 @@ def pantalla_sala_espera(pantalla, reloj, presentar, clases_rol, es_host, conexi
         pantalla.fill(assets.COLOR_FONDO)
 
         # Dibujar la Sala de Espera (Búnker / Nave estilo Among Us)
-        _dibujar_escenario_lobby(pantalla, anim_tiempo, cerca_laptop)
+        _dibujar_escenario_lobby(pantalla, anim_tiempo, cerca_laptop,
+                                 caja_cercana if vestidor is None else None)
 
         # Dibujar a los jugadores presentes en la sala
         _dibujar_jugadores_lobby(pantalla, sala, posiciones, id_local,
-                                anim_tiempo, caminando, rol_local, pos_x, pos_y)
+                                anim_tiempo, caminando, rol_local, pos_x, pos_y, apariencia_local)
 
         # Dibujar el Botón de Inicio Central (Among Us Style)
         _dibujar_boton_inicio(pantalla, rect_boton_inicio, es_host, cantidad_conectados,
@@ -487,16 +535,29 @@ def pantalla_sala_espera(pantalla, reloj, presentar, clases_rol, es_host, conexi
         if modal_roles_abierto:
             _dibujar_modal_roles(pantalla, indice_rol_selector, rol_local)
 
+        # Vestidor (si está abierto)
+        if vestidor is not None:
+            info_rol = ROLES_INFO.get(rol_local, ROLES_INFO["Ciudadano"])
+            dibujar_vestidor(pantalla, vestidor, info_rol["rol"], info_rol["color"], mouse_pos)
+
         # Barra de Controles inferior
-        controles = [
-            ("WASD / Flechas", "caminar"),
-            ("E / 1-4", "personalizar rol"),
-            ("Enter", "iniciar partida" if es_host else "esperar"),
-            ("Esc", "salir"),
-        ]
-        if diagnostico is not None and diagnostico.firewall is not None \
-                and diagnostico.firewall.estado != firewall.NO_APLICA:
-            controles.insert(3, ("F", "firewall"))
+        if vestidor is not None:
+            controles = [
+                ("Flechas / WASD", "elegir"),
+                ("Tab / 1-3", "pestaña"),
+                ("Clic", "elegir"),
+                ("E / Esc", "cerrar"),
+            ]
+        else:
+            controles = [
+                ("WASD / Flechas", "caminar"),
+                ("E", "abrir vestidor") if caja_cercana is not None else ("E / 1-4", "personalizar rol"),
+                ("Enter", "iniciar partida" if es_host else "esperar"),
+                ("Esc", "salir"),
+            ]
+            if diagnostico is not None and diagnostico.firewall is not None \
+                    and diagnostico.firewall.estado != firewall.NO_APLICA:
+                controles.insert(3, ("F", "firewall"))
         hud.dibujar_barra_controles(pantalla, controles)
 
         presentar()
@@ -509,6 +570,45 @@ def _actualizar_rol(es_host, conexion, id_local, nuevo_rol):
         conexion.enviar_a_todos(msg_lobby(conexion.sala.a_dict()))
     else:
         conexion.enviar_rol(nuevo_rol)
+
+
+def _actualizar_apariencia(es_host, conexion, apariencia):
+    """Sincroniza la apariencia elegida en el vestidor (mismo camino que el rol)."""
+    if es_host:
+        conexion.sala.elegir_apariencia(0, apariencia)
+        conexion.enviar_a_todos(msg_lobby(conexion.sala.a_dict()))
+    else:
+        conexion.enviar_apariencia(apariencia)
+
+
+def _caja_cercana(x, y):
+    """Índice de la caja-vestidor al alcance del jugador (la más cercana), o None."""
+    distancia, indice = min((math.hypot(x - caja.centerx, y - caja.centery), i)
+                            for i, caja in enumerate(CAJAS_VESTIDOR))
+    return indice if distancia < ALCANCE_VESTIDOR else None
+
+
+def _evento_vestidor(evento, vestidor):
+    """Aplica un evento al vestidor abierto. Retorna CAMBIO_VESTIDOR si la
+    apariencia cambió, CERRAR_VESTIDOR si hay que cerrarlo, o None."""
+    if evento.type == pygame.KEYDOWN:
+        if evento.key in TECLAS_CERRAR_VESTIDOR:
+            return CERRAR_VESTIDOR
+        if evento.key == pygame.K_TAB:
+            vestidor.pestana_siguiente(-1 if evento.mod & pygame.KMOD_SHIFT else 1)
+        elif evento.key in TECLAS_PESTANA_VESTIDOR:
+            vestidor.ir_a_pestana(TECLAS_PESTANA_VESTIDOR[evento.key])
+        elif evento.key in TECLAS_MOVER_VESTIDOR and vestidor.mover(*TECLAS_MOVER_VESTIDOR[evento.key]):
+            return CAMBIO_VESTIDOR
+    elif evento.type == pygame.MOUSEBUTTONDOWN and evento.button == 1:
+        objetivo, indice = objetivo_en(vestidor, evento.pos)
+        if objetivo in (CERRAR, FUERA):
+            return CERRAR_VESTIDOR
+        if objetivo == PESTANA:
+            vestidor.ir_a_pestana(indice)
+        elif objetivo == OPCION and vestidor.elegir(indice):
+            return CAMBIO_VESTIDOR
+    return None
 
 
 def _armar_clases_partida(sala, clases_rol):
@@ -525,8 +625,9 @@ def _armar_clases_partida(sala, clases_rol):
 # Renderizado del Escenario de Espera (Estilo Among Us)
 # =========================================================================
 
-def _dibujar_escenario_lobby(pantalla, tiempo, cerca_laptop):
-    """Dibuja la habitación de la nave/búnker con piso texturizado y props."""
+def _dibujar_escenario_lobby(pantalla, tiempo, cerca_laptop, caja_cercana=None):
+    """Dibuja la habitación de la nave/búnker con piso texturizado y props.
+    `caja_cercana` = índice del vestidor al alcance del jugador (se ilumina)."""
     # Piso metálico con cuadrícula
     dibujo.panel(pantalla, SALA_RECT, COLOR_PISO_A, COLOR_MURO_LOBBY, grosor=8, radio=16)
 
@@ -551,13 +652,26 @@ def _dibujar_escenario_lobby(pantalla, tiempo, cerca_laptop):
     dibujo.texto(pantalla, "AIRLOCK 01", (puerta_rect.centerx, puerta_rect.centery + 12),
                  assets.COLOR_TEXTO_APAGADO, assets.TAMANIO_FUENTE_MINI, ancla="center")
 
-    # Cajas metálicas de carga
-    for i, caja in enumerate(OBSTACULOS[1:]):
-        dibujo.panel(pantalla, caja, COLOR_CAJA, COLOR_CAJA_BORDE, grosor=2, radio=6)
-        # Línea de detalle militar
-        pygame.draw.line(pantalla, COLOR_CAJA_BORDE, (caja.left + 10, caja.centery), (caja.right - 10, caja.centery), 2)
-        dibujo.texto(pantalla, f"CARGO-0{i+1}", (caja.centerx, caja.centery - 12),
-                     assets.COLOR_TEXTO_APAGADO, assets.TAMANIO_FUENTE_MINI, ancla="center")
+    # Cajas-vestidor: cada una exhibe la cabeza y el traje de un rol, como
+    # una vitrina (partes reales de las recetas, sprites.sprite_parte_jugador).
+    for i, caja in enumerate(CAJAS_VESTIDOR):
+        cerca = i == caja_cercana
+        if cerca:
+            pulso = int(25 + 15 * math.sin(tiempo * 8))
+            dibujo.panel_alfa(pantalla, caja.inflate(20, 20), COLOR_ONLINE + (pulso,), radio=12)
+        dibujo.panel(pantalla, caja, COLOR_CAJA, COLOR_ONLINE if cerca else COLOR_CAJA_BORDE,
+                     grosor=3 if cerca else 2, radio=6)
+        dibujo.texto(pantalla, f"VESTIDOR-0{i+1}", (caja.centerx, caja.top + 12),
+                     COLOR_ONLINE if cerca else assets.COLOR_TEXTO_APAGADO, assets.TAMANIO_FUENTE_MINI,
+                     negrita=cerca, ancla="center")
+        rol = assets.ROLES_APARIENCIA[i % len(assets.ROLES_APARIENCIA)]
+        for simbolos, dx in ((assets.SIMBOLOS_CABEZA, -19), (assets.SIMBOLOS_TRAJE, 19)):
+            parte = sprites.sprite_parte_jugador(simbolos, rol, None, 2)
+            if parte is not None:
+                pantalla.blit(parte, parte.get_rect(midbottom=(caja.centerx + dx, caja.bottom - 13)))
+        # Repisa bajo las prendas
+        pygame.draw.line(pantalla, COLOR_CAJA_BORDE, (caja.left + 8, caja.bottom - 12),
+                         (caja.right - 8, caja.bottom - 12), 2)
 
     # Laptop Central (Estación de Personalización de Rol)
     laptop_rect = OBSTACULOS[0]
@@ -582,22 +696,32 @@ def _dibujar_escenario_lobby(pantalla, tiempo, cerca_laptop):
         y_flotante = laptop_rect.top - 24 + math.sin(tiempo * 6) * 3
         dibujo.chip(pantalla, "Presiona [E] o Click: Elegir Rol",
                     (laptop_rect.centerx, y_flotante), assets.COLOR_TEXTO_HUD,
-                    (20, 40, 60), COLOR_ONLINE, assets.TAMANIO_FUENTE_PEQUENA, ancla="center", alto=26)
+                    COLOR_FONDO_AVISO, COLOR_ONLINE, assets.TAMANIO_FUENTE_PEQUENA, ancla="center", alto=26)
+    if caja_cercana is not None:
+        caja = CAJAS_VESTIDOR[caja_cercana]
+        y_flotante = caja.top - 24 + math.sin(tiempo * 6) * 3
+        dibujo.chip(pantalla, "Presiona [E] o Click: Vestidor",
+                    (caja.centerx, y_flotante), assets.COLOR_TEXTO_HUD,
+                    COLOR_FONDO_AVISO, COLOR_ONLINE, assets.TAMANIO_FUENTE_PEQUENA, ancla="center", alto=26)
 
 
 def _dibujar_jugadores_lobby(pantalla, sala, posiciones, id_local,
-                             tiempo, caminando, rol_local, local_x, local_y):
-    """Dibuja los avatares de todos los jugadores conectados caminando en la sala."""
+                             tiempo, caminando, rol_local, local_x, local_y,
+                             apariencia_local=PREDETERMINADA):
+    """Dibuja los avatares de todos los jugadores conectados caminando en la
+    sala, cada uno con lo que eligió en los vestidores."""
     jugadores = sala.jugadores()
     for jid in jugadores:
         if jid == id_local:
             px, py = local_x, local_y
             rol = rol_local
             anim_cam = caminando
+            apariencia = apariencia_local
         else:
             px, py = posiciones.get(jid, SPAWNS[jid % len(SPAWNS)])
             rol = sala.rol_de(jid) or "Ciudadano"
             anim_cam = False
+            apariencia = sala.apariencia_de(jid)
 
         info = ROLES_INFO.get(rol, ROLES_INFO["Ciudadano"])
         color_rol = info["color"]
@@ -610,7 +734,7 @@ def _dibujar_jugadores_lobby(pantalla, sala, posiciones, id_local,
 
         # Muñeco animado
         img = sprites.sprite_jugador(color_rol, escala=4, rol=rol_clave,
-                                     tiempo=tiempo, caminando=anim_cam)
+                                     tiempo=tiempo, caminando=anim_cam, apariencia=apariencia)
         img_rect = img.get_rect(center=(int(px), int(py)))
         pantalla.blit(img, img_rect)
 

@@ -16,6 +16,7 @@ import os
 import pygame
 
 from src.core import assets, balance
+from src.ui import receta_jugador
 from src.ui.ruta_sprites import (
     cuadros_de_atlas,
     cuadros_por_nombre,
@@ -438,6 +439,9 @@ def limpiar_cache_hojas():
     _cache_cuadros.clear()
     _cache_enemigos.clear()
     _cache_retratos.clear()
+    _cache_recetas.clear()
+    _cache_vestidos.clear()
+    _cache_partes.clear()
 
 
 # --- Cuarto: piso, muro, puertas y charco ------------------------------
@@ -513,17 +517,84 @@ def sprite_proyectil(color, tamanio, plantilla=None):
 
 
 def sprite_jugador(color_rol, escala=assets.ESCALA_PIXEL, rol=None, tiempo=0.0,
-                   caminando=False, dash=False):
+                   caminando=False, dash=False, apariencia=None):
     """Imagen del jugador. Con `rol` (clave de STATS_POR_ROL) y su hoja en
     assets/sprites/jugadores/<rol>.png devuelve el cuadro de "caminar"
     para `tiempo` (quieto = primer cuadro) o el de "dash"; sin hoja, el
-    muñeco dibujado en código teñido con `color_rol`."""
-    hoja = _cargar_hoja(ruta_sprite(rol, assets.RUTA_SPRITES_JUGADORES), escala) if rol else None
+    muñeco dibujado en código teñido con `color_rol`. Con una `apariencia`
+    (src/core/apariencia.py) que cambie algo, los cuadros salen del
+    jugador armado por partes (_hoja_vestida); si faltan sus recetas,
+    la hoja de siempre."""
+    hoja = None
+    if rol and apariencia is not None and not apariencia.es_predeterminada():
+        hoja = _hoja_vestida(rol, apariencia, escala)
+    if hoja is None and rol:
+        hoja = _cargar_hoja(ruta_sprite(rol, assets.RUTA_SPRITES_JUGADORES), escala)
     if hoja is None:
         return sprite(JUGADOR, {**PALETA_JUGADOR, "c": color_rol}, escala)
     if dash and assets.ANIMACION_DASH in hoja:
         return cuadro_de_hoja(hoja, assets.ANIMACION_DASH, 0.0)
     return cuadro_de_hoja(hoja, assets.ANIMACION_CAMINAR, tiempo if caminando else 0.0)
+
+
+# --- Jugador vestido (vestidores del lobby online) ----------------------
+#
+# Las recetas de Pixelbolt se leen una vez; cada combinación de rol,
+# apariencia y escala se arma una sola vez (la Apariencia es inmutable y
+# sirve de clave) y queda con la misma forma que una hoja cargada. Probar
+# combinaciones en el vestidor crea hojas nuevas: se guardan a lo sumo
+# MAX_HOJAS_VESTIDAS y al pasarse se olvida la más vieja.
+
+MAX_HOJAS_VESTIDAS = 64
+_cache_recetas = {}  # rol -> receta (o None si falta)
+_cache_vestidos = {}  # (rol, apariencia, escala) -> hoja armada (o None), en orden de creación
+_cache_partes = {}  # (simbolos, rol, piel, escala) -> Surface (o None)
+
+
+def _recetas():
+    """Recetas de los roles que prestan partes, leídas una sola vez."""
+    for rol in assets.ROLES_APARIENCIA:
+        if rol not in _cache_recetas:
+            _cache_recetas[rol] = receta_jugador.leer_receta(rol)
+    return _cache_recetas
+
+
+def _hoja_vestida(rol, apariencia, escala):
+    """Hoja del jugador de rol `rol` con `apariencia`, o None sin recetas."""
+    clave = (rol, apariencia, escala)
+    if clave not in _cache_vestidos:
+        if len(_cache_vestidos) >= MAX_HOJAS_VESTIDAS:
+            del _cache_vestidos[next(iter(_cache_vestidos))]  # los dict guardan el orden de inserción
+        animaciones = receta_jugador.armar_animaciones(_recetas(), rol, apariencia)
+        _cache_vestidos[clave] = None if animaciones is None else {
+            nombre: ([_superficie_pixeles(p, escala) for p in cuadros], duraciones)
+            for nombre, (cuadros, duraciones) in animaciones.items()
+        }
+    return _cache_vestidos[clave]
+
+
+def sprite_parte_jugador(simbolos, rol_fuente, piel=None, escala=assets.ESCALA_PIXEL):
+    """Vista previa de una parte para el vestidor: la cabeza
+    (assets.SIMBOLOS_CABEZA) o el traje (SIMBOLOS_TRAJE) de la receta de
+    `rol_fuente`, con la piel de color `piel` (None = la de su receta).
+    None si no hay receta."""
+    piel = tuple(piel) if piel is not None else None
+    clave = (simbolos, rol_fuente, piel, escala)
+    if clave not in _cache_partes:
+        pixeles = receta_jugador.armar_parte(_recetas(), rol_fuente, simbolos, piel)
+        _cache_partes[clave] = None if pixeles is None else _superficie_pixeles(pixeles, escala)
+    return _cache_partes[clave]
+
+
+def _superficie_pixeles(pixeles, escala):
+    """Cuadro armado (filas de RGB o None) -> Surface escalada."""
+    alto, ancho = len(pixeles), len(pixeles[0])
+    base = pygame.Surface((ancho, alto), pygame.SRCALPHA)
+    for y, fila in enumerate(pixeles):
+        for x, color in enumerate(fila):
+            if color is not None:
+                base.set_at((x, y), color)
+    return pygame.transform.scale(base, (ancho * escala, alto * escala))
 
 
 def _cuadros_jefe_v2(animacion):

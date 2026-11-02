@@ -9,8 +9,9 @@ en la misma sala.
 Tipos de mensaje (campo "tipo"):
     HOLA          — el cliente se presenta al servidor
     BIENVENIDA    — el servidor acepta y asigna número de jugador
-    LOBBY         — estado del lobby (jugadores conectados, roles)
+    LOBBY         — estado del lobby (jugadores conectados, roles, apariencias)
     ELEGIR_ROL    — un jugador confirma su clase
+    ELEGIR_APARIENCIA — un jugador cambia piel, cabeza o traje en un vestidor
     INICIAR       — el host arranca la partida
     INPUT         — input de un frame (dirección, disparando, etc.)
     ESTADO        — snapshot del estado del juego (posiciones, vidas...)
@@ -32,6 +33,7 @@ Complejidad:
 import json
 import struct
 
+from src.core.apariencia import PREDETERMINADA, Apariencia
 from src.structures.graph import Grafo
 
 # Delimitador de fin de mensaje (cada mensaje JSON ocupa una línea).
@@ -44,6 +46,7 @@ HOLA = "HOLA"
 BIENVENIDA = "BIENVENIDA"
 LOBBY = "LOBBY"
 ELEGIR_ROL = "ELEGIR_ROL"
+ELEGIR_APARIENCIA = "ELEGIR_APARIENCIA"
 INICIAR = "INICIAR"
 INPUT = "INPUT"
 ESTADO = "ESTADO"
@@ -72,17 +75,22 @@ class GrafoSala:
     Una arista entre dos nodos significa que comparten sesión.
     El peso de la arista guarda la latencia (ms) entre ellos.
 
+    Además del rol, cada nodo guarda la apariencia que su jugador eligió
+    en los vestidores del lobby (src/core/apariencia.py).
+
     Operaciones:
         conectar(id)        — agrega jugador al grafo       O(V)
         desconectar(id)     — quita jugador y sus aristas   O(V)
         jugadores()         — lista de ids conectados        O(V)
         estan_conectados()  — hay arista entre host e invitado O(1)
         latencia(a, b)      — peso de la arista              O(1)
+        elegir_apariencia() / apariencia_de() — atributo del nodo O(1)
     """
 
     def __init__(self):
         self.grafo = Grafo()
         self._roles = {}  # id -> nombre de rol (o None si no eligió)
+        self._apariencias = {}  # id -> Apariencia (piel, cabeza y traje del vestidor)
 
     def conectar(self, id_jugador):
         """Agrega un jugador al grafo y lo conecta con todos los demás
@@ -92,12 +100,14 @@ class GrafoSala:
         for otro in existentes:
             self.grafo.agregar_arista(id_jugador, otro, peso=0)
         self._roles[id_jugador] = None
+        self._apariencias[id_jugador] = PREDETERMINADA
 
     def desconectar(self, id_jugador):
         """Quita al jugador y todas sus aristas."""
         if id_jugador in self.grafo.nodos():
             self.grafo.eliminar_nodo(id_jugador)
         self._roles.pop(id_jugador, None)
+        self._apariencias.pop(id_jugador, None)
 
     def jugadores(self):
         """Lista de ids de jugadores conectados."""
@@ -112,6 +122,17 @@ class GrafoSala:
 
     def rol_de(self, id_jugador):
         return self._roles.get(id_jugador)
+
+    def elegir_apariencia(self, id_jugador, apariencia):
+        """Registra la apariencia de un jugador: una Apariencia o el dict
+        recibido por red (se valida con Apariencia.de_dict)."""
+        if not isinstance(apariencia, Apariencia):
+            apariencia = Apariencia.de_dict(apariencia)
+        self._apariencias[id_jugador] = apariencia
+
+    def apariencia_de(self, id_jugador):
+        """Apariencia del jugador (la predeterminada si nunca eligió)."""
+        return self._apariencias.get(id_jugador, PREDETERMINADA)
 
     def todos_listos(self):
         """True si todos eligieron rol."""
@@ -132,7 +153,8 @@ class GrafoSala:
         """Serializa el estado del lobby para enviarlo por red."""
         return {
             "jugadores": [
-                {"id": jid, "rol": self._roles.get(jid)}
+                {"id": jid, "rol": self._roles.get(jid),
+                 "apariencia": self.apariencia_de(jid).a_dict()}
                 for jid in self.jugadores()
             ],
         }
@@ -146,6 +168,9 @@ class GrafoSala:
             sala.conectar(jid)
             if info.get("rol"):
                 sala.elegir_rol(jid, info["rol"])
+            # Un host de una versión sin vestidores no la manda: queda la predeterminada.
+            if "apariencia" in info:
+                sala.elegir_apariencia(jid, info["apariencia"])
         return sala
 
 
@@ -207,6 +232,10 @@ def msg_lobby(sala_dict):
 
 def msg_elegir_rol(id_jugador, rol):
     return serializar(crear_mensaje(ELEGIR_ROL, id=id_jugador, rol=rol))
+
+
+def msg_elegir_apariencia(id_jugador, apariencia_dict):
+    return serializar(crear_mensaje(ELEGIR_APARIENCIA, id=id_jugador, apariencia=apariencia_dict))
 
 
 def msg_iniciar(estado_partida=None):

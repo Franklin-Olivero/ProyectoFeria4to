@@ -31,6 +31,7 @@ PruebaPythonGame/
 │   │   ├── escenas.py              # Enum Escena + transición a DERROTA por colapso. Puro.
 │   │   ├── apuntado.py             # Dirección unitaria hacia el mouse con zona muerta. Puro (solo math).
 │   │   ├── preferencias.py         # Ajustes del jugador (audio, accesibilidad, controles) + JSON validado. Puro.
+│   │   ├── apariencia.py           # Apariencia del vestidor online (piel, cabeza, traje) + dict validado. Puro.
 │   │   └── audio.py                # pygame.mixer: volúmenes de música/efectos y sonidos de interfaz.
 │   ├── structures/
 │   │   ├── tree.py                 # Árbol N-ario manual (CRUD + 4 recorridos). Puro.
@@ -77,6 +78,7 @@ PruebaPythonGame/
 │       ├── mapa_render.py          # Minimapa de la mazmorra (tecla M).
 │       ├── enemigo_render.py       # Dibujo de enemigos: sprite_enemigo + gracia, telegrafía, cura, pánico.
 │       ├── ruta_sprites.py         # Qué PNG usar para un sprite (o None = placeholder). Puro.
+│       ├── receta_jugador.py       # Jugador armado por partes desde las recetas de Pixelbolt. Puro.
 │       ├── pantalla_victoria.py    # Dibujo de la pantalla de victoria + panel final reutilizable.
 │       ├── pantalla_derrota.py     # Dibujo de la derrota global "Colapso total".
 │       ├── navegacion.py           # Acciones abstractas de menú (ARRIBA, CONFIRMAR, VOLVER...) y sonidos. Puro.
@@ -200,6 +202,17 @@ efecto (`a_volumen_mixer`: 0% silencia, 100% = 1.0, nunca más);
 efectos de interfaz se sintetizan en código (onda cuadrada) y la música
 queda en silencio. Sin salida de audio, `disponible = False` y no suena nada.
 *Depende de:* `pygame`, `assets`.
+
+**`apariencia.py`** — puro. **`Apariencia`** (dataclass inmutable:
+`piel` = índice en `assets.TONOS_PIEL`, `cabeza` y `traje` = rol de
+`assets.ROLES_APARIENCIA` del que sale esa parte; `None` = lo del rol)
+y `PREDETERMINADA`. `con(campo, valor)`, `cabeza_para(rol)`,
+`traje_para(rol)`, `a_dict()` y `de_dict()` (valida campo por campo: lo
+inválido queda en `None`). Es lo que se elige en los vestidores del
+lobby online (`Online/personalizacion.py`), viaja en cada nodo del
+`GrafoSala` y la partida la copia en `JugadorBase.apariencia`. Al ser
+inmutable sirve de clave de caché del sprite armado.
+*Depende de:* `assets`.
 
 ### `src/structures/tree.py`
 
@@ -558,6 +571,19 @@ Capa de presentación compartida:
   curandero redondo con cruz).
 - **`ruta_sprites.py`** — puro: `ruta_sprite_enemigo(id, carpeta,
   existe)` → ruta del PNG o None.
+- **`receta_jugador.py`** — puro: arma al jugador por partes desde las
+  recetas de Pixelbolt (`assets/sprites/fuentes/<rol>.pixel.json`), sin
+  arte nuevo. Repite las estampas de los cuadros del rol, pero la cabeza
+  sale de la receta elegida en HAT y el torso y las piernas de la
+  elegida en SKIN (cada una con su paleta); la letra de la piel se pinta
+  con el tono de COLOR y el accesorio siempre es el del rol.
+  `armar_animaciones(recetas, rol, apariencia)` (mismas animaciones y
+  duraciones que la hoja; con `PREDETERMINADA` reproduce el PNG píxel a
+  píxel), `armar_parte` (vista previa de la cabeza o del traje),
+  `leer_receta`, `piel_original`, `tono_de_piel`. `sprites.sprite_jugador(...,
+  apariencia=)` lo usa (caché acotada a `MAX_HOJAS_VESTIDAS`) y
+  `sprite_parte_jugador` da las vistas previas del vestidor; sin recetas,
+  vuelve a la hoja PNG.
 - **`enemigo_render.py`** — `dibujar_enemigo`: sprite + alfa pulsante
   durante la gracia, iluminado en la telegrafía, marco de escudo,
   contorno de pánico y rayo de cura con partículas.

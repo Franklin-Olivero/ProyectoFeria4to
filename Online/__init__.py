@@ -9,5 +9,7 @@ Módulos:
     servidor    — acepta conexiones, retransmite estado
     cliente     — se conecta al servidor, envía input, recibe estado
     lobby       — pantalla de lobby (host/join) con Pygame
+    personalizacion — vestidor del lobby: pestañas COLOR / HAT / SKIN (puro)
+    personalizacion_render — dibujo y ratón del vestidor
     sesion_red  — adaptador que conecta el juego existente con la red
 """

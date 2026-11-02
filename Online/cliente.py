@@ -23,7 +23,7 @@ from Online import red_local
 from Online.protocolo import (
     BIENVENIDA, DESCONEXION, ESTADO, GrafoSala, INICIAR, LOBBY, PING, PONG,
     POSICION_LOBBY, ENTRAR_MAZMORRA, CAMBIO_ESCENA, CAMBIO_CUARTO,
-    deserializar_buffer, msg_elegir_rol, msg_hola, msg_input, msg_ping,
+    deserializar_buffer, msg_elegir_apariencia, msg_elegir_rol, msg_hola, msg_input, msg_ping,
     msg_pong, msg_posicion_lobby, msg_entrar_mazmorra, msg_decision_nav,
 )
 from Online.red_local import (
@@ -113,6 +113,11 @@ class Cliente:
     def enviar_rol(self, rol):
         """Notifica al servidor la elección de rol."""
         self._enviar(msg_elegir_rol(self.id_jugador if self.id_jugador is not None else 1, rol))
+
+    def enviar_apariencia(self, apariencia):
+        """Notifica al servidor la Apariencia elegida en un vestidor."""
+        self._enviar(msg_elegir_apariencia(self.id_jugador if self.id_jugador is not None else 1,
+                                           apariencia.a_dict()))
 
     def enviar_posicion_lobby(self, x, y):
         """Envía la posición del jugador en la sala de espera."""

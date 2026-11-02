@@ -784,6 +784,36 @@ ANIMACION_CHARCO_ACTIVO = "activo"
 ALFA_CHARCO_SPRITE = 215  # el charco dibujado deja ver un poco el piso
 
 # ----------------------------------------------------------------------
+# Personalización del jugador (vestidores del lobby online). Sin arte
+# nuevo: el personaje se arma por partes con las recetas de Pixelbolt de
+# los 4 roles. La cabeza ("HAT") y el traje ("SKIN") pueden salir de la
+# receta de cualquier rol; el accesorio (megáfono, palo selfie, micrófono,
+# mano) siempre es el del rol, porque identifica su habilidad. Lógica en
+# src/core/apariencia.py y src/ui/receta_jugador.py.
+# ----------------------------------------------------------------------
+RUTA_RECETAS_SPRITES = os.path.join("assets", "sprites", "fuentes")  # <id>.pixel.json
+ROLES_APARIENCIA = ("ciudadano", "influencer", "periodista", "candidato")  # recetas que prestan partes
+SIMBOLOS_CABEZA = ("cabeza",)
+SIMBOLOS_TRAJE = ("torso", "piernas_rest", "piernas_a", "piernas_b", "dash")
+SIMBOLO_PIEL = "s"  # letra de la piel en la paleta de cada receta
+CUADRO_VISTA_PREVIA = "quieto"  # cuadro del que salen las vistas previas de una parte
+# Pestaña COLOR. Incluye los tonos de las hojas: (242, 200, 160) del
+# Influencer, Periodista y Candidato y (200, 144, 90) del Ciudadano.
+TONOS_PIEL = (
+    (255, 226, 200),
+    (242, 200, 160),
+    (226, 176, 128),
+    (200, 144, 90),
+    (172, 114, 68),
+    (141, 86, 48),
+    (110, 66, 40),
+    (80, 48, 32),
+)
+# Modal del vestidor (Online/personalizacion_render.py).
+COLOR_ACENTO_VESTIDOR = COLOR_CIAN_NEON
+COLOR_SOMBRA_VESTIDOR = (0, 0, 0, 110)  # RGBA: sombra bajo el jugador de la vista previa
+
+# ----------------------------------------------------------------------
 # Tipos de enemigo: todo lo visual de cada tipo, en un solo lugar. Las
 # claves son los valores de TipoEnemigo (src/entities/tipos_enemigo.py).
 # Para usar arte real basta con dejar <ID_SPRITE_ENEMIGO[tipo]>.png en

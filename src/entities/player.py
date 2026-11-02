@@ -106,6 +106,9 @@ class JugadorBase:
         self.velocidad_actual = pygame.Vector2(0, 0)
         # Si caminó en Ciudad Nova este frame (solo para animar el sprite).
         self.caminando_en_ciudad = False
+        # Cosmética de los vestidores del lobby online (src/core/apariencia.py):
+        # piel, cabeza y traje. None = la hoja de su rol, como en partida local.
+        self.apariencia = None
 
         # Puede tener fracciones por la carga compartida del equipo.
         self.carga_habilidad = 0.0
@@ -361,6 +364,7 @@ class JugadorBase:
         imagen = sprites.sprite_jugador(
             self.COLOR, rol=self.rol, tiempo=pygame.time.get_ticks() / 1000.0,
             caminando=self.velocidad_actual.length_squared() > 0, dash=self.dash.activo,
+            apariencia=self.apariencia,
         )
         # Imágenes fantasma del dash: la más nueva (última del rastro) es la más opaca.
         for alfa, centro in zip(assets.DASH_AFTERIMAGE_ALFA, reversed(self.rastro_dash)):

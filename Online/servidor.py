@@ -10,7 +10,8 @@ Flujo:
     1. El host llama a iniciar(puerto) → abre socket, escucha.
     2. Los invitados se conectan (IDs 1, 2, 3) → el servidor les envía
        BIENVENIDA y sincroniza el lobby con todos.
-    3. Cada jugador puede moverse en la sala de espera y elegir su rol.
+    3. Cada jugador puede moverse en la sala de espera, elegir su rol y
+       su apariencia (vestidores).
     4. El host inicia la partida cuando hay al menos 2 jugadores listos.
     5. Durante la partida: los inputs de los clientes se envían al host,
        y los estados del juego se difunden a todos los clientes.
@@ -22,7 +23,7 @@ import time
 
 from Online import red_local
 from Online.protocolo import (
-    BIENVENIDA, DESCONEXION, ELEGIR_ROL, ESTADO, HOLA, INICIAR, INPUT,
+    BIENVENIDA, DESCONEXION, ELEGIR_APARIENCIA, ELEGIR_ROL, ESTADO, HOLA, INICIAR, INPUT,
     LOBBY, PING, PONG, POSICION_LOBBY, ENTRAR_MAZMORRA, CAMBIO_ESCENA,
     CAMBIO_CUARTO, DECISION_NAV, GrafoSala, deserializar_buffer, msg_bienvenida,
     msg_desconexion, msg_lobby, msg_ping, msg_pong, msg_posicion_lobby,
@@ -295,6 +296,14 @@ class Servidor:
             self.sala.elegir_rol(jid, rol)
             lobby = msg_lobby(self.sala.a_dict())
             self.enviar_a_todos(lobby)
+            with self._lock:
+                self.mensajes_host.append({"tipo": LOBBY, "sala": self.sala.a_dict()})
+
+        elif tipo == ELEGIR_APARIENCIA:
+            # Igual que el rol: es otro atributo del nodo `jid` (el id de la
+            # conexión, no el del mensaje: nadie viste a otro jugador).
+            self.sala.elegir_apariencia(jid, msg.get("apariencia"))
+            self.enviar_a_todos(msg_lobby(self.sala.a_dict()))
             with self._lock:
                 self.mensajes_host.append({"tipo": LOBBY, "sala": self.sala.a_dict()})
 
