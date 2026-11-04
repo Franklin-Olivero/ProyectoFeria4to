@@ -896,3 +896,121 @@ GROSOR_ANILLO_GRACIA = 4
 ALFA_MIN_ENEMIGO_GRACIA = 90
 ALFA_MAX_ENEMIGO_GRACIA = 220
 PERIODO_PARPADEO_GRACIA = 0.35  # s por pulso
+
+# ----------------------------------------------------------------------
+# Modo historia "Código Nova" (src/story/, dibujo en src/ui/dialogo_render.py,
+# tarjetas_render.py e indicadores_render.py)
+# ----------------------------------------------------------------------
+# Diálogo: velo sobre la escena y panel inferior con retrato, nombre y texto.
+COLOR_VELO_DIALOGO = (6, 6, 18, 150)  # RGBA
+RECT_PANEL_DIALOGO = (120, 470, 1040, 180)
+COLOR_FONDO_DIALOGO = (18, 16, 42)
+COLOR_BORDE_DIALOGO = COLOR_MORADO
+ALTO_RETRATO_DIALOGO = 140
+COLOR_NOMBRE_DIALOGO = COLOR_TEAL
+COLOR_TITULO_DIALOGO = COLOR_MORADO
+POSICION_TITULO_DIALOGO = (640, 430)  # centro del rótulo del capítulo
+COLOR_RETRATO_CIVITAS = COLOR_TEAL  # icono en código del sistema Civitas
+COLOR_RETRATO_NOVA = COLOR_MAGENTA  # icono en código de NOVA_404
+DURACION_PARPADEO_INDICADOR = 0.8  # s del ciclo del "▸ Enter" del diálogo
+# Retratos opcionales para los hablantes que no son roles:
+# assets/sprites/retratos/<id>.png (civitas.png, nova.png). Sin archivo,
+# se dibuja el icono en código.
+ID_RETRATO_CIVITAS = "civitas"
+ID_RETRATO_NOVA = "nova"
+
+# Tarjeta de evidencia (aparece en combate al limpiar un cuarto).
+RECT_TARJETA_EVIDENCIA = (380, 72, 520, 104)
+COLOR_FONDO_EVIDENCIA = (248, 244, 232)
+COLOR_BORDE_EVIDENCIA = COLOR_AMARILLO
+COLOR_TITULO_EVIDENCIA = (34, 30, 48)
+COLOR_FUENTE_EVIDENCIA = (110, 106, 128)
+COLOR_PISTA = COLOR_MAGENTA  # chip "PISTA NOVA_404"
+DURACION_TARJETA_EVIDENCIA = 6.0  # s visible en combate
+# Sello de la publicación según el estado de evidencia.
+COLOR_SELLO_EVIDENCIA = {
+    "sin_pruebas": (150, 150, 182),
+    "parcial": COLOR_AMARILLO,
+    "verificado": COLOR_TEAL,
+    "desmentido": COLOR_MAGENTA,
+}
+
+# Panel de estado de Ciudad Nova (tecla I en la ciudad y pantalla final).
+RECT_PANEL_ESTADO = (780, 80, 470, 560)
+COLOR_FONDO_PANEL_ESTADO = (18, 16, 42, 236)  # RGBA
+COLOR_INDICADOR_BUENO = COLOR_TEAL
+COLOR_INDICADOR_MALO = COLOR_MAGENTA
+COLOR_FONDO_INDICADOR = (40, 36, 78)
+ALTO_BARRA_INDICADOR = 12
+SEPARACION_INDICADORES = 44
+# Deltas de indicadores en la pantalla de resultado.
+RECT_PANEL_DELTAS = (840, 214, 400, 204)
+RECT_PANEL_EVIDENCIA_RESULTADO = (40, 214, 400, 204)
+COLOR_DELTA_POSITIVO = COLOR_TEAL
+COLOR_DELTA_NEGATIVO = COLOR_MAGENTA
+# Color de cada rol por su clave (JugadorBase.rol), para quien solo tiene la clave.
+COLOR_POR_ROL = {
+    "ciudadano": COLOR_CIUDADANO,
+    "influencer": COLOR_INFLUENCER,
+    "periodista": COLOR_PERIODISTA,
+    "candidato": COLOR_CANDIDATO,
+}
+# Terminal del modo historia: la raíz lleva el título del escenario y la
+# lista de pruebas reunidas va entre el título y el reloj.
+ANCHO_NODO_RAIZ = 300
+POSICION_PRUEBAS_TERMINAL = (480, 36)
+ANCHO_PRUEBAS_TERMINAL = 370
+# Pantalla de propagación por la red social (src/ui/red_social_render.py).
+RECT_PANEL_GRAFO_SOCIAL = (60, 120, 660, 500)
+CENTRO_GRAFO_SOCIAL = (390, 370)
+RADIO_GRAFO_SOCIAL = 190
+RADIO_NODO_SOCIAL = 16
+COLOR_NODO_SOCIAL = (60, 56, 104)
+COLOR_BORDE_NODO_SOCIAL = COLOR_BORDE_PANEL
+COLOR_ARISTA_SOCIAL = (52, 48, 92)
+COLOR_NODO_ORIGEN = COLOR_AMARILLO
+COLOR_NODO_RUMOR = COLOR_MAGENTA
+COLOR_NODO_CORREGIDO = COLOR_TEAL
+COLOR_ARISTA_RUMOR = COLOR_MAGENTA
+COLOR_ARISTA_CORRECCION = COLOR_TEAL
+GROSOR_ARISTA_PROPAGADA = 3
+SEGUNDOS_POR_CAPA = 0.6  # la onda del BFS avanza una capa cada tanto
+RECT_PANEL_DATOS_SOCIAL = (760, 120, 460, 500)
+# Investigación del infiltrado (src/ui/investigacion_render.py).
+RECTS_TARJETA_SOSPECHOSO = ((40, 150, 380, 400), (450, 150, 380, 400), (860, 150, 380, 400))
+COLOR_FONDO_SOSPECHOSO = (22, 20, 46)
+COLOR_BORDE_SOSPECHOSO_SELECCIONADO = COLOR_AMARILLO
+COLOR_BORDE_SOSPECHOSO = COLOR_BORDE_PANEL
+COLOR_ACUSADO_CORRECTO = COLOR_TEAL
+COLOR_ACUSADO_ERRADO = COLOR_MAGENTA
+RECT_VEREDICTO_INVESTIGACION = (240, 566, 800, 92)
+# Pantalla de elecciones (src/ui/elecciones_render.py).
+RECT_PANEL_CANDIDATOS = (60, 150, 640, 330)
+RECT_PANEL_ESTADO_FINAL = (740, 110, 480, 540)
+RECT_PANEL_EPILOGO = (60, 500, 640, 150)
+ALTO_BARRA_CANDIDATO = 22
+SEPARACION_CANDIDATOS = 70
+COLORES_CANDIDATOS = (COLOR_TEAL, COLOR_AMARILLO, COLOR_MORADO, COLOR_MAGENTA)
+COLOR_FINAL_RENACE = COLOR_TEAL
+COLOR_FINAL_DIVIDIDA = COLOR_MAGENTA
+COLOR_FINAL_ARQUITECTO = COLOR_AMARILLO
+# Alto contraste (preferencia de accesibilidad): la imagen final se suma a
+# sí misma (lo claro brilla más) y se le resta un gris (lo oscuro se hunde).
+ALTO_CONTRASTE_RESTA = (28, 28, 34)
+# Ayuda del modo historia (tecla H en la ciudad, src/ui/ayuda_render.py).
+RECT_PANEL_AYUDA = (90, 70, 1100, 580)
+COLOR_FONDO_AYUDA = (18, 16, 42, 240)  # RGBA
+# Fondos ilustrados del modo historia (assets/story/<id>.png, 1280x720,
+# Higgsfield nano_banana_2; ver docs/ASSET_MANIFEST.md). Si falta el
+# archivo, las pantallas se dibujan como antes (velo o fondo liso).
+RUTA_FONDOS_HISTORIA = os.path.join("assets", "story")
+FONDO_PROLOGO = "portada"
+FONDO_ELECCIONES = "elecciones"
+FONDO_POR_ZONA = {
+    "Colegio": "capitulo_colegio",
+    "Hospital": "capitulo_hospital",
+    "Empresa de Medios": "capitulo_medios",
+    "Alcaldía": "servidor_central",
+}
+ALFA_FONDO_DIALOGO = 200  # cuánto se ve la ilustración detrás del diálogo (0-255)
+ALFA_FONDO_ELECCIONES = 90

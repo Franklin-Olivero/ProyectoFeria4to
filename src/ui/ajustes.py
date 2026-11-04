@@ -7,7 +7,7 @@ Cada pestaña es una lista de controles; el foco recorre, de arriba abajo:
 
     AUDIO:          volumen_musica, volumen_efectos              (sliders)
     ACCESIBILIDAD:  subtitulos (interruptor), filtro_daltonismo (selector),
-                    reducir_movimiento (interruptor)
+                    reducir_movimiento (interruptor), alto_contraste (interruptor)
     CONTROLES:      esquema_controles (selector) y, solo en la vista MANDO,
                     mostrar_cono (interruptor) y opacidad_cono (slider)
 
@@ -39,7 +39,7 @@ BARRA_PESTANAS = "pestanas"  # elemento enfocable: la fila de pestañas
 CERRAR = "cerrar"
 
 SLIDERS = ("volumen_musica", "volumen_efectos", "opacidad_cono")
-INTERRUPTORES = ("subtitulos", "reducir_movimiento", "mostrar_cono")
+INTERRUPTORES = ("subtitulos", "reducir_movimiento", "alto_contraste", "mostrar_cono")
 SELECTORES = tuple(OPCIONES_TEXTO)  # filtro_daltonismo, esquema_controles
 PASO_SLIDER = 5  # puntos de porcentaje por pulsación de ← →
 
@@ -56,7 +56,7 @@ class ModalAjustes:
         if self.pestana == PESTANA_AUDIO:
             return ["volumen_musica", "volumen_efectos"]
         if self.pestana == PESTANA_ACCESIBILIDAD:
-            return ["subtitulos", "filtro_daltonismo", "reducir_movimiento"]
+            return ["subtitulos", "filtro_daltonismo", "reducir_movimiento", "alto_contraste"]
         if self.preferencias.esquema_controles == ESQUEMA_MANDO:
             return ["esquema_controles", "mostrar_cono", "opacidad_cono"]
         return ["esquema_controles"]

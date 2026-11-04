@@ -38,8 +38,12 @@ TEXTO_PUERTA_SELLADA = "Limpia todos los cuartos primero"
 
 
 class MazmorraJugable:
-    def __init__(self, mazmorra):
+    def __init__(self, mazmorra, fabrica_arbol=None, duracion_terminal=None):
         self.mazmorra = mazmorra
+        # Modo historia: el cuarto final arma su terminal con este árbol
+        # (ver Partida.fabrica_arbol); None = árbol fijo original.
+        self.fabrica_arbol = fabrica_arbol
+        self.duracion_terminal = duracion_terminal
         self.cuartos = {}  # id de cuarto -> Cuarto ya creado
         self.usos_variantes = {}  # variante de enemigo -> veces que apareció en la mazmorra
         # True el frame en que se cambia de cuarto (Main.py limpia los
@@ -85,6 +89,8 @@ class MazmorraJugable:
             rng=random.Random(m.rng.random()),
             es_cuarto_inicial=self._distancia_entrada[id_cuarto] <= 1,
             usos_variantes=self.usos_variantes,
+            fabrica_arbol=self.fabrica_arbol,
+            duracion_terminal=self.duracion_terminal,
         )
 
     def actualizar(self, dt, jugadores, proyectiles_enemigos):

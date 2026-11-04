@@ -40,6 +40,7 @@ ETIQUETAS = {
     "subtitulos": "SUBTÍTULOS",
     "filtro_daltonismo": "FILTRO DE DALTONISMO",
     "reducir_movimiento": "REDUCIR MOVIMIENTO",
+    "alto_contraste": "ALTO CONTRASTE",
     "esquema_controles": "ESQUEMA",
     "mostrar_cono": "CONO DE DISPARO",
     "opacidad_cono": "OPACIDAD",
@@ -48,6 +49,7 @@ DESCRIPCIONES = {
     "subtitulos": "Aún no hay voces ni diálogos que subtitular; la opción queda guardada.",
     "filtro_daltonismo": "Corrige el color de toda la pantalla. Es una aproximación: no reemplaza pruebas con jugadores.",
     "reducir_movimiento": "Detiene parallax, naves, lluvia, glitch del título, transiciones y sacudida de cámara.",
+    "alto_contraste": "Realza el contraste de toda la imagen: fondos más oscuros y texto más brillante.",
 }
 NOMBRES_ESQUEMA = {ESQUEMA_TECLADO: "TECLADO / RATÓN", ESQUEMA_MANDO: "MANDO"}
 MUESTRAS_COLOR = (

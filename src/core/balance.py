@@ -422,3 +422,69 @@ PROB_CURANDERO_EXTRA_ALTA = 0.3  # chance de un segundo curandero
 MAX_CURANDEROS_ALTA = 2
 MIN_CURANDEROS_FINAL_ALTA = 1
 MIN_TIRADORES_FINAL_ALTA = 2
+
+# ----------------------------------------------------------------------
+# Modo historia "Código Nova" (src/story/)
+# ----------------------------------------------------------------------
+# Indicadores de Ciudad Nova (enteros 0-100). Los cuatro primeros y
+# participacion_responsable son "buenos"; desinformacion y conflictos
+# son "malos". El Colapso Electoral sigue siendo la barra de derrota:
+# cada Detonación suma colapso y además mueve estos indicadores según
+# la consecuencia elegida (content/campaign.json); nunca al revés.
+INDICADORES_INICIALES = {
+    "informacion_verificada": 40,
+    "confianza": 50,
+    "convivencia": 55,
+    "bienestar_digital": 50,
+    "participacion_responsable": 45,
+    "desinformacion": 45,
+    "conflictos": 30,
+}
+INDICADOR_MINIMO = 0
+INDICADOR_MAXIMO = 100
+REPUTACION_INICIAL = 50  # reputación del jugador, también 0-100
+# Terminal de decisión con árbol de dos niveles: más tiempo que los 10 s
+# del árbol plano original.
+DURACION_TERMINAL_HISTORIA = 15.0  # s
+# Evidencia por zona: con esta fracción de las pruebas reveladas el
+# estado pasa de "sin pruebas" a "parcial"; con todas, a "verificado" o
+# "desmentido" según el veredicto real de la publicación.
+# Finales (src/story/eleccion.py). Umbrales sobre los indicadores
+# finales; el final "arquitecto" exige además las 3 pistas, el
+# coordinador correcto en el capítulo 3 y el jefe derrotado.
+FINAL_RENACE_VERIFICADA_MIN = 55
+FINAL_RENACE_CONFIANZA_MIN = 50
+FINAL_RENACE_DESINFORMACION_MAX = 45
+PISTAS_PARA_FINAL_SECRETO = 3
+# Elecciones simuladas: cuánto pesa cada indicador afín en el apoyo de
+# un candidato (ver content/campaign.json, "afin").
+PESO_INDICADOR_AFIN_ELECCION = 0.5
+PESO_REPUTACION_ELECCION = 0.2
+# Grafo social (src/story/red_social.py)
+SALTOS_MAXIMOS_PROPAGACION = 3
+PROBABILIDAD_REBOTE_BASE = 0.7  # chance de que un contacto reenvíe una publicación
+PROBABILIDAD_REBOTE_CORREGIDA = 0.25  # tras una corrección publicada
+# Matices narrativos por rol (un solo modificador pequeño por rol; el
+# combate no cambia):
+#   influencer: amplifica más al compartir (rebote extra en la propagación);
+#   ciudadano: cada éxito refuerza la confianza vecinal;
+#   periodista: identifica una fuente extra al entrar a una zona;
+#   candidato: mayor cuidado reputacional (las penalizaciones pesan doble).
+REBOTE_EXTRA_INFLUENCER = 0.15
+CONFIANZA_EXTRA_CIUDADANO = 2
+EVIDENCIA_INICIAL_PERIODISTA = 1
+MULTIPLICADOR_PENALIZACION_CANDIDATO = 2
+# Efecto del alcance de una publicación sobre los indicadores: cada
+# ciudadano que recibe un rumor sin corrección suma desinformación; cada
+# dos que reciben la corrección suman información verificada.
+DESINFORMACION_POR_ALCANZADO = 1
+BIENESTAR_POR_ALCANZADO = -0.5
+VERIFICADA_POR_CORREGIDO = 0.5
+EVENTOS_RECIENTES_CINTILLO = 2  # titulares de eventos aleatorios que quedan en el cintillo
+# Investigación del infiltrado (src/story/investigacion.py)
+PUNTOS_INFILTRADO_CORRECTO = 150
+REPUTACION_INFILTRADO_CORRECTO = 8
+REPUTACION_INFILTRADO_ERRADO = -8
+# Jefe derrotado / derrotas en la arena (efectos narrativos, una vez)
+EFECTOS_JEFE_DERROTADO = {"desinformacion": -10, "confianza": 6, "bienestar_digital": 6}
+PUNTOS_JEFE_DERROTADO = 200

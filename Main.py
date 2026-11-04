@@ -59,7 +59,7 @@ from src.core.equipo import jugadores_en_combate, registrar_kill_equipo, revivir
 from src.core.escenas import ESCENAS_DE_COMBATE, Escena, escena_tras_colapso
 from src.dungeon.arena_jefe import ArenaJefe
 from src.dungeon.cuarto import FASE_DECISION, FASE_RESUELTO
-from src.core.balance import ALCANCE_AVISO_SELLADA
+from src.core.balance import ALCANCE_AVISO_SELLADA, DURACION_TERMINAL_HISTORIA
 from src.dungeon import ciudad_mapa
 from src.dungeon.grafo_ciudad import EDIFICIOS, ZONA_FINAL
 from src.dungeon.mazmorra import Mazmorra
@@ -70,9 +70,12 @@ from src.entities.candidato import Candidato
 from src.entities.influencer import Influencer
 from src.entities.periodista import Periodista
 from src.entities.player import ANGULO_ABANICO_GRADOS, Ciudadano
-from src.ui import ciudad_render, combate_render, dibujo, hud, navegacion
+from src.ui import ciudad_render, combate_render, dialogo_render, dibujo, hud, indicadores_render, navegacion
+from src.ui import ayuda_render, elecciones_render, investigacion_render, red_social_render, tarjetas_render
+from src.story import investigacion as investigacion_mod
+from src.story.eleccion import resumen_final
 from src.ui.combate_render import TextosFlotantes
-from src.ui.filtro_color import FiltroColor
+from src.ui.filtro_color import FiltroColor, aplicar_alto_contraste
 from src.ui.mapa_ciudad import SelectorZona
 from src.ui.menu_principal import JUGAR, SALIR, MenuPrincipal
 from src.ui.menu_principal_render import VistaMenu
@@ -161,6 +164,11 @@ TECLA_ENTRAR = pygame.K_e
 TECLA_RUTA = pygame.K_g
 TECLA_DESTINO = pygame.K_TAB
 TECLA_MAPA_MUNDO = pygame.K_m
+TECLA_ESTADO_CIUDAD = pygame.K_i  # panel de indicadores del modo historia
+TECLA_AYUDA = pygame.K_h
+# Diálogos del modo historia (overlay sobre cualquier escena).
+TECLAS_DIALOGO_AVANZAR = (pygame.K_RETURN, pygame.K_KP_ENTER, pygame.K_SPACE)
+TECLAS_DIALOGO_SALTAR = (pygame.K_ESCAPE, pygame.K_TAB)
 
 
 def main():
@@ -173,8 +181,11 @@ def main():
     filtro = FiltroColor()
 
     def presentar():
-        """Muestra el frame: filtro de daltonismo sobre la imagen final y flip."""
+        """Muestra el frame: filtro de daltonismo (y alto contraste) sobre
+        la imagen final y flip."""
         filtro.aplicar(pantalla, preferencias.filtro_daltonismo)
+        if preferencias.alto_contraste:
+            aplicar_alto_contraste(pantalla)
         pygame.display.flip()
 
     # La vista del menú se conserva: al volver, la ciudad sigue donde iba.
@@ -287,6 +298,37 @@ def _jugar(pantalla, reloj, sesion, preferencias, presentar):
     # Online: los adaptadores de red usan estas listas (Online/sesion_red.py).
     compartir_combate_con_sesion(sesion, limpiar_combate, proyectiles_enemigos, textos)
 
+    # --- Modo historia (src/story/): overlays sobre la escena -----------
+    campania = partida.campania
+    campania.establecer_rol(jugador.rol)
+    # Diálogo activo (prólogo, intro de capítulo): pausa el mundo.
+    dialogo = campania.dialogo_prologo(jugador.rol, jugador.NOMBRE)
+    tarjeta_evidencia = None  # (evidencia, segundos restantes) en combate
+    mostrar_estado = False  # tecla I en la ciudad
+    mostrar_ayuda = False  # tecla H en la ciudad
+    limpios_vistos = 0  # cuartos limpios ya contados (una evidencia por cuarto)
+    # Tras el resultado de una zona que propagó por la red social: la
+    # pantalla del grafo (Enter la abre, Enter la cierra).
+    propagacion_pendiente = False
+    mostrar_propagacion = False
+    tiempo_propagacion = 0.0
+    investigacion = None  # capítulo 3: Investigacion activa (tras el resultado)
+    mostrar_elecciones = False  # tras la victoria: pantalla de elecciones y epílogo
+    presentar_frame = presentar
+
+    def presentar():
+        """Overlays de la historia encima de lo que dibujó la escena."""
+        if tarjeta_evidencia is not None and escena in ESCENAS_DE_COMBATE:
+            tarjetas_render.dibujar_tarjeta_evidencia(pantalla, assets.RECT_TARJETA_EVIDENCIA, tarjeta_evidencia[0])
+        if mostrar_estado and escena == Escena.CIUDAD and dialogo is None:
+            indicadores_render.dibujar_panel_estado(pantalla, campania)
+        if mostrar_ayuda and escena == Escena.CIUDAD and dialogo is None:
+            ayuda_render.dibujar_ayuda(pantalla)
+        if dialogo is not None:
+            dialogo_render.dibujar_dialogo(pantalla, dialogo, tiempo)
+            hud.dibujar_barra_controles(pantalla, hud.CONTROLES_DIALOGO)
+        presentar_frame()
+
     while True:
         # tick_busy_loop y no tick: en Windows tick() duerme con poca
         # precisión y los frames salen de 16, 17 o 18 ms, lo que se ve
@@ -314,11 +356,28 @@ def _jugar(pantalla, reloj, sesion, preferencias, presentar):
                 return SALIR
             elif evento.type != pygame.KEYDOWN:
                 continue
+            elif dialogo is not None:
+                # Un diálogo abierto se queda con todas las teclas.
+                if evento.key in TECLAS_DIALOGO_AVANZAR:
+                    dialogo.avanzar()
+                elif evento.key in TECLAS_DIALOGO_SALTAR:
+                    dialogo.saltar()
+                if dialogo.terminado:
+                    dialogo = None
             elif escena == Escena.CIUDAD:
                 # La escena CIUDAD consume todas sus teclas (sin disparo ni F).
                 if evento.key == TECLA_SALIR:
+                    if mostrar_estado or mostrar_ayuda:
+                        mostrar_estado = mostrar_ayuda = False
+                        continue
                     return MENU
-                if evento.key == TECLA_MAPA_MUNDO:
+                if evento.key == TECLA_ESTADO_CIUDAD:
+                    mostrar_estado = not mostrar_estado
+                    mostrar_ayuda = False
+                elif evento.key == TECLA_AYUDA:
+                    mostrar_ayuda = not mostrar_ayuda
+                    mostrar_estado = False
+                elif evento.key == TECLA_MAPA_MUNDO:
                     mostrar_mapa_mundo = not mostrar_mapa_mundo
                 elif evento.key == TECLA_DESTINO:
                     selector.mover(DERECHA)
@@ -335,10 +394,23 @@ def _jugar(pantalla, reloj, sesion, preferencias, presentar):
                         arena = ArenaJefe(partida.colapso, jugadores)
                         escena = Escena.JEFE
                     else:
-                        mazmorra = MazmorraJugable(Mazmorra(partida.ciudad.reportes(zona), zona))
+                        mazmorra = MazmorraJugable(
+                            Mazmorra(partida.ciudad.reportes(zona), zona),
+                            fabrica_arbol=partida.fabrica_arbol(zona),
+                            duracion_terminal=DURACION_TERMINAL_HISTORIA,
+                        )
                         mazmorra.colocar_en_entrada(jugadores)
+                        limpios_vistos = len(mazmorra.mazmorra.limpiados)
                         escena = Escena.MAZMORRA
                     fundido = assets.DURACION_FUNDIDO
+                    mostrar_estado = False
+                    tarjeta_evidencia = None
+                    # Intro del capítulo (una vez por zona): el mundo espera.
+                    dialogo = campania.dialogo_capitulo(zona, jugador.rol, jugador.NOMBRE)
+                    # Periodista: identifica una fuente extra al entrar.
+                    evidencia_inicial = campania.al_entrar_zona(zona)
+                    if evidencia_inicial is not None:
+                        tarjeta_evidencia = (evidencia_inicial, assets.DURACION_TARJETA_EVIDENCIA)
             elif escena == Escena.DECISION:
                 if evento.key in TECLAS_TERMINAL:
                     direccion_terminal = TECLAS_TERMINAL[evento.key]
@@ -347,12 +419,45 @@ def _jugar(pantalla, reloj, sesion, preferencias, presentar):
                     if mazmorra is not None and getattr(mazmorra, "cuarto", None) is not None and mazmorra.cuarto.terminal is not None:
                         mazmorra.cuarto.terminal.navegar(direccion_terminal)
             elif escena == Escena.RESULTADO:
+                if investigacion is not None and not investigacion.terminada:
+                    if evento.key in TECLAS_TERMINAL:
+                        direccion = TECLAS_TERMINAL[evento.key]
+                        adaptador = getattr(sesion, "adaptador_red", None)
+                        if adaptador is not None and hasattr(adaptador, "enviar_decision_nav"):
+                            adaptador.enviar_decision_nav(direccion)  # invitado: vota en el host
+                        else:
+                            investigacion.navegar(direccion)
+                        if investigacion.terminada:
+                            campania.registrar_investigacion(investigacion.resultado)
+                    continue
                 if evento.key in TECLAS_CONFIRMAR:
+                    if propagacion_pendiente:
+                        # Primero cómo viajó la publicación por la red social.
+                        propagacion_pendiente = False
+                        mostrar_propagacion = True
+                        tiempo_propagacion = 0.0
+                        continue
+                    mostrar_propagacion = False
+                    if investigacion is None and resultado is not None \
+                            and campania.investigacion_pendiente(resultado.zona):
+                        # Capítulo 3: ¿quién coordinó la campaña?
+                        investigacion = campania.nueva_investigacion()
+                        continue
+                    investigacion = None
                     resultado = None
                     escena = _volver_a_la_ciudad(jugador, partida)
                     fundido = assets.DURACION_FUNDIDO
+                    # Al volver, la ciudad sigue viva: un evento al azar
+                    # (su titular entra al cintillo de noticias).
+                    campania.sortear_evento()
             elif escena in (Escena.VICTORIA, Escena.DERROTA):
                 if evento.key in TECLAS_CONFIRMAR:
+                    if escena == Escena.VICTORIA and not mostrar_elecciones:
+                        # Epílogo: elecciones simuladas y final alcanzado.
+                        campania.registrar_jefe_derrotado()
+                        mostrar_elecciones = True
+                        continue
+                    mostrar_elecciones = False
                     if escena == Escena.DERROTA:
                         # Partida completa nueva, con los mismos roles, en la
                         # Plaza y con las calles y barricadas restablecidas.
@@ -399,11 +504,18 @@ def _jugar(pantalla, reloj, sesion, preferencias, presentar):
             escena = normalizar_escena(escena, arena, mazmorra, resultado, jugador, partida)
             escenario = _escenario_activo(escena, arena, mazmorra)
 
-        if escena == Escena.CIUDAD and not mostrar_mapa_mundo:
+        # Con un diálogo abierto el mundo queda quieto (ni caminar ni combate)
+        # y la tarjeta de evidencia espera a que termine.
+        en_dialogo = dialogo is not None
+        if tarjeta_evidencia is not None and not en_dialogo:
+            restante = tarjeta_evidencia[1] - dt
+            tarjeta_evidencia = (tarjeta_evidencia[0], restante) if restante > 0 else None
+
+        if escena == Escena.CIUDAD and not mostrar_mapa_mundo and not en_dialogo and not mostrar_estado and not mostrar_ayuda:
             jugador.caminar_en_ciudad(pygame.key.get_pressed(), dt, partida.es_solida)
             if hasattr(sesion, "adaptador_red") and sesion.adaptador_red is not None:
                 sesion.adaptador_red.actualizar_ciudad(dt, partida, jugadores, jugador)
-        elif escena in ESCENAS_DE_COMBATE:
+        elif escena in ESCENAS_DE_COMBATE and not en_dialogo:
             _frame_de_combate(
                 dt, jugadores, entradas, escenario, proyectiles_por_jugador, proyectiles_enemigos,
                 textos, particulas, sacudida,
@@ -414,6 +526,14 @@ def _jugar(pantalla, reloj, sesion, preferencias, presentar):
                     revivir_caidos(jugadores)  # cooperativo: el caído vuelve en el cuarto nuevo
                     for j in jugadores:
                         j.detener()  # se aparece quieto junto a la puerta
+                if mazmorra is not None and getattr(mazmorra, "mazmorra", None) is not None:
+                    # Modo historia: cada cuarto limpio revela una evidencia de la zona.
+                    limpios = len(mazmorra.mazmorra.limpiados)
+                    if limpios > limpios_vistos:
+                        limpios_vistos = limpios
+                        evidencia = campania.revelar_evidencia(mazmorra.mazmorra.nombre_zona)
+                        if evidencia is not None:
+                            tarjeta_evidencia = (evidencia, assets.DURACION_TARJETA_EVIDENCIA)
                 if mazmorra is not None and getattr(mazmorra, "cuarto", None) is not None and mazmorra.cuarto.fase == FASE_DECISION:
                     escena = Escena.DECISION
                 elif mazmorra is not None and todos_caidos(jugadores):
@@ -445,12 +565,15 @@ def _jugar(pantalla, reloj, sesion, preferencias, presentar):
                 if terminal.resultado is not None:
                     # Única vía para aplicar la decisión: una vez por mazmorra.
                     colapso_antes = partida.colapso.valor
-                    partida.cerrar_mazmorra(mazmorra.mazmorra, terminal.resultado)
+                    partida.cerrar_mazmorra(mazmorra.mazmorra, terminal.resultado, terminal)
                     mazmorra.cuarto.fase = FASE_RESUELTO
                     resultado = ResultadoMazmorra(
                         terminal.resultado, terminal.opcion_elegida,
                         colapso_antes, partida.colapso.valor, mazmorra.mazmorra.nombre_zona,
+                        campania.ultima_consecuencia, dict(campania.ultimos_deltas),
                     )
+                    tarjeta_evidencia = None
+                    propagacion_pendiente = campania.ultima_propagacion is not None
                     if hasattr(sesion, "adaptador_red") and sesion.adaptador_red is not None and hasattr(sesion.adaptador_red, "notificar_resultado"):
                         sesion.adaptador_red.notificar_resultado(resultado)
                     mazmorra = None
@@ -487,9 +610,15 @@ def _jugar(pantalla, reloj, sesion, preferencias, presentar):
 
         if escena == Escena.DECISION:
             if mazmorra is not None and getattr(mazmorra, "cuarto", None) is not None and mazmorra.cuarto.terminal is not None:
+                zona_terminal = mazmorra.mazmorra.nombre_zona
+                escenario_historia = campania.escenario_activo if campania.zona_activa == zona_terminal else None
                 dibujar_terminal(
                     pantalla, mazmorra.cuarto.terminal,
-                    f"Cuarto final  ·  {mazmorra.mazmorra.nombre_zona}  ·  Mazmorra normal",
+                    f"Cuarto final  ·  {zona_terminal}  ·  {campania.titulo_capitulo(zona_terminal)}",
+                    post=escenario_historia.post if escenario_historia is not None else None,
+                    estado_evidencia=escenario_historia.estado if escenario_historia is not None else None,
+                    evidencias=campania.evidencias_reveladas_de(zona_terminal),
+                    total_evidencias=len(campania.evidencias_de(zona_terminal)),
                 )
                 hud.dibujar_barra_controles(pantalla, hud.CONTROLES_TERMINAL)
             presentar()
@@ -497,7 +626,27 @@ def _jugar(pantalla, reloj, sesion, preferencias, presentar):
             continue
 
         if escena == Escena.RESULTADO:
-            dibujar_resultado(pantalla, resultado)
+            if investigacion is not None:
+                # Online (host): las navegaciones de los invitados también cuentan.
+                adaptador = getattr(sesion, "adaptador_red", None)
+                if adaptador is not None and hasattr(adaptador, "tomar_solicitudes_decision") \
+                        and not investigacion.terminada:
+                    for direccion in adaptador.tomar_solicitudes_decision():
+                        investigacion.navegar(direccion)
+                    if investigacion.terminada:
+                        campania.registrar_investigacion(investigacion.resultado)
+                investigacion_render.dibujar_investigacion(pantalla, investigacion)
+            elif mostrar_propagacion:
+                tiempo_propagacion += dt
+                red_social_render.dibujar_pantalla_propagacion(pantalla, campania, tiempo_propagacion)
+            else:
+                dibujar_resultado(pantalla, resultado)
+            presentar()
+            sacudida = (0, 0)
+            continue
+
+        if escena == Escena.VICTORIA and mostrar_elecciones:
+            elecciones_render.dibujar_elecciones(pantalla, resumen_final(campania))
             presentar()
             sacudida = (0, 0)
             continue

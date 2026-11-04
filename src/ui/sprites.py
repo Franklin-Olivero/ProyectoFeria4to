@@ -775,3 +775,19 @@ def _cargar_png(ruta):
 
 def dibujar_centrado(pantalla, superficie, centro):
     pantalla.blit(superficie, superficie.get_rect(center=centro))
+
+
+_cache_fondos = {}
+
+
+def fondo_historia(nombre, tamanio=None):
+    """Ilustración de assets/story/<nombre>.png escalada a `tamanio`
+    (por defecto, tal cual), o None si no existe: quien la pide dibuja
+    su fondo de siempre."""
+    clave = (nombre, tamanio)
+    if clave not in _cache_fondos:
+        imagen = _cargar_png(ruta_sprite(nombre, assets.RUTA_FONDOS_HISTORIA))
+        if imagen is not None and tamanio is not None and imagen.get_size() != tuple(tamanio):
+            imagen = pygame.transform.smoothscale(imagen, tamanio)
+        _cache_fondos[clave] = imagen
+    return _cache_fondos[clave]

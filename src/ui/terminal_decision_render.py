@@ -16,7 +16,7 @@ cualquier árbol que construya la lógica.
 import pygame
 
 from src.core import assets
-from src.ui import dibujo, sprites
+from src.ui import dibujo, tarjetas_render
 from src.ui.fuentes import fuente
 from src.ui.terminal_decision import DETONACION, PURIFICACION_EXITOSA
 
@@ -46,7 +46,12 @@ ESTADO_CERRADO = "cerrado"
 ESTADO_HOJA = "hoja"
 
 
-def dibujar_terminal(pantalla, terminal, subtitulo=""):
+def dibujar_terminal(pantalla, terminal, subtitulo="", post=None, estado_evidencia=None,
+                     evidencias=None, total_evidencias=0):
+    """`post` es la publicación a mostrar (modo historia; None = la
+    fija PUBLICACION), `estado_evidencia` el sello de la tarjeta y
+    `evidencias` las pruebas reveladas de la zona (lista compacta bajo
+    el árbol)."""
     pantalla.fill(assets.COLOR_FONDO_TERMINAL)
     _dibujar_cuadricula(pantalla)
     dibujo.texto(pantalla, TITULO, (40, 36), assets.COLOR_TEXTO_HUD, assets.TAMANIO_FUENTE_GRANDE, negrita=True)
@@ -54,9 +59,13 @@ def dibujar_terminal(pantalla, terminal, subtitulo=""):
         dibujo.texto(pantalla, subtitulo, (40, 82), assets.COLOR_TEXTO_SECUNDARIO, assets.TAMANIO_FUENTE_NORMAL)
 
     _dibujar_reloj(pantalla, terminal)
-    _dibujar_tarjeta(pantalla)
+    _dibujar_tarjeta(pantalla, post, estado_evidencia)
     _dibujar_arbol(pantalla, terminal)
     _dibujar_migas(pantalla, terminal)
+    if evidencias is not None and total_evidencias:
+        # Entre el título y el reloj, sobre el panel del árbol.
+        tarjetas_render.dibujar_lista_evidencias(pantalla, assets.POSICION_PRUEBAS_TERMINAL, evidencias,
+                                                 total_evidencias, assets.ANCHO_PRUEBAS_TERMINAL)
 
 
 def _dibujar_cuadricula(pantalla):
@@ -83,38 +92,11 @@ def _dibujar_reloj(pantalla, terminal):
         pygame.draw.line(pantalla, assets.COLOR_FONDO, (mx, rect.top + 2), (mx, rect.bottom - 2), 1)
 
 
-def _dibujar_tarjeta(pantalla):
-    rect = dibujo.panel(pantalla, assets.RECT_TARJETA_PUBLICACION, assets.COLOR_FONDO_TARJETA, None, 0, radio=4)
-    x = rect.left + 20
-    y = rect.top + 18
-    dibujo.chip(pantalla, "Publicación viral", (x, y), assets.COLOR_TEXTO_HUD, assets.COLOR_MAGENTA,
-                assets.COLOR_MAGENTA, alto=24)
-    y += 44
-    avatar = sprites.sprite(sprites.AVATAR, sprites.PALETA_AVATAR, escala=3)
-    pantalla.blit(avatar, (x, y))
-    dibujo.texto(pantalla, PUBLICACION["usuario"], (x + 40, y), assets.COLOR_TEXTO_TARJETA,
-                 assets.TAMANIO_FUENTE_NORMAL, negrita=True)
-    dibujo.texto(pantalla, PUBLICACION["hace"], (x + 40, y + 20), assets.COLOR_TEXTO_TARJETA_SUAVE,
-                 assets.TAMANIO_FUENTE_PEQUENA)
-    y += 52
-    y = dibujo.parrafo(pantalla, PUBLICACION["texto"], (x, y), rect.width - 40, assets.COLOR_TEXTO_TARJETA,
-                       assets.TAMANIO_FUENTE_NORMAL, interlineado=6)
-    y += 12
-    imagen = pygame.Rect(x, y, rect.width - 40, 96)
-    pygame.draw.rect(pantalla, assets.COLOR_IMAGEN_TARJETA, imagen, border_radius=3)
-    for i, (ancho, alto) in enumerate(((120, 6), (80, 10), (170, 6), (60, 6))):
-        linea = pygame.Rect(imagen.left + (8 if i % 2 == 0 else 24), imagen.top + 12 + i * 20, ancho, alto)
-        pygame.draw.rect(pantalla, assets.COLOR_MAGENTA, linea)
-    dibujo.texto(pantalla, PUBLICACION["imagen"], imagen.center, assets.COLOR_TEXTO_HUD,
-                 assets.TAMANIO_FUENTE_PEQUENA, ancla="center")
-    y = imagen.bottom + 16
-    dibujo.chip(pantalla, PUBLICACION["etiqueta"], (x, y), assets.COLOR_MAGENTA, (252, 232, 238),
-                assets.COLOR_MAGENTA, alto=24)
-    y += 40
-    dibujo.texto(pantalla, PUBLICACION["compartidos"], (x, y), assets.COLOR_TEXTO_TARJETA_SUAVE,
-                 assets.TAMANIO_FUENTE_PEQUENA)
-    dibujo.texto(pantalla, PUBLICACION["comentarios"], (x, y + 18), assets.COLOR_TEXTO_TARJETA_SUAVE,
-                 assets.TAMANIO_FUENTE_PEQUENA)
+def _dibujar_tarjeta(pantalla, post=None, estado_evidencia=None):
+    tarjetas_render.dibujar_tarjeta_publicacion(
+        pantalla, assets.RECT_TARJETA_PUBLICACION, post if post is not None else PUBLICACION,
+        estado_evidencia, chip="Publicación viral",
+    )
 
 
 # ----------------------------------------------------------------------
@@ -196,13 +178,17 @@ def _posicionar(terminal, panel):
     return estados, padres, posiciones, ancho_unidad
 
 
-def _rect_nodo(nodo, estado, centro, ancho_unidad):
+def _rect_nodo(nodo, estado, centro, ancho_unidad, es_raiz=False):
     """Rect del nodo: el ancho preferido por tipo, sin pasar del espacio
-    de su columna (el texto largo se parte en dos líneas)."""
+    de su columna (el texto largo se parte en dos líneas). La raíz no
+    compite con nadie en su fila: puede ser tan ancha como su texto."""
     ancho = assets.ANCHO_NODO_HOJA if estado == ESTADO_HOJA else assets.ANCHO_NODO_ARBOL
     f = fuente(assets.TAMANIO_FUENTE_NORMAL, True)
     ancho = max(ancho, f.size(str(nodo.etiqueta))[0] + 28)
-    ancho = min(ancho, int(ancho_unidad) - 14)
+    if es_raiz:
+        ancho = min(ancho, assets.ANCHO_NODO_RAIZ)
+    else:
+        ancho = min(ancho, int(ancho_unidad) - 14)
     rect = pygame.Rect(0, 0, ancho, assets.ALTO_NODO_ARBOL)
     rect.center = centro
     return rect
@@ -231,7 +217,7 @@ def _dibujar_arbol(pantalla, terminal):
     estados, padres, posiciones, ancho_unidad = _posicionar(terminal, panel)
     seleccionado = terminal.hijo_seleccionado
     rects = {
-        clave: _rect_nodo(nodo, estado, posiciones[clave], ancho_unidad)
+        clave: _rect_nodo(nodo, estado, posiciones[clave], ancho_unidad, nodo is terminal.arbol.raiz)
         for clave, (nodo, estado) in estados.items()
     }
 
@@ -283,13 +269,18 @@ def _dibujar_nodo(pantalla, nodo, estado, rect, seleccionado):
             dibujo.texto(pantalla, "▸", (rect.right - 10, rect.centery), assets.COLOR_TEXTO_APAGADO,
                          assets.TAMANIO_FUENTE_PEQUENA, ancla="midright")
 
-    # Texto en una o dos líneas según quepa.
-    lineas = dibujo.ajustar_texto(etiqueta, assets.TAMANIO_FUENTE_NORMAL, rect.width - 24, negrita=True)
-    alto = fuente(assets.TAMANIO_FUENTE_NORMAL, True).get_height()
+    # Texto en una o dos líneas según quepa; si necesita más, en letra
+    # pequeña y hasta tres líneas (opciones largas del modo historia).
+    tamanio, maximo = assets.TAMANIO_FUENTE_NORMAL, 2
+    lineas = dibujo.ajustar_texto(etiqueta, tamanio, rect.width - 24, negrita=True)
+    if len(lineas) > maximo:
+        tamanio, maximo = assets.TAMANIO_FUENTE_PEQUENA, 3
+        lineas = dibujo.ajustar_texto(etiqueta, tamanio, rect.width - 16, negrita=True)
+    lineas = lineas[:maximo]
+    alto = fuente(tamanio, True).get_height()
     y = rect.centery - (len(lineas) - 1) * alto / 2
-    for linea in lineas[:2]:
-        dibujo.texto(pantalla, linea, (rect.centerx, y), color_texto, assets.TAMANIO_FUENTE_NORMAL,
-                     negrita=True, ancla="center")
+    for linea in lineas:
+        dibujo.texto(pantalla, linea, (rect.centerx, y), color_texto, tamanio, negrita=True, ancla="center")
         y += alto
 
 

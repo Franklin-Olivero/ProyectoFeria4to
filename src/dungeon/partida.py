@@ -16,20 +16,24 @@ from src.dungeon.grafo_ciudad import EDIFICIOS, ZONA_FINAL, ZONA_INICIO, GrafoCi
 from src.dungeon.mazmorra_final import esta_desbloqueada
 from src.dungeon.noticias import EstadoNoticias, generar_titulares
 from src.dungeon.progreso import ProgresoPartida
-from src.ui.terminal_decision import PURIFICACION_EXITOSA
+from src.story.campania import Campania
+from src.ui.terminal_decision import PURIFICACION_EXITOSA, construir_arbol_publicacion
 
 
 class Partida:
     def __init__(self):
+        self.campania = Campania()
         self.reiniciar()
 
     def reiniciar(self):
-        """Estado inicial: colapso 0, progreso 0, en la Plaza y las calles
-        con sus pesos originales y sin barricadas."""
+        """Estado inicial: colapso 0, progreso 0, en la Plaza, las calles
+        con sus pesos originales y sin barricadas, y la campaña desde el
+        prólogo (indicadores, pistas y evidencias en cero)."""
         self.colapso = ColapsoElectoral()
         self.progreso = ProgresoPartida()
         self.ciudad = GrafoCiudad()
         self.ubicacion = ZONA_INICIO
+        self.campania.reiniciar()
 
     def alcaldia_desbloqueada(self):
         return esta_desbloqueada(self.colapso, self.progreso.mazmorras_completadas)
@@ -69,8 +73,9 @@ class Partida:
         return calcular_nivel_toxicidad(construir_arbol_reportes(self.ciudad.reportes(zona), zona))
 
     def titulares(self):
-        """Titulares del cintillo según el estado actual."""
-        return generar_titulares(EstadoNoticias(
+        """Titulares del cintillo según el estado actual: primero los
+        eventos recientes de la campaña, luego los de la ciudad."""
+        return self.campania.titulares() + generar_titulares(EstadoNoticias(
             toxicidad={zona: self.toxicidad(zona) for zona in EDIFICIOS if zona != ZONA_FINAL},
             calles_bloqueadas=self.ciudad.calles_bloqueadas(),
             colapso=self.colapso.valor,
@@ -81,14 +86,33 @@ class Partida:
     # Mazmorras
     # ------------------------------------------------------------------
 
-    def cerrar_mazmorra(self, mazmorra, resultado):
+    def fabrica_arbol(self, zona):
+        """Función sin argumentos que arma el árbol de la terminal de
+        `zona` en el momento en que el cuarto final la abre: el escenario
+        de la campaña con el estado de evidencia de ese instante, o el
+        árbol fijo original si la zona no tiene escenario."""
+        def fabrica():
+            escenario = self.campania.preparar_escenario(zona)
+            return escenario.arbol if escenario is not None else construir_arbol_publicacion()
+        return fabrica
+
+    def cerrar_mazmorra(self, mazmorra, resultado, terminal=None):
         """Único camino del juego para aplicar la decisión de una mazmorra
         normal: solo si `mazmorra.completar()` acepta (cuarto final con
         el sello cumplido y aún no completada). Así registrar_decision
-        se aplica una sola vez por mazmorra. Retorna True si se aplicó."""
+        se aplica una sola vez por mazmorra. Con `terminal` (la
+        TerminalDecision resuelta) aplica además, una sola vez, la
+        consecuencia narrativa de la campaña (indicadores, reputación,
+        puntos). Retorna True si se aplicó."""
         if not mazmorra.completar():
             return False
         self.registrar_decision(mazmorra.nombre_zona, resultado)
+        self.campania.ultima_consecuencia = None
+        self.campania.ultimos_deltas = {}
+        if terminal is not None:
+            consecuencia = self.campania.consecuencia_de_terminal(mazmorra.nombre_zona, terminal)
+            if consecuencia is not None:
+                self.campania.aplicar_consecuencia(mazmorra.nombre_zona, consecuencia)
         return True
 
     def registrar_decision(self, zona, resultado):

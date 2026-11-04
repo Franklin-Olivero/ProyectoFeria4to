@@ -40,8 +40,11 @@ CONTROLES_CIUDAD = [
     ("G", "ruta sugerida"),
     ("Tab", "cambiar destino"),
     ("M", "mapa del mundo"),
+    ("I", "estado de la ciudad"),
+    ("H", "ayuda"),
     ("Esc", "menú principal"),
 ]
+CONTROLES_DIALOGO = [("Enter", "continuar"), ("Esc", "saltar")]
 CONTROLES_MAPA_MUNDO = [("Tab", "cambiar destino"), ("M", "volver a la ciudad")]
 CONTROLES_FINAL = [("Enter", "continuar"), ("Esc", "salir")]
 CONTROLES_MODO = [("← →", "elegir"), ("1-2", "directo"), ("Enter", "confirmar"), ("Esc", "volver")]

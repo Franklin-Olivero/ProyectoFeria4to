@@ -33,6 +33,7 @@ import math
 
 import pygame
 
+from src.core import assets
 from src.core.preferencias import FILTRO_NINGUNO
 
 IDENTIDAD, CRUZ_A, CRUZ_B, CRUZ_S = "identidad", "cruz_a", "cruz_b", "cruz_s"
@@ -204,3 +205,12 @@ class FiltroColor:
             vistas[CRUZ_B] = self._cruces[CRUZ_B]
             vistas[CRUZ_B].blit(pygame.image.frombuffer(self._bgrx.get_buffer(), tamanio, "RGBX"), (0, 0))
         return vistas
+
+
+def aplicar_alto_contraste(pantalla):
+    """Preferencia de accesibilidad "alto contraste": dos operaciones
+    sobre la imagen final (antes del flip). Sumar la imagen a sí misma
+    (BLEND_ADD) dobla lo claro y casi no toca lo oscuro; restar un gris
+    (BLEND_SUB) hunde los fondos. Cuesta menos de 1 ms a 1280x720."""
+    pantalla.blit(pantalla, (0, 0), special_flags=pygame.BLEND_ADD)
+    pantalla.fill(assets.ALTO_CONTRASTE_RESTA, special_flags=pygame.BLEND_SUB)

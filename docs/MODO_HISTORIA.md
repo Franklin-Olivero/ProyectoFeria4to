@@ -1,0 +1,129 @@
+# Modo historia: «Civitas: Código Nova — La caída de Ciudad Nova»
+
+Campaña narrativa montada sobre los sistemas que ya tenía Civitas (Ciudad Nova,
+mazmorras de 6 cuartos, terminal de decisión, jefe final, cooperativo, Online).
+No reemplaza nada: añade lógica pura en `src/story/`, contenido en
+`content/campaign.json` y pantallas en `src/ui/`. Pantalla real: **1280×720**.
+
+Simulación ficticia con fines educativos. Candidatos, cuentas, ciudadanos y
+hechos son inventados.
+
+## Qué se puede jugar
+
+| Paso | Qué pasa | Teclas |
+|---|---|---|
+| Partida nueva | **Prólogo** (5 pantallas, variante de texto por rol). | Enter avanza · Esc salta |
+| Ciudad Nova | Caminar, ruta sugerida, mapa, **I** estado de la ciudad, **H** ayuda. Cintillo con eventos. | WASD · E · G · TAB · M · I · H |
+| Entrar a una zona | **Intro del capítulo** (una vez por zona). El Periodista recibe una prueba al entrar. | Enter / Esc |
+| Mazmorra | Combate de siempre. **Cada cuarto limpio revela una evidencia** (tarjeta 6 s). La 3.ª de cada zona es una **pista de NOVA_404**. | combate normal |
+| Cuarto final | **Terminal de decisión** con el árbol de la zona (15 s): Verificar / Compartir / Reportar / Ignorar y un 2.º nivel en Verificar y Reportar. Sello de evidencia en la tarjeta. | ← → · Enter |
+| Resultado | Consecuencia, evidencia con la que decidiste, reputación, puntos y cómo cambió Ciudad Nova. | Enter |
+| Hospital y Medios | Pantalla **«Así viajó la publicación»**: BFS animado sobre el grafo social, saltos, cadena de contagio, rastreo DFS y alcance de la corrección. | Enter |
+| Empresa de Medios | **Investigación del infiltrado**: tres cuentas, pistas, señalar a la coordinadora. | ← → · Enter |
+| Alcaldía | Diálogo pre-jefe (cambia según las pistas) y el combate de siempre, sin decisiones. | combate |
+| Victoria | Enter → **Elecciones**: apoyo de 4 candidatos, estado de la ciudad y **final** (renace / dividida / el arquitecto). | Enter vuelve · Esc sale |
+
+Recorrido recomendado para la feria (5–8 min): Colegio → Hospital → Empresa de
+Medios → Alcaldía. Si se entra a la Alcaldía con una sola zona purificada o por
+colapso alto, el juego no bloquea: el diálogo y el epílogo son los parciales.
+
+## Cómo las estructuras de datos gobiernan la historia
+
+### Árbol N-ario (`src/structures/tree.py` → `src/story/escenarios.py`)
+- Cada zona tiene un `EscenarioDecision`: raíz = la publicación; hijos = opciones;
+  Verificar y Reportar tienen un nivel intermedio («Publicar aclaración con el
+  comunicado» / «Creer el recorte viral»; «Reportar con evidencia» / «Reportar en
+  masa»); cada hoja es `Purificación Exitosa` o `Detonación`.
+- La **forma** del árbol no depende de la evidencia (host e invitado comparten ids);
+  lo que cambia es **a qué resultado lleva cada hoja**: con `sin_pruebas` o
+  `parcial`, «Publicar aclaración» detona («nadie te creyó»). El estado de evidencia
+  (`sin_pruebas` → `parcial` → `verificado`/`desmentido`) sale de cuántas pruebas
+  reveló el jugador limpiando cuartos y del veredicto real de la publicación.
+- Tiempo agotado (también a mitad del árbol) aplica la consecuencia `tiempo_agotado`
+  del escenario, no una genérica.
+- `TerminalDecision` navega el árbol sin cambios; `Cuarto` recibe `fabrica_arbol`
+  (Partida.fabrica_arbol(zona)) y arma el árbol **en el momento en que se abre la
+  terminal**, con la evidencia de ese instante.
+- El árbol de reportes de toxicidad sigue decidiendo la dificultad de la mazmorra.
+- CRUD y recorridos: `tests/test_tree.py` y
+  `test_story_escenarios.py::test_crud_y_recorridos_del_arbol_sobre_un_escenario`.
+
+### Grafo social (`src/structures/graph.py` → `src/story/red_social.py`)
+- 10 ciudadanos ficticios y 14 conexiones no dirigidas. **Separado** del grafo de
+  calles (`grafo_ciudad.py`), que sigue usando Dijkstra para la ruta sugerida.
+- `propagar(origen)`: **BFS** por capas hasta 3 saltos; cada contacto reenvía con una
+  probabilidad (`random.Random(semilla)` inyectable); el conjunto de visitados
+  garantiza que nadie se cuenta dos veces aunque le llegue por el ciclo.
+- `corregir(origen)`: BFS exacto; marca `corregidos` (rebotan con 0.25 en vez de
+  0.70). **No borra** `expuestos`: la memoria del rumor queda.
+- `rastrear(nodo)`: **DFS** iterativo (quién pudo recibirlo); `cadena_hasta(id)`
+  reconstruye la ruta real con los predecesores del BFS.
+- Efecto medible: cada alcanzado sin corregir suma desinformación; cada dos corregidos
+  suman información verificada. Se ve en la pantalla de propagación y en el resultado.
+- Eventos aleatorios al volver a la ciudad (`src/story/eventos.py`): noticia viral,
+  corrección comunitaria, cuenta sospechosa, rumor reactivado (solo si alguna zona
+  detonó). Los que propagan lo hacen por la misma red: una ciudad con correcciones
+  publicadas frena mejor los rumores siguientes.
+
+### Estado de Ciudad Nova (`src/story/estado_ciudad.py`, `campania.py`)
+- 7 indicadores enteros 0-100 (`balance.INDICADORES_INICIALES`), reputación 0-100,
+  puntos. Todo cambio pasa por `Campania._aplicar_efectos` (acotado).
+- **Colapso ↔ indicadores**: el colapso sigue siendo la barra de derrota y lo mueve
+  `Partida.registrar_decision` (+0.2 fallo / −0.1 éxito). Los indicadores describen
+  cómo quedó la ciudad y deciden elecciones y final. Nunca se derivan uno del otro.
+- Sin dobles recompensas: `Partida.cerrar_mazmorra` aplica la consecuencia una vez
+  por mazmorra; repetir una zona purificada no vuelve a dar puntos ni reputación
+  positiva (sí mueve indicadores: la ciudad reacciona a cada publicación);
+  investigación y jefe se registran una sola vez; las pistas son un conjunto.
+
+### Elecciones y finales (`src/story/eleccion.py`)
+- Apoyo = base + 0.5·indicador afín (+ 0.2·reputación si el afín es «bueno»),
+  normalizado a 100 %. Determinista; ningún ganador fijo.
+- Finales: **arquitecto** = 3 pistas + coordinadora correcta + jefe derrotado;
+  **renace** = verificada ≥ 55, confianza ≥ 50, desinformación ≤ 45; si no, **dividida**.
+  Umbrales en `balance.py`.
+
+### Roles (un matiz cada uno, `balance.py`)
+Influencer: +0.15 de rebote al detonar una zona que propaga · Ciudadano: +2 confianza
+por éxito · Periodista: 1 evidencia al entrar · Candidato: penalización reputacional ×2.
+
+## Archivos
+
+| Nuevo | Para qué |
+|---|---|
+| `content/campaign.json` | Prólogo, capítulos, escenarios (post, evidencias, árbol), pistas, red social, eventos, sospechosos, finales, candidatos. Se valida al cargar (`contenido.py`). |
+| `src/story/contenido.py` · `estado_ciudad.py` · `escenarios.py` · `dialogo.py` · `red_social.py` · `eventos.py` · `investigacion.py` · `eleccion.py` · `campania.py` | Lógica pura (sin pygame). |
+| `src/ui/dialogo_render.py` · `tarjetas_render.py` · `indicadores_render.py` · `red_social_render.py` · `investigacion_render.py` · `elecciones_render.py` · `ayuda_render.py` | Dibujo. |
+| `tests/test_story_*.py` | 60+ tests nuevos. |
+
+| Modificado | Cambio |
+|---|---|
+| `src/dungeon/partida.py` | `campania`, `fabrica_arbol(zona)`, `cerrar_mazmorra(..., terminal=None)`, titulares con eventos, reinicio completo. |
+| `src/dungeon/cuarto.py`, `mazmorra_jugable.py` | `fabrica_arbol` y `duracion_terminal` opcionales (por defecto, el árbol fijo de siempre). |
+| `Online/sesion_red.py` | El invitado arma la mazmorra con la misma fábrica (mismos ids de nodo). |
+| `src/ui/terminal_decision_render.py` | Tarjeta con datos del escenario, sello de evidencia, lista de pruebas, raíz ancha y texto en 3 líneas. |
+| `src/ui/pantalla_resultado.py` | `ResultadoMazmorra(consecuencia, deltas)`; paneles «Tu decisión» y «Así cambió Ciudad Nova». |
+| `src/core/preferencias.py`, `src/ui/ajustes*.py`, `src/ui/filtro_color.py` | Preferencia **ALTO CONTRASTE** (toda la imagen). |
+| `Main.py` | Overlays: diálogo (pausa el mundo), tarjeta de evidencia, panel I, ayuda H, propagación, investigación, elecciones. Sin tocar combate ni jefe. |
+| `src/core/assets.py`, `balance.py`, `hud.py` | Constantes y teclas. |
+
+## Online y cooperativo
+- Cooperativo local: decide el J1 (teclado), como ya hacía con la terminal.
+- Online: la terminal sigue siendo autoritativa del host; el invitado arma el mismo
+  árbol. La investigación del capítulo 3 la resuelve el host (no se agregó mensaje
+  de votación al protocolo; queda documentado como pendiente). Diálogos, tarjetas y
+  paneles son locales a cada PC.
+
+## Pendiente / límites conocidos
+- Capítulo 3 en Online: el host es autoritativo y aplica también las navegaciones
+  (← → Enter) que envían los invitados por el mensaje `DECISION_NAV` existente
+  (`AdaptadorOnlineHost.tomar_solicitudes_decision`); el invitado no ve la pantalla
+  de investigación (ve el resultado hasta que el host vuelve a la ciudad). Falta
+  reflejarla en el snapshot.
+- Smoke test con ventana real: las pantallas se verificaron **headless** (SDL dummy,
+  capturas en `docs/capturas/historia/`). No se abrió ventana en esta sesión.
+- `tests/test_agro.py::test_subditos_del_jefe_actuan_desde_lejos` es intermitente
+  (azar) y también falla a veces en la rama base; no lo toca este trabajo.
+- `tests/test_online_sincronizacion.py::test_proteger_partida_online_captura_excepciones`
+  necesita el sistema de vídeo de pygame; en entorno headless falla igual en la rama base.
+- Arte: 8 ilustraciones generadas y aprobadas (fondos de diálogo, elecciones y retratos de Civitas/NOVA_404); ver `docs/ASSET_MANIFEST.md`.

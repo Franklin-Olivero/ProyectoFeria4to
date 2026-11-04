@@ -13,8 +13,10 @@ Quién usa cada preferencia:
                                         modal y sacudida de cámara del jefe
     mostrar_cono / opacidad_cono     -> cono de apuntado (src/ui/combate_render.py)
     esquema_controles                -> vista elegida en la guía de controles
-    subtitulos                       -> se guarda; el juego aún no tiene audio
-                                        hablado ni diálogos que subtitular
+    subtitulos                       -> se guarda; el juego no tiene audio hablado.
+                                        Los diálogos y eventos del modo historia
+                                        ya son texto en pantalla.
+    alto_contraste                   -> src/ui/filtro_color.py (toda la pantalla)
 """
 
 import json
@@ -49,6 +51,8 @@ class Preferencias:
     subtitulos: bool = False
     filtro_daltonismo: str = FILTRO_NINGUNO
     reducir_movimiento: bool = False
+    # Modo historia: realza el contraste de toda la imagen (src/ui/filtro_color.py).
+    alto_contraste: bool = False
     esquema_controles: str = ESQUEMA_TECLADO
     mostrar_cono: bool = True
     # 40% de assets.ALFA_MAXIMO_CONO = el cono que el juego tenía antes de este ajuste.

@@ -144,6 +144,8 @@ class Cuarto:
         rng=None,
         es_cuarto_inicial=False,
         usos_variantes=None,
+        fabrica_arbol=None,
+        duracion_terminal=None,
     ):
         self.rect = pygame.Rect(0, 0, ANCHO_CUARTO, ALTO_CUARTO)
         self.rect.center = assets.CENTRO_CUARTO
@@ -156,6 +158,11 @@ class Cuarto:
         # Defensa extra: función sin argumentos que dice si la decisión
         # puede empezar (la mazmorra exige el sello cumplido). None = sí.
         self.permitir_decision = permitir_decision
+        # Quién arma el árbol de la terminal al abrirse (modo historia:
+        # el escenario de la zona con la evidencia reunida). None = el
+        # árbol fijo "Publicación Viral" de siempre.
+        self.fabrica_arbol = fabrica_arbol if fabrica_arbol is not None else construir_arbol_publicacion
+        self.duracion_terminal = duracion_terminal
 
         self.fase = FASE_COMBATE
         self.terminal = None
@@ -215,7 +222,10 @@ class Cuarto:
             if self.permitir_decision is not None and not self.permitir_decision():
                 return  # se reintenta cada frame (ver actualizar)
             self.fase = FASE_DECISION
-            self.terminal = TerminalDecision(construir_arbol_publicacion())
+            if self.duracion_terminal is None:
+                self.terminal = TerminalDecision(self.fabrica_arbol())
+            else:
+                self.terminal = TerminalDecision(self.fabrica_arbol(), self.duracion_terminal)
             self.terminal.iniciar()
 
     def actualizar(self, dt, jugadores, proyectiles_enemigos):

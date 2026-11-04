@@ -56,6 +56,7 @@ from Online.protocolo import (
 )
 from src.core import assets
 from src.core.apariencia import Apariencia
+from src.core.balance import DURACION_TERMINAL_HISTORIA
 from src.core.colapso import COLAPSO_MAXIMO
 from src.core.entrada import EntradaTeclado, InputJugador
 from src.core.equipo import revivir_caidos, todos_caidos
@@ -548,7 +549,11 @@ def _volver_a_la_ciudad(jugador, partida):
 
 
 def _crear_mazmorra(partida, zona, semilla):
-    return MazmorraJugable(Mazmorra(partida.ciudad.reportes(zona), zona, semilla=semilla))
+    # Mismo árbol de decisión que arma el host (modo historia): la forma
+    # del árbol no depende de la evidencia, así los ids coinciden.
+    return MazmorraJugable(Mazmorra(partida.ciudad.reportes(zona), zona, semilla=semilla),
+                           fabrica_arbol=partida.fabrica_arbol(zona),
+                           duracion_terminal=DURACION_TERMINAL_HISTORIA)
 
 
 def _nueva_semilla():
@@ -797,6 +802,16 @@ class AdaptadorOnlineHost(_AdaptadorBase):
             elif tipo == DESCONEXION and indice is not None:
                 self._olvidar_input(indice)
 
+    def tomar_solicitudes_decision(self):
+        """Direcciones (izquierda/derecha/confirmar) que los invitados
+        enviaron y aún no se aplicaron; las vacía. Main.py las aplica a la
+        investigación del infiltrado (modo historia): cualquier jugador de
+        la sala puede mover el cursor o acusar, y el host, que es quien
+        simula, decide qué pasa (servidor autoritativo)."""
+        pendientes = [d for d in self._solicitudes_decision if d in (IZQUIERDA, DERECHA, CONFIRMAR)]
+        self._solicitudes_decision.clear()
+        return pendientes
+
     def _olvidar_input(self, indice):
         self._datos_input.pop(indice, None)
         self._ultimos_inputs.pop(indice, None)
@@ -852,6 +867,10 @@ class AdaptadorOnlineHost(_AdaptadorBase):
             for d in self._solicitudes_decision:
                 if d in (IZQUIERDA, DERECHA, CONFIRMAR):
                     mazmorra.cuarto.terminal.navegar(d)
+            self._solicitudes_decision.clear()
+        elif escena != Escena.RESULTADO:
+            # Fuera de la terminal y de la investigación (modo historia,
+            # escena RESULTADO) una navegación vieja no vale nada.
             self._solicitudes_decision.clear()
         if escena == Escena.MAZMORRA and mazmorra is not None and todos_caidos(jugadores):
             if self._fin is None:

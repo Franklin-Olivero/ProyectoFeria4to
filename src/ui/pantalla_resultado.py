@@ -7,12 +7,13 @@ el valor anterior y el nuevo, y el botón de continuar (ENTER, que
 atiende Main.py en la escena RESULTADO).
 """
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
 import pygame
 
 from src.core import assets
-from src.ui import dibujo, sprites
+from src.story.escenarios import NOMBRES_ESTADO_EVIDENCIA
+from src.ui import dibujo, indicadores_render, sprites
 from src.ui.terminal_decision import PURIFICACION_EXITOSA
 
 # Explicación según la opción elegida en la terminal.
@@ -35,6 +36,10 @@ class ResultadoMazmorra:
     colapso_antes: float
     colapso_despues: float
     zona: str
+    # Modo historia: la Consecuencia del escenario (texto, efectos,
+    # reputación, puntos) y los deltas reales sobre los indicadores.
+    consecuencia: object = None
+    deltas: dict = field(default_factory=dict)
 
     @property
     def exito(self):
@@ -42,6 +47,8 @@ class ResultadoMazmorra:
 
     @property
     def explicacion(self):
+        if self.consecuencia is not None:
+            return self.consecuencia.texto
         if self.opcion is None:
             return EXPLICACION_TIEMPO
         return EXPLICACIONES.get(self.opcion, EXPLICACION_EXITO if self.exito else EXPLICACION_FALLO)
@@ -62,6 +69,8 @@ def dibujar_resultado(pantalla, info):
 
     _dibujar_ilustracion(pantalla, exito)
     _dibujar_barra(pantalla, info, acento)
+    if info.consecuencia is not None:
+        _dibujar_consecuencia(pantalla, info)
 
     boton = dibujo.panel(pantalla, assets.RECT_BOTON_RESULTADO, acento, None, 0, radio=6)
     dibujo.texto(pantalla, "Volver a Ciudad Nova", boton.center, assets.COLOR_FONDO,
@@ -69,6 +78,33 @@ def dibujar_resultado(pantalla, info):
     chip = dibujo.chip(pantalla, "Enter", (cx - 40, boton.bottom + 36), ancla="midright")
     dibujo.texto(pantalla, "para continuar", (chip.right + 8, chip.centery), assets.COLOR_TEXTO_SECUNDARIO,
                  assets.TAMANIO_FUENTE_NORMAL, ancla="midleft")
+
+
+def _dibujar_consecuencia(pantalla, info):
+    """Paneles laterales del modo historia: a la izquierda qué se eligió
+    y con qué evidencia (más reputación y puntos); a la derecha los
+    indicadores de Ciudad Nova que cambiaron."""
+    c = info.consecuencia
+    panel = dibujo.panel(pantalla, assets.RECT_PANEL_EVIDENCIA_RESULTADO, assets.COLOR_FONDO_PANEL,
+                         assets.COLOR_BORDE_PANEL, 1, radio=8)
+    x, y = panel.left + 18, panel.top + 14
+    dibujo.texto(pantalla, "Tu decisión", (x, y), assets.COLOR_TEXTO_SECUNDARIO, assets.TAMANIO_FUENTE_NORMAL, negrita=True)
+    y += 28
+    camino = " › ".join(c.camino) if c.camino else "Sin decidir (tiempo agotado)"
+    for linea in dibujo.ajustar_texto(camino, assets.TAMANIO_FUENTE_NORMAL, panel.width - 36, negrita=True)[:2]:
+        dibujo.texto(pantalla, linea, (x, y), assets.COLOR_TEXTO_HUD, assets.TAMANIO_FUENTE_NORMAL, negrita=True)
+        y += 20
+    y += 8
+    color_sello = assets.COLOR_SELLO_EVIDENCIA.get(c.estado_evidencia, assets.COLOR_TEXTO_SECUNDARIO)
+    rotulo = dibujo.texto(pantalla, "Evidencia al decidir:", (x, y), assets.COLOR_TEXTO_SECUNDARIO,
+                          assets.TAMANIO_FUENTE_NORMAL)
+    dibujo.chip(pantalla, NOMBRES_ESTADO_EVIDENCIA.get(c.estado_evidencia, c.estado_evidencia),
+                (rotulo.right + 10, y - 4), color_sello, assets.COLOR_FONDO_PANEL, color_sello)
+    y += 34
+    signo = "+" if c.reputacion >= 0 else "−"
+    dibujo.texto(pantalla, f"Reputación {signo}{abs(c.reputacion)}   Puntos +{c.puntos}", (x, y),
+                 assets.COLOR_TEXTO_HUD, assets.TAMANIO_FUENTE_NORMAL)
+    indicadores_render.dibujar_deltas(pantalla, assets.RECT_PANEL_DELTAS, info.deltas)
 
 
 def _dibujar_ilustracion(pantalla, exito):
