@@ -68,33 +68,44 @@
   "capitulos": {
     "Colegio": {
       "numero": 1,
-      "titulo": "El rumor del colegio",
+      "titulo": "El rumor",
       "intro": [
         {
           "hablante": "CIVITAS",
           "retrato": "civitas",
-          "texto": "Capítulo 1: El rumor del colegio. Una publicación asegura que mañana cierran TODOS los colegios de Ciudad Nova."
+          "texto": "Capítulo 1: El rumor. Una publicación asegura que mañana cierran TODOS los colegios de Ciudad Nova."
         },
         {
           "hablante": "JUGADOR",
           "retrato": "jugador",
-          "texto": "Miles de familias ya lo comparten. Antes de opinar, necesito los documentos. Cada cuarto limpio es una pista."
+          "texto": "Miles de familias ya lo comparten. Antes de opinar, necesito los documentos. Cada cuarto limpio es una pista.",
+          "por_rol": {
+            "ciudadano": "Mi hermana ya lo compartió en el grupo de la familia. Antes de opinar, necesito los documentos. Cada cuarto limpio es una pista.",
+            "periodista": "Miles lo comparten y nadie cita la fuente. Voy a buscar el comunicado original. Cada cuarto limpio es una pista.",
+            "influencer": "Si yo lo comparto, lo ven cien mil personas. Por eso no lo haré hasta tener los documentos. Cada cuarto limpio es una pista.",
+            "candidato": "Ya me piden una declaración. Si hablo sin pruebas, la pago doble. Cada cuarto limpio es una pista."
+          }
         }
       ]
     },
     "Hospital": {
       "numero": 2,
-      "titulo": "Pánico en el hospital",
+      "titulo": "Contagio digital",
       "intro": [
         {
           "hablante": "CIVITAS",
           "retrato": "civitas",
-          "texto": "Capítulo 2: Pánico en el hospital. Circula que el hospital dejará de atender desde esta noche."
+          "texto": "Capítulo 2: Contagio digital. Circula que el hospital dejará de atender desde esta noche, y el miedo viaja de contacto en contacto."
         },
         {
           "hablante": "JUGADOR",
           "retrato": "jugador",
           "texto": "Si es falso, el pánico hace daño. Si es cierto a medias, compartirlo sin contexto hace el mismo daño. Hay que ver qué parte es verdad."
+        },
+        {
+          "hablante": "CIVITAS",
+          "retrato": "civitas",
+          "texto": "Aquí verás cómo se propaga una publicación por la red social de la ciudad: persona a persona, salto a salto. Contén el rumor y busca la conexión con NOVA_404."
         }
       ]
     },
@@ -116,12 +127,12 @@
     },
     "Alcaldía": {
       "numero": 4,
-      "titulo": "El núcleo de NOVA_404",
+      "titulo": "La última transmisión",
       "intro": [
         {
           "hablante": "CIVITAS",
           "retrato": "civitas",
-          "texto": "Final: El núcleo de NOVA_404. Bajo la Alcaldía late el Servidor Central, el sistema que amplifica cada rumor."
+          "texto": "Capítulo final: La última transmisión. Bajo la Alcaldía late el Servidor Central, el sistema que amplifica cada rumor."
         },
         {
           "hablante": "JUGADOR",
@@ -896,5 +907,106 @@
       "titulo": "El arquitecto",
       "texto": "Con las tres pistas y la cuenta coordinadora identificada, el rastro llegó hasta 'nova_root': un sistema de automatización instalado en la red de la Alcaldía para probar 'qué tan rápido cree la ciudad'. No era un candidato: era una máquina que nadie apagó. Hoy la apagaste tú. La ciudad no quedó perfecta, pero quedó despierta."
     }
+  },
+  "cinematica_intro": [
+    {
+      "id": "ciudad",
+      "duracion": 5.0,
+      "fondo": "portada",
+      "efecto": "paneo",
+      "hablante": "NARRADOR",
+      "sonido": "transicion",
+      "texto": "Ciudad Nova está a pocos días de elegir a su próximo alcalde. Una elección que podría cambiarlo todo."
+    },
+    {
+      "id": "civitas",
+      "duracion": 5.5,
+      "fondo": "ciudadanos_civitas",
+      "efecto": "notificaciones",
+      "hablante": "NARRADOR",
+      "sonido": "notificacion",
+      "texto": "En Civitas, millones de opiniones, noticias y rumores circulan cada día. Pero no todo lo que vemos es verdad."
+    },
+    {
+      "id": "caos",
+      "duracion": 5.5,
+      "fondo": "ciudadanos_civitas",
+      "efecto": "caos",
+      "hablante": "NARRADOR",
+      "sonido": "viral",
+      "texto": "Una noticia falsa puede parecer insignificante... hasta que miles de personas comienzan a creerla."
+    },
+    {
+      "id": "amenaza",
+      "duracion": 5.0,
+      "fondo": "pantallas_nova",
+      "efecto": "glitch",
+      "hablante": "NOVA_404",
+      "retrato": "nova",
+      "sonido": "glitch",
+      "texto": "No necesito controlar sus votos. Solo necesito controlar lo que creen."
+    },
+    {
+      "id": "mensaje",
+      "duracion": 4.5,
+      "fondo": "portada",
+      "efecto": "retrato",
+      "hablante": "MENSAJE",
+      "retrato": "jugador",
+      "sonido": "notificacion",
+      "texto": "Mensaje urgente: Ciudad Nova necesita tu ayuda. Investiga el origen de los rumores antes de que sea demasiado tarde."
+    },
+    {
+      "id": "protagonista",
+      "duracion": 5.0,
+      "fondo": "portada",
+      "efecto": "retrato",
+      "hablante": "JUGADOR",
+      "retrato": "jugador",
+      "texto": "Si alguien está manipulando la verdad, vamos a descubrir quién es.",
+      "por_rol": {
+        "ciudadano": "Mis vecinos ya no saben qué creer. Si alguien está manipulando la verdad, vamos a descubrir quién es.",
+        "periodista": "Tres rumores, una misma firma. Si alguien está manipulando la verdad, voy a documentarlo y a descubrir quién es.",
+        "influencer": "Miles me preguntan qué es cierto. Antes de amplificar nada, voy a descubrir quién está manipulando la verdad.",
+        "candidato": "Quieren decidir la elección con mentiras. Si alguien está manipulando la verdad, vamos a descubrir quién es."
+      }
+    },
+    {
+      "id": "rol",
+      "duracion": 5.5,
+      "fondo": "portada",
+      "efecto": "retrato",
+      "hablante": "CIVITAS",
+      "retrato": "jugador",
+      "texto": "Tu papel en esta historia lo define tu rol. Cada decisión que tomes cambiará lo que la ciudad cree.",
+      "por_rol": {
+        "ciudadano": "Eres un ciudadano de Ciudad Nova. Representas a la comunidad que sufre cada rumor: cada éxito tuyo refuerza la confianza vecinal.",
+        "periodista": "Eres periodista. Buscas evidencias para descubrir la verdad: al entrar a cada zona identificas una fuente extra.",
+        "influencer": "Eres influencer. Puedes amplificar cualquier información: lo que compartas sin verificar rebota más lejos.",
+        "candidato": "Eres candidato a la Alcaldía. Debes mantener la confianza mientras enfrentas rumores: cada error pesa doble en tu reputación."
+      }
+    },
+    {
+      "id": "titulo",
+      "duracion": 4.5,
+      "fondo": "portada",
+      "efecto": "titulo",
+      "titulo": "CIVITAS: CÓDIGO NOVA",
+      "sonido": "mision",
+      "subtitulo": "Tus decisiones cambiarán el destino de Ciudad Nova."
+    }
+  ],
+  "objetivos_intro": [
+    "Investiga las publicaciones sospechosas de cada zona.",
+    "Encuentra pruebas limpiando los cuartos de cada edificio.",
+    "Detén la propagación de rumores en la terminal Civitas.",
+    "Protege la confianza de los ciudadanos.",
+    "Descubre quién está detrás de NOVA_404."
+  ],
+  "intro_rol": {
+    "ciudadano": "Eres un ciudadano de Ciudad Nova. Representas a la comunidad que sufre cada rumor: cada éxito tuyo refuerza la confianza vecinal.",
+    "periodista": "Eres periodista. Buscas evidencias para descubrir la verdad: al entrar a cada zona identificas una fuente extra.",
+    "influencer": "Eres influencer. Puedes amplificar cualquier información: lo que compartas sin verificar rebota más lejos.",
+    "candidato": "Eres candidato a la Alcaldía. Debes mantener la confianza mientras enfrentas rumores: cada error pesa doble en tu reputación."
   }
 }

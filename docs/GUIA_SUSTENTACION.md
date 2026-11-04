@@ -89,3 +89,26 @@ mensaje de votación colectiva para el capítulo 3.
 | Azar | Semillas inyectables; eventos y propagación. |
 | Elecciones | Simulación determinista con 4 candidatos ficticios. |
 | Demostración | Recorrido de 5-8 min en `docs/MODO_HISTORIA.md`. |
+
+
+## Guía rápida para la Feria Gamer: qué mostrar y cómo explicarlo (3 nov 2026)
+
+**Demo de 6-8 min:** JUGAR → Periodista → ver la intro (o Esc para ir a los objetivos) → Colegio
+(tarjeta de capítulo, misión «INVESTIGA EL COLEGIO», 3 pruebas, terminal con el árbol) →
+Hospital (pantalla de propagación BFS/DFS) → Empresa de Medios (investigación) → Alcaldía
+(cinemática del jefe, combate, caída del servidor, elecciones, final).
+
+**Frases para explicar las mejoras:**
+- «La intro responde en 40 segundos quién eres, qué es Civitas, qué pasa con las elecciones,
+  quién es NOVA_404 y qué tienes que hacer; termina en una lista de objetivos.»
+- «El panel MISIÓN ACTUAL no guarda estado: se calcula cada frame a partir de la campaña y de la
+  mazmorra (grafo de cuartos), por eso nunca se desincroniza, ni en cooperativo ni en red.»
+- «Cada decisión navega un árbol N-ario real; con menos pruebas la misma hoja lleva a otro
+  resultado. La publicación viaja por BFS en el grafo social y el rastreo usa DFS.»
+- «Las elecciones y el final salen de los 7 indicadores, las pistas y a quién señalaste: hay
+  tres finales (renace, dividida, el arquitecto) y las cinemáticas usan esos datos reales.»
+- «El juego arranca sin internet ni Higgsfield: las ilustraciones son archivos del repo y cada
+  pantalla tiene un respaldo dibujado en código.»
+
+**Si algo falla en vivo:** Esc salta cualquier cinemática; EXTRAS → VER INTRODUCCIÓN la repite;
+`python -m pytest -q` debe dar 853 pruebas en verde.

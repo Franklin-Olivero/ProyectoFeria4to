@@ -189,7 +189,10 @@ def _rect_nodo(nodo, estado, centro, ancho_unidad, es_raiz=False):
         ancho = min(ancho, assets.ANCHO_NODO_RAIZ)
     else:
         ancho = min(ancho, int(ancho_unidad) - 14)
-    rect = pygame.Rect(0, 0, ancho, assets.ALTO_NODO_ARBOL)
+    # Si el texto necesita tres líneas, el nodo crece: nunca se dibuja cortado.
+    lineas = dibujo.ajustar_texto(str(nodo.etiqueta), assets.TAMANIO_FUENTE_NORMAL, ancho - 24, negrita=True)
+    alto = assets.ALTO_NODO_ARBOL if len(lineas) <= 2 else assets.ALTO_NODO_ARBOL_3_LINEAS
+    rect = pygame.Rect(0, 0, ancho, alto)
     rect.center = centro
     return rect
 
@@ -285,13 +288,14 @@ def _dibujar_nodo(pantalla, nodo, estado, rect, seleccionado):
 
 
 def _dibujar_leyenda(pantalla, panel):
-    x = panel.right - 230
-    y = panel.bottom - 108
+    """Una fila debajo del panel del árbol: así nunca tapa una hoja."""
+    x = panel.left + 4
+    y = panel.bottom + 14
     for nombre, relleno, borde in LEYENDA:
-        dibujo.panel(pantalla, (x, y, 22, 16), relleno, borde, 2, radio=3)
-        dibujo.texto(pantalla, nombre, (x + 32, y + 8), assets.COLOR_TEXTO_SECUNDARIO,
-                     assets.TAMANIO_FUENTE_PEQUENA, ancla="midleft")
-        y += 26
+        dibujo.panel(pantalla, (x, y - 8, 22, 16), relleno, borde, 2, radio=3)
+        rect = dibujo.texto(pantalla, nombre, (x + 30, y), assets.COLOR_TEXTO_SECUNDARIO,
+                            assets.TAMANIO_FUENTE_PEQUENA, ancla="midleft")
+        x = rect.right + 22
 
 
 def _dibujar_migas(pantalla, terminal):

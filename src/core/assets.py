@@ -215,6 +215,7 @@ RECT_PANEL_ARBOL = (410, 142, 830, 440)
 POSICION_TIEMPO_TERMINAL = (1240, 70)  # midright del número grande
 RECT_BARRA_TIEMPO = (880, 100, 360, 14)
 ANCHO_NODO_ARBOL = 150
+ALTO_NODO_ARBOL_3_LINEAS = 56  # nodo con texto en tres líneas (opciones largas)
 ALTO_NODO_ARBOL = 46
 ANCHO_NODO_HOJA = 220
 COLOR_NODO_RECORRIDO = (24, 72, 66)
@@ -920,7 +921,7 @@ ID_RETRATO_CIVITAS = "civitas"
 ID_RETRATO_NOVA = "nova"
 
 # Tarjeta de evidencia (aparece en combate al limpiar un cuarto).
-RECT_TARJETA_EVIDENCIA = (380, 72, 520, 104)
+RECT_TARJETA_EVIDENCIA = (380, 72, 520, 120)
 COLOR_FONDO_EVIDENCIA = (248, 244, 232)
 COLOR_BORDE_EVIDENCIA = COLOR_AMARILLO
 COLOR_TITULO_EVIDENCIA = (34, 30, 48)
@@ -962,8 +963,8 @@ POSICION_PRUEBAS_TERMINAL = (480, 36)
 ANCHO_PRUEBAS_TERMINAL = 370
 # Pantalla de propagación por la red social (src/ui/red_social_render.py).
 RECT_PANEL_GRAFO_SOCIAL = (60, 120, 660, 500)
-CENTRO_GRAFO_SOCIAL = (390, 370)
-RADIO_GRAFO_SOCIAL = 190
+CENTRO_GRAFO_SOCIAL = (390, 352)
+RADIO_GRAFO_SOCIAL = 168
 RADIO_NODO_SOCIAL = 16
 COLOR_NODO_SOCIAL = (60, 56, 104)
 COLOR_BORDE_NODO_SOCIAL = COLOR_BORDE_PANEL
@@ -1014,3 +1015,123 @@ FONDO_POR_ZONA = {
 }
 ALFA_FONDO_DIALOGO = 200  # cuánto se ve la ilustración detrás del diálogo (0-255)
 ALFA_FONDO_ELECCIONES = 90
+
+# ----------------------------------------------------------------------
+# Capa de interfaz común (src/ui/layout.py): márgenes y zonas seguras.
+# Toda pantalla nueva mide contra estas constantes; ningún texto puede
+# salir de RECT_ZONA_SEGURA ni pisar el HUD (arriba) o la barra de
+# controles (abajo).
+# ----------------------------------------------------------------------
+MARGEN_PANTALLA = 40  # px desde el borde de la ventana al primer texto
+MARGEN_PANEL = 20  # px internos de un panel
+SEPARACION_SECCION = 12  # px entre bloques de texto
+RECT_ZONA_SEGURA = (MARGEN_PANTALLA, MARGEN_PANTALLA, 1280 - 2 * MARGEN_PANTALLA, 720 - 2 * MARGEN_PANTALLA)
+RECT_ZONA_JUEGO = (0, ALTO_HUD + 2, 1280, 720 - ALTO_HUD - 2 - ALTO_BARRA_CONTROLES)  # entre HUD y controles
+DURACION_ENTRADA_PANEL = 0.22  # s de la animación de entrada de un panel/overlay
+COLOR_VELO_OVERLAY = (4, 4, 14, 170)  # RGBA detrás de cualquier overlay modal
+
+# ----------------------------------------------------------------------
+# Cinemáticas (src/story/cinematica.py, dibujo en src/ui/cinematica_render.py)
+# ----------------------------------------------------------------------
+ALTO_LETTERBOX = 64  # franjas negras arriba y abajo
+COLOR_LETTERBOX = (0, 0, 0)
+RECT_SUBTITULO_CINEMATICA = (160, 560, 960, 86)  # caja de subtítulos (dentro de la franja inferior + algo)
+COLOR_FONDO_SUBTITULO = (4, 4, 12, 190)
+COLOR_SUBTITULO = COLOR_TEXTO_HUD
+COLOR_SUBTITULO_NOVA = COLOR_MAGENTA
+COLOR_SUBTITULO_HABLANTE = COLOR_TEAL
+TAMANIO_FUENTE_SUBTITULO = TAMANIO_FUENTE_MEDIA
+VELOCIDAD_MAQUINA_ESCRIBIR = 46.0  # caracteres por segundo del subtítulo
+DURACION_FUNDIDO_TOMA = 0.6  # s de fundido a negro entre tomas
+ZOOM_KEN_BURNS = 1.10  # escala máxima del paneo lento sobre la ilustración
+INTENSIDAD_GLITCH_NOVA = 14  # px máximos de desplazamiento de las bandas de glitch
+FILAS_GLITCH_NOVA = 9
+COLOR_TINTE_NOVA = (255, 56, 120, 46)  # RGBA sobre la imagen cuando habla NOVA_404
+# Notificaciones flotantes (escenas de Civitas y del caos).
+CANTIDAD_NOTIFICACIONES_CIVITAS = 7
+CANTIDAD_NOTIFICACIONES_CAOS = 18
+ANCHO_NOTIFICACION = 300
+ALTO_NOTIFICACION = 58
+COLOR_FONDO_NOTIFICACION = (244, 240, 230)
+COLOR_TEXTO_NOTIFICACION = (34, 30, 48)
+COLOR_FONDO_NOTIFICACION_FALSA = (255, 226, 234)
+COLOR_BORDE_NOTIFICACION_FALSA = COLOR_MAGENTA
+# Tarjeta de título (capítulos, estilo "presentación de ronda").
+TAMANIO_FUENTE_TARJETA_SUPERIOR = TAMANIO_FUENTE_TITULO
+TAMANIO_FUENTE_TARJETA = 56
+COLOR_TARJETA_CAPITULO = COLOR_TEXTO_HUD
+COLOR_LINEA_TARJETA = COLOR_MORADO
+DURACION_TARJETA_CAPITULO = 2.8  # s que dura la tarjeta de capítulo antes de pasar sola
+# Título de la cinemática y pantalla de objetivos.
+TAMANIO_FUENTE_TITULO_CINEMATICA = 64
+COLOR_TITULO_CINEMATICA = COLOR_MENU_SELECCION
+COLOR_RESPLANDOR_TITULO_CINE = (164, 110, 255, 70)
+RECT_PANEL_OBJETIVOS = (340, 140, 600, 450)
+COLOR_BOTON_COMENZAR = COLOR_TEAL
+COLOR_TEXTO_BOTON_COMENZAR = COLOR_FONDO
+RECT_BOTON_COMENZAR = (470, 496, 340, 50)
+# Protagonista en la cinemática: retrato grande a la izquierda.
+ALTO_RETRATO_CINEMATICA = 300
+POSICION_RETRATO_CINEMATICA = (260, 330)  # centro
+
+# ----------------------------------------------------------------------
+# Misiones (src/story/misiones.py, dibujo en src/ui/mision_render.py)
+# ----------------------------------------------------------------------
+RECT_PANEL_MISION_CIUDAD = (20, ALTO_HUD + 2 + 34 + 12, 340, 140)  # bajo el cintillo, a la izquierda
+RECT_PANEL_MISION_COMBATE = (20, 720 - ALTO_BARRA_CONTROLES - 12 - 116, 300, 116)  # abajo a la izquierda
+COLOR_FONDO_MISION = (14, 12, 34, 215)  # RGBA
+COLOR_BORDE_MISION = COLOR_AMARILLO
+COLOR_TITULO_MISION = COLOR_AMARILLO
+COLOR_OBJETIVO_PENDIENTE = COLOR_TEXTO_HUD
+COLOR_OBJETIVO_HECHO = COLOR_TEAL
+COLOR_OBJETIVO_FUTURO = COLOR_TEXTO_APAGADO
+RECT_TOAST_MISION = (440, 150, 400, 56)  # aviso "Objetivo completado" (centro superior)
+DURACION_TOAST_MISION = 2.6  # s visible
+COLOR_FONDO_TOAST = (14, 36, 34, 235)
+COLOR_BORDE_TOAST = COLOR_TEAL
+
+# ----------------------------------------------------------------------
+# Epílogo: cinemática de la caída del servidor, elecciones animadas y final.
+# ----------------------------------------------------------------------
+DURACION_CONTEO_ELECCIONES = 2.2  # s que tardan las barras en llenarse
+FONDO_SERVIDOR_CAIDO = "servidor_caido"
+FONDO_CIUDADANOS = "ciudadanos_civitas"
+FONDO_PANTALLAS_NOVA = "pantallas_nova"
+FONDO_POR_FINAL = {"renace": "final_renace", "dividida": "final_dividida", "arquitecto": "servidor_caido"}
+# Sonidos nuevos del modo historia (sintetizados; archivos opcionales en assets/sonidos/).
+RUTAS_SONIDOS.update({
+    "notificacion": os.path.join("assets", "sonidos", "notificacion.wav"),
+    "evidencia": os.path.join("assets", "sonidos", "evidencia.wav"),
+    "mision": os.path.join("assets", "sonidos", "mision.wav"),
+    "viral": os.path.join("assets", "sonidos", "viral.wav"),
+    "transicion": os.path.join("assets", "sonidos", "transicion.wav"),
+    "victoria": os.path.join("assets", "sonidos", "victoria.wav"),
+    "derrota": os.path.join("assets", "sonidos", "derrota.wav"),
+    "glitch": os.path.join("assets", "sonidos", "glitch.wav"),
+})
+TONOS_SONIDOS.update({
+    "notificacion": ((1320, 1760), 0.14),
+    "evidencia": ((784, 988, 1319), 0.22),
+    "mision": ((659, 784, 988, 1319), 0.4),
+    "viral": ((440, 415, 440, 415), 0.3),
+    "transicion": ((220, 330), 0.25),
+    "victoria": ((523, 659, 784, 1047, 1319), 0.8),
+    "derrota": ((392, 311, 233, 175), 0.9),
+    "glitch": ((110, 1760, 92, 1480), 0.18),
+})
+# Música ambiental sintetizada (src/core/audio.py): acordes (Hz) por pista,
+# en bucle, si no existe el archivo de assets/musica/.
+RUTAS_MUSICA = {
+    "menu": RUTA_MUSICA_MENU,
+    "misterio": os.path.join("assets", "musica", "misterio.ogg"),
+    "ciudad": os.path.join("assets", "musica", "ciudad.ogg"),
+    "jefe": os.path.join("assets", "musica", "jefe.ogg"),
+}
+ACORDES_MUSICA = {
+    "menu": ((110.0, 164.8, 220.0, 329.6), (98.0, 146.8, 196.0, 293.7)),
+    "misterio": ((82.4, 123.5, 164.8, 246.9), (77.8, 116.5, 155.6, 233.1)),
+    "ciudad": ((130.8, 196.0, 261.6, 392.0), (116.5, 174.6, 233.1, 349.2)),
+    "jefe": ((73.4, 110.0, 146.8, 220.0), (69.3, 103.8, 138.6, 207.7)),
+}
+SEGUNDOS_POR_ACORDE = 4.0
+AMPLITUD_MUSICA_SINTETIZADA = 0.07

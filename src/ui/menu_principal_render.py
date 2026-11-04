@@ -39,6 +39,7 @@ SUBTITULO = "UNA CIUDAD AL BORDE DEL COLAPSO"
 TITULOS_VISTA = {VISTA_EXTRAS: "EXTRAS", VISTA_CREDITOS: "CRÉDITOS"}
 ETIQUETA_ENGRANAJE = "AJUSTES"
 TEXTO_VOLVER = "VOLVER"
+TEXTO_VER_INTRO = "VER INTRODUCCIÓN"
 
 
 def espaciado(texto):
@@ -218,7 +219,7 @@ class VistaMenu:
                      assets.TAMANIO_FUENTE_GRANDE, negrita=True, ancla="center")
         y = panel.top + 82
         if vista == VISTA_EXTRAS:
-            dibujo.texto(pantalla, "CONTENIDO PENDIENTE", (panel.centerx, y), assets.COLOR_CIAN_NEON,
+            dibujo.texto(pantalla, "CINEMÁTICA DE INTRODUCCIÓN", (panel.centerx, y), assets.COLOR_CIAN_NEON,
                          assets.TAMANIO_FUENTE_MEDIA, negrita=True, ancla="center")
             y += 44
             for linea in TEXTO_EXTRAS:
@@ -235,7 +236,7 @@ class VistaMenu:
                              assets.TAMANIO_FUENTE_NORMAL, ancla="midleft")
                 y += 30
         boton = rect_boton_volver(self.tamanio)
-        texto = espaciado(TEXTO_VOLVER)
+        texto = espaciado(TEXTO_VER_INTRO if vista == VISTA_EXTRAS else TEXTO_VOLVER)
         brillo = _brillo_texto(texto, assets.TAMANIO_FUENTE_MENU)
         pantalla.blit(brillo, brillo.get_rect(center=boton.center))
         dibujo.texto(pantalla, texto, boton.center, assets.COLOR_MENU_SELECCION, assets.TAMANIO_FUENTE_MENU,

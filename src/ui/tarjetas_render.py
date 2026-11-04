@@ -16,7 +16,7 @@ import pygame
 
 from src.core import assets
 from src.story.escenarios import NOMBRES_ESTADO_EVIDENCIA, SIN_PRUEBAS
-from src.ui import dibujo, sprites
+from src.ui import dibujo, layout, sprites
 
 TEXTO_PISTA = "PISTA NOVA_404"
 TEXTO_EVIDENCIA = "Evidencia encontrada"
@@ -43,8 +43,11 @@ def dibujar_tarjeta_publicacion(pantalla, rect, post, estado_evidencia=None, chi
     for i, (ancho, alto) in enumerate(((120, 6), (80, 10), (170, 6), (60, 6))):
         linea = pygame.Rect(imagen.left + (8 if i % 2 == 0 else 24), imagen.top + 12 + i * 20, ancho, alto)
         pygame.draw.rect(pantalla, assets.COLOR_MAGENTA, linea)
-    dibujo.texto(pantalla, post.get("imagen", "[imagen]"), imagen.center, assets.COLOR_TEXTO_HUD,
-                 assets.TAMANIO_FUENTE_PEQUENA, ancla="center")
+    # Pie de la imagen sobre una banda oscura, para que no se mezcle con las barras.
+    pie = pygame.Rect(imagen.left, imagen.bottom - 24, imagen.width, 24)
+    pygame.draw.rect(pantalla, assets.COLOR_FONDO, pie, border_bottom_left_radius=3, border_bottom_right_radius=3)
+    layout.texto_en_ancho(pantalla, post.get("imagen", "[imagen]"), pie.center, imagen.width - 12,
+                          assets.COLOR_TEXTO_HUD, assets.TAMANIO_FUENTE_PEQUENA, ancla="center")
     y = imagen.bottom + 16
     sello = dibujo.chip(pantalla, post.get("etiqueta", ""), (x, y), assets.COLOR_MAGENTA, (252, 232, 238),
                         assets.COLOR_MAGENTA, alto=24)
@@ -72,8 +75,8 @@ def dibujar_tarjeta_evidencia(pantalla, rect, evidencia, indice=None, total=None
                  assets.TAMANIO_FUENTE_NORMAL, negrita=True)
     dibujo.texto(pantalla, f"Fuente: {evidencia['fuente']}", (x, rect.top + 46), assets.COLOR_FUENTE_EVIDENCIA,
                  assets.TAMANIO_FUENTE_PEQUENA)
-    dibujo.parrafo(pantalla, f"“{evidencia['fragmento']}”", (x, rect.top + 64), rect.width - 28,
-                   assets.COLOR_TITULO_EVIDENCIA, assets.TAMANIO_FUENTE_PEQUENA, interlineado=3)
+    layout.parrafo_en_caja(pantalla, f"“{evidencia['fragmento']}”", (x, rect.top + 64, rect.width - 28, rect.height - 70),
+                           assets.COLOR_TITULO_EVIDENCIA, assets.TAMANIO_FUENTE_PEQUENA, interlineado=3)
     return rect
 
 

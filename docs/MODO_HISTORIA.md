@@ -8,11 +8,27 @@ No reemplaza nada: añade lógica pura en `src/story/`, contenido en
 Simulación ficticia con fines educativos. Candidatos, cuentas, ciudadanos y
 hechos son inventados.
 
+## Presentación cinematográfica (3 nov 2026)
+
+| Momento | Qué se ve | Archivos |
+|---|---|---|
+| Partida nueva | **Cinemática de introducción** (≈40 s, 8 tomas + pantalla de objetivos): Ciudad Nova, la red Civitas con notificaciones, el caos de posts falsos multiplicándose, la amenaza de NOVA_404 con glitch, el mensaje urgente, el protagonista (retrato y línea por rol), tu papel según el rol, el título y «TU MISIÓN» con el botón COMENZAR MISIÓN. Enter pasa de toma, Esc salta a los objetivos. | `src/story/cinematica.py` (puro), `src/ui/cinematica_render.py`, `content/campaign.json` → `cinematica_intro`, `objetivos_intro`, `intro_rol` |
+| EXTRAS (menú) | **Ver introducción** otra vez, sin tocar la partida. | `menu_principal.VER_INTRO`, `Main._reproducir_cinematica` |
+| Entrar a una zona | **Tarjeta de capítulo** («CAPÍTULO 1 · EL RUMOR») y luego el diálogo de siempre (con variante por rol en el cap. 1). | `Campania.presentacion_zona` |
+| Alcaldía | **Cinemática de entrada al jefe** (4 tomas, cambia con las pistas) en vez del diálogo. | `cinematica.guion_entrada_jefe` |
+| Siempre | **Panel MISIÓN ACTUAL** (ciudad: bajo el cintillo; combate: abajo a la izquierda, compacto) con objetivos y progreso real («Pruebas 2/3»), aviso «Objetivo completado» con sonido. La misión se deriva del estado cada frame: no es estado nuevo. | `src/story/misiones.py` (puro), `src/ui/mision_render.py` |
+| Jefe derrotado | **Caída del servidor** (3 tomas) → panel de victoria → **elecciones con escrutinio animado** → Enter → **cinemática del final** (tarjeta + texto, fondo según el final) → elecciones con el epílogo → Enter vuelve a la ciudad. | `guion_caida_servidor`, `guion_final`, `elecciones_render` |
+| Colapso 100 % | Toma de NOVA_404 antes del panel de derrota. | `guion_derrota_global` |
+| Audio | Música ambiental sintetizada por escena (menú, ciudad, misterio, jefe) y efectos nuevos (notificación, evidencia, misión, viral, transición, victoria, derrota, glitch). Archivos opcionales en `assets/musica/` y `assets/sonidos/`. | `src/core/audio.py`, `assets.RUTAS_MUSICA`, `TONOS_SONIDOS` |
+| Interfaz | Capa común `src/ui/layout.py`: zona segura, texto que siempre cabe (wrap → reduce → «…»), un único modal prioritario (cinemática > diálogo > ayuda > estado), animación de entrada de paneles. Correcciones: nodos del árbol de 3 líneas, leyenda bajo el panel, pie de imagen de la tarjeta, grafo social más chico, nota de elecciones ajustada, tarjeta de evidencia a 2 líneas. | `layout.py`, renders de la historia |
+
+Validación visual: 57 capturas headless (SDL dummy) en `docs/capturas/historia/` generadas conduciendo `Main.main()` con eventos programados (01-30) y con render directo (40-49). No se abrió ventana real en esta sesión.
+
 ## Qué se puede jugar
 
 | Paso | Qué pasa | Teclas |
 |---|---|---|
-| Partida nueva | **Prólogo** (5 pantallas, variante de texto por rol). | Enter avanza · Esc salta |
+| Partida nueva | **Cinemática de introducción** (ver arriba; el prólogo en texto queda en el JSON como respaldo). | Enter avanza · Esc salta |
 | Ciudad Nova | Caminar, ruta sugerida, mapa, **I** estado de la ciudad, **H** ayuda. Cintillo con eventos. | WASD · E · G · TAB · M · I · H |
 | Entrar a una zona | **Intro del capítulo** (una vez por zona). El Periodista recibe una prueba al entrar. | Enter / Esc |
 | Mazmorra | Combate de siempre. **Cada cuarto limpio revela una evidencia** (tarjeta 6 s). La 3.ª de cada zona es una **pista de NOVA_404**. | combate normal |

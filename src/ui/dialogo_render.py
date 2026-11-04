@@ -14,14 +14,15 @@ import math
 import pygame
 
 from src.core import assets
-from src.ui import dibujo, sprites
+from src.ui import dibujo, layout, sprites
 
 TEXTO_CONTINUAR = "Enter: continuar"
 TEXTO_SALTAR = "Esc: saltar"
 TEXTO_FIN = "Enter: empezar"
 
 
-def dibujar_dialogo(pantalla, dialogo, tiempo=0.0):
+def dibujar_dialogo(pantalla, dialogo, tiempo=0.0, transcurrido=1.0):
+    """`transcurrido`: s desde que se abrió el diálogo (el panel entra deslizándose)."""
     linea = dialogo.actual
     if linea is None:
         return
@@ -40,7 +41,7 @@ def dibujar_dialogo(pantalla, dialogo, tiempo=0.0):
                     assets.COLOR_FONDO_DIALOGO, assets.COLOR_TITULO_DIALOGO, assets.TAMANIO_FUENTE_MEDIA,
                     ancla="center", alto=34, margen=18)
 
-    panel = dibujo.panel(pantalla, assets.RECT_PANEL_DIALOGO, assets.COLOR_FONDO_DIALOGO,
+    panel = dibujo.panel(pantalla, layout.entrada(assets.RECT_PANEL_DIALOGO, transcurrido), assets.COLOR_FONDO_DIALOGO,
                          assets.COLOR_BORDE_DIALOGO, 2, radio=10)
     retrato = _retrato(linea.retrato, assets.ALTO_RETRATO_DIALOGO)
     x_texto = panel.left + 24
@@ -50,8 +51,9 @@ def dibujar_dialogo(pantalla, dialogo, tiempo=0.0):
 
     dibujo.texto(pantalla, linea.hablante, (x_texto, panel.top + 18), assets.COLOR_NOMBRE_DIALOGO,
                  assets.TAMANIO_FUENTE_MEDIA, negrita=True)
-    dibujo.parrafo(pantalla, linea.texto, (x_texto, panel.top + 50), panel.right - 24 - x_texto,
-                   assets.COLOR_TEXTO_HUD, assets.TAMANIO_FUENTE_MEDIA, interlineado=6)
+    caja = pygame.Rect(x_texto, panel.top + 50, panel.right - 24 - x_texto, panel.height - 50 - 44)
+    layout.parrafo_en_caja(pantalla, linea.texto, caja, assets.COLOR_TEXTO_HUD, assets.TAMANIO_FUENTE_MEDIA,
+                           interlineado=6)
 
     actual, total = dialogo.progreso
     dibujo.texto(pantalla, f"{actual}/{total}", (panel.right - 20, panel.top + 18), assets.COLOR_TEXTO_SECUNDARIO,

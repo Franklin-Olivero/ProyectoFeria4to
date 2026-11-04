@@ -46,6 +46,7 @@ from src.core.balance import (
 )
 from src.core.assets import FONDO_POR_ZONA, FONDO_PROLOGO
 from src.story import contenido as contenido_mod
+from src.story.cinematica import guion_entrada_jefe, guion_intro, tarjeta_capitulo
 from src.story.dialogo import DialogoSecuencia
 from src.story.escenarios import EscenarioDecision, estado_evidencia
 from src.story.estado_ciudad import EstadoCiudad
@@ -104,6 +105,35 @@ class Campania:
         self.prologo_visto = True
         return DialogoSecuencia(self.contenido["prologo"], rol, nombre_rol, len(self.pistas),
                                 titulo=self.contenido["titulo"], fondo=FONDO_PROLOGO)
+
+    def cinematica_intro(self, rol=None, nombre_rol="Tú"):
+        """La cinemática inicial la primera vez (reemplaza al prólogo en
+        texto: ambos cuentan como "prólogo visto"); después None."""
+        if self.prologo_visto:
+            return None
+        self.prologo_visto = True
+        return guion_intro(self.contenido, rol, nombre_rol)
+
+    def cinematica_intro_repetida(self, rol=None, nombre_rol="Tú"):
+        """Para volver a ver la introducción (EXTRAS): no cambia el estado."""
+        return guion_intro(self.contenido, rol, nombre_rol)
+
+    def texto_intro_rol(self, rol):
+        return self.contenido.get("intro_rol", {}).get(rol)
+
+    def presentacion_zona(self, zona, rol=None, nombre_rol="Tú"):
+        """(cinemática, diálogo) al entrar a `zona` la primera vez: la
+        tarjeta del capítulo y luego su diálogo; en la Alcaldía, la
+        cinemática de entrada al jefe sin diálogo. (None, None) si ya se vio."""
+        capitulo = self.contenido["capitulos"].get(zona)
+        if capitulo is None or zona in self.intros_vistas:
+            return None, None
+        numero = capitulo.get("numero", 0)
+        if numero >= 4:
+            self.intros_vistas.add(zona)
+            return guion_entrada_jefe(len(self.pistas), self.total_pistas()), None
+        tarjeta = tarjeta_capitulo(numero, capitulo["titulo"], zona)
+        return tarjeta, self.dialogo_capitulo(zona, rol, nombre_rol)
 
     def dialogo_capitulo(self, zona, rol=None, nombre_rol="Tú"):
         """La intro del capítulo de `zona` la primera vez que se entra;

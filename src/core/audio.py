@@ -17,6 +17,7 @@ sigue funcionando y simplemente no suena nada.
 """
 
 import array
+import math
 import os
 
 import pygame
@@ -40,16 +41,52 @@ class Audio:
                 self._efectos[nombre] = _cargar_o_sintetizar(assets.RUTAS_SONIDOS.get(nombre), frecuencias, duracion)
             self._efectos = {nombre: sonido for nombre, sonido in self._efectos.items() if sonido is not None}
             self.hay_musica = _iniciar_musica(assets.RUTA_MUSICA_MENU)
+        self._pistas = {}  # nombre -> Sound sintetizado (bucle ambiental)
+        self._pista_actual = None
+        self._canal_musica = None
+        self._volumen_musica = 0.0
         self.aplicar(preferencias)
 
     def aplicar(self, preferencias):
         """Aplica los volúmenes al instante (se llama al mover un slider)."""
         if not self.disponible:
             return
-        pygame.mixer.music.set_volume(a_volumen_mixer(preferencias.volumen_musica))
+        self._volumen_musica = a_volumen_mixer(preferencias.volumen_musica)
+        pygame.mixer.music.set_volume(self._volumen_musica)
+        if self._canal_musica is not None:
+            self._canal_musica.set_volume(self._volumen_musica)
         volumen = a_volumen_mixer(preferencias.volumen_efectos)
         for sonido in self._efectos.values():
             sonido.set_volume(volumen)
+
+    def musica(self, nombre):
+        """Cambia la pista ambiental ("menu", "ciudad", "misterio", "jefe").
+        Si existe el archivo de assets.RUTAS_MUSICA se usa; si no, suena un
+        colchón de acordes sintetizado (assets.ACORDES_MUSICA) en bucle.
+        Repetir la pista actual no la reinicia. None detiene la música."""
+        if not self.disponible or nombre == self._pista_actual:
+            return
+        self._pista_actual = nombre
+        pygame.mixer.music.stop()
+        if self._canal_musica is not None:
+            self._canal_musica.fadeout(600)
+            self._canal_musica = None
+        if nombre is None:
+            return
+        ruta = assets.RUTAS_MUSICA.get(nombre)
+        if ruta and os.path.exists(ruta) and _iniciar_musica(ruta):
+            self.hay_musica = True
+            return
+        acordes = assets.ACORDES_MUSICA.get(nombre)
+        if acordes is None:
+            return
+        if nombre not in self._pistas:
+            self._pistas[nombre] = _sintetizar_colchon(acordes)
+        pista = self._pistas[nombre]
+        if pista is None:
+            return
+        pista.set_volume(self._volumen_musica)
+        self._canal_musica = pista.play(loops=-1, fade_ms=800)
 
     def reproducir(self, nombre):
         """Reproduce el efecto `nombre` (o nada si no existe). Lo corta si
@@ -105,4 +142,28 @@ def _sintetizar(frecuencias, duracion):
             caida = 1 - i / por_nota
             valor = amplitud if (i % periodo) < periodo / 2 else -amplitud
             muestras.extend([int(valor * caida)] * canales)
+    return pygame.mixer.Sound(buffer=muestras.tobytes())
+
+
+def _sintetizar_colchon(acordes, segundos_por_acorde=assets.SEGUNDOS_POR_ACORDE):
+    """Colchón ambiental: para cada acorde, la suma de sus senos con una
+    envolvente que entra y sale suave (así el bucle no hace clic). Se
+    calcula a la mitad de la frecuencia de muestreo y se duplica cada
+    muestra: es un fondo grave y lento, no necesita más. None si el
+    mezclador no usa 16 bits."""
+    frecuencia_muestreo, formato, canales = pygame.mixer.get_init()
+    if formato != -16:
+        return None
+    paso = 2
+    por_acorde = int(frecuencia_muestreo * segundos_por_acorde) // paso
+    amplitud = 32767 * assets.AMPLITUD_MUSICA_SINTETIZADA
+    muestras = array.array("h")
+    for acorde in acordes:
+        fases = [2 * math.pi * f / (frecuencia_muestreo / paso) for f in acorde]
+        for i in range(por_acorde):
+            borde = min(1.0, i / (por_acorde * 0.15), (por_acorde - i) / (por_acorde * 0.15))
+            valor = sum(math.sin(fase * i) * (1.0 if n == 0 else 0.6) for n, fase in enumerate(fases))
+            valor += 0.25 * math.sin(fases[0] * i * 0.5)  # subgrave
+            v = int(amplitud * borde * valor / (len(fases) + 0.25))
+            muestras.extend([v] * (canales * paso))
     return pygame.mixer.Sound(buffer=muestras.tobytes())

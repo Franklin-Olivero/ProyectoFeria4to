@@ -86,6 +86,22 @@ def validar(datos):
         if not isinstance(final, dict) or "titulo" not in final or "texto" not in final:
             raise ContenidoInvalido(f"El final {clave!r} necesita 'titulo' y 'texto'.")
     _validar_candidatos(datos["candidatos"])
+    _validar_cinematica(datos.get("cinematica_intro", []))
+    if not isinstance(datos.get("objetivos_intro", []), list):
+        raise ContenidoInvalido("objetivos_intro debe ser una lista de textos.")
+
+
+def _validar_cinematica(tomas):
+    """Cada toma necesita id único y duración numérica (0 = espera Enter)."""
+    ids = set()
+    for numero, toma in enumerate(tomas):
+        if "id" not in toma:
+            raise ContenidoInvalido(f"cinematica_intro[{numero}]: falta 'id'.")
+        if toma["id"] in ids:
+            raise ContenidoInvalido(f"cinematica_intro: id repetido {toma['id']!r}.")
+        ids.add(toma["id"])
+        if not isinstance(toma.get("duracion", 5.0), (int, float)):
+            raise ContenidoInvalido(f"cinematica_intro[{toma['id']}]: 'duracion' debe ser un número.")
 
 
 def _validar_dialogo(lineas, donde):

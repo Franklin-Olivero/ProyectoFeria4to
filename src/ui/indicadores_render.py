@@ -13,14 +13,14 @@ import pygame
 
 from src.core import assets
 from src.story.estado_ciudad import NOMBRES_INDICADORES
-from src.ui import dibujo
+from src.ui import dibujo, layout
 
 TITULO_PANEL = "Estado de Ciudad Nova"
 TEXTO_CERRAR = "I: cerrar"
 
 
-def dibujar_panel_estado(pantalla, campania, rect=assets.RECT_PANEL_ESTADO, mostrar_cerrar=True):
-    rect = pygame.Rect(rect)
+def dibujar_panel_estado(pantalla, campania, rect=assets.RECT_PANEL_ESTADO, mostrar_cerrar=True, transcurrido=1.0):
+    rect = layout.entrada(rect, transcurrido, desde="derecha")
     dibujo.panel_alfa(pantalla, rect, assets.COLOR_FONDO_PANEL_ESTADO, radio=10)
     dibujo.panel(pantalla, rect, None, assets.COLOR_BORDE_PANEL, 1, radio=10)
     x = rect.left + 24

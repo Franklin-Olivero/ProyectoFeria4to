@@ -8,7 +8,7 @@ Texto fijo en español; no modifica ningún estado.
 import pygame
 
 from src.core import assets
-from src.ui import dibujo
+from src.ui import dibujo, layout
 
 TITULO = "Ayuda · Civitas: Código Nova"
 SECCIONES = [
@@ -42,8 +42,8 @@ SECCIONES = [
 TEXTO_CERRAR = "H o Esc: cerrar"
 
 
-def dibujar_ayuda(pantalla):
-    rect = pygame.Rect(assets.RECT_PANEL_AYUDA)
+def dibujar_ayuda(pantalla, transcurrido=1.0):
+    rect = layout.entrada(assets.RECT_PANEL_AYUDA, transcurrido)
     dibujo.panel_alfa(pantalla, rect, assets.COLOR_FONDO_AYUDA, radio=10)
     dibujo.panel(pantalla, rect, None, assets.COLOR_BORDE_PANEL, 1, radio=10)
     x, y = rect.left + 28, rect.top + 18
@@ -53,7 +53,6 @@ def dibujar_ayuda(pantalla):
     for titulo, lineas in SECCIONES:
         dibujo.texto(pantalla, titulo, (x, y), assets.COLOR_TEAL, assets.TAMANIO_FUENTE_NORMAL, negrita=True)
         y += 22
-        for linea in lineas:
-            dibujo.texto(pantalla, linea, (x, y), assets.COLOR_TEXTO_HUD, assets.TAMANIO_FUENTE_PEQUENA)
-            y += 18
-        y += 10
+        y = layout.parrafo_en_caja(pantalla, " ".join(lineas), (x, y, rect.width - 56, 18 * len(lineas) + 20),
+                                   assets.COLOR_TEXTO_HUD, assets.TAMANIO_FUENTE_PEQUENA, interlineado=5)
+        y += 8

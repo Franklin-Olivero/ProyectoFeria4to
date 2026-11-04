@@ -47,9 +47,10 @@ VISTA_CREDITOS = "creditos"
 
 TEXTO_SIN_PARTIDA = "SIN PARTIDA EN CURSO"
 TEXTO_EXTRAS = (
-    "Contenido adicional en preparación.",
-    "Aquí llegarán galerías, logros y modos extra más adelante.",
+    "Vuelve a ver la introducción cinematográfica de Código Nova.",
+    "Enter o ✕: ver la introducción   ·   Esc u ○: volver",
 )
+VER_INTRO = "VER_INTRO"  # acción que Main.py atiende desde EXTRAS
 # Solo datos presentes en el repositorio; los integrantes se agregan aquí.
 LINEAS_CREDITOS = (
     ("Proyecto", "Estructura de Datos II · Ingeniería de Sistemas"),
@@ -94,7 +95,12 @@ class MenuPrincipal:
                 self.cerrar_ajustes()
             return sonido
         if self.vista != VISTA_MENU:
-            # Vistas secundarias: un único botón VOLVER.
+            # Vistas secundarias: VOLVER cierra; en EXTRAS, CONFIRMAR pide
+            # ver la introducción (actualizar() devuelve VER_INTRO).
+            if accion == CONFIRMAR and self.vista == VISTA_EXTRAS:
+                self.vista = VISTA_MENU
+                self.pedido_intro = True
+                return SONIDO_CONFIRMAR
             if accion in (CONFIRMAR, VOLVER):
                 self.volver_al_menu()
                 return SONIDO_VOLVER
@@ -129,8 +135,11 @@ class MenuPrincipal:
         return SONIDO_CONFIRMAR
 
     def actualizar(self, dt):
-        """Avanza la animación de pulsado. Retorna JUGAR, CONTINUAR o SALIR
-        cuando el menú debe terminar; si no, None."""
+        """Avanza la animación de pulsado. Retorna JUGAR, CONTINUAR, SALIR
+        (o VER_INTRO desde EXTRAS) cuando el menú debe terminar; si no, None."""
+        if getattr(self, "pedido_intro", False):
+            self.pedido_intro = False
+            return VER_INTRO
         if self.pulsado is None:
             return None
         self.tiempo_pulsado -= dt
