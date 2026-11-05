@@ -1,26 +1,27 @@
 """Dibujo de la terminal de decisión con Pygame (solo presentación).
 
-Lee el estado de una TerminalDecision (src/ui/terminal_decision.py) y
-lo pinta a pantalla completa:
-    - título, subtítulo y reloj grande con barra de tiempo;
-    - la tarjeta de la publicación viral (la situación a decidir);
-    - el árbol N-ario como diagrama: el camino recorrido resaltado, los
-      hijos del nodo actual como opciones elegibles (la seleccionada en
-      teal), las ramas no abiertas apagadas y las hojas de resultado
-      como vista previa con línea discontinua;
-    - las migas de pan del camino y la leyenda.
-No modifica la terminal. El diagrama es genérico: funciona con
-cualquier árbol que construya la lógica.
+El momento central de cada mazmorra. A la izquierda la publicación tal como
+circula, con su fuente; a la derecha las pruebas que el jugador alcanzó a
+reunir (las que faltan se ven como huecos); abajo las opciones del nodo actual
+del árbol N-ario como tarjetas grandes.
+
+Regla de diseño: nada delata la respuesta. El foco es siempre violeta, las
+opciones no tienen colores de "bien o mal" y el diagrama del árbol muestra
+las ramas abiertas pero NUNCA a qué resultado lleva una hoja. El árbol sigue
+siendo el real (src/structures/tree.py): el mini diagrama lee el mismo
+ArbolDecision que navega la TerminalDecision.
+
+Funciona también con el árbol fijo (sin escenario de campaña): usa la
+publicación PUBLICACION de este módulo.
 """
 
 import pygame
 
 from src.core import assets
-from src.ui import dibujo, tarjetas_render
-from src.ui.fuentes import fuente
+from src.ui import dibujo, kit, layout, tarjetas_render
 from src.ui.terminal_decision import DETONACION, PURIFICACION_EXITOSA
 
-TITULO = "Terminal de decisión"
+TITULO = "Terminal Civitas"
 
 # Contenido fijo de la tarjeta (presentación de la situación "Publicación Viral").
 PUBLICACION = {
@@ -33,281 +34,173 @@ PUBLICACION = {
     "comentarios": "3.1 mil comentarios",
 }
 
-LEYENDA = [
-    ("Camino recorrido", assets.COLOR_NODO_RECORRIDO, assets.COLOR_BORDE_RECORRIDO),
-    ("Nodo elegible ahora", assets.COLOR_NODO_ELEGIBLE, assets.COLOR_NODO_ELEGIBLE),
-    ("Rama sin abrir", assets.COLOR_NODO_CERRADO, assets.COLOR_BORDE_CERRADO),
-    ("Resultado final (hoja)", assets.COLOR_FONDO_PANEL, assets.COLOR_MAGENTA),
-]
-
-ESTADO_RECORRIDO = "recorrido"
-ESTADO_ELEGIBLE = "elegible"
-ESTADO_CERRADO = "cerrado"
-ESTADO_HOJA = "hoja"
+_RECT_POST = pygame.Rect(40, 96, 380, 400)
+_RECT_PRUEBAS = pygame.Rect(436, 96, 804, 300)
+_RECT_ARBOL = pygame.Rect(436, 404, 804, 92)
+_RECT_OPCIONES = pygame.Rect(40, 508, 1200, 148)
+_ETIQUETAS_FUENTE = {"conocida": "Fuente conocida", "desconocida": "Fuente desconocida"}
+_HOJAS = (PURIFICACION_EXITOSA, DETONACION)
 
 
 def dibujar_terminal(pantalla, terminal, subtitulo="", post=None, estado_evidencia=None,
-                     evidencias=None, total_evidencias=0):
-    """`post` es la publicación a mostrar (modo historia; None = la
-    fija PUBLICACION), `estado_evidencia` el sello de la tarjeta y
-    `evidencias` las pruebas reveladas de la zona (lista compacta bajo
-    el árbol)."""
-    pantalla.fill(assets.COLOR_FONDO_TERMINAL)
-    _dibujar_cuadricula(pantalla)
-    dibujo.texto(pantalla, TITULO, (40, 36), assets.COLOR_TEXTO_HUD, assets.TAMANIO_FUENTE_GRANDE, negrita=True)
-    if subtitulo:
-        dibujo.texto(pantalla, subtitulo, (40, 82), assets.COLOR_TEXTO_SECUNDARIO, assets.TAMANIO_FUENTE_NORMAL)
-
+                     evidencias=None, total_evidencias=0, verificacion="", exige_mas_pruebas=False, tiempo=0.0,
+                     nota_decisor=""):
+    """`post`: publicación (modo historia; None = la fija PUBLICACION);
+    `evidencias`: pruebas reveladas de la zona; `verificacion`: lo que
+    descubre el jugador al elegir Verificar; `exige_mas_pruebas`: con
+    reputación cuestionada, la ciudad ya no acepta pruebas parciales."""
+    pantalla.fill(assets.COLOR_NOCHE)
+    _fondo_terminal(pantalla)
+    kit.rotulo(pantalla, TITULO, (40, 22), assets.COLOR_CIVITAS)
+    layout.texto_en_ancho(pantalla, subtitulo or "Decide qué hacer con esta publicación", (40, 42), 800,
+                          assets.COLOR_TEXTO_HUD, assets.TAMANIO_FUENTE_MEDIA, negrita=True)
+    if nota_decisor:
+        kit.rotulo(pantalla, nota_decisor, (40, 70), assets.COLOR_ALERTA)
     _dibujar_reloj(pantalla, terminal)
-    _dibujar_tarjeta(pantalla, post, estado_evidencia)
+    tarjetas_render.dibujar_tarjeta_publicacion(pantalla, _RECT_POST, post if post is not None else PUBLICACION, None,
+                                                chip=_texto_fuente(post))
+    _dibujar_pruebas(pantalla, evidencias, total_evidencias, post, estado_evidencia, exige_mas_pruebas)
     _dibujar_arbol(pantalla, terminal)
-    _dibujar_migas(pantalla, terminal)
-    if evidencias is not None and total_evidencias:
-        # Entre el título y el reloj, sobre el panel del árbol.
-        tarjetas_render.dibujar_lista_evidencias(pantalla, assets.POSICION_PRUEBAS_TERMINAL, evidencias,
-                                                 total_evidencias, assets.ANCHO_PRUEBAS_TERMINAL)
+    _dibujar_opciones(pantalla, terminal, verificacion, tiempo)
 
 
-def _dibujar_cuadricula(pantalla):
-    """Cuadrícula tenue de fondo, como una pantalla de consola."""
-    paso = 40
-    color = (22, 20, 46)
-    for x in range(0, pantalla.get_width(), paso):
-        pygame.draw.line(pantalla, color, (x, 0), (x, pantalla.get_height()))
-    for y in range(0, pantalla.get_height(), paso):
-        pygame.draw.line(pantalla, color, (0, y), (pantalla.get_width(), y))
+def _texto_fuente(post):
+    fuente_post = (post or {}).get("fuente") or {}
+    return _ETIQUETAS_FUENTE.get(fuente_post.get("tipo"), "Publicación en Civitas")
+
+
+def _fondo_terminal(pantalla):
+    """Trama tenue y una franja de luz: la pantalla de una consola."""
+    paso = 32
+    ancho, alto = pantalla.get_size()
+    for x in range(0, ancho, paso):
+        pygame.draw.line(pantalla, assets.COLOR_TRAMA_TERMINAL, (x, 0), (x, alto))
+    for y in range(0, alto, paso):
+        pygame.draw.line(pantalla, assets.COLOR_TRAMA_TERMINAL, (0, y), (ancho, y))
 
 
 def _dibujar_reloj(pantalla, terminal):
-    x, y = assets.POSICION_TIEMPO_TERMINAL
-    dibujo.texto(pantalla, "Tiempo restante", (x, y - 34), assets.COLOR_TEXTO_SECUNDARIO,
-                 assets.TAMANIO_FUENTE_PEQUENA, ancla="midright")
-    dibujo.texto(pantalla, f"{terminal.tiempo_restante:.1f} s", (x, y + 4), assets.COLOR_TIEMPO_TERMINAL,
-                 assets.TAMANIO_FUENTE_ENORME, negrita=True, ancla="midright")
-    rect = pygame.Rect(assets.RECT_BARRA_TIEMPO)
-    fraccion = terminal.tiempo_restante / terminal.duracion if terminal.duracion else 0
-    dibujo.barra(pantalla, rect, fraccion, assets.COLOR_TIEMPO_TERMINAL, borde=assets.COLOR_TIEMPO_TERMINAL)
-    for i in range(1, 10):  # marcas cada 10 %
-        mx = rect.left + rect.width * i // 10
-        pygame.draw.line(pantalla, assets.COLOR_FONDO, (mx, rect.top + 2), (mx, rect.bottom - 2), 1)
+    """Reloj discreto: presiona sin gritar. Solo se vuelve ámbar y rojo al final."""
+    restante = terminal.tiempo_restante
+    fraccion = restante / terminal.duracion if terminal.duracion else 0
+    color = assets.COLOR_GRAVE if restante <= 5 else assets.COLOR_ALERTA if restante <= 12 else assets.COLOR_TEXTO_HUD
+    x = pantalla.get_width() - 40
+    kit.rotulo(pantalla, "Tiempo para decidir", (x, 22), assets.COLOR_TEXTO_SECUNDARIO, ancla="topright")
+    dibujo.texto(pantalla, f"{restante:0.0f} s", (x, 40), color, assets.TAMANIO_FUENTE_TITULO, negrita=True, ancla="topright")
+    barra = pygame.Rect(x - 280, 74, 280, 5)
+    pygame.draw.rect(pantalla, assets.COLOR_FONDO_BARRA, barra, border_radius=2)
+    pygame.draw.rect(pantalla, color, (barra.left, barra.top, round(barra.width * fraccion), barra.height), border_radius=2)
 
 
-def _dibujar_tarjeta(pantalla, post=None, estado_evidencia=None):
-    tarjetas_render.dibujar_tarjeta_publicacion(
-        pantalla, assets.RECT_TARJETA_PUBLICACION, post if post is not None else PUBLICACION,
-        estado_evidencia, chip="Publicación viral",
-    )
+def _dibujar_pruebas(pantalla, evidencias, total, post, estado, exige_mas_pruebas):
+    kit.panel(pantalla, _RECT_PRUEBAS, assets.COLOR_VERIFICADO)
+    x = _RECT_PRUEBAS.left + 22
+    y = _RECT_PRUEBAS.top + 14
+    evidencias = evidencias or []
+    kit.rotulo(pantalla, f"Pruebas reunidas · {len(evidencias)} de {total}", (x, y), assets.COLOR_VERIFICADO)
+    fuente_post = (post or {}).get("fuente") or {}
+    if fuente_post.get("detalle"):
+        layout.texto_en_ancho(pantalla, fuente_post["detalle"], (_RECT_PRUEBAS.right - 22, y), 500, assets.COLOR_TEXTO_SECUNDARIO,
+                              assets.TAMANIO_FUENTE_PEQUENA, ancla="topright", minimo=11)
+    y += 28
+    alto = (_RECT_PRUEBAS.bottom - y - 12 - 10 * max(0, total - 1)) // max(1, total)
+    for indice in range(total):
+        fila = pygame.Rect(x, y + indice * (alto + 10), _RECT_PRUEBAS.width - 44, alto)
+        if indice < len(evidencias):
+            _prueba(pantalla, fila, evidencias[indice])
+        else:
+            dibujo.panel(pantalla, fila, None, assets.COLOR_BORDE_VIDRIO, 1, radio=6)
+            dibujo.texto(pantalla, "Prueba no encontrada", (fila.left + 14, fila.centery), assets.COLOR_TEXTO_APAGADO,
+                         assets.TAMANIO_FUENTE_NORMAL, ancla="midleft")
+    if exige_mas_pruebas:
+        kit.rotulo(pantalla, "Por tu reputación, la ciudad ya no acepta pruebas parciales", (x, _RECT_PRUEBAS.bottom - 18),
+                   assets.COLOR_ALERTA)
+
+
+def _prueba(pantalla, fila, evidencia):
+    dibujo.panel(pantalla, fila, assets.COLOR_OPCION_FONDO, assets.COLOR_BORDE_VIDRIO, 1, radio=6)
+    layout.texto_en_ancho(pantalla, f"{evidencia['titulo']}  ·  {evidencia['fuente']}", (fila.left + 14, fila.top + 7), fila.width - 28,
+                          assets.COLOR_TEXTO_HUD, assets.TAMANIO_FUENTE_PEQUENA, negrita=True, minimo=11)
+    layout.parrafo_en_caja(pantalla, evidencia["fragmento"], pygame.Rect(fila.left + 14, fila.top + 26, fila.width - 28, fila.height - 30),
+                           assets.COLOR_TEXTO_SECUNDARIO, assets.TAMANIO_FUENTE_PEQUENA, interlineado=2)
 
 
 # ----------------------------------------------------------------------
-# Diagrama del árbol
+# Diagrama compacto del árbol (real, sin revelar resultados)
 # ----------------------------------------------------------------------
 
 
-def _nodos_visibles(terminal):
-    """Decide qué nodos se dibujan y con qué estado.
-
-    Se muestran: el camino raíz -> nodo actual, los hermanos de cada
-    nodo del camino (cerrados), los hijos del nodo actual (elegibles) y
-    los hijos de esos (vista previa como hojas). Retorna
-    {nodo: estado} y el diccionario {nodo: padre}.
-    """
-    camino = terminal.camino()
-    en_camino = set(id(n) for n in camino)
-    estados, padres = {}, {}
-
-    def registrar(nodo, padre, estado):
-        estados[id(nodo)] = (nodo, estado)
-        padres[id(nodo)] = padre
-
-    registrar(camino[0], None, ESTADO_RECORRIDO)
-    for padre in camino:
-        for hijo in padre.hijos:
-            if id(hijo) in en_camino:
-                registrar(hijo, padre, ESTADO_RECORRIDO)
-            elif padre is terminal.nodo_actual:
-                registrar(hijo, padre, ESTADO_ELEGIBLE)
-                for nieto in hijo.hijos:
-                    registrar(nieto, hijo, ESTADO_HOJA)
-            else:
-                registrar(hijo, padre, ESTADO_CERRADO)
-    return estados, padres
-
-
-def _posicionar(terminal, panel):
-    """Posición (centro) de cada nodo visible: por niveles, repartiendo
-    el ancho entre los subárboles visibles (cada hoja ocupa 1 unidad)."""
-    estados, padres = _nodos_visibles(terminal)
-    hijos_visibles = {}
-    for clave, (nodo, _) in estados.items():
-        padre = padres[clave]
-        if padre is not None:
-            hijos_visibles.setdefault(id(padre), []).append(nodo)
-
-    def unidades(nodo):
-        hijos = hijos_visibles.get(id(nodo), [])
-        return max(1, sum(unidades(h) for h in hijos))
-
-    raiz = terminal.arbol.raiz
-    total = unidades(raiz)
-    ancho_unidad = min(assets.ANCHO_NODO_HOJA + 20, (panel.width - 40) / total)
-    ancho_total = ancho_unidad * total
-    izquierda = panel.centerx - ancho_total / 2
-
-    niveles = {}
-
-    def profundidad(nodo, nivel=0):
-        niveles[id(nodo)] = nivel
-        for h in hijos_visibles.get(id(nodo), []):
-            profundidad(h, nivel + 1)
-
-    profundidad(raiz)
-    max_nivel = max(niveles.values())
-    paso_y = min(125, (panel.height - 110) / max(1, max_nivel))
-    posiciones = {}
-
-    def asignar(nodo, x0):
-        u = unidades(nodo)
-        posiciones[id(nodo)] = (round(x0 + u * ancho_unidad / 2), round(panel.top + 42 + niveles[id(nodo)] * paso_y))
-        x = x0
-        for h in hijos_visibles.get(id(nodo), []):
-            asignar(h, x)
-            x += unidades(h) * ancho_unidad
-
-    asignar(raiz, izquierda)
-    return estados, padres, posiciones, ancho_unidad
-
-
-def _rect_nodo(nodo, estado, centro, ancho_unidad, es_raiz=False):
-    """Rect del nodo: el ancho preferido por tipo, sin pasar del espacio
-    de su columna (el texto largo se parte en dos líneas). La raíz no
-    compite con nadie en su fila: puede ser tan ancha como su texto."""
-    ancho = assets.ANCHO_NODO_HOJA if estado == ESTADO_HOJA else assets.ANCHO_NODO_ARBOL
-    f = fuente(assets.TAMANIO_FUENTE_NORMAL, True)
-    ancho = max(ancho, f.size(str(nodo.etiqueta))[0] + 28)
-    if es_raiz:
-        ancho = min(ancho, assets.ANCHO_NODO_RAIZ)
-    else:
-        ancho = min(ancho, int(ancho_unidad) - 14)
-    # Si el texto necesita tres líneas, el nodo crece: nunca se dibuja cortado.
-    lineas = dibujo.ajustar_texto(str(nodo.etiqueta), assets.TAMANIO_FUENTE_NORMAL, ancho - 24, negrita=True)
-    alto = assets.ALTO_NODO_ARBOL if len(lineas) <= 2 else assets.ALTO_NODO_ARBOL_3_LINEAS
-    rect = pygame.Rect(0, 0, ancho, alto)
-    rect.center = centro
-    return rect
-
-
-def _curva(pantalla, color, inicio, fin, grosor, punteada=False):
-    """Curva suave (Bézier cúbica) de un nodo padre a un hijo."""
-    (x0, y0), (x1, y1) = inicio, fin
-    c0, c1 = (x0, y0 + (y1 - y0) * 0.5), (x1, y0 + (y1 - y0) * 0.5)
-    puntos = []
-    pasos = 24
-    for i in range(pasos + 1):
-        t = i / pasos
-        x = (1 - t) ** 3 * x0 + 3 * (1 - t) ** 2 * t * c0[0] + 3 * (1 - t) * t**2 * c1[0] + t**3 * x1
-        y = (1 - t) ** 3 * y0 + 3 * (1 - t) ** 2 * t * c0[1] + 3 * (1 - t) * t**2 * c1[1] + t**3 * y1
-        puntos.append((x, y))
-    if punteada:
-        for a, b in zip(puntos[::2], puntos[1::2]):
-            pygame.draw.line(pantalla, color, a, b, grosor)
-    else:
-        pygame.draw.lines(pantalla, color, False, puntos, grosor)
+def _rama_visible(nodo):
+    """Hijos que se dibujan: las hojas de resultado nunca se muestran."""
+    return [h for h in nodo.hijos if h.etiqueta not in _HOJAS]
 
 
 def _dibujar_arbol(pantalla, terminal):
-    panel = dibujo.panel(pantalla, assets.RECT_PANEL_ARBOL, assets.COLOR_FONDO_PANEL, assets.COLOR_BORDE_PANEL, 1)
-    estados, padres, posiciones, ancho_unidad = _posicionar(terminal, panel)
+    kit.panel(pantalla, _RECT_ARBOL, assets.COLOR_CIVITAS)
+    kit.rotulo(pantalla, "Árbol de decisión", (_RECT_ARBOL.left + 22, _RECT_ARBOL.top + 12), assets.COLOR_CIVITAS)
+    camino = terminal.camino()
+    en_camino = {id(n) for n in camino}
+    raiz = terminal.arbol.raiz
+    y_raiz, y_uno, y_dos = _RECT_ARBOL.top + 18, _RECT_ARBOL.top + 46, _RECT_ARBOL.top + 74
+    cx = _RECT_ARBOL.centerx
+    primeros = _rama_visible(raiz)
+    ancho = (_RECT_ARBOL.width - 80) / max(1, len(primeros))
+    pygame.draw.circle(pantalla, assets.COLOR_TEXTO_HUD, (cx, y_raiz), 6)
     seleccionado = terminal.hijo_seleccionado
-    rects = {
-        clave: _rect_nodo(nodo, estado, posiciones[clave], ancho_unidad, nodo is terminal.arbol.raiz)
-        for clave, (nodo, estado) in estados.items()
-    }
-
-    # Ramas primero, para que los nodos queden encima.
-    for clave, (nodo, estado) in estados.items():
-        padre = padres[clave]
-        if padre is None:
-            continue
-        rect, rect_padre = rects[clave], rects[id(padre)]
-        if estado == ESTADO_RECORRIDO:
-            color, grosor = assets.COLOR_RAMA_RECORRIDA, assets.GROSOR_RAMA_RECORRIDA
-        elif estado == ESTADO_ELEGIBLE and nodo is seleccionado:
-            color, grosor = assets.COLOR_RAMA_RECORRIDA, assets.GROSOR_RAMA
-        else:
-            color, grosor = assets.COLOR_RAMA, assets.GROSOR_RAMA
-        _curva(pantalla, color, rect_padre.midbottom, rect.midtop, grosor, punteada=estado == ESTADO_HOJA)
-
-    for clave, (nodo, estado) in estados.items():
-        _dibujar_nodo(pantalla, nodo, estado, rects[clave], nodo is seleccionado)
-
-    _dibujar_leyenda(pantalla, panel)
+    for i, hijo in enumerate(primeros):
+        x = round(_RECT_ARBOL.left + 40 + ancho * (i + 0.5))
+        activo = id(hijo) in en_camino
+        pygame.draw.line(pantalla, assets.COLOR_CIVITAS if activo else assets.COLOR_ARISTA_RED, (cx, y_raiz), (x, y_uno), 2 if activo else 1)
+        _punto_arbol(pantalla, (x, y_uno), hijo, activo, hijo is seleccionado)
+        layout.texto_en_ancho(pantalla, hijo.etiqueta, (x + 10, y_uno), round(ancho) - 24,
+                              assets.COLOR_TEXTO_HUD if activo or hijo is seleccionado else assets.COLOR_TEXTO_APAGADO,
+                              assets.TAMANIO_FUENTE_PEQUENA, ancla="midleft", minimo=11)
+        segundos = _rama_visible(hijo) if activo else []
+        for j, nieto in enumerate(segundos):
+            x2 = round(x - 24 + j * 200 / max(1, len(segundos)))
+            pygame.draw.line(pantalla, assets.COLOR_CIVITAS if id(nieto) in en_camino else assets.COLOR_ARISTA_RED, (x, y_uno), (x2, y_dos), 1)
+            _punto_arbol(pantalla, (x2, y_dos), nieto, id(nieto) in en_camino, nieto is seleccionado)
 
 
-def _dibujar_nodo(pantalla, nodo, estado, rect, seleccionado):
-    etiqueta = str(nodo.etiqueta)
-    if estado == ESTADO_RECORRIDO:
-        dibujo.panel(pantalla, rect, assets.COLOR_NODO_RECORRIDO, assets.COLOR_BORDE_RECORRIDO, 2)
-        color_texto = assets.COLOR_TEXTO_HUD
-    elif estado == ESTADO_ELEGIBLE and seleccionado:
-        dibujo.panel(pantalla, rect.inflate(8, 8), None, assets.COLOR_NODO_ELEGIBLE, 1, radio=9)
-        dibujo.panel(pantalla, rect, assets.COLOR_NODO_ELEGIBLE, assets.COLOR_NODO_ELEGIBLE, 2)
-        color_texto = assets.COLOR_TEXTO_ELEGIBLE
-        # Flecha a la izquierda del nodo seleccionado.
-        px, py = rect.left - 16, rect.centery
-        pygame.draw.polygon(pantalla, assets.COLOR_NODO_ELEGIBLE, [(px - 6, py - 7), (px + 4, py), (px - 6, py + 7)])
-    elif estado == ESTADO_ELEGIBLE:
-        dibujo.panel(pantalla, rect, assets.COLOR_NODO_CERRADO, assets.COLOR_NODO_ELEGIBLE, 2)
-        color_texto = assets.COLOR_TEXTO_HUD
-    elif estado == ESTADO_HOJA:
-        borde = assets.COLOR_TEAL if etiqueta == PURIFICACION_EXITOSA else assets.COLOR_MAGENTA
-        if etiqueta not in (PURIFICACION_EXITOSA, DETONACION):
-            borde = assets.COLOR_BORDE_CERRADO
-        dibujo.panel(pantalla, rect, assets.COLOR_FONDO_PANEL, borde, 2)
-        color_texto = borde
+def _punto_arbol(pantalla, centro, nodo, activo, seleccionado):
+    if seleccionado:
+        pygame.draw.circle(pantalla, assets.COLOR_CIVITAS, centro, 6)
+        pygame.draw.circle(pantalla, assets.COLOR_TEXTO_HUD, centro, 8, 1)
+    elif activo:
+        pygame.draw.circle(pantalla, assets.COLOR_TEXTO_HUD, centro, 5)
     else:
-        dibujo.panel(pantalla, rect, assets.COLOR_NODO_CERRADO, assets.COLOR_BORDE_CERRADO, 2)
-        color_texto = assets.COLOR_TEXTO_SECUNDARIO
-        if nodo.hijos:
-            dibujo.texto(pantalla, "▸", (rect.right - 10, rect.centery), assets.COLOR_TEXTO_APAGADO,
-                         assets.TAMANIO_FUENTE_PEQUENA, ancla="midright")
-
-    # Texto en una o dos líneas según quepa; si necesita más, en letra
-    # pequeña y hasta tres líneas (opciones largas del modo historia).
-    tamanio, maximo = assets.TAMANIO_FUENTE_NORMAL, 2
-    lineas = dibujo.ajustar_texto(etiqueta, tamanio, rect.width - 24, negrita=True)
-    if len(lineas) > maximo:
-        tamanio, maximo = assets.TAMANIO_FUENTE_PEQUENA, 3
-        lineas = dibujo.ajustar_texto(etiqueta, tamanio, rect.width - 16, negrita=True)
-    lineas = lineas[:maximo]
-    alto = fuente(tamanio, True).get_height()
-    y = rect.centery - (len(lineas) - 1) * alto / 2
-    for linea in lineas:
-        dibujo.texto(pantalla, linea, (rect.centerx, y), color_texto, tamanio, negrita=True, ancla="center")
-        y += alto
+        pygame.draw.circle(pantalla, assets.COLOR_ARISTA_RED, centro, 4)
 
 
-def _dibujar_leyenda(pantalla, panel):
-    """Una fila debajo del panel del árbol: así nunca tapa una hoja."""
-    x = panel.left + 4
-    y = panel.bottom + 14
-    for nombre, relleno, borde in LEYENDA:
-        dibujo.panel(pantalla, (x, y - 8, 22, 16), relleno, borde, 2, radio=3)
-        rect = dibujo.texto(pantalla, nombre, (x + 30, y), assets.COLOR_TEXTO_SECUNDARIO,
-                            assets.TAMANIO_FUENTE_PEQUENA, ancla="midleft")
-        x = rect.right + 22
+# ----------------------------------------------------------------------
+# Opciones
+# ----------------------------------------------------------------------
 
 
-def _dibujar_migas(pantalla, terminal):
-    x, y = assets.POSICION_CAMINO_TERMINAL
-    dibujo.texto(pantalla, "Camino", (x, y - 20), assets.COLOR_TEXTO_SECUNDARIO, assets.TAMANIO_FUENTE_PEQUENA)
-    for nodo in terminal.camino():
-        rect = dibujo.chip(pantalla, nodo.etiqueta, (x, y), assets.COLOR_TEAL, assets.COLOR_NODO_RECORRIDO,
-                           assets.COLOR_TEAL, assets.TAMANIO_FUENTE_NORMAL, alto=30, margen=10)
-        x = rect.right + 8
-        dibujo.texto(pantalla, "›", (x, y + 15), assets.COLOR_TEXTO_SECUNDARIO, assets.TAMANIO_FUENTE_MEDIA,
-                     ancla="midleft")
-        x += 16
-    if terminal.nodo_actual.hijos:
-        dibujo.chip(pantalla, "?", (x, y), assets.COLOR_AMARILLO, assets.COLOR_FONDO_PANEL, assets.COLOR_AMARILLO,
-                    assets.TAMANIO_FUENTE_NORMAL, alto=30, margen=10)
+def _dibujar_opciones(pantalla, terminal, verificacion, tiempo):
+    rect = _RECT_OPCIONES
+    opciones = _rama_visible(terminal.nodo_actual)
+    if not opciones:
+        return
+    en_raiz = terminal.nodo_actual is terminal.arbol.raiz
+    y = rect.top
+    if not en_raiz:
+        pregunta = verificacion if terminal.nodo_actual.etiqueta == "Verificar" and verificacion else _pregunta_de(terminal.nodo_actual.etiqueta)
+        kit.rotulo(pantalla, terminal.nodo_actual.etiqueta, (rect.left, y), assets.COLOR_CIVITAS)
+        layout.parrafo_en_caja(pantalla, pregunta, pygame.Rect(rect.left + 120, y - 2, rect.width - 120, 44), assets.COLOR_TEXTO_HUD,
+                               assets.TAMANIO_FUENTE_NORMAL, negrita=True, interlineado=2)
+        y += 44
+    else:
+        kit.rotulo(pantalla, "¿Qué vas a hacer?", (rect.left, y), assets.COLOR_TEXTO_SECUNDARIO)
+        y += 22
+    espacio = 14
+    ancho = (rect.width - espacio * (len(opciones) - 1)) // len(opciones)
+    alto = rect.bottom - y
+    for i, nodo in enumerate(opciones):
+        fila = pygame.Rect(rect.left + i * (ancho + espacio), y, ancho, alto)
+        kit.opcion(pantalla, fila, nodo.etiqueta, nodo is terminal.hijo_seleccionado, tiempo, tamanio=assets.TAMANIO_FUENTE_MEDIA if en_raiz else assets.TAMANIO_FUENTE_NORMAL)
+
+
+def _pregunta_de(etiqueta):
+    return {"Reportar": "¿A quién o qué vas a reportar, y con qué?"}.get(etiqueta, "¿Cómo vas a hacerlo?")
+

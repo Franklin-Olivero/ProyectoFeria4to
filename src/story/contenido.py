@@ -2,7 +2,8 @@
 
 El contenido vive en content/campaign.json: prólogo, capítulos por
 zona, escenarios de decisión (publicación, evidencias y opciones del
-árbol), pistas de NOVA_404, grafo social, sospechosos y finales. Aquí
+árbol), pistas de NOVA_404, grafo social, red de cuentas del capítulo 3,
+redención y finales. Aquí
 solo se lee y se valida: ids únicos, referencias que existen, resultados
 y efectos con nombres conocidos. Un JSON roto lanza ContenidoInvalido
 al cargar, con un mensaje que dice qué falta, en vez de fallar a mitad
@@ -33,10 +34,15 @@ RESULTADOS = (RESULTADO_PURIFICACION, RESULTADO_DETONACION)
 VEREDICTOS = ("cierto", "falso", "fuera_de_contexto", "sin_verificar")
 ESTADOS_EVIDENCIA_OVERRIDE = ("sin_pruebas", "parcial")
 
-CLAVES_RAIZ = ("prologo", "capitulos", "escenarios", "pistas", "red_social", "sospechosos", "finales", "candidatos")
+CLAVES_RAIZ = ("prologo", "capitulos", "escenarios", "pistas", "red_social", "red_cuentas", "redencion",
+               "mensajes_reputacion", "reacciones", "finales", "candidatos")
 CLAVES_POST = ("usuario", "hace", "texto", "etiqueta")
 CLAVES_EVIDENCIA = ("id", "titulo", "fuente", "fragmento")
-CLAVES_FINALES = ("renace", "dividida", "arquitecto")
+CLAVES_FINALES = ("renace", "dividida", "arquitecto", "confianza_perdida")
+TIPOS_CUENTA = ("origen", "amplificador", "error", "victima")
+ACCIONES = ("compartir", "publicar_verificado", "reportar", "denunciar_ataque", "linchar", "afirmar_sin_matiz",
+            "insistir", "ignorar", "no_decidir")
+NIVELES = ("referente", "confiable", "neutral", "cuestionada", "crisis")
 
 
 class ContenidoInvalido(ValueError):
@@ -80,7 +86,14 @@ def validar(datos):
         if origen is not None and origen not in ids_ciudadanos:
             raise ContenidoInvalido(f"escenarios[{zona}].propagacion: el origen {origen!r} no es un ciudadano.")
     _validar_eventos(datos.get("eventos", []))
-    _validar_sospechosos(datos["sospechosos"])
+    _validar_red_cuentas(datos["red_cuentas"])
+    _validar_redencion(datos["redencion"], datos["escenarios"])
+    for accion in ACCIONES:
+        if accion not in datos["mensajes_reputacion"]:
+            raise ContenidoInvalido(f"mensajes_reputacion: falta la acción {accion!r}.")
+    for nivel in NIVELES:
+        if not datos["reacciones"].get(nivel):
+            raise ContenidoInvalido(f"reacciones: falta el nivel {nivel!r}.")
     for clave in CLAVES_FINALES:
         final = datos["finales"].get(clave)
         if not isinstance(final, dict) or "titulo" not in final or "texto" not in final:
@@ -152,6 +165,8 @@ def _validar_opcion(opcion, donde):
             _validar_opcion(hijo, f"{donde}[{opcion['etiqueta']}]")
         return
     _validar_consecuencia(opcion, f"{donde}[{opcion['etiqueta']}]")
+    if opcion.get("accion") not in ACCIONES:
+        raise ContenidoInvalido(f"{donde}[{opcion['etiqueta']}]: acción {opcion.get('accion')!r} desconocida.")
     for estado, alternativa in opcion.get("por_evidencia", {}).items():
         if estado not in ESTADOS_EVIDENCIA_OVERRIDE:
             raise ContenidoInvalido(f"{donde}[{opcion['etiqueta']}]: estado de evidencia {estado!r} desconocido.")
@@ -194,17 +209,48 @@ def _validar_eventos(eventos):
                 raise ContenidoInvalido(f"eventos[{evento['id']}]: indicador {indicador!r} desconocido.")
 
 
-def _validar_sospechosos(sospechosos):
-    cuentas = sospechosos.get("cuentas", [])
+def _validar_red_cuentas(red):
+    """Grafo de cuentas del capítulo 3: ids únicos, tipos conocidos,
+    conexiones válidas y un origen que se pueda alcanzar desde el inicio."""
+    cuentas = red.get("cuentas", [])
     ids = [c.get("id") for c in cuentas]
     if len(set(ids)) != len(ids) or not ids:
-        raise ContenidoInvalido("sospechosos: las cuentas necesitan ids únicos.")
-    if sospechosos.get("culpable") not in ids:
-        raise ContenidoInvalido("sospechosos: 'culpable' debe ser el id de una cuenta.")
+        raise ContenidoInvalido("red_cuentas: las cuentas necesitan ids únicos.")
+    for clave in ("inicio", "origen"):
+        if red.get(clave) not in ids:
+            raise ContenidoInvalido(f"red_cuentas: {clave!r} debe ser el id de una cuenta.")
     for cuenta in cuentas:
-        for clave in ("nombre", "descripcion", "pistas", "veredicto", "texto"):
+        for clave in ("nombre", "descripcion", "senales", "tipo"):
             if clave not in cuenta:
-                raise ContenidoInvalido(f"sospechosos[{cuenta.get('id')}]: falta {clave!r}.")
+                raise ContenidoInvalido(f"red_cuentas[{cuenta.get('id')}]: falta {clave!r}.")
+        if cuenta["tipo"] not in TIPOS_CUENTA:
+            raise ContenidoInvalido(f"red_cuentas[{cuenta['id']}]: tipo {cuenta['tipo']!r} desconocido.")
+    vecinos = {i: [] for i in ids}
+    for a, b in red.get("conexiones", []):
+        if a not in ids or b not in ids or a == b:
+            raise ContenidoInvalido(f"red_cuentas: conexión inválida {(a, b)!r}.")
+        vecinos[a].append(b)
+        vecinos[b].append(a)
+    visitados, pila = set(), [red["inicio"]]
+    while pila:
+        nodo = pila.pop()
+        if nodo not in visitados:
+            visitados.add(nodo)
+            pila.extend(vecinos[nodo])
+    if red["origen"] not in visitados:
+        raise ContenidoInvalido("red_cuentas: el origen no se puede alcanzar desde la cuenta inicial.")
+
+
+def _validar_redencion(datos, escenarios):
+    for clave in ("mentora", "titulares", "narracion", "dialogo_mentora", "senuelos", "respuestas_responsabilidad", "ayuda"):
+        if clave not in datos:
+            raise ContenidoInvalido(f"redencion: falta {clave!r}.")
+    if sum(1 for r in datos["respuestas_responsabilidad"] if r.get("correcta")) != 1:
+        raise ContenidoInvalido("redencion: debe haber una sola respuesta de responsabilidad correcta.")
+    for zona in escenarios:
+        ayuda = datos["ayuda"].get(zona)
+        if ayuda is None or sum(1 for o in ayuda["opciones"] if o.get("correcta")) != 1:
+            raise ContenidoInvalido(f"redencion.ayuda[{zona}]: necesita una sola opción correcta.")
 
 
 def _validar_candidatos(candidatos):

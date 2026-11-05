@@ -26,40 +26,40 @@ def dibujar_tarjeta_publicacion(pantalla, rect, post, estado_evidencia=None, chi
     rect = dibujo.panel(pantalla, rect, assets.COLOR_FONDO_TARJETA, None, 0, radio=4)
     x = rect.left + 20
     y = rect.top + 18
-    dibujo.chip(pantalla, chip, (x, y), assets.COLOR_TEXTO_HUD, assets.COLOR_MAGENTA, assets.COLOR_MAGENTA, alto=24)
-    y += 44
+    dibujo.chip(pantalla, chip, (x, y), assets.COLOR_TEXTO_HUD, assets.COLOR_FONDO_PANEL, assets.COLOR_FONDO_PANEL, alto=24)
+    y += 36
     avatar = sprites.sprite(sprites.AVATAR, sprites.PALETA_AVATAR, escala=3)
     pantalla.blit(avatar, (x, y))
     dibujo.texto(pantalla, post["usuario"], (x + 40, y), assets.COLOR_TEXTO_TARJETA,
                  assets.TAMANIO_FUENTE_NORMAL, negrita=True)
     dibujo.texto(pantalla, post.get("hace", ""), (x + 40, y + 20), assets.COLOR_TEXTO_TARJETA_SUAVE,
                  assets.TAMANIO_FUENTE_PEQUENA)
-    y += 52
+    y += 44
     y = dibujo.parrafo(pantalla, post["texto"], (x, y), rect.width - 40, assets.COLOR_TEXTO_TARJETA,
                        assets.TAMANIO_FUENTE_NORMAL, interlineado=6)
-    y += 12
-    imagen = pygame.Rect(x, y, rect.width - 40, 96)
+    y += 10
+    imagen = pygame.Rect(x, y, rect.width - 40, 70)
     pygame.draw.rect(pantalla, assets.COLOR_IMAGEN_TARJETA, imagen, border_radius=3)
-    for i, (ancho, alto) in enumerate(((120, 6), (80, 10), (170, 6), (60, 6))):
-        linea = pygame.Rect(imagen.left + (8 if i % 2 == 0 else 24), imagen.top + 12 + i * 20, ancho, alto)
-        pygame.draw.rect(pantalla, assets.COLOR_MAGENTA, linea)
+    for i, (ancho, alto) in enumerate(((150, 6), (90, 8))):
+        linea = pygame.Rect(imagen.left + 10, imagen.top + 10 + i * 14, ancho, alto)
+        pygame.draw.rect(pantalla, assets.COLOR_NODO_NEUTRO, linea)
     # Pie de la imagen sobre una banda oscura, para que no se mezcle con las barras.
     pie = pygame.Rect(imagen.left, imagen.bottom - 24, imagen.width, 24)
     pygame.draw.rect(pantalla, assets.COLOR_FONDO, pie, border_bottom_left_radius=3, border_bottom_right_radius=3)
     layout.texto_en_ancho(pantalla, post.get("imagen", "[imagen]"), pie.center, imagen.width - 12,
                           assets.COLOR_TEXTO_HUD, assets.TAMANIO_FUENTE_PEQUENA, ancla="center")
-    y = imagen.bottom + 16
-    sello = dibujo.chip(pantalla, post.get("etiqueta", ""), (x, y), assets.COLOR_MAGENTA, (252, 232, 238),
-                        assets.COLOR_MAGENTA, alto=24)
+    y = imagen.bottom + 10
+    sello = dibujo.chip(pantalla, post.get("etiqueta", ""), (x, y), assets.COLOR_FONDO_PANEL, assets.COLOR_FONDO_TARJETA,
+                        assets.COLOR_FONDO_PANEL, alto=24)
     if estado_evidencia is not None:
         color = assets.COLOR_SELLO_EVIDENCIA.get(estado_evidencia, assets.COLOR_TEXTO_SECUNDARIO)
         dibujo.chip(pantalla, NOMBRES_ESTADO_EVIDENCIA.get(estado_evidencia, estado_evidencia),
                     (sello.right + 8, y), color, assets.COLOR_FONDO_TARJETA, color, alto=24)
-    y += 40
+    y += 32
     dibujo.texto(pantalla, post.get("compartidos", ""), (x, y), assets.COLOR_TEXTO_TARJETA_SUAVE,
                  assets.TAMANIO_FUENTE_PEQUENA)
-    dibujo.texto(pantalla, post.get("comentarios", ""), (x, y + 18), assets.COLOR_TEXTO_TARJETA_SUAVE,
-                 assets.TAMANIO_FUENTE_PEQUENA)
+    dibujo.texto(pantalla, post.get("comentarios", ""), (rect.right - 20, y), assets.COLOR_TEXTO_TARJETA_SUAVE,
+                 assets.TAMANIO_FUENTE_PEQUENA, ancla="topright")
     return rect
 
 

@@ -51,10 +51,11 @@ import pygame
 from Online import registro_errores
 from Online.protocolo import (
     INPUT, ESTADO, DESCONEXION, ENTRAR_MAZMORRA, CAMBIO_ESCENA, CAMBIO_CUARTO,
-    DECISION_NAV, crear_mensaje, serializar, deserializar_buffer, msg_estado, msg_input,
+    DECISION_NAV, HISTORIA, crear_mensaje, serializar, deserializar_buffer, msg_estado, msg_input,
     msg_cambio_escena, msg_cambio_cuarto, msg_entrar_mazmorra, ROLES,
 )
 from src.core import assets
+from src.core.balance import SALTOS_CORRECCION_REDENCION
 from src.core.apariencia import Apariencia
 from src.core.balance import DURACION_TERMINAL_HISTORIA
 from src.core.colapso import COLAPSO_MAXIMO
@@ -778,6 +779,7 @@ class AdaptadorOnlineHost(_AdaptadorBase):
         self._terminal = None  # (terminal, zona, semilla) de la última decisión
         self._fin = None  # {"zona", "sem", "res"}: la última decisión ya resuelta
         self._solicitudes_decision = []  # direcciones de navegación enviadas por invitados
+        self.ultimo_actor = 0  # índice del último invitado que confirmó
 
     # --- Mensajes ---------------------------------------------------------
 
@@ -796,17 +798,49 @@ class AdaptadorOnlineHost(_AdaptadorBase):
                 self._pulsos.anotar(indice, datos)
                 self._reporte_nuevo.add(indice)
             elif tipo == DECISION_NAV and isinstance(msg.get("dir"), str):
+                # Quien perdió la voz no decide; quien confirma carga con la decisión.
+                campania = getattr(self._partida, "campania", None)
+                if campania is not None and indice is not None:
+                    if not campania.puede_decidir(indice):
+                        continue
+                    if msg["dir"] == CONFIRMAR:
+                        campania.registrar_actor(indice)
+                        self.ultimo_actor = indice
                 self._solicitudes_decision.append(msg["dir"])
+            elif tipo == HISTORIA and indice is not None:
+                self._aplicar_historia(indice, msg)
             elif tipo == ENTRAR_MAZMORRA and isinstance(msg.get("zona"), str):
                 self._solicitudes.append(msg["zona"])
             elif tipo == DESCONEXION and indice is not None:
                 self._olvidar_input(indice)
 
+    def _aplicar_historia(self, indice, msg):
+        """Decisión de la crisis de un invitado. La reputación la fija el
+        host: una recompensa con clave no se cobra dos veces aunque el
+        mensaje se repita, y la corrección se recalcula aquí con BFS."""
+        campania = getattr(self._partida, "campania", None)
+        if campania is None:
+            return
+        evento = msg.get("evento")
+        if evento == "aceptar":
+            campania.aceptar_redencion(indice)
+        elif evento == "rechazar":
+            campania.rechazar_redencion(indice)
+        elif evento == "fallar":
+            campania.fallar_redencion(indice)
+        elif evento == "reintentar":
+            campania.volver_a_punto_control(indice)
+        elif evento == "completar":
+            for origen in msg.get("origenes") or []:
+                if isinstance(origen, str) and origen in campania.red.grafo:
+                    campania.red.corregir(origen, SALTOS_CORRECCION_REDENCION)
+            campania.completar_redencion(indice)
+
     def tomar_solicitudes_decision(self):
         """Direcciones (izquierda/derecha/confirmar) que los invitados
         enviaron y aún no se aplicaron; las vacía. Main.py las aplica a la
-        investigación del infiltrado (modo historia): cualquier jugador de
-        la sala puede mover el cursor o acusar, y el host, que es quien
+        investigación del origen de la señal (modo historia): cualquier jugador
+        de la sala puede mover el cursor o señalar, y el host, que es quien
         simula, decide qué pasa (servidor autoritativo)."""
         pendientes = [d for d in self._solicitudes_decision if d in (IZQUIERDA, DERECHA, CONFIRMAR)]
         self._solicitudes_decision.clear()
@@ -905,6 +939,7 @@ class AdaptadorOnlineHost(_AdaptadorBase):
                 "opcion": getattr(resultado, "opcion", None),
                 "antes": getattr(resultado, "colapso_antes", None),
                 "despues": getattr(resultado, "colapso_despues", None),
+                "txt": getattr(resultado, "explicacion", ""),
             }
 
     def actualizar_ciudad(self, dt, partida, jugadores, jugador):
@@ -951,6 +986,8 @@ class AdaptadorOnlineHost(_AdaptadorBase):
     def _atender_solicitudes(self, escena, arena, mazmorra, fundido, partida, jugadores):
         """Un invitado apretó E en una puerta: el host valida (en la ciudad,
         zona real, Alcaldía abierta) y entran todos, como con su propia E."""
+        if getattr(self._sesion, "historia_ocupada", False):
+            return escena, arena, mazmorra, fundido  # el host lee una escena: la entrada espera
         solicitudes, self._solicitudes = self._solicitudes, []
         if escena != Escena.CIUDAD:
             return escena, arena, mazmorra, fundido
@@ -1081,7 +1118,11 @@ class AdaptadorOnlineHost(_AdaptadorBase):
             "arena": self._n_arena if arena is not None else None,
             "fin": self._fin,
             "res_info": self._fin,
+            "cam": partida.campania.resumen_red(),  # reputación e indicadores: el host manda
         })
+        investigacion = getattr(self._sesion, "investigacion_activa", None)
+        if escena == Escena.RESULTADO and investigacion is not None:
+            estado["inv"] = investigacion.a_dict()
         if escena in ESCENAS_DE_COMBATE:
             estado["ins"] = self._pedidos(jugadores)
             proyectiles = getattr(self._sesion, "proyectiles_enemigos", None) or []
@@ -1144,6 +1185,14 @@ class AdaptadorOnlineJoin(_AdaptadorBase):
 
     def _conectado(self):
         return bool(getattr(self.cliente, "conectado", False))
+
+    def enviar_historia(self, evento, **datos):
+        """Avisa al host de una decisión de la crisis o la redención de este jugador."""
+        try:
+            if hasattr(self.cliente, "enviar_historia"):
+                self.cliente.enviar_historia(evento, **datos)
+        except Exception:
+            registro_errores.registrar("AdaptadorOnlineJoin.enviar_historia")
 
     def enviar_decision_nav(self, direccion):
         """Notifica al host que este jugador navega o confirma en la terminal de decisión."""
@@ -1323,6 +1372,7 @@ class AdaptadorOnlineJoin(_AdaptadorBase):
                     colapso_antes=antes_val,
                     colapso_despues=despues_val,
                     zona=zona_val,
+                    texto=fin.get("txt") if isinstance(fin.get("txt"), str) else "",
                 )
                 self._limpiar_combate()
                 self._mazmorra_propia = None
@@ -1432,6 +1482,8 @@ class AdaptadorOnlineJoin(_AdaptadorBase):
         colapso = _numero(estado.get("colapso"), 0.0, COLAPSO_MAXIMO)
         if colapso is not None:
             partida.colapso.valor = colapso
+        partida.campania.aplicar_resumen_red(estado.get("cam"))
+        self.investigacion_espejo = estado.get("inv")
         self._reproducir_decisiones(estado, escena, partida, colapso)
         mismo_lugar = estado.get("loc") == self._lugar(escena, arena, mazmorra)
         self._aplicar_jugadores(estado, jugadores, mismo_lugar)

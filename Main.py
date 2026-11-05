@@ -61,7 +61,7 @@ from src.dungeon.arena_jefe import ArenaJefe
 from src.dungeon.cuarto import FASE_DECISION, FASE_RESUELTO
 from src.core.balance import ALCANCE_AVISO_SELLADA, DURACION_TERMINAL_HISTORIA
 from src.dungeon import ciudad_mapa
-from src.dungeon.grafo_ciudad import EDIFICIOS, ZONA_FINAL
+from src.dungeon.grafo_ciudad import EDIFICIOS, ZONA_FINAL, ZONA_INICIO
 from src.dungeon.mazmorra import Mazmorra
 from src.dungeon.mazmorra_final import VICTORIA as MAZMORRA_FINAL_GANADA
 from src.dungeon.mazmorra_jugable import MazmorraJugable
@@ -72,9 +72,11 @@ from src.entities.periodista import Periodista
 from src.entities.player import ANGULO_ABANICO_GRADOS, Ciudadano
 from src.ui import ciudad_render, combate_render, dialogo_render, dibujo, hud, indicadores_render, navegacion
 from src.ui import ayuda_render, elecciones_render, investigacion_render, red_social_render, tarjetas_render
-from src.ui import cinematica_render, layout, mision_render
-from src.story import investigacion as investigacion_mod
+from src.ui import cinematica_render, feed_render, layout, mision_render, redencion_render, reputacion_render
+from src.core.preferencias import CARACTERES_POR_SEGUNDO
 from src.story.cinematica import Cinematica, guion_caida_servidor, guion_derrota_global, guion_final, guion_intro
+from src.story.redencion import CONFIRMAR as NAV_CONFIRMAR, DERECHA as NAV_DERECHA, ETAPA_CONFIANZA, ETAPA_CORREGIR
+from src.story.redencion import IZQUIERDA as NAV_IZQUIERDA, EleccionCrisis
 from src.story.eleccion import resumen_final
 from src.story.misiones import RastreadorMisiones, mision_actual
 from src.ui.combate_render import TextosFlotantes
@@ -172,6 +174,17 @@ TECLA_AYUDA = pygame.K_h
 # Diálogos del modo historia (overlay sobre cualquier escena).
 TECLAS_DIALOGO_AVANZAR = (pygame.K_RETURN, pygame.K_KP_ENTER, pygame.K_SPACE)
 TECLAS_DIALOGO_SALTAR = (pygame.K_ESCAPE, pygame.K_TAB)
+# Pantallas de la crisis y de la redención (flechas, A/D o W/S y Enter).
+TECLAS_NAV_HISTORIA = {
+    pygame.K_LEFT: NAV_IZQUIERDA, pygame.K_a: NAV_IZQUIERDA, pygame.K_UP: NAV_IZQUIERDA, pygame.K_w: NAV_IZQUIERDA,
+    pygame.K_RIGHT: NAV_DERECHA, pygame.K_d: NAV_DERECHA, pygame.K_DOWN: NAV_DERECHA, pygame.K_s: NAV_DERECHA,
+    pygame.K_RETURN: NAV_CONFIRMAR, pygame.K_KP_ENTER: NAV_CONFIRMAR, pygame.K_SPACE: NAV_CONFIRMAR,
+}
+BOTONES_NAV_HISTORIA = {
+    pygame.CONTROLLER_BUTTON_DPAD_LEFT: NAV_IZQUIERDA, pygame.CONTROLLER_BUTTON_DPAD_UP: NAV_IZQUIERDA,
+    pygame.CONTROLLER_BUTTON_DPAD_RIGHT: NAV_DERECHA, pygame.CONTROLLER_BUTTON_DPAD_DOWN: NAV_DERECHA,
+    pygame.CONTROLLER_BUTTON_A: NAV_CONFIRMAR,
+}
 
 
 def main():
@@ -242,6 +255,7 @@ def _reproducir_cinematica(pantalla, reloj, cinematica, preferencias, audio, pre
     Enter avanza, Esc salta. Retorna SALIR si se cierra la ventana."""
     audio.musica("misterio")
     pygame.mouse.set_visible(True)
+    cinematica.configurar_lectura(CARACTERES_POR_SEGUNDO[preferencias.velocidad_texto], preferencias.avance_cinematicas)
     while not cinematica.terminada:
         dt = reloj.tick_busy_loop(FPS) / 1000
         for evento in pygame.event.get():
@@ -341,7 +355,15 @@ def _jugar(pantalla, reloj, sesion, preferencias, presentar):
 
     # --- Modo historia (src/story/): overlays sobre la escena -----------
     campania = partida.campania
-    campania.establecer_rol(jugador.rol)
+    adaptador_red = getattr(sesion, "adaptador_red", None)
+    # Quién juega en ESTA pantalla: en red, un jugador; en local, todos.
+    indice_local = getattr(sesion, "id_local", 0) if adaptador_red is not None else 0
+    indices_locales = [indice_local] if adaptador_red is not None else list(range(len(jugadores)))
+    campania.espejo = hasattr(adaptador_red, "enviar_decision_nav")  # invitado: el host manda
+    partida.indice_decisor = indice_local
+    for _i_j, _j_rol in enumerate(jugadores):
+        campania.establecer_rol(_j_rol.rol, _i_j)
+        campania.rep(_i_j)
     audio = getattr(sesion, "audio", None)
 
     def sonar(nombre):
@@ -356,7 +378,10 @@ def _jugar(pantalla, reloj, sesion, preferencias, presentar):
     # DialogoSecuencia. Los que esperan turno van en `cola_historia`
     # (p. ej. la tarjeta del capítulo y luego su diálogo).
     cola_historia = []
+    velocidad_texto = CARACTERES_POR_SEGUNDO[preferencias.velocidad_texto]
     dialogo = campania.cinematica_intro(jugador.rol, jugador.NOMBRE)
+    if dialogo is not None:
+        dialogo.configurar_lectura(velocidad_texto, preferencias.avance_cinematicas)
     tiempo_overlay = 0.0  # s desde que se abrió el overlay/panel actual (animación de entrada)
 
     def encolar_historia(*items):
@@ -364,6 +389,7 @@ def _jugar(pantalla, reloj, sesion, preferencias, presentar):
         for item in items:
             if item is None:
                 continue
+            item.configurar_lectura(velocidad_texto, modo=preferencias.avance_cinematicas)
             if dialogo is None:
                 dialogo = item
                 tiempo_overlay = 0.0
@@ -374,6 +400,51 @@ def _jugar(pantalla, reloj, sesion, preferencias, presentar):
         nonlocal dialogo, tiempo_overlay
         dialogo = cola_historia.pop(0) if cola_historia else None
         tiempo_overlay = 0.0
+
+    # Crisis y redención (por jugador de esta pantalla).
+    crisis_en_curso = None  # índice del jugador cuya crisis se está presentando
+    eleccion_crisis = None  # EleccionCrisis abierta
+    etapa_abierta = None  # índice del jugador cuya etapa de la misión está en pantalla
+    final_derrota = None  # redencion_render.FinalDerrota abierto
+    final_pendiente = None  # índice: el final se abre al terminar su cinemática
+    indicador_rep = None  # reputacion_render.IndicadorReputacion en pantalla
+    tiempo_historia = 0.0
+    feed_ciudad = None  # (texto, nivel, segundos restantes): comentario de un ciudadano
+    reloj_reaccion = assets.PERIODO_REACCION_CIUDAD / 2
+
+    def accion_historia(evento, indice, **datos):
+        """Una decisión de la crisis. El host (o el juego local) la aplica; el
+        invitado la aplica en su copia para seguir jugando y avisa al host,
+        que es quien fija la reputación de todos."""
+        if campania.espejo and adaptador_red is not None and hasattr(adaptador_red, "enviar_historia"):
+            adaptador_red.enviar_historia(evento, **datos)
+            campania.esperar_host(indice)
+        if evento == "aceptar":
+            return campania.aceptar_redencion(indice)
+        if evento == "completar":
+            return campania.completar_redencion(indice)
+        if evento == "rechazar":
+            return campania.rechazar_redencion(indice)
+        if evento == "fallar":
+            return campania.fallar_redencion(indice)
+        if evento == "reintentar":
+            return campania.volver_a_punto_control(indice)
+        return None
+
+    def reiniciar_partida():
+        """Partida completa nueva, con los mismos roles, en la Plaza y con
+        las calles y barricadas restablecidas."""
+        nonlocal jugadores, jugador, selector, mostrar_ruta, mostrar_mapa_mundo, mensaje_mapa
+        partida.reiniciar()
+        jugadores = _jugadores_nuevos(jugadores)
+        sesion.jugadores = jugadores
+        jugador = jugadores[indice_local] if indice_local < len(jugadores) else jugadores[0]
+        selector = SelectorZona(EDIFICIOS, EDIFICIOS[0])
+        mostrar_ruta = mostrar_mapa_mundo = False
+        mensaje_mapa = None
+        for _i, _j in enumerate(jugadores):
+            campania.establecer_rol(_j.rol, _i)
+            campania.rep(_i)
 
     tarjeta_evidencia = None  # (evidencia, segundos restantes) en combate
     mostrar_estado = False  # tecla I en la ciudad
@@ -395,6 +466,7 @@ def _jugar(pantalla, reloj, sesion, preferencias, presentar):
     rastreador = RastreadorMisiones()
     mision = None
     toasts = []  # [texto, segundos restantes, título]
+    escena_avisos = escena
     presentar_frame = presentar
 
     def presentar():
@@ -411,6 +483,10 @@ def _jugar(pantalla, reloj, sesion, preferencias, presentar):
                 if len(jugadores) > 1:
                     rect_mision.x = assets.RECTS_PANEL_JUGADOR[0][0] + assets.RECTS_PANEL_JUGADOR[0][2] + 8
                 mision_render.dibujar_panel_mision(pantalla, mision, rect_mision, tiempo_overlay, compacto=True)
+        if pantalla_historia_abierta():
+            _dibujar_pantalla_historia()
+            presentar_frame()
+            return
         # Un único modal a la vez.
         activos = {
             "cinematica": isinstance(dialogo, Cinematica),
@@ -429,10 +505,97 @@ def _jugar(pantalla, reloj, sesion, preferencias, presentar):
         elif modal == "estado":
             indicadores_render.dibujar_panel_estado(pantalla, campania, transcurrido=tiempo_overlay)
         # Avisos encima de todo (solo el más reciente, para no apilar).
-        if toasts and modal != "cinematica":
+        if toasts and modal != "cinematica" and (escena == Escena.CIUDAD or escena in ESCENAS_DE_COMBATE):
             texto_toast, restante_toast, titulo_toast = toasts[0]
             mision_render.dibujar_toast_objetivo(pantalla, texto_toast, restante_toast, titulo=titulo_toast)
+        if feed_ciudad is not None and modal is None and escena == Escena.CIUDAD and not mostrar_mapa_mundo:
+            feed_render.dibujar_feed(pantalla, feed_ciudad[0], feed_ciudad[1], feed_ciudad[2])
+        if indicador_rep is not None:
+            reputacion_render.dibujar_indicador(pantalla, indicador_rep)
         presentar_frame()
+
+    def pantalla_historia_abierta():
+        return eleccion_crisis is not None or etapa_abierta is not None or final_derrota is not None
+
+    def _dibujar_pantalla_historia():
+        datos = campania.contenido["redencion"]
+        if final_derrota is not None:
+            redencion_render.dibujar_final_derrota(pantalla, final_derrota)
+        elif eleccion_crisis is not None:
+            redencion_render.dibujar_eleccion(pantalla, eleccion_crisis, datos, tiempo_historia)
+        else:
+            mision_abierta = campania.mision_de(etapa_abierta)
+            if mision_abierta is not None:
+                redencion_render.dibujar_etapa(pantalla, mision_abierta, datos, tiempo_historia)
+
+    def navegar_historia(direccion):
+        """Enter y flechas en las pantallas de crisis, misión y final."""
+        nonlocal eleccion_crisis, etapa_abierta, final_derrota, crisis_en_curso, final_pendiente, escena, fundido, tiempo_historia
+        # Un Enter de más al salir de una cinemática no debe decidir por el jugador.
+        if tiempo_historia < assets.PAUSA_ANTES_DE_DECIDIR:
+            return
+        if final_derrota is not None:
+            final_derrota.navegar(direccion)
+            if final_derrota.resultado is None:
+                return
+            indice, eleccion = final_derrota.indice_jugador, final_derrota.resultado
+            final_derrota = None
+            if eleccion == redencion_render.FinalDerrota.REINTENTAR:
+                accion_historia("reintentar", indice)
+                crisis_en_curso = indice
+                eleccion_crisis = EleccionCrisis()
+                tiempo_historia = 0.0
+            elif eleccion == redencion_render.FinalDerrota.NUEVA:
+                reiniciar_partida()
+                escena = _volver_a_la_ciudad(jugador, partida)
+                fundido = assets.DURACION_FUNDIDO
+            sonar("mision")
+            return
+        if eleccion_crisis is not None:
+            eleccion_crisis.navegar(direccion)
+            if eleccion_crisis.resultado is None:
+                sonar(navegacion.SONIDO_NAVEGAR)
+                return
+            indice = crisis_en_curso
+            aceptada = eleccion_crisis.resultado == EleccionCrisis.ACEPTAR
+            eleccion_crisis = None
+            crisis_en_curso = None
+            if aceptada:
+                accion_historia("aceptar", indice)
+                etapa_abierta = indice
+                tiempo_historia = 0.0
+                sonar("redencion")
+            else:
+                accion_historia("rechazar", indice)
+                encolar_historia(campania.guion_de_rechazo())
+                final_pendiente = indice
+            return
+        mision_abierta = campania.mision_de(etapa_abierta) if etapa_abierta is not None else None
+        if mision_abierta is None:
+            etapa_abierta = None
+            return
+        etapa_antes, errores_antes = mision_abierta.etapa, mision_abierta.errores
+        mision_abierta.navegar(direccion)
+        if mision_abierta.errores > errores_antes:
+            sonar("error_decision")
+        elif mision_abierta.etapa != etapa_antes:
+            sonar("mision")
+        if mision_abierta.completada:
+            indice = etapa_abierta
+            etapa_abierta = None
+            origenes = [c.origen for c in mision_abierta.correcciones]
+            accion_historia("completar", indice, origenes=origenes)
+            encolar_historia(campania.guion_recuperacion(campania.roles.get(indice), jugadores[indice].NOMBRE))
+        elif mision_abierta.fallida:
+            indice = etapa_abierta
+            etapa_abierta = None
+            accion_historia("fallar", indice)
+            encolar_historia(campania.guion_de_rechazo())
+            final_pendiente = indice
+        elif mision_abierta.etapa in (ETAPA_CORREGIR, ETAPA_CONFIANZA) and mision_abierta.etapa != etapa_antes:
+            # Las siguientes etapas se abren en su lugar de la ciudad.
+            etapa_abierta = None
+            toasts.append(["Sigue la baliza en la ciudad", assets.DURACION_TOAST_MISION, "Misión actualizada"])
 
     while True:
         # tick_busy_loop y no tick: en Windows tick() duerme con poca
@@ -459,9 +622,44 @@ def _jugar(pantalla, reloj, sesion, preferencias, presentar):
                 entradas[1].mando = _actualizar_mando(evento, None) or entradas[1].mando
             if evento.type == pygame.QUIT:
                 return SALIR
-            elif evento.type != pygame.KEYDOWN:
+            if evento.type == pygame.CONTROLLERBUTTONDOWN:
+                # El control también navega la historia y la terminal (J2 en cooperativo).
+                direccion_mando = BOTONES_NAV_HISTORIA.get(evento.button)
+                if indicador_rep is not None:
+                    if direccion_mando == NAV_CONFIRMAR:
+                        indicador_rep.avanzar()
+                elif pantalla_historia_abierta():
+                    if direccion_mando is not None:
+                        navegar_historia(direccion_mando)
+                elif dialogo is not None:
+                    if evento.button == BOTON_CONFIRMAR:
+                        dialogo.avanzar()
+                    elif evento.button == BOTON_CANCELAR:
+                        dialogo.saltar()
+                    if _overlay_terminado(dialogo):
+                        siguiente_historia()
+                elif escena == Escena.DECISION and direccion_mando is not None and mazmorra is not None \
+                        and getattr(mazmorra, "cuarto", None) is not None and mazmorra.cuarto.terminal is not None:
+                    actor_mando = 1 if len(jugadores) > 1 and adaptador_red is None else indice_local
+                    if campania.puede_decidir(actor_mando):
+                        if direccion_mando == NAV_CONFIRMAR:
+                            campania.registrar_actor(actor_mando)
+                        mazmorra.cuarto.terminal.navegar(direccion_mando)
                 continue
-            elif dialogo is not None:
+            if evento.type != pygame.KEYDOWN:
+                continue
+            if indicador_rep is not None:
+                # El indicador de reputación se lleva Enter hasta cerrarse.
+                if evento.key in TECLAS_DIALOGO_AVANZAR:
+                    indicador_rep.avanzar()
+                continue
+            if pantalla_historia_abierta():
+                if evento.key == TECLA_SALIR and etapa_abierta is not None:
+                    etapa_abierta = None  # la misión queda en pausa
+                elif evento.key in TECLAS_NAV_HISTORIA:
+                    navegar_historia(TECLAS_NAV_HISTORIA[evento.key])
+                continue
+            if dialogo is not None:
                 # Un diálogo o cinemática abiertos se quedan con todas las teclas.
                 if evento.key in TECLAS_DIALOGO_AVANZAR:
                     dialogo.avanzar()
@@ -471,6 +669,14 @@ def _jugar(pantalla, reloj, sesion, preferencias, presentar):
                     siguiente_historia()
             elif escena == Escena.CIUDAD:
                 # La escena CIUDAD consume todas sus teclas (sin disparo ni F).
+                if evento.key == TECLA_ENTRAR and not mostrar_mapa_mundo:
+                    # Una etapa de la misión de redención tiene prioridad sobre la puerta.
+                    baliza = _baliza_cercana(campania, indices_locales, jugador)
+                    if baliza is not None:
+                        etapa_abierta = baliza
+                        tiempo_historia = 0.0
+                        sonar("transicion")
+                        continue
                 if evento.key == TECLA_SALIR:
                     if mostrar_estado or mostrar_ayuda:
                         mostrar_estado = mostrar_ayuda = False
@@ -504,25 +710,34 @@ def _jugar(pantalla, reloj, sesion, preferencias, presentar):
                         mazmorra = MazmorraJugable(
                             Mazmorra(partida.ciudad.reportes(zona), zona),
                             fabrica_arbol=partida.fabrica_arbol(zona),
-                            duracion_terminal=DURACION_TERMINAL_HISTORIA,
+                            duracion_terminal=DURACION_TERMINAL_HISTORIA + campania.duracion_extra_terminal(indice_local),
                         )
                         mazmorra.colocar_en_entrada(jugadores)
+                        campania.evidencias_sueltas.pop(zona, None)
                         limpios_vistos = len(mazmorra.mazmorra.limpiados)
                         escena = Escena.MAZMORRA
                     fundido = assets.DURACION_FUNDIDO
                     mostrar_estado = False
                     tarjeta_evidencia = None
+                    campania.evidencias_nuevas.clear()
                     sonar("transicion")
                     # Presentación del capítulo (una vez por zona): tarjeta
                     # de título y luego el diálogo; el mundo espera.
-                    encolar_historia(*campania.presentacion_zona(zona, jugador.rol, jugador.NOMBRE))
-                    # Periodista: identifica una fuente extra al entrar.
-                    evidencia_inicial = campania.al_entrar_zona(zona)
-                    if evidencia_inicial is not None:
-                        tarjeta_evidencia = (evidencia_inicial, assets.DURACION_TARJETA_EVIDENCIA)
+                    encolar_historia(*campania.presentacion_zona(zona, jugador.rol, jugador.NOMBRE, indice_local))
+                    if not campania.espejo:
+                        # Matices de entrada: la fuente del Periodista y la ayuda de
+                        # los ciudadanos a quien se ganó su confianza.
+                        for _i_j in range(len(jugadores)):
+                            campania.al_entrar_zona(zona, _i_j)
+                            aporte = campania.aporte_ciudadano(zona, _i_j)
+                            if aporte is not None:
+                                toasts.append([campania.contenido["aportes_ciudadanos"].format(nombre=aporte[0]),
+                                               assets.DURACION_TOAST_MISION + 1, "Ayuda ciudadana"])
             elif escena == Escena.DECISION:
-                if evento.key in TECLAS_TERMINAL:
+                if evento.key in TECLAS_TERMINAL and campania.puede_decidir(indice_local):
                     direccion_terminal = TECLAS_TERMINAL[evento.key]
+                    if direccion_terminal == CONFIRMAR:
+                        campania.registrar_actor(indice_local)
                     if hasattr(sesion, "adaptador_red") and sesion.adaptador_red is not None and hasattr(sesion.adaptador_red, "enviar_decision_nav"):
                         sesion.adaptador_red.enviar_decision_nav(direccion_terminal)
                     if mazmorra is not None and getattr(mazmorra, "cuarto", None) is not None and mazmorra.cuarto.terminal is not None:
@@ -536,8 +751,8 @@ def _jugar(pantalla, reloj, sesion, preferencias, presentar):
                             adaptador.enviar_decision_nav(direccion)  # invitado: vota en el host
                         else:
                             investigacion.navegar(direccion)
-                        if investigacion.terminada:
-                            campania.registrar_investigacion(investigacion.resultado)
+                        if investigacion.terminada and not campania.espejo:
+                            campania.registrar_investigacion(investigacion.resultado, indice_local)
                     continue
                 if evento.key in TECLAS_CONFIRMAR:
                     if propagacion_pendiente:
@@ -550,16 +765,20 @@ def _jugar(pantalla, reloj, sesion, preferencias, presentar):
                     mostrar_propagacion = False
                     if investigacion is None and resultado is not None \
                             and campania.investigacion_pendiente(resultado.zona):
-                        # Capítulo 3: ¿quién coordinó la campaña?
+                        # Capítulo 3: ¿de dónde sale la señal?
                         investigacion = campania.nueva_investigacion()
+                        sesion.investigacion_activa = investigacion
                         continue
+                    sesion.investigacion_activa = None
                     investigacion = None
                     resultado = None
                     escena = _volver_a_la_ciudad(jugador, partida)
                     fundido = assets.DURACION_FUNDIDO
                     # Al volver, la ciudad sigue viva: un evento al azar
                     # (su titular entra al cintillo de noticias).
-                    campania.sortear_evento()
+                    if not campania.espejo:
+                        campania.sortear_evento()
+                    reloj_reaccion = 1.5  # enseguida alguien comenta lo ocurrido
             elif escena in (Escena.VICTORIA, Escena.DERROTA):
                 if evento.key in TECLAS_CONFIRMAR:
                     if escena == Escena.VICTORIA and not mostrar_elecciones:
@@ -572,20 +791,12 @@ def _jugar(pantalla, reloj, sesion, preferencias, presentar):
                         # Revelación del final según los datos reales de la partida.
                         final_presentado = True
                         resumen = resumen_final(campania)
-                        encolar_historia(guion_final(resumen["clave"], resumen["titulo"], resumen["texto"]))
+                        encolar_historia(guion_final(resumen["clave"], resumen["titulo"], resumen["texto"], resumen["epilogo"]))
                         continue
                     mostrar_elecciones = False
                     final_presentado = victoria_presentada = False
                     if escena == Escena.DERROTA:
-                        # Partida completa nueva, con los mismos roles, en la
-                        # Plaza y con las calles y barricadas restablecidas.
-                        partida.reiniciar()
-                        jugadores = _jugadores_nuevos(jugadores)
-                        sesion.jugadores = jugadores
-                        jugador = jugadores[0]
-                        selector = SelectorZona(EDIFICIOS, EDIFICIOS[0])
-                        mostrar_ruta = mostrar_mapa_mundo = False
-                        mensaje_mapa = None
+                        reiniciar_partida()
                     arena = None
                     mazmorra = None
                     escena = _volver_a_la_ciudad(jugador, partida)
@@ -625,12 +836,71 @@ def _jugar(pantalla, reloj, sesion, preferencias, presentar):
         # Con un diálogo o cinemática abiertos el mundo queda quieto (ni
         # caminar ni combate) y la tarjeta de evidencia espera a que termine.
         tiempo_overlay += dt
-        if isinstance(dialogo, Cinematica):
+        tiempo_historia += dt
+        if escena != escena_avisos:
+            # Un aviso de la mazmorra no debe aparecer ya de vuelta en la ciudad.
+            escena_avisos = escena
+            toasts.clear()
+        if dialogo is not None:
             dialogo.actualizar(dt)
+        if isinstance(dialogo, Cinematica):
             sonar(dialogo.tomar_sonido())
             if dialogo.terminada:
                 siguiente_historia()
-        en_dialogo = dialogo is not None
+        if final_derrota is not None:
+            final_derrota.actualizar(dt)
+        if indicador_rep is not None:
+            indicador_rep.actualizar(dt)
+            if indicador_rep.cerrado:
+                indicador_rep = None
+        # El equipo se fue a una mazmorra (Online): la crisis espera a volver.
+        if escena != Escena.CIUDAD and (crisis_en_curso is not None or etapa_abierta is not None):
+            crisis_en_curso = etapa_abierta = eleccion_crisis = None
+        sesion.historia_ocupada = dialogo is not None or pantalla_historia_abierta() or indicador_rep is not None
+        en_dialogo = sesion.historia_ocupada
+        # Cada cambio de reputación se presenta en una pausa segura (nunca en combate).
+        if indicador_rep is None and dialogo is None and not pantalla_historia_abierta() \
+                and escena in (Escena.CIUDAD, Escena.RESULTADO):
+            for _i in indices_locales:
+                cambio = campania.rep(_i).tomar_pendiente()
+                if cambio is not None:
+                    indicador_rep = reputacion_render.IndicadorReputacion(cambio)
+                    sonar("reputacion_sube" if cambio.delta > 0 else "reputacion_baja" if cambio.delta < 0 else "notificacion")
+                    break
+        # Crisis: se presenta al volver a la ciudad, nunca en plena acción.
+        if escena == Escena.CIUDAD and not en_dialogo and indicador_rep is None and crisis_en_curso is None:
+            en_crisis = campania.jugador_en_crisis(indices_locales)
+            if en_crisis is not None:
+                crisis_en_curso = en_crisis
+                encolar_historia(campania.guion_de_crisis(en_crisis, jugadores[en_crisis].NOMBRE, campania.roles.get(en_crisis)))
+                en_dialogo = True
+        if dialogo is None and crisis_en_curso is not None and eleccion_crisis is None:
+            eleccion_crisis = EleccionCrisis()
+            tiempo_historia = 0.0
+            sonar("crisis")
+        if dialogo is None and final_pendiente is not None and final_derrota is None:
+            hay_equipo = not campania.todos_sin_voz()
+            final_derrota = redencion_render.FinalDerrota(final_pendiente, campania.balance_final_individual(final_pendiente),
+                                                          puede_seguir=hay_equipo, puede_reiniciar=not campania.espejo)
+            final_pendiente = None
+            tiempo_historia = 0.0
+        # Comentarios de los ciudadanos según la reputación.
+        if feed_ciudad is not None:
+            feed_ciudad = (feed_ciudad[0], feed_ciudad[1], feed_ciudad[2] - dt)
+            if feed_ciudad[2] <= 0:
+                feed_ciudad = None
+        if escena == Escena.CIUDAD and not en_dialogo:
+            reloj_reaccion -= dt
+            if reloj_reaccion <= 0:
+                reloj_reaccion = assets.PERIODO_REACCION_CIUDAD
+                texto_feed, nivel_feed = campania.reaccion_ciudadana(indice_local)
+                feed_ciudad = (texto_feed, nivel_feed, assets.DURACION_FEED_CIVITAS)
+                sonar("notificacion")
+        if tarjeta_evidencia is None:
+            evidencia_nueva = campania.tomar_evidencia_nueva()
+            if evidencia_nueva is not None:
+                tarjeta_evidencia = (evidencia_nueva, assets.DURACION_TARJETA_EVIDENCIA)
+                sonar("evidencia")
         if tarjeta_evidencia is not None and not en_dialogo:
             restante = tarjeta_evidencia[1] - dt
             tarjeta_evidencia = (tarjeta_evidencia[0], restante) if restante > 0 else None
@@ -638,7 +908,10 @@ def _jugar(pantalla, reloj, sesion, preferencias, presentar):
             toasts[0][1] -= dt
             if toasts[0][1] <= 0:
                 toasts.pop(0)
-        musica(_pista_para(escena, en_dialogo and isinstance(dialogo, Cinematica)))
+        toma_actual = dialogo.actual if isinstance(dialogo, Cinematica) else None
+        musica(_pista_para(escena, toma_actual is not None, crisis_en_curso is not None,
+                           campania.mision_de(indice_local) is not None or (toma_actual is not None and toma_actual.id.startswith("redencion")),
+                           final_derrota is not None or final_pendiente is not None))
 
         if escena == Escena.CIUDAD and not mostrar_mapa_mundo and not en_dialogo and not mostrar_estado and not mostrar_ayuda:
             jugador.caminar_en_ciudad(pygame.key.get_pressed(), dt, partida.es_solida)
@@ -655,15 +928,21 @@ def _jugar(pantalla, reloj, sesion, preferencias, presentar):
                     revivir_caidos(jugadores)  # cooperativo: el caído vuelve en el cuarto nuevo
                     for j in jugadores:
                         j.detener()  # se aparece quieto junto a la puerta
-                if mazmorra is not None and getattr(mazmorra, "mazmorra", None) is not None:
-                    # Modo historia: cada cuarto limpio revela una evidencia de la zona.
-                    limpios = len(mazmorra.mazmorra.limpiados)
+                if mazmorra is not None and getattr(mazmorra, "mazmorra", None) is not None and not campania.espejo:
+                    # Modo historia: cada cuarto limpio deja una prueba en el suelo;
+                    # hay que ir a recogerla (el host decide, en red).
+                    m_actual = mazmorra.mazmorra
+                    limpios = len(m_actual.limpiados)
                     if limpios > limpios_vistos:
                         limpios_vistos = limpios
-                        evidencia = campania.revelar_evidencia(mazmorra.mazmorra.nombre_zona)
-                        if evidencia is not None:
-                            tarjeta_evidencia = (evidencia, assets.DURACION_TARJETA_EVIDENCIA)
-                            sonar("evidencia")
+                        if campania.soltar_evidencia(m_actual.nombre_zona, m_actual.actual):
+                            toasts.append(["Recógela antes de salir del cuarto", 2.4, "Prueba disponible"])
+                            sonar("notificacion")
+                    if campania.hay_evidencia_suelta(m_actual.nombre_zona, m_actual.actual):
+                        punto = _punto_evidencia(mazmorra)
+                        if any(pygame.Vector2(j.rect.center).distance_to(punto) < assets.RADIO_RECOGER_EVIDENCIA
+                               for j in jugadores_en_combate(jugadores)):
+                            campania.recoger_evidencia(m_actual.nombre_zona, m_actual.actual)
                 if mazmorra is not None and getattr(mazmorra, "cuarto", None) is not None and mazmorra.cuarto.fase == FASE_DECISION:
                     escena = Escena.DECISION
                 elif mazmorra is not None and todos_caidos(jugadores):
@@ -701,7 +980,8 @@ def _jugar(pantalla, reloj, sesion, preferencias, presentar):
                 if terminal.resultado is not None:
                     # Única vía para aplicar la decisión: una vez por mazmorra.
                     colapso_antes = partida.colapso.valor
-                    partida.cerrar_mazmorra(mazmorra.mazmorra, terminal.resultado, terminal)
+                    if not campania.espejo:
+                        partida.cerrar_mazmorra(mazmorra.mazmorra, terminal.resultado, terminal)
                     mazmorra.cuarto.fase = FASE_RESUELTO
                     resultado = ResultadoMazmorra(
                         terminal.resultado, terminal.opcion_elegida,
@@ -710,7 +990,7 @@ def _jugar(pantalla, reloj, sesion, preferencias, presentar):
                     )
                     tarjeta_evidencia = None
                     propagacion_pendiente = campania.ultima_propagacion is not None
-                    sonar("victoria" if resultado.exito else "derrota")
+                    sonar("decision_buena" if resultado.exito else "decision_mala")
                     if hasattr(sesion, "adaptador_red") and sesion.adaptador_red is not None and hasattr(sesion.adaptador_red, "notificar_resultado"):
                         sesion.adaptador_red.notificar_resultado(resultado)
                     mazmorra = None
@@ -731,7 +1011,8 @@ def _jugar(pantalla, reloj, sesion, preferencias, presentar):
         # Misión visible: se deriva del estado; un objetivo recién cumplido avisa.
         mision = mision_actual(escena.value, campania, partida,
                                mazmorra.mazmorra if mazmorra is not None and getattr(mazmorra, "mazmorra", None) else None,
-                               arena.mazmorra if arena is not None else None)
+                               arena.mazmorra if arena is not None else None,
+                               campania.mision_de(indice_local))
         for objetivo in rastreador.novedades(mision):
             toasts.append([objetivo.texto, assets.DURACION_TOAST_MISION,
                            mision_render.TEXTO_TOAST_MISION if mision.completada else mision_render.TEXTO_TOAST])
@@ -743,7 +1024,9 @@ def _jugar(pantalla, reloj, sesion, preferencias, presentar):
         pantalla.fill(assets.COLOR_FONDO)
         if escena in (Escena.CIUDAD, Escena.DERROTA):
             _dibujar_ciudad(pantalla, partida, jugador, selector.seleccionada, tiempo,
-                            mostrar_ruta, mostrar_mapa_mundo and escena == Escena.CIUDAD)
+                            mostrar_ruta, mostrar_mapa_mundo and escena == Escena.CIUDAD, indice_local)
+            if escena == Escena.CIUDAD and not mostrar_mapa_mundo and not en_dialogo:
+                _dibujar_baliza_mision(pantalla, campania, indices_locales, jugador, tiempo)
             if tiempo_mensaje_mapa > 0 and mensaje_mapa is not None and escena == Escena.CIUDAD:
                 _dibujar_mensaje(pantalla, mensaje_mapa[0], mensaje_mapa[1], assets.POSICION_MENSAJE_MAPA)
             if escena == Escena.DERROTA:
@@ -764,11 +1047,15 @@ def _jugar(pantalla, reloj, sesion, preferencias, presentar):
                 escenario_historia = campania.escenario_activo if campania.zona_activa == zona_terminal else None
                 dibujar_terminal(
                     pantalla, mazmorra.cuarto.terminal,
-                    f"Cuarto final  ·  {zona_terminal}  ·  {campania.titulo_capitulo(zona_terminal)}",
+                    f"{zona_terminal}  ·  {campania.titulo_capitulo(zona_terminal)}",
                     post=escenario_historia.post if escenario_historia is not None else None,
                     estado_evidencia=escenario_historia.estado if escenario_historia is not None else None,
                     evidencias=campania.evidencias_reveladas_de(zona_terminal),
                     total_evidencias=len(campania.evidencias_de(zona_terminal)),
+                    verificacion=escenario_historia.resultado_verificacion if escenario_historia is not None else "",
+                    exige_mas_pruebas=campania.exige_mas_pruebas,
+                    tiempo=tiempo,
+                    nota_decisor="" if campania.puede_decidir(indice_local) else "Sin voz: tu equipo decide por ti",
                 )
                 hud.dibujar_barra_controles(pantalla, hud.CONTROLES_TERMINAL)
             presentar()
@@ -776,6 +1063,12 @@ def _jugar(pantalla, reloj, sesion, preferencias, presentar):
             continue
 
         if escena == Escena.RESULTADO:
+            # Invitado: ve el mismo rastreo que el host (su navegación va al host).
+            espejo_investigacion = getattr(adaptador_red, "investigacion_espejo", None)
+            if campania.espejo and isinstance(espejo_investigacion, dict):
+                if investigacion is None:
+                    investigacion = campania.nueva_investigacion()
+                investigacion.copiar_de(espejo_investigacion)
             if investigacion is not None:
                 # Online (host): las navegaciones de los invitados también cuentan.
                 adaptador = getattr(sesion, "adaptador_red", None)
@@ -784,8 +1077,8 @@ def _jugar(pantalla, reloj, sesion, preferencias, presentar):
                     for direccion in adaptador.tomar_solicitudes_decision():
                         investigacion.navegar(direccion)
                     if investigacion.terminada:
-                        campania.registrar_investigacion(investigacion.resultado)
-                investigacion_render.dibujar_investigacion(pantalla, investigacion)
+                        campania.registrar_investigacion(investigacion.resultado, getattr(adaptador, "ultimo_actor", 0))
+                investigacion_render.dibujar_investigacion(pantalla, investigacion, tiempo)
             elif mostrar_propagacion:
                 tiempo_propagacion += dt
                 red_social_render.dibujar_pantalla_propagacion(pantalla, campania, tiempo_propagacion)
@@ -813,6 +1106,9 @@ def _jugar(pantalla, reloj, sesion, preferencias, presentar):
         en_combate = jugadores_en_combate(jugadores)  # los caídos no se dibujan
         lienzo.fill(assets.COLOR_FONDO)
         escenario.dibujar(lienzo)
+        if escena == Escena.MAZMORRA and mazmorra is not None and getattr(mazmorra, "mazmorra", None) is not None \
+                and campania.hay_evidencia_suelta(mazmorra.mazmorra.nombre_zona, mazmorra.mazmorra.actual):
+            feed_render.dibujar_prueba_suelta(lienzo, _punto_evidencia(mazmorra), tiempo)
         particulas.dibujar(lienzo)  # el rastro del dash queda detrás de los jugadores
         objetivo = None
         if escena in ESCENAS_DE_COMBATE:
@@ -964,18 +1260,67 @@ def _overlay_terminado(overlay):
 
 PISTA_POR_ESCENA = {
     Escena.CIUDAD: "ciudad",
-    Escena.MAZMORRA: "misterio",
-    Escena.DECISION: "misterio",
+    Escena.MAZMORRA: "combate",
+    Escena.DECISION: "decision",
     Escena.RESULTADO: "misterio",
     Escena.JEFE: "jefe",
-    Escena.VICTORIA: "menu",
-    Escena.DERROTA: "misterio",
+    Escena.VICTORIA: "victoria",
+    Escena.DERROTA: "derrota",
 }
 
 
-def _pista_para(escena, en_cinematica):
-    """Pista ambiental de la escena (las cinemáticas usan la de misterio)."""
+def _pista_para(escena, en_cinematica, en_crisis=False, en_redencion=False, en_final_derrota=False):
+    """Pista de lo que está pasando: una crisis o una redención mandan sobre
+    la escena; las demás cinemáticas usan la de misterio."""
+    if en_final_derrota:
+        return "derrota"
+    if en_crisis:
+        return "crisis"
+    if en_redencion:
+        return "redencion"
     return "misterio" if en_cinematica else PISTA_POR_ESCENA.get(escena, "ciudad")
+
+
+def _punto_evidencia(mazmorra):
+    """Dónde cae la prueba del cuarto actual: en el centro, algo arriba,
+    lejos de puertas y de la terminal."""
+    rect = mazmorra.cuarto.rect
+    return (rect.centerx, rect.centery - 40)
+
+
+def _baliza_mision(campania, indices):
+    """(índice, posición en el mundo, texto) de la etapa de redención pendiente,
+    o None. La etapa 2 está en el Kiosco de la Plaza y la 3, frente a la zona."""
+    for indice in indices:
+        mision = campania.mision_de(indice)
+        if mision is None:
+            continue
+        if mision.etapa == ETAPA_CORREGIR:
+            return indice, ciudad_mapa.posicion_aparicion(ZONA_INICIO), "E: publicar la corrección en el Kiosco Civitas"
+        if mision.etapa == ETAPA_CONFIANZA:
+            return indice, ciudad_mapa.posicion_aparicion(mision.zona), f"E: ayudar a {mision.ayuda['ciudadano']}"
+    return None
+
+
+def _baliza_cercana(campania, indices, jugador):
+    baliza = _baliza_mision(campania, indices)
+    if baliza is None:
+        return None
+    distancia = pygame.Vector2(jugador.posicion.x, jugador.posicion.y).distance_to(baliza[1])
+    return baliza[0] if distancia <= assets.ALCANCE_BALIZA else None
+
+
+def _dibujar_baliza_mision(pantalla, campania, indices, jugador, tiempo):
+    baliza = _baliza_mision(campania, indices)
+    if baliza is None:
+        return
+    camara_x, camara_y = ciudad_render.camara_para((jugador.posicion.x, jugador.posicion.y))
+    vista = ciudad_render.vista()
+    punto = (baliza[1][0] + vista.x - camara_x, baliza[1][1] + vista.y - camara_y)
+    cerca = pygame.Vector2(jugador.posicion.x, jugador.posicion.y).distance_to(baliza[1]) <= assets.ALCANCE_BALIZA
+    feed_render.dibujar_baliza(pantalla, punto, vista, tiempo)
+    if cerca:
+        ciudad_render.dibujar_aviso(pantalla, baliza[2], assets.COLOR_VERIFICADO)
 
 
 def _escenario_activo(escena, arena, mazmorra):
@@ -1003,7 +1348,7 @@ def _volver_a_la_ciudad(jugador, partida):
     return Escena.CIUDAD
 
 
-def _dibujar_ciudad(pantalla, partida, jugador, destino, tiempo, mostrar_ruta, mostrar_mapa_mundo):
+def _dibujar_ciudad(pantalla, partida, jugador, destino, tiempo, mostrar_ruta, mostrar_mapa_mundo, indice_local=0):
     """Escena CIUDAD completa salvo la barra de controles: el mundo (o el
     mapa del mundo con M), el HUD, el cintillo y los avisos."""
     posicion = _posicion(jugador)
@@ -1029,6 +1374,7 @@ def _dibujar_ciudad(pantalla, partida, jugador, destino, tiempo, mostrar_ruta, m
     subtitulo = f"Destino: {destino}  ·  Calles bloqueadas: {len(partida.ciudad.bloqueadas)}"
     hud.dibujar_hud_superior(pantalla, jugador, None, titulo, subtitulo, partida.colapso)
     ciudad_render.dibujar_cintillo(pantalla, partida.titulares(), tiempo)
+    reputacion_render.dibujar_chip_reputacion(pantalla, partida.campania.rep(indice_local).valor)
     if mostrar_mapa_mundo:
         return
     if mostrar_ruta:

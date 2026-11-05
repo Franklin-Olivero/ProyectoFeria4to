@@ -68,7 +68,11 @@ class TerminalDecision:
         activa: True entre iniciar() y la llegada a un resultado.
     """
 
-    def __init__(self, arbol, duracion=DURACION_TERMINAL):
+    def __init__(self, arbol, duracion=DURACION_TERMINAL, descender_resultados=False):
+        """`descender_resultados`: al elegir una opción cuyo único hijo es
+        el nodo de resultado se llega a él de una vez. El modo historia lo usa:
+        el jugador no ve la hoja, así que el resultado no se le anticipa."""
+        self.descender_resultados = descender_resultados
         self.arbol = arbol
         self.duracion = duracion
         self.nodo_actual = arbol.raiz
@@ -140,6 +144,9 @@ class TerminalDecision:
         elif direccion == CONFIRMAR:
             self.nodo_actual = self.hijo_seleccionado
             self.indice_seleccionado = 0
+            if self.descender_resultados and len(self.nodo_actual.hijos) == 1 \
+                    and not self.nodo_actual.hijos[0].hijos:
+                self.nodo_actual = self.nodo_actual.hijos[0]
             if not self.nodo_actual.hijos:
                 self._terminar(self.nodo_actual.etiqueta)
 

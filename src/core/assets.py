@@ -17,11 +17,11 @@ import os
 # ----------------------------------------------------------------------
 # Paleta general (estilo "neón sobre noche": 4 acentos sobre azul oscuro)
 # ----------------------------------------------------------------------
-COLOR_FONDO = (15, 13, 34)
-COLOR_FONDO_PANEL = (22, 20, 46)
-COLOR_FONDO_PANEL_CLARO = (30, 28, 60)
-COLOR_BORDE_PANEL = (58, 54, 100)
-COLOR_LINEA_HUD = (44, 40, 80)
+COLOR_FONDO = (11, 14, 38)
+COLOR_FONDO_PANEL = (18, 22, 52)
+COLOR_FONDO_PANEL_CLARO = (26, 32, 68)
+COLOR_BORDE_PANEL = (54, 60, 108)
+COLOR_LINEA_HUD = (40, 46, 88)
 
 COLOR_TEAL = (62, 230, 196)
 COLOR_TEAL_OSCURO = (18, 92, 82)
@@ -30,6 +30,36 @@ COLOR_MAGENTA_OSCURO = (110, 26, 60)
 COLOR_AMARILLO = (255, 190, 60)
 COLOR_MORADO = (164, 110, 255)
 COLOR_MORADO_OSCURO = (70, 48, 120)
+
+# Tokens semánticos de la identidad (docs/ART_DIRECTION.md): cada color
+# significa una sola cosa en todo el juego.
+COLOR_NOCHE = (7, 9, 26)  # azul oscuro: la ciudad y la tecnología
+COLOR_CIVITAS = COLOR_MORADO  # violeta: Civitas y el foco de la interfaz
+COLOR_VERIFICADO = (56, 222, 232)  # cian: información verificada
+COLOR_NOVA = COLOR_MAGENTA  # magenta: la manipulación de NOVA_404
+COLOR_ALERTA = COLOR_AMARILLO  # ámbar: advertencias
+COLOR_GRAVE = (236, 72, 80)  # rojo: consecuencias graves
+COLOR_VIDRIO_ARRIBA = (24, 28, 66)  # paneles de la interfaz (src/ui/kit.py)
+COLOR_VIDRIO_ABAJO = (13, 15, 40)
+COLOR_BORDE_VIDRIO = (58, 64, 116)
+COLOR_FOCO_FONDO = (44, 34, 96)
+COLOR_OPCION_FONDO = (18, 21, 52)
+COLOR_TRAMA_TERMINAL = (15, 19, 46)
+COLOR_ARISTA_RED = (64, 70, 122)
+COLOR_NODO_NEUTRO = (92, 96, 142)
+MARCAS_REPUTACION = (-60, -20, 20, 60)  # separaciones de los niveles en la barra
+
+
+def color_reputacion(valor):
+    """Color de un valor de reputación: rojo, magenta, gris, cian."""
+    if valor <= -60:
+        return COLOR_GRAVE
+    if valor <= -20:
+        return COLOR_NOVA
+    if valor >= 20:
+        return COLOR_VERIFICADO
+    return COLOR_TEXTO_SECUNDARIO
+
 
 COLOR_TEXTO_HUD = (236, 236, 246)
 COLOR_TEXTO_SECUNDARIO = (150, 150, 182)
@@ -488,6 +518,21 @@ COLOR_COPA_SOMBRA = (14, 52, 54)
 COLOR_COPA_BORDE = (10, 34, 40)
 COLOR_TRONCO = (64, 42, 54)
 COLOR_SOMBRA_SUELO = (12, 24, 34)
+COLOR_SOMBRA_ENTIDAD = (4, 5, 16, 120)  # RGBA: sombra bajo personajes y objetos
+# Escenarios por lugar (src/ui/temas_mazmorra.py).
+TEMA_POR_ZONA = {"Colegio": "colegio", "Hospital": "hospital", "Empresa de Medios": "medios", "Alcaldía": "servidor"}
+Y_MUNDO_TEMA = 62  # bajo el HUD
+ALTO_MUNDO_TEMA = 600  # hasta la barra de controles
+COLOR_TEMA_NOVA_OSCURO = (150, 30, 96)
+COLOR_TEMA_PANTALLA = ((120, 30, 60), (24, 84, 120), (64, 44, 130))
+COLOR_TEMA_ECG = (90, 255, 170)
+COLOR_TEMA_INFO = (40, 120, 170)
+# Vida de los personajes (src/entities/player.py, src/ui/enemigo_render.py).
+DURACION_DESTELLO_DANIO = 0.14  # s de destello blanco al recibir un golpe
+DURACION_RETROCESO_DISPARO = 0.09  # s del pequeño empujón visual al disparar
+DISTANCIA_RETROCESO_DISPARO = 3  # px
+AMPLITUD_PASO = 2  # px de rebote al caminar
+FRECUENCIA_PASO = 11.0  # rad/s
 COLOR_POSTE = (84, 80, 130)
 COLOR_POSTE_OSCURO = (52, 48, 90)
 COLOR_LAMPARA = (255, 226, 150)
@@ -859,7 +904,7 @@ ARTE_VARIANTE = {
 }
 # Debug de balance: nombre exacto de la variante flotando sobre cada
 # enemigo. Poner en False cuando termine el balanceo.
-MOSTRAR_NOMBRE_ENEMIGO = True
+MOSTRAR_NOMBRE_ENEMIGO = False
 COLOR_NOMBRE_ENEMIGO = (255, 255, 255)
 COLOR_SOMBRA_NOMBRE_ENEMIGO = (10, 10, 20)
 SEPARACION_NOMBRE_ENEMIGO = 4  # px entre el texto y lo alto del sprite
@@ -919,9 +964,23 @@ DURACION_PARPADEO_INDICADOR = 0.8  # s del ciclo del "▸ Enter" del diálogo
 # se dibuja el icono en código.
 ID_RETRATO_CIVITAS = "civitas"
 ID_RETRATO_NOVA = "nova"
+ID_RETRATO_MENTORA = "rosa"
+RECT_INDICADOR_REPUTACION = (290, 170, 700, 380)
+POSICION_CHIP_REPUTACION = (1096, 112)  # bajo el cintillo, a la derecha
+RECT_FEED_CIVITAS = (900, 560, 360, 80)
+RADIO_RECOGER_EVIDENCIA = 46  # px: tocar la prueba del suelo la recoge
+PERIODO_REACCION_CIUDAD = 24.0  # s entre comentarios de ciudadanos
+DURACION_FEED_CIVITAS = 7.0
+ALCANCE_BALIZA = 70  # px para abrir una etapa de la misión de redención
+PAUSA_ANTES_DE_DECIDIR = 0.6  # s: un Enter de más al abrir una decisión no cuenta
+TITULO_ETAPA_REDENCION = {
+    "reconocer": "Reconocer el error",
+    "corregir": "Corregir la información",
+    "confianza": "Recuperar la confianza",
+}
 
 # Tarjeta de evidencia (aparece en combate al limpiar un cuarto).
-RECT_TARJETA_EVIDENCIA = (380, 72, 520, 120)
+RECT_TARJETA_EVIDENCIA = (350, 72, 580, 128)
 COLOR_FONDO_EVIDENCIA = (248, 244, 232)
 COLOR_BORDE_EVIDENCIA = COLOR_AMARILLO
 COLOR_TITULO_EVIDENCIA = (34, 30, 48)
@@ -977,7 +1036,7 @@ COLOR_ARISTA_CORRECCION = COLOR_TEAL
 GROSOR_ARISTA_PROPAGADA = 3
 SEGUNDOS_POR_CAPA = 0.6  # la onda del BFS avanza una capa cada tanto
 RECT_PANEL_DATOS_SOCIAL = (760, 120, 460, 500)
-# Investigación del infiltrado (src/ui/investigacion_render.py).
+# Investigación del origen de la señal (src/ui/investigacion_render.py).
 RECTS_TARJETA_SOSPECHOSO = ((40, 150, 380, 400), (450, 150, 380, 400), (860, 150, 380, 400))
 COLOR_FONDO_SOSPECHOSO = (22, 20, 46)
 COLOR_BORDE_SOSPECHOSO_SELECCIONADO = COLOR_AMARILLO
@@ -1005,6 +1064,7 @@ COLOR_FONDO_AYUDA = (18, 16, 42, 240)  # RGBA
 # Higgsfield nano_banana_2; ver docs/ASSET_MANIFEST.md). Si falta el
 # archivo, las pantallas se dibujan como antes (velo o fondo liso).
 RUTA_FONDOS_HISTORIA = os.path.join("assets", "story")
+RUTA_VIDEOS_HISTORIA = os.path.join("assets", "story", "video")
 FONDO_PROLOGO = "portada"
 FONDO_ELECCIONES = "elecciones"
 FONDO_POR_ZONA = {
@@ -1035,7 +1095,7 @@ COLOR_VELO_OVERLAY = (4, 4, 14, 170)  # RGBA detrás de cualquier overlay modal
 # ----------------------------------------------------------------------
 ALTO_LETTERBOX = 64  # franjas negras arriba y abajo
 COLOR_LETTERBOX = (0, 0, 0)
-RECT_SUBTITULO_CINEMATICA = (160, 560, 960, 86)  # caja de subtítulos (dentro de la franja inferior + algo)
+RECT_SUBTITULO_CINEMATICA = (120, 532, 1040, 130)  # caja de subtítulos: hablante + 3 líneas
 COLOR_FONDO_SUBTITULO = (4, 4, 12, 190)
 COLOR_SUBTITULO = COLOR_TEXTO_HUD
 COLOR_SUBTITULO_NOVA = COLOR_MAGENTA
@@ -1043,7 +1103,8 @@ COLOR_SUBTITULO_HABLANTE = COLOR_TEAL
 TAMANIO_FUENTE_SUBTITULO = TAMANIO_FUENTE_MEDIA
 VELOCIDAD_MAQUINA_ESCRIBIR = 46.0  # caracteres por segundo del subtítulo
 DURACION_FUNDIDO_TOMA = 0.6  # s de fundido a negro entre tomas
-ZOOM_KEN_BURNS = 1.10  # escala máxima del paneo lento sobre la ilustración
+ZOOM_KEN_BURNS = 1.10  # escala de la imagen que se pasea lentamente
+PERIODO_PANEO = 38.0  # s de un vaivén completo del paneo
 INTENSIDAD_GLITCH_NOVA = 14  # px máximos de desplazamiento de las bandas de glitch
 FILAS_GLITCH_NOVA = 9
 COLOR_TINTE_NOVA = (255, 56, 120, 46)  # RGBA sobre la imagen cuando habla NOVA_404
@@ -1061,7 +1122,7 @@ TAMANIO_FUENTE_TARJETA_SUPERIOR = TAMANIO_FUENTE_TITULO
 TAMANIO_FUENTE_TARJETA = 56
 COLOR_TARJETA_CAPITULO = COLOR_TEXTO_HUD
 COLOR_LINEA_TARJETA = COLOR_MORADO
-DURACION_TARJETA_CAPITULO = 2.8  # s que dura la tarjeta de capítulo antes de pasar sola
+DURACION_TARJETA_CAPITULO = 9.0  # s de lectura de la tarjeta de capítulo; Enter la pasa antes
 # Título de la cinemática y pantalla de objetivos.
 TAMANIO_FUENTE_TITULO_CINEMATICA = 64
 COLOR_TITULO_CINEMATICA = COLOR_MENU_SELECCION
@@ -1078,7 +1139,7 @@ POSICION_RETRATO_CINEMATICA = (260, 330)  # centro
 # Misiones (src/story/misiones.py, dibujo en src/ui/mision_render.py)
 # ----------------------------------------------------------------------
 RECT_PANEL_MISION_CIUDAD = (20, ALTO_HUD + 2 + 34 + 12, 340, 140)  # bajo el cintillo, a la izquierda
-RECT_PANEL_MISION_COMBATE = (20, 720 - ALTO_BARRA_CONTROLES - 12 - 116, 300, 116)  # abajo a la izquierda
+RECT_PANEL_MISION_COMBATE = (20, 720 - ALTO_BARRA_CONTROLES - 12 - 116, 340, 116)  # abajo a la izquierda
 COLOR_FONDO_MISION = (14, 12, 34, 215)  # RGBA
 COLOR_BORDE_MISION = COLOR_AMARILLO
 COLOR_TITULO_MISION = COLOR_AMARILLO
@@ -1095,9 +1156,16 @@ COLOR_BORDE_TOAST = COLOR_TEAL
 # ----------------------------------------------------------------------
 DURACION_CONTEO_ELECCIONES = 2.2  # s que tardan las barras en llenarse
 FONDO_SERVIDOR_CAIDO = "servidor_caido"
+FONDO_CRISIS = "crisis_reputacion"
+FONDO_REDENCION = "redencion"
+FONDO_CONFIANZA_PERDIDA = "final_confianza_perdida"
+VIDEO_CRISIS = "crisis"
+VIDEO_JEFE = "jefe"
+VIDEO_REDENCION = "redencion"
 FONDO_CIUDADANOS = "ciudadanos_civitas"
 FONDO_PANTALLAS_NOVA = "pantallas_nova"
-FONDO_POR_FINAL = {"renace": "final_renace", "dividida": "final_dividida", "arquitecto": "servidor_caido"}
+FONDO_POR_FINAL = {"renace": "final_renace", "dividida": "final_dividida", "arquitecto": "servidor_caido",
+                   "confianza_perdida": FONDO_CONFIANZA_PERDIDA}
 # Sonidos nuevos del modo historia (sintetizados; archivos opcionales en assets/sonidos/).
 RUTAS_SONIDOS.update({
     "notificacion": os.path.join("assets", "sonidos", "notificacion.wav"),
@@ -1108,6 +1176,13 @@ RUTAS_SONIDOS.update({
     "victoria": os.path.join("assets", "sonidos", "victoria.wav"),
     "derrota": os.path.join("assets", "sonidos", "derrota.wav"),
     "glitch": os.path.join("assets", "sonidos", "glitch.wav"),
+    "reputacion_sube": os.path.join("assets", "sonidos", "reputacion_sube.wav"),
+    "reputacion_baja": os.path.join("assets", "sonidos", "reputacion_baja.wav"),
+    "crisis": os.path.join("assets", "sonidos", "crisis.wav"),
+    "redencion": os.path.join("assets", "sonidos", "redencion.wav"),
+    "decision_buena": os.path.join("assets", "sonidos", "decision_buena.wav"),
+    "decision_mala": os.path.join("assets", "sonidos", "decision_mala.wav"),
+    "error_decision": os.path.join("assets", "sonidos", "error_decision.wav"),
 })
 TONOS_SONIDOS.update({
     "notificacion": ((1320, 1760), 0.14),
@@ -1118,20 +1193,30 @@ TONOS_SONIDOS.update({
     "victoria": ((523, 659, 784, 1047, 1319), 0.8),
     "derrota": ((392, 311, 233, 175), 0.9),
     "glitch": ((110, 1760, 92, 1480), 0.18),
+    "reputacion_sube": ((659, 784, 1047), 0.5),
+    "reputacion_baja": ((294, 247, 196), 0.6),
+    "crisis": ((110, 104, 98), 1.2),
+    "redencion": ((262, 330, 392, 523), 1.2),
+    "decision_buena": ((392, 587), 0.5),
+    "decision_mala": ((294, 277), 0.5),
+    "error_decision": ((220, 175), 0.2),
 })
 # Música ambiental sintetizada (src/core/audio.py): acordes (Hz) por pista,
 # en bucle, si no existe el archivo de assets/musica/.
-RUTAS_MUSICA = {
-    "menu": RUTA_MUSICA_MENU,
-    "misterio": os.path.join("assets", "musica", "misterio.ogg"),
-    "ciudad": os.path.join("assets", "musica", "ciudad.ogg"),
-    "jefe": os.path.join("assets", "musica", "jefe.ogg"),
-}
+RUTAS_MUSICA = {nombre: os.path.join("assets", "musica", f"{nombre}.wav") for nombre in (
+    "menu", "ciudad", "combate", "jefe", "misterio", "decision", "crisis", "redencion", "victoria", "derrota")}
+FUNDIDO_MUSICA_MS = 1400  # fundido cruzado entre pistas
 ACORDES_MUSICA = {
     "menu": ((110.0, 164.8, 220.0, 329.6), (98.0, 146.8, 196.0, 293.7)),
     "misterio": ((82.4, 123.5, 164.8, 246.9), (77.8, 116.5, 155.6, 233.1)),
     "ciudad": ((130.8, 196.0, 261.6, 392.0), (116.5, 174.6, 233.1, 349.2)),
     "jefe": ((73.4, 110.0, 146.8, 220.0), (69.3, 103.8, 138.6, 207.7)),
+    "combate": ((82.4, 123.5, 164.8), (65.4, 98.0, 130.8)),
+    "decision": ((87.3, 130.8, 174.6), (69.3, 103.8, 138.6)),
+    "crisis": ((61.7, 87.3, 123.5), (58.3, 82.4, 116.5)),
+    "redencion": ((130.8, 196.0, 261.6), (98.0, 146.8, 196.0)),
+    "victoria": ((130.8, 196.0, 261.6, 329.6), (174.6, 261.6, 349.2)),
+    "derrota": ((110.0, 164.8, 220.0), (87.3, 130.8, 174.6)),
 }
 SEGUNDOS_POR_ACORDE = 4.0
 AMPLITUD_MUSICA_SINTETIZADA = 0.07

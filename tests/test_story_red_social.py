@@ -22,6 +22,7 @@ from src.core.balance import (  # noqa: E402
     REPUTACION_INICIAL,
     SALTOS_MAXIMOS_PROPAGACION,
     ZONA_COLEGIO,
+    ZONA_EMPRESA_MEDIOS,
     ZONA_HOSPITAL,
 )
 from src.dungeon.mazmorra import Mazmorra  # noqa: E402
@@ -136,42 +137,69 @@ def _resolver(partida, zona, *pasos):
     return terminal
 
 
-def test_detonacion_en_el_hospital_propaga_y_pesa_segun_alcance():
+def test_detonacion_en_medios_propaga_y_pesa_segun_alcance():
     partida = Partida()
     campania = partida.campania
     campania.semilla = 5
     campania.reiniciar()
-    terminal = _resolver(partida, ZONA_HOSPITAL, DERECHA, CONFIRMAR, CONFIRMAR)  # Compartir
+    terminal = _resolver(partida, ZONA_EMPRESA_MEDIOS, DERECHA, CONFIRMAR, CONFIRMAR)  # Compartir
     assert terminal.resultado == DETONACION
     propagacion = campania.ultima_propagacion
-    assert propagacion is not None and propagacion.tipo == RUMOR and propagacion.origen == "hugo"
+    assert propagacion is not None and propagacion.tipo == RUMOR and propagacion.origen == "fabio"
     base = campania.ultima_consecuencia.efectos["desinformacion"]
     assert campania.ultimos_deltas["desinformacion"] == base + propagacion.total
     assert campania.correccion_reciente() is None
     assert campania.resumen()["expuestos"] == propagacion.total
 
 
-def test_purificacion_en_el_hospital_publica_correccion():
+def test_purificacion_con_publicacion_falsa_publica_correccion():
+    partida = Partida()
+    campania = partida.campania
+    campania.semilla = 5
+    campania.reiniciar()
+    for _ in range(3):
+        campania.revelar_evidencia(ZONA_EMPRESA_MEDIOS)
+    terminal = _resolver(partida, ZONA_EMPRESA_MEDIOS, CONFIRMAR, CONFIRMAR, CONFIRMAR)
+    assert terminal.resultado == PURIFICACION_EXITOSA
+    correccion = campania.correccion_reciente()
+    assert correccion is not None and correccion.origen == "fabio"
+    assert set(correccion.alcanzados) <= set(campania.red.corregidos)
+    assert campania.ultimos_deltas["informacion_verificada"] >= campania.ultima_consecuencia.efectos["informacion_verificada"]
+
+
+def test_publicacion_verdadera_compartida_no_expone_a_nadie_a_un_rumor():
     partida = Partida()
     campania = partida.campania
     campania.semilla = 5
     campania.reiniciar()
     for _ in range(3):
         campania.revelar_evidencia(ZONA_HOSPITAL)
-    terminal = _resolver(partida, ZONA_HOSPITAL, CONFIRMAR, CONFIRMAR, CONFIRMAR)
-    assert terminal.resultado == PURIFICACION_EXITOSA
-    correccion = campania.correccion_reciente()
-    assert correccion is not None and correccion.origen == "hugo"
-    assert set(correccion.alcanzados) <= set(campania.red.corregidos)
-    assert campania.ultimos_deltas["informacion_verificada"] >= campania.ultima_consecuencia.efectos["informacion_verificada"]
+    _resolver(partida, ZONA_HOSPITAL, CONFIRMAR, CONFIRMAR, CONFIRMAR)
+    assert campania.ultima_propagacion.origen == "elena"
+    assert campania.resumen()["expuestos"] == 0 and campania.resumen()["corregidos"] > 0
 
 
-def test_el_colegio_no_propaga():
+def test_ocultar_una_publicacion_verdadera_propaga_la_version_de_que_era_mentira():
     partida = Partida()
-    for _ in range(3):
-        partida.campania.revelar_evidencia(ZONA_COLEGIO)
-    _resolver(partida, ZONA_COLEGIO, CONFIRMAR, CONFIRMAR, CONFIRMAR)
-    assert partida.campania.ultima_propagacion is None
+    campania = partida.campania
+    campania.semilla = 5
+    campania.reiniciar()
+    # Reportar -> Reportar el pedido como falso.
+    _resolver(partida, ZONA_HOSPITAL, DERECHA, DERECHA, CONFIRMAR, DERECHA, CONFIRMAR, CONFIRMAR)
+    assert campania.ultima_consecuencia.camino[-1] == "Reportar el pedido como falso"
+    assert campania.ultima_propagacion.tipo == RUMOR and campania.resumen()["expuestos"] > 0
+
+
+def test_la_reputacion_decide_hasta_donde_llega_la_correccion():
+    partida = Partida()
+    campania = partida.campania
+    assert campania.saltos_correccion(0) == 3
+    campania.rep(0).valor = 70
+    assert campania.saltos_correccion(0) == 4
+    campania.rep(0).valor = -30
+    assert campania.saltos_correccion(0) == 2
+    campania.rep(0).valor = -70
+    assert campania.saltos_correccion(0) == 1
 
 
 def test_matices_por_rol():
@@ -182,11 +210,17 @@ def test_matices_por_rol():
     assert p.campania.al_entrar_zona(ZONA_COLEGIO) is None
     q = Partida()
     assert q.campania.al_entrar_zona(ZONA_COLEGIO) is None
-    # Candidato: la penalización reputacional pesa doble.
+    # Candidato: la penalización reputacional pesa más.
+    normal = Partida()
+    normal.campania.semilla = 3
+    normal.campania.reiniciar()
+    _resolver(normal, ZONA_COLEGIO, DERECHA, CONFIRMAR, CONFIRMAR)  # Compartir
     c = Partida()
+    c.campania.semilla = 3
+    c.campania.reiniciar()
     c.campania.establecer_rol("candidato")
-    _resolver(c, ZONA_COLEGIO, DERECHA, CONFIRMAR, CONFIRMAR)  # Compartir: reputación -10
-    assert c.campania.reputacion == REPUTACION_INICIAL - 20
+    _resolver(c, ZONA_COLEGIO, DERECHA, CONFIRMAR, CONFIRMAR)
+    assert c.campania.reputacion < normal.campania.reputacion < REPUTACION_INICIAL
     # Ciudadano: confianza extra en cada éxito.
     for rol, esperado in (("ciudadano", 8 + 2), ("influencer", 8)):
         z = Partida()
@@ -200,7 +234,7 @@ def test_matices_por_rol():
     i.campania.establecer_rol("influencer")
     i.campania.semilla = 1
     i.campania.reiniciar()
-    _resolver(i, ZONA_HOSPITAL, DERECHA, CONFIRMAR, CONFIRMAR)
+    _resolver(i, ZONA_EMPRESA_MEDIOS, DERECHA, CONFIRMAR, CONFIRMAR)
     assert i.campania.ultima_propagacion.probabilidad_extra > 0
 
 

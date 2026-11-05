@@ -627,12 +627,31 @@ def sprite_jefe(tiempo=0.0, furia=False, escala=assets.ESCALA_SPRITE_JEFE):
 _cache_retratos = {}
 
 
+_cache_sombras = {}
+
+
+def dibujar_sombra(pantalla, centro, ancho):
+    """Sombra elíptica en el suelo: asienta personajes y objetos en el escenario."""
+    if ancho not in _cache_sombras:
+        alto = max(4, ancho // 3)
+        sombra = pygame.Surface((ancho, alto), pygame.SRCALPHA)
+        pygame.draw.ellipse(sombra, assets.COLOR_SOMBRA_ENTIDAD, sombra.get_rect())
+        _cache_sombras[ancho] = sombra
+    pantalla.blit(_cache_sombras[ancho], _cache_sombras[ancho].get_rect(center=centro))
+
+
 def retrato_rol(rol, alto):
     """Ilustración grande del rol (assets/sprites/retratos/<rol>.png)
     escalada a `alto` px, o None si no existe: el que llama decide el
     fallback (normalmente sprite_jugador a escala grande)."""
     if (rol, alto) not in _cache_retratos:
         imagen = _cargar_png(ruta_sprite(rol, assets.RUTA_SPRITES_RETRATOS))
+        if imagen is None and "_" in str(rol):
+            # "periodista_preocupado" sin archivo: el retrato base del rol.
+            imagen = _cargar_png(ruta_sprite(str(rol).split("_")[0], assets.RUTA_SPRITES_RETRATOS))
+        if imagen is None and "_" in str(rol):
+            # "periodista_preocupado" sin archivo: el retrato base del rol.
+            imagen = _cargar_png(ruta_sprite(str(rol).split("_")[0], assets.RUTA_SPRITES_RETRATOS))
         if imagen is not None:
             ancho = max(1, round(imagen.get_width() * alto / imagen.get_height()))
             imagen = pygame.transform.smoothscale(imagen, (ancho, alto))

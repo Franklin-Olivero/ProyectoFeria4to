@@ -23,6 +23,7 @@ from src.ui.terminal_decision import PURIFICACION_EXITOSA, construir_arbol_publi
 class Partida:
     def __init__(self):
         self.campania = Campania()
+        self.indice_decisor = 0  # jugador de esta pantalla al abrir una terminal
         self.reiniciar()
 
     def reiniciar(self):
@@ -92,7 +93,7 @@ class Partida:
         de la campaña con el estado de evidencia de ese instante, o el
         árbol fijo original si la zona no tiene escenario."""
         def fabrica():
-            escenario = self.campania.preparar_escenario(zona)
+            escenario = self.campania.preparar_escenario(zona, self.indice_decisor)
             return escenario.arbol if escenario is not None else construir_arbol_publicacion()
         return fabrica
 

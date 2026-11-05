@@ -142,8 +142,25 @@ def mision_jefe(arena_final):
     return Mision("LA ÚLTIMA TRANSMISIÓN", objetivos, pista)
 
 
-def mision_actual(escena, campania, partida, mazmorra=None, arena_final=None):
+def mision_redencion(mision):
+    """Misión «Segunda oportunidad» (`mision` es la MisionRedencion activa)."""
+    etapa = mision.numero_etapa
+    objetivos = [
+        Objetivo("reconocer", "Reconoce el error ante las pruebas", etapa > 1),
+        Objetivo("corregir", "Publica la corrección en el Kiosco Civitas (Plaza)", etapa > 2,
+                 f"{round(mision.cobertura() * 100)} %" if etapa == 2 else "", activo=etapa >= 2),
+        Objetivo("confianza", f"Ayuda a {mision.ayuda['ciudadano']} frente a la zona afectada", mision.completada,
+                 activo=etapa >= 3),
+    ]
+    pista = ("Sigue la baliza y pulsa E. También puedes entrar a mazmorras: la misión te espera."
+             if etapa >= 2 else "Enter: elegir tu respuesta.")
+    return Mision("SEGUNDA OPORTUNIDAD", objetivos, pista)
+
+
+def mision_actual(escena, campania, partida, mazmorra=None, arena_final=None, redencion=None):
     """La misión que corresponde a la escena (cadena de Escena.value)."""
+    if redencion is not None and escena == CIUDAD:
+        return mision_redencion(redencion)
     if escena in (MAZMORRA, DECISION) and mazmorra is not None:
         return mision_mazmorra(campania, mazmorra, en_terminal=escena == DECISION)
     if escena == JEFE and arena_final is not None:
@@ -164,8 +181,11 @@ class RastreadorMisiones:
         """Objetivos que pasaron a cumplidos desde la última llamada. La
         primera vez que se ve una misión no avisa de nada (solo registra)."""
         hechos = {o.id for o in mision.objetivos if o.hecho}
-        if mision.titulo != self.titulo:
-            self.titulo = mision.titulo
+        # La misma misión se ve distinta en la ciudad y en la mazmorra (otros
+        # objetivos): cambiar de vista no es cumplir nada.
+        firma = (mision.titulo, frozenset(o.id for o in mision.objetivos))
+        if firma != self.titulo:
+            self.titulo = firma
             self.hechos = hechos
             return []
         nuevos = [o for o in mision.objetivos if o.hecho and o.id not in self.hechos]

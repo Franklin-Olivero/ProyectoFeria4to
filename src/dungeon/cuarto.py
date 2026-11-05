@@ -45,7 +45,7 @@ from src.dungeon.spawn import posiciones_spawn
 from src.entities.enemigos import crear_enemigo
 from src.entities.tipos_enemigo import composicion_cuarto
 from src.entities.variantes_enemigo import elegir_variantes
-from src.ui import cuarto_render
+from src.ui import cuarto_render, temas_mazmorra
 from src.ui.terminal_decision import TerminalDecision, construir_arbol_publicacion
 
 ANCHO_CUARTO = assets.ANCHO_CUARTO
@@ -145,8 +145,10 @@ class Cuarto:
         es_cuarto_inicial=False,
         usos_variantes=None,
         fabrica_arbol=None,
+        semilla_visual=0,
         duracion_terminal=None,
     ):
+        self.nombre_zona = nombre_zona
         self.rect = pygame.Rect(0, 0, ANCHO_CUARTO, ALTO_CUARTO)
         self.rect.center = assets.CENTRO_CUARTO
 
@@ -162,6 +164,7 @@ class Cuarto:
         # el escenario de la zona con la evidencia reunida). None = el
         # árbol fijo "Publicación Viral" de siempre.
         self.fabrica_arbol = fabrica_arbol if fabrica_arbol is not None else construir_arbol_publicacion
+        self.semilla_visual = semilla_visual  # distingue el arte de cada cuarto de la mazmorra
         self.duracion_terminal = duracion_terminal
 
         self.fase = FASE_COMBATE
@@ -225,7 +228,7 @@ class Cuarto:
             if self.duracion_terminal is None:
                 self.terminal = TerminalDecision(self.fabrica_arbol())
             else:
-                self.terminal = TerminalDecision(self.fabrica_arbol(), self.duracion_terminal)
+                self.terminal = TerminalDecision(self.fabrica_arbol(), self.duracion_terminal, descender_resultados=True)
             self.terminal.iniciar()
 
     def actualizar(self, dt, jugadores, proyectiles_enemigos):
@@ -266,8 +269,16 @@ class Cuarto:
         # sus manchas al volver a él.
         semilla = round(self.nivel_toxicidad * 100) + len(self.puertas) * 7
         grafitis = 1 + int(self.nivel_toxicidad // 35)
-        fondo = cuarto_render.fondo_cuarto(self.rect, semilla, grafitis)
-        pantalla.blit(fondo, cuarto_render.origen_fondo(self.rect))
+        tema = assets.TEMA_POR_ZONA.get(self.nombre_zona)
+        if tema is not None:
+            # Escenario propio del lugar: cada cuarto se pinta una vez y se reconoce.
+            self.reloj_visual = pygame.time.get_ticks() / 1000.0
+            fondo = temas_mazmorra.fondo(self.rect, tema, self.semilla_visual, tuple(self.puertas), self.nivel_toxicidad)
+            pantalla.blit(fondo, (0, assets.Y_MUNDO_TEMA))
+            temas_mazmorra.dibujar_animado(pantalla, self.rect, tema, self.reloj_visual)
+        else:
+            fondo = cuarto_render.fondo_cuarto(self.rect, semilla, grafitis)
+            pantalla.blit(fondo, cuarto_render.origen_fondo(self.rect))
 
         for puerta in self.puertas.values():
             cuarto_render.dibujar_puerta(pantalla, puerta, self.rect)

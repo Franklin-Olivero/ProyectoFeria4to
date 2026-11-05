@@ -107,7 +107,7 @@ def test_flujo_del_colegio_revela_evidencia_y_cierra_una_vez():
     resultado = ResultadoMazmorra(terminal.resultado, terminal.opcion_elegida, colapso_antes, partida.colapso.valor,
                                   ZONA_COLEGIO, campania.ultima_consecuencia, dict(campania.ultimos_deltas))
     assert resultado.exito and "comunicado" in resultado.explicacion
-    assert resultado.deltas["informacion_verificada"] == 12
+    assert resultado.deltas["informacion_verificada"] >= 12  # más lo que aporta la corrección por el grafo
     assert partida.progreso.mazmorras_completadas == 1
     assert campania.puntos == 120
     # Segundo cierre (p. ej. un frame repetido): nada se aplica dos veces.

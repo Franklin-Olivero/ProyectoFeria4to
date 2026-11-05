@@ -11,9 +11,13 @@ cursor se resalta con un chip "J1"/"J2", y al confirmar se tiñe del
 color del rol y el chip muestra ✓.
 """
 
+import math
+
+import pygame
+
 from src.core import assets
 from src.core.balance import ESTADISTICAS_VISIBLES, stats_normalizadas
-from src.ui import dibujo, sprites
+from src.ui import dibujo, kit, sprites
 
 TITULO = "Elige tu personaje"
 TITULO_DOS = "Elijan sus personajes"
@@ -24,7 +28,12 @@ SUBTITULO_DOS = "J1 con teclado · J2 con el control · pueden repetir rol"
 def dibujar_seleccion(pantalla, clases_rol, seleccion):
     """`clases_rol` es la lista ordenada de clases de rol (tecla 1 = la
     primera); `seleccion` es la SeleccionRoles con un cursor por jugador."""
-    pantalla.fill(assets.COLOR_FONDO)
+    fondo = sprites.fondo_historia(assets.FONDO_PROLOGO, pantalla.get_size())
+    if fondo is not None:
+        pantalla.blit(fondo, (0, 0))
+        kit.velo(pantalla, 205)
+    else:
+        pantalla.fill(assets.COLOR_FONDO)
     dos = len(seleccion.cursores) > 1
     cx, cy = assets.POSICION_TITULO_SELECCION
     dibujo.texto(pantalla, TITULO_DOS if dos else TITULO, (cx, cy), assets.COLOR_TEXTO_HUD,
@@ -40,13 +49,14 @@ def dibujar_seleccion(pantalla, clases_rol, seleccion):
         # Jugadores cuyo cursor está sobre esta tarjeta: (número, confirmado).
         encima = [(n, cursor.confirmado) for n, cursor in enumerate(seleccion.cursores) if cursor.indice == indice]
         resaltada = bool(encima)
-        tarjeta = dibujo.panel(
-            pantalla,
-            (origen_x + indice * assets.ANCHO_COLUMNA_SELECCION, origen_y,
-             assets.ANCHO_TARJETA_SELECCION, assets.ALTO_TARJETA_SELECCION),
-            assets.COLOR_FONDO_PANEL, clase.COLOR,
-            assets.GROSOR_TARJETA_RESALTADA if resaltada else 1, radio=10,
-        )
+        tarjeta = pygame.Rect(origen_x + indice * assets.ANCHO_COLUMNA_SELECCION, origen_y,
+                              assets.ANCHO_TARJETA_SELECCION, assets.ALTO_TARJETA_SELECCION)
+        if resaltada:
+            # La tarjeta bajo el cursor se levanta un poco y late.
+            tarjeta.y -= 8
+            latido = 0.5 + 0.5 * math.sin(pygame.time.get_ticks() / 1000.0 * 4)
+            pygame.draw.rect(pantalla, clase.COLOR, tarjeta.inflate(round(4 + 4 * latido), round(4 + 4 * latido)), 1, border_radius=12)
+        kit.panel(pantalla, tarjeta, clase.COLOR if resaltada else assets.COLOR_BORDE_VIDRIO, alfa=240, filo="todo" if resaltada else "arriba")
         if any(confirmado for _, confirmado in encima):
             dibujo.panel_alfa(pantalla, tarjeta, (*clase.COLOR, assets.ALFA_TARJETA_CONFIRMADA), radio=10)
         x = tarjeta.left + 20
@@ -56,7 +66,8 @@ def dibujar_seleccion(pantalla, clases_rol, seleccion):
         _dibujar_chips_cursor(pantalla, encima, (tarjeta.right - 14, y), clase.COLOR)
 
         # Retrato ilustrado del rol si existe; si no, el sprite grande.
-        imagen = sprites.retrato_rol(clase.rol, assets.ALTO_RETRATO_SELECCION)
+        retrato = f"{clase.rol}_decidido" if resaltada else clase.rol
+        imagen = sprites.retrato_rol(retrato, assets.ALTO_RETRATO_SELECCION)
         if imagen is None:
             imagen = sprites.sprite_jugador(clase.COLOR, escala=5, rol=clase.rol)
         pantalla.blit(imagen, imagen.get_rect(midbottom=(tarjeta.centerx, y + 124)))

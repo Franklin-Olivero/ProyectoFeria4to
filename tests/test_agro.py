@@ -72,4 +72,4 @@ def test_subditos_del_jefe_actuan_desde_lejos():
             subdito.actualizar(1 / 60, jugador, proyectiles)
     for subdito, antes in zip(arena.subditos, distancias):
         assert subdito.posicion.distance_to(jugador.rect.center) < antes
-    assert len(proyectiles) == 1  # solo el tirador dispara
+    assert len(proyectiles) >= 1  # solo el tirador dispara (su variante puede lanzar un abanico)

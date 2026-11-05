@@ -41,12 +41,15 @@ ETIQUETAS = {
     "filtro_daltonismo": "FILTRO DE DALTONISMO",
     "reducir_movimiento": "REDUCIR MOVIMIENTO",
     "alto_contraste": "ALTO CONTRASTE",
+    "avance_cinematicas": "AVANCE DE ESCENAS",
+    "velocidad_texto": "VELOCIDAD DEL TEXTO",
     "esquema_controles": "ESQUEMA",
     "mostrar_cono": "CONO DE DISPARO",
     "opacidad_cono": "OPACIDAD",
 }
 DESCRIPCIONES = {
-    "subtitulos": "Aún no hay voces ni diálogos que subtitular; la opción queda guardada.",
+    "subtitulos": "Las escenas ya se leen en pantalla; la opción queda guardada para futuras voces.",
+    "avance_cinematicas": "Manual: tú decides cuándo seguir. Automático: respeta el tiempo de lectura.",
     "filtro_daltonismo": "Corrige el color de toda la pantalla. Es una aproximación: no reemplaza pruebas con jugadores.",
     "reducir_movimiento": "Detiene parallax, naves, lluvia, glitch del título, transiciones y sacudida de cámara.",
     "alto_contraste": "Realza el contraste de toda la imagen: fondos más oscuros y texto más brillante.",
@@ -149,9 +152,7 @@ class VistaAjustes:
         notas = []
         if not audio.disponible:
             notas.append("No se detectó salida de audio: los volúmenes se guardan igual.")
-        if not audio.hay_musica:
-            notas.append("Música: aún no hay pista en assets/musica; el volumen se aplicará cuando se agregue.")
-        notas.append("Efectos: sonidos de interfaz generados en código mientras llegan los definitivos.")
+        notas.append("Música y efectos compuestos para el juego. Cada momento tiene su pista.")
         y = zona.top
         for nota in notas:
             y = dibujo.parrafo(pantalla, nota, (zona.left + 26, y), zona.width - 52, assets.COLOR_TEXTO_APAGADO,

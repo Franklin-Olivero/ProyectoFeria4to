@@ -30,7 +30,7 @@ from src.entities.enemigos import crear_enemigo
 from src.entities.variantes_enemigo import elegir_variantes
 from src.entities.tipos_enemigo import TipoEnemigo
 from src.entities.projectile import ProyectilConEstela
-from src.ui import cuarto_render, dibujo, sprites
+from src.ui import dibujo, sprites, temas_mazmorra
 
 DISTANCIA_INICIO_JUGADOR = 50  # px desde el borde inferior de la arena
 SEMILLA_FONDO_ARENA = 777
@@ -159,8 +159,9 @@ class ArenaJefe:
     # ------------------------------------------------------------------
 
     def dibujar(self, pantalla):
-        fondo = cuarto_render.fondo_cuarto(self.rect, SEMILLA_FONDO_ARENA, GRAFITIS_ARENA)
-        pantalla.blit(fondo, cuarto_render.origen_fondo(self.rect))
+        fondo = temas_mazmorra.fondo(self.rect, "servidor", SEMILLA_FONDO_ARENA, (), 100)
+        pantalla.blit(fondo, (0, assets.Y_MUNDO_TEMA))
+        temas_mazmorra.dibujar_animado(pantalla, self.rect, "servidor", self._tiempo)
         for charco in self.mazmorra.charcos:
             self._dibujar_charco(pantalla, charco)
         for subdito in self.subditos:

@@ -80,6 +80,8 @@ class MazmorraJugable:
             return
         m = self.mazmorra
         self.cuartos[id_cuarto] = Cuarto(
+            nombre_zona=m.nombre_zona,
+            semilla_visual=id_cuarto,
             direcciones_puertas=tuple(m.puertas(id_cuarto)),
             nivel_toxicidad=m.toxicidad[id_cuarto],
             dificultad=m.dificultad[id_cuarto],

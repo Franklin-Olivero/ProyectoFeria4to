@@ -22,8 +22,10 @@ publicar una aclaración sin tener el comunicado no purifica nada.
 Las hojas llevan como etiqueta el texto del resultado (Purificación
 Exitosa / Detonación), igual que el árbol original: TerminalDecision y
 Partida.cerrar_mazmorra siguen funcionando sin cambios. La consecuencia
-completa (texto, efectos sobre los indicadores, reputación y puntos)
-se busca por el id del nodo hoja donde terminó la terminal.
+completa (texto, efectos sobre los indicadores y puntos) se busca por
+el id del nodo hoja donde terminó la terminal. La reputación no viene
+escrita en la hoja: cada hoja declara su `accion` y src/story/reputacion.py
+la valora según la veracidad real y lo que el jugador podía saber.
 """
 
 from dataclasses import dataclass, field
@@ -68,10 +70,11 @@ class Consecuencia:
     resultado: str  # PURIFICACION_EXITOSA o DETONACION
     texto: str
     efectos: dict = field(default_factory=dict)
-    reputacion: int = 0
+    reputacion: int = 0  # cambio real de reputación (lo llena Campania al aplicarla)
     puntos: int = 0
     camino: tuple = ()  # etiquetas de las opciones elegidas (raíz excluida)
     estado_evidencia: str = SIN_PRUEBAS
+    accion: str = ""  # clave de balance.VALORACION_ACCIONES
 
     @property
     def exito(self):
@@ -93,15 +96,15 @@ def _resolver_hoja(datos, estado):
     return alternativa if alternativa is not None else datos
 
 
-def consecuencia_de_datos(datos, estado, camino=()):
+def consecuencia_de_datos(datos, estado, camino=(), accion=None):
     return Consecuencia(
         resultado=_resultado_texto(datos["resultado"]),
         texto=datos["texto"],
         efectos=dict(datos.get("efectos", {})),
-        reputacion=int(datos.get("reputacion", 0)),
         puntos=int(datos.get("puntos", 0)),
         camino=tuple(camino),
         estado_evidencia=estado,
+        accion=accion if accion is not None else datos.get("accion", ""),
     )
 
 
@@ -137,7 +140,8 @@ class EscenarioDecision:
                 self._insertar(id_opcion, hijo, camino)
             return
         efectivos = _resolver_hoja(opcion, self.estado)
-        consecuencia = consecuencia_de_datos(efectivos, self.estado, camino)
+        # La acción es de la hoja: la alternativa por evidencia solo cambia el desenlace.
+        consecuencia = consecuencia_de_datos(efectivos, self.estado, camino, opcion.get("accion", ""))
         id_hoja = self._nuevo_id()
         self.arbol.insertar(id_opcion, id_hoja, consecuencia.resultado)
         self.hojas[id_hoja] = consecuencia
@@ -154,6 +158,13 @@ class EscenarioDecision:
     @property
     def titulo(self):
         return self.datos["titulo"]
+
+    @property
+    def resultado_verificacion(self):
+        """Lo que descubre el jugador al elegir "Verificar", según sus pruebas."""
+        textos = self.datos.get("verificacion", {})
+        clave = self.estado if self.estado in (SIN_PRUEBAS, PARCIAL) else "completa"
+        return textos.get(clave, "")
 
     def consecuencia_tiempo_agotado(self):
         return consecuencia_de_datos(self.datos["tiempo_agotado"], self.estado, ())

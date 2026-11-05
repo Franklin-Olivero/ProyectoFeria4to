@@ -21,7 +21,7 @@ SECCIONES = [
     ("Cómo ganar", [
         "Purifica al menos una zona para abrir la Alcaldía y derrota al Servidor Central (3 fases, 180 s).",
         "Recorrido completo: Colegio → Hospital → Empresa de Medios → Alcaldía. Con las 3 pistas y la",
-        "cuenta coordinadora bien señalada se desbloquea el final secreto. El colapso al 100 % es derrota.",
+        "origen de la señal bien rastreado se desbloquea el final secreto. El colapso al 100 % es derrota.",
     ]),
     ("Controles", [
         "Ciudad: WASD caminar · E entrar · G ruta sugerida · TAB destino · M mapa · I estado · H ayuda · ESC menú.",
@@ -31,7 +31,7 @@ SECCIONES = [
     ("Roles", [
         "Ciudadano: aguanta más; cada éxito refuerza la confianza vecinal.   Influencer: el más rápido;",
         "amplifica más lo que comparte.   Periodista: alto daño; identifica una fuente extra al entrar.",
-        "Candidato: mayor daño por golpe; las penalizaciones a su reputación pesan doble.",
+        "Candidato: mayor daño por golpe; las penalizaciones a su reputación pesan más.",
     ]),
     ("Indicadores (0-100)", [
         "Información verificada, confianza, convivencia, bienestar digital y participación responsable suben",

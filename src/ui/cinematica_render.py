@@ -12,10 +12,12 @@ español que se escriben letra a letra. Cada efecto añade su capa:
     titulo          "CIVITAS: CÓDIGO NOVA" con resplandor y subtítulo
     tarjeta         rótulo de capítulo con líneas que se abren
     objetivos       lista de la misión y el botón COMENZAR MISIÓN
+    titulares       publicaciones de Civitas contra el protagonista
 
-Si falta la ilustración de la toma se dibuja un fondo de ciudad en
-código (degradado + siluetas), así la cinemática nunca depende de un
-archivo. No modifica la cinemática.
+Una toma con `video` muestra sus cuadros (src/ui/video_cuadros.py). Si falta
+el video se usa la ilustración, y si falta la ilustración se dibuja un fondo
+de ciudad en código: la cinemática nunca depende de un archivo. Entre tomas
+hay un fundido cruzado. No modifica la cinemática.
 """
 
 import math
@@ -25,10 +27,11 @@ import pygame
 
 from src.core import assets
 from src.story import cinematica as cine
-from src.ui import dibujo, layout, sprites
+from src.ui import dibujo, kit, layout, sprites, video_cuadros
 from src.ui.fuentes import fuente
 
-TEXTO_CONTINUAR = "Enter: siguiente"
+TEXTO_CONTINUAR = "Enter: continuar"
+TEXTO_REVELAR = "Enter: mostrar todo"
 TEXTO_SALTAR = "Esc: saltar"
 TEXTO_COMENZAR = "COMENZAR MISIÓN"
 TEXTO_ENTER_COMENZAR = "Enter"
@@ -45,7 +48,7 @@ POSTS_CIVITAS = (
 )
 POSTS_FALSOS = (
     ("@MamasNovaUnidas", "URGENTE: mañana cierran TODOS los colegios."),
-    ("@NovaDespierta", "¡ALERTA! El hospital deja de atender esta noche."),
+    ("@NovaDespierta", "La enfermera miente. No hay falta de sangre."),
     ("@DatosNovaHoy", "EXCLUSIVO: la encuesta ya tiene ganador. Los demás callan."),
     ("@eco_nova_ok", "Comparte antes de que lo borren."),
     ("@VerdadNova", "Un candidato acusado sin pruebas. ¿Casualidad?"),
@@ -60,9 +63,8 @@ def dibujar_cinematica(pantalla, cinematica, dt=0.0, reducir_movimiento=False):
     if toma is None:
         return
     tiempo = cinematica.tiempo
-    fraccion = cinematica.fraccion
     pantalla.fill(assets.COLOR_LETTERBOX)
-    _dibujar_fondo(pantalla, toma, tiempo, fraccion, reducir_movimiento)
+    _dibujar_fondo(pantalla, toma, tiempo, reducir_movimiento)
 
     if toma.efecto == cine.EFECTO_GLITCH:
         _glitch(pantalla, tiempo, reducir_movimiento)
@@ -72,6 +74,8 @@ def dibujar_cinematica(pantalla, cinematica, dt=0.0, reducir_movimiento=False):
         _notificaciones(pantalla, tiempo, assets.CANTIDAD_NOTIFICACIONES_CAOS, falsas=True)
     elif toma.efecto == cine.EFECTO_RETRATO:
         _retrato(pantalla, toma, tiempo)
+    elif toma.efecto == cine.EFECTO_TITULARES:
+        _titulares(pantalla, toma, tiempo)
 
     _letterbox(pantalla)
     if toma.efecto == cine.EFECTO_TITULO:
@@ -81,9 +85,9 @@ def dibujar_cinematica(pantalla, cinematica, dt=0.0, reducir_movimiento=False):
     elif toma.efecto == cine.EFECTO_OBJETIVOS:
         _objetivos(pantalla, toma, tiempo)
     if toma.texto and toma.efecto not in (cine.EFECTO_TITULO, cine.EFECTO_TARJETA, cine.EFECTO_OBJETIVOS):
-        _subtitulo(pantalla, toma, tiempo)
-    _fundidos(pantalla, toma, tiempo)
-    _controles(pantalla, cinematica, toma)
+        _subtitulo(pantalla, cinematica, toma, tiempo)
+    _fundidos(pantalla, cinematica, toma, tiempo, reducir_movimiento)
+    _controles(pantalla, cinematica, toma, tiempo)
 
 
 # ----------------------------------------------------------------------
@@ -91,23 +95,38 @@ def dibujar_cinematica(pantalla, cinematica, dt=0.0, reducir_movimiento=False):
 # ----------------------------------------------------------------------
 
 
-def _dibujar_fondo(pantalla, toma, tiempo, fraccion, reducir_movimiento):
+def _dibujar_fondo(pantalla, toma, tiempo, reducir_movimiento):
     ancho, alto = pantalla.get_size()
+    cuadro = video_cuadros.cuadro(toma.video, tiempo, (ancho, alto)) if toma.video else None
+    if cuadro is not None:
+        pantalla.blit(cuadro, (0, 0))
+        return
     imagen = sprites.fondo_historia(toma.fondo, (ancho, alto)) if toma.fondo else None
     if imagen is None:
         imagen = _fondo_en_codigo((ancho, alto))
     if reducir_movimiento or toma.espera:
         pantalla.blit(imagen, (0, 0))
         return
-    # Ken Burns: acercamiento lento y paneo suave, distinto por toma (según su id).
+    # Paneo lento y continuo: la imagen sigue viva mientras el jugador lee,
+    # sin importar cuánto tarde. Se usa una versión algo mayor, ya escalada:
+    # mover un blit no cuesta nada por frame.
+    grande = _imagen_paneo(toma.fondo, imagen, (ancho, alto))
     semilla = sum(ord(c) for c in toma.id)
-    zoom = 1.0 + (assets.ZOOM_KEN_BURNS - 1.0) * (fraccion if semilla % 2 == 0 else 1 - fraccion)
-    w, h = round(ancho * zoom), round(alto * zoom)
-    escalada = pygame.transform.smoothscale(imagen, (w, h))
-    direccion = 1 if semilla % 3 else -1
-    dx = round((w - ancho) * (0.5 + 0.5 * direccion * (fraccion - 0.5)))
-    dy = round((h - alto) * (0.5 + 0.3 * math.sin(fraccion * math.pi)))
-    pantalla.blit(escalada, (-dx, -dy))
+    margen_x, margen_y = grande.get_width() - ancho, grande.get_height() - alto
+    fase = tiempo / assets.PERIODO_PANEO * 2 * math.pi + semilla
+    dx = round(margen_x * (0.5 + 0.5 * math.sin(fase)))
+    dy = round(margen_y * (0.5 + 0.5 * math.sin(fase * 0.7 + 1.3)))
+    pantalla.blit(grande, (-dx, -dy))
+
+
+_cache_paneo = {}
+
+
+def _imagen_paneo(clave, imagen, tamanio):
+    if (clave, tamanio) not in _cache_paneo:
+        w, h = round(tamanio[0] * assets.ZOOM_KEN_BURNS), round(tamanio[1] * assets.ZOOM_KEN_BURNS)
+        _cache_paneo[(clave, tamanio)] = pygame.transform.smoothscale(imagen, (w, h))
+    return _cache_paneo[(clave, tamanio)]
 
 
 def _fondo_en_codigo(tamanio):
@@ -144,19 +163,37 @@ def _letterbox(pantalla):
     pygame.draw.rect(pantalla, assets.COLOR_LETTERBOX, (0, alto - assets.ALTO_LETTERBOX, ancho, assets.ALTO_LETTERBOX))
 
 
-def _fundidos(pantalla, toma, tiempo):
-    """Fundido desde negro al empezar la toma y hacia negro al terminar."""
+_ultimo_frame = {"superficie": None, "toma": None}
+
+
+def _fundidos(pantalla, cinematica, toma, tiempo, reducir_movimiento):
+    """Fundido cruzado desde la toma anterior; la primera entra desde negro.
+    Guarda una copia de cada frame terminado solo cuando la toma cambia."""
     d = assets.DURACION_FUNDIDO_TOMA
-    alfa = 0
-    if tiempo < d:
+    clave = (id(cinematica), cinematica.indice)
+    anterior = _ultimo_frame["superficie"]
+    if _ultimo_frame["toma"] != clave:
+        if _ultimo_frame["toma"] is None or _ultimo_frame["toma"][0] != id(cinematica):
+            anterior = None
+            _ultimo_frame["superficie"] = None
+        _ultimo_frame["toma"] = clave
+    if tiempo < d and not reducir_movimiento:
         alfa = round(255 * (1 - tiempo / d))
-    elif not toma.espera and toma.duracion - tiempo < d:
-        alfa = round(255 * (1 - max(0.0, toma.duracion - tiempo) / d))
-    if alfa > 0:
-        velo = pygame.Surface(pantalla.get_size())
-        velo.fill(assets.COLOR_LETTERBOX)
-        velo.set_alpha(min(255, alfa))
-        pantalla.blit(velo, (0, 0))
+        if anterior is not None:
+            anterior.set_alpha(alfa)
+            pantalla.blit(anterior, (0, 0))
+        else:
+            kit.velo(pantalla, alfa, assets.COLOR_LETTERBOX)
+    elif not toma.espera:
+        duracion = cinematica.duracion_efectiva(toma)
+        if duracion is not None and duracion - tiempo < d:
+            kit.velo(pantalla, round(255 * (1 - max(0.0, duracion - tiempo) / d)), assets.COLOR_LETTERBOX)
+    # Se guarda el frame ya estable para el próximo cambio de toma.
+    if tiempo >= d or reducir_movimiento:
+        if _ultimo_frame["superficie"] is None or _ultimo_frame["superficie"].get_size() != pantalla.get_size():
+            _ultimo_frame["superficie"] = pygame.Surface(pantalla.get_size())
+        _ultimo_frame["superficie"].set_alpha(None)
+        _ultimo_frame["superficie"].blit(pantalla, (0, 0))
 
 
 # ----------------------------------------------------------------------
@@ -224,6 +261,21 @@ def _tarjeta_notificacion(pantalla, posicion, usuario, texto, falsa, fase):
     pantalla.blit(capa, rect.topleft)
 
 
+def _titulares(pantalla, toma, tiempo):
+    """Publicaciones de Civitas contra el protagonista: entran una a una."""
+    kit.velo(pantalla, 110, assets.COLOR_NOCHE)
+    for i, titular in enumerate(toma.lineas):
+        entrada = layout.fraccion_entrada(tiempo - 0.5 - i * 1.3, 0.6)
+        if entrada <= 0:
+            continue
+        rect = pygame.Rect(0, 0, 780, 74)
+        rect.center = (pantalla.get_width() // 2 + round((1 - entrada) * 60) + (-90, 70, -30)[i % 3], 170 + i * 92)
+        kit.panel(pantalla, rect, assets.COLOR_GRAVE, alfa=238)
+        kit.rotulo(pantalla, "Civitas · Tendencia", (rect.left + 18, rect.top + 10), assets.COLOR_GRAVE)
+        layout.texto_en_ancho(pantalla, titular, (rect.left + 18, rect.top + 32), rect.width - 36, assets.COLOR_TEXTO_HUD,
+                              assets.TAMANIO_FUENTE_MEDIA, negrita=True)
+
+
 def _retrato(pantalla, toma, tiempo):
     """El protagonista: retrato grande del rol con un marco de luz."""
     imagen = sprites.retrato_rol(toma.retrato, assets.ALTO_RETRATO_CINEMATICA) if toma.retrato else None
@@ -270,18 +322,19 @@ def _titulo(pantalla, toma, tiempo):
 
 
 def _tarjeta(pantalla, toma, tiempo):
-    """Presentación de capítulo: rótulo pequeño, título grande y dos líneas."""
+    """Presentación de capítulo: número, nombre, ubicación, contexto y objetivo.
+    Pocas palabras, con jerarquía clara y entrada escalonada."""
     ancho, alto = pantalla.get_size()
     entrada = layout.fraccion_entrada(tiempo, 0.7)
-    layout.velo(pantalla, (0, 0, 0, round(120 * entrada)))
-    cx, cy = ancho // 2, alto // 2
-    apertura = round((ancho // 2 - 120) * entrada)
-    for y in (cy - 64, cy + 56):
+    kit.velo(pantalla, round(150 * entrada), assets.COLOR_NOCHE)
+    cx, cy = ancho // 2, alto // 2 - (46 if toma.lineas else 0)
+    apertura = round((ancho // 2 - 160) * entrada)
+    for y in (cy - 74, cy + 54):
         pygame.draw.line(pantalla, assets.COLOR_LINEA_TARJETA, (cx - apertura, y), (cx + apertura, y), 2)
     if toma.superior:
-        sup = fuente(assets.TAMANIO_FUENTE_TARJETA_SUPERIOR, True).render(toma.superior, True, assets.COLOR_AMARILLO)
+        sup = fuente(assets.TAMANIO_FUENTE_TARJETA_SUPERIOR, True).render(toma.superior, True, assets.COLOR_ALERTA)
         sup.set_alpha(round(255 * entrada))
-        pantalla.blit(sup, sup.get_rect(center=(cx, cy - 36)))
+        pantalla.blit(sup, sup.get_rect(center=(cx, cy - 46)))
     tam = assets.TAMANIO_FUENTE_TARJETA
     f = fuente(tam, True)
     while f.size(toma.titulo)[0] > ancho - 160 and tam > assets.TAMANIO_FUENTE_GRANDE:
@@ -289,12 +342,25 @@ def _tarjeta(pantalla, toma, tiempo):
         f = fuente(tam, True)
     titulo = f.render(toma.titulo, True, assets.COLOR_TARJETA_CAPITULO)
     titulo.set_alpha(round(255 * entrada))
-    desplazamiento = round((1 - entrada) * 40)
-    pantalla.blit(titulo, titulo.get_rect(center=(cx + desplazamiento, cy + 4)))
+    pantalla.blit(titulo, titulo.get_rect(center=(cx + round((1 - entrada) * 40), cy + 4)))
+    y = cy + 76
     if toma.subtitulo and tiempo > 0.5:
-        sub = fuente(assets.TAMANIO_FUENTE_NORMAL).render(toma.subtitulo, True, assets.COLOR_TEXTO_SECUNDARIO)
+        sub = fuente(assets.TAMANIO_FUENTE_NORMAL, True).render(toma.subtitulo, True, assets.COLOR_TEXTO_SECUNDARIO)
         sub.set_alpha(layout.alfa_entrada(tiempo - 0.5))
-        pantalla.blit(sub, sub.get_rect(center=(cx, cy + 78)))
+        pantalla.blit(sub, sub.get_rect(center=(cx, y)))
+    y += 34
+    for i, linea in enumerate(l for l in toma.lineas if l):
+        if tiempo <= 0.9 + i * 0.4:
+            break
+        rotulo = "Lo que pasa" if i == 0 else "Tu objetivo"
+        color = assets.COLOR_TEXTO_HUD if i == 0 else assets.COLOR_VERIFICADO
+        alfa = layout.alfa_entrada(tiempo - (0.9 + i * 0.4))
+        capa = pygame.Surface((860, 58), pygame.SRCALPHA)
+        kit.rotulo(capa, rotulo, (430, 0), assets.COLOR_TEXTO_APAGADO, ancla="midtop")
+        layout.parrafo_en_caja(capa, linea, pygame.Rect(0, 20, 860, 36), color, assets.TAMANIO_FUENTE_MEDIA, centrado=True)
+        capa.set_alpha(alfa)
+        pantalla.blit(capa, capa.get_rect(midtop=(cx, y)))
+        y += 62
 
 
 def _objetivos(pantalla, toma, tiempo):
@@ -336,12 +402,7 @@ def _objetivos(pantalla, toma, tiempo):
 # ----------------------------------------------------------------------
 
 
-def caracteres_visibles(texto, tiempo, velocidad=assets.VELOCIDAD_MAQUINA_ESCRIBIR):
-    """Cuántos caracteres del subtítulo se ven ya (máquina de escribir). Puro."""
-    return min(len(texto), int(max(0.0, tiempo - 0.15) * velocidad))
-
-
-def _subtitulo(pantalla, toma, tiempo):
+def _subtitulo(pantalla, cinematica, toma, tiempo):
     rect = pygame.Rect(assets.RECT_SUBTITULO_CINEMATICA)
     es_nova = toma.hablante == cine.HABLANTE_NOVA
     dibujo.panel_alfa(pantalla, rect, assets.COLOR_FONDO_SUBTITULO, radio=8)
@@ -353,35 +414,39 @@ def _subtitulo(pantalla, toma, tiempo):
         etiqueta = dibujo.texto(pantalla, toma.hablante, (x, y), color_nombre, assets.TAMANIO_FUENTE_PEQUENA,
                                 negrita=True)
         y = etiqueta.bottom + 2
-    visible = toma.texto[: caracteres_visibles(toma.texto, tiempo)]
-    if es_nova and visible:
-        # NOVA_404 "corrompe" algún carácter al escribir.
+    caja = pygame.Rect(x, y, rect.width - 40, rect.bottom - 8 - y)
+    texto = toma.texto
+    visibles = cinematica.caracteres_visibles
+    if es_nova and not cinematica.texto_completo and visibles > 0:
+        # NOVA_404 "corrompe" algún carácter mientras escribe; al terminar se lee limpio.
         _rng_glitch.seed(int(tiempo * 9))
-        letras = list(visible)
+        letras = list(texto)
         for _ in range(2):
-            i = _rng_glitch.randrange(len(letras))
+            i = _rng_glitch.randrange(visibles)
             if letras[i] not in " ." and _rng_glitch.random() < 0.35:
                 letras[i] = _rng_glitch.choice("#%&/0_")
-        visible = "".join(letras)
-    caja = pygame.Rect(x, y, rect.width - 40, rect.bottom - 8 - y)
-    layout.parrafo_en_caja(pantalla, visible or " ", caja,
-                           assets.COLOR_SUBTITULO_NOVA if es_nova else assets.COLOR_SUBTITULO,
-                           assets.TAMANIO_FUENTE_SUBTITULO, interlineado=4)
+        texto = "".join(letras)
+    layout.parrafo_progresivo(pantalla, texto, visibles, caja,
+                              assets.COLOR_SUBTITULO_NOVA if es_nova else assets.COLOR_SUBTITULO,
+                              assets.TAMANIO_FUENTE_SUBTITULO, interlineado=4)
 
 
-def _controles(pantalla, cinematica, toma):
+def _controles(pantalla, cinematica, toma, tiempo=0.0):
     ancho, alto = pantalla.get_size()
     y = alto - assets.ALTO_LETTERBOX // 2
     actual, total = cinematica.progreso
     dibujo.texto(pantalla, f"{actual}/{total}", (assets.MARGEN_PANTALLA, y), assets.COLOR_TEXTO_APAGADO,
                  assets.TAMANIO_FUENTE_PEQUENA, ancla="midleft")
-    if cinematica.titulo:
-        layout.texto_en_ancho(pantalla, cinematica.titulo, (ancho // 2, y), 600, assets.COLOR_TEXTO_APAGADO,
-                              assets.TAMANIO_FUENTE_PEQUENA, ancla="center")
     x = ancho - assets.MARGEN_PANTALLA
     if not toma.espera:
-        chip = dibujo.chip(pantalla, TEXTO_CONTINUAR, (x, y), assets.COLOR_TEXTO_HUD, assets.COLOR_FONDO_CHIP,
-                           assets.COLOR_BORDE_CHIP, ancla="midright")
+        if not cinematica.texto_completo:
+            etiqueta, color = TEXTO_REVELAR, assets.COLOR_TEXTO_SECUNDARIO
+        else:
+            etiqueta = TEXTO_CONTINUAR
+            # Late cuando el texto ya espera al jugador: sabe que depende de él.
+            latido = cinematica.esperando_enter and math.sin(tiempo * 4) > -0.3
+            color = assets.COLOR_TEXTO_HUD if latido else assets.COLOR_TEXTO_SECUNDARIO
+        chip = dibujo.chip(pantalla, etiqueta, (x, y), color, assets.COLOR_FONDO_CHIP, assets.COLOR_BORDE_CHIP, ancla="midright")
         x = chip.left - 10
     if cinematica.saltable:
         dibujo.chip(pantalla, TEXTO_SALTAR, (x, y), assets.COLOR_TEXTO_SECUNDARIO, assets.COLOR_FONDO_CHIP,

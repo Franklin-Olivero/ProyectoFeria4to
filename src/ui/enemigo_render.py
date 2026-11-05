@@ -59,6 +59,15 @@ def dibujar_enemigo(pantalla, enemigo):
         imagen.set_alpha(round(assets.ALFA_MIN_ENEMIGO_GRACIA
                                + (assets.ALFA_MAX_ENEMIGO_GRACIA - assets.ALFA_MIN_ENEMIGO_GRACIA) * pulso))
     destino = imagen.get_rect(center=enemigo.rect.center)
+    # Sombra y golpe: un enemigo herido destella un instante, sin tocar su lógica.
+    sprites.dibujar_sombra(pantalla, (enemigo.rect.centerx, enemigo.rect.bottom + 2), enemigo.rect.width + 4)
+    vida_antes = getattr(enemigo, "_vida_dibujada", enemigo.vida)
+    if enemigo.vida < vida_antes:
+        enemigo._destello_hasta = enemigo.reloj + assets.DURACION_DESTELLO_DANIO
+    enemigo._vida_dibujada = enemigo.vida
+    if enemigo.reloj < getattr(enemigo, "_destello_hasta", 0.0):
+        imagen = imagen.copy()
+        imagen.fill((210, 210, 210, 0), special_flags=pygame.BLEND_RGBA_ADD)
     pantalla.blit(imagen, destino)
     if con_variante and assets.MOSTRAR_NOMBRE_ENEMIGO:
         dibujar_nombre(pantalla, enemigo, destino.top)

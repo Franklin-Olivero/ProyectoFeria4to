@@ -43,7 +43,8 @@ def datos():
 def test_los_modulos_de_historia_no_importan_pygame():
     raiz = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
     codigo = ("import sys, src.story.campania, src.story.escenarios, src.story.estado_ciudad, "
-              "src.story.dialogo, src.story.contenido; print('pygame' in sys.modules)")
+              "src.story.dialogo, src.story.contenido, src.story.reputacion, src.story.redencion, "
+              "src.story.investigacion, src.story.cinematica; print('pygame' in sys.modules)")
     salida = subprocess.run([sys.executable, "-c", codigo], cwd=raiz, capture_output=True, text=True, check=True)
     assert salida.stdout.strip() == "False"
 
@@ -58,7 +59,9 @@ def test_contenido_valido_y_con_las_tres_zonas(datos):
     lambda d: d["escenarios"][ZONA_COLEGIO]["opciones"][0]["hijos"][0].update(resultado="exito"),
     lambda d: d["escenarios"][ZONA_COLEGIO]["opciones"][1]["efectos"].update(karma=3),
     lambda d: d["pistas"].update(no_existe="x"),
-    lambda d: d["sospechosos"].update(culpable="nadie"),
+    lambda d: d["red_cuentas"].update(origen="nadie"),
+    lambda d: d["escenarios"][ZONA_COLEGIO]["opciones"][1].update(accion="troll"),
+    lambda d: d["finales"].pop("confianza_perdida"),
     lambda d: d["red_social"]["conexiones"].append(["ana", "ana"]),
     lambda d: d["escenarios"][ZONA_HOSPITAL].pop("tiempo_agotado"),
 ])
@@ -116,8 +119,8 @@ def test_misma_opcion_distinto_resultado_segun_evidencia(datos):
 
 
 def test_terminal_sobre_el_escenario_llega_a_la_consecuencia_de_la_hoja(datos):
-    escenario = EscenarioDecision(datos["escenarios"][ZONA_HOSPITAL], DESMENTIDO)
-    terminal = _navegar(escenario, CONFIRMAR, CONFIRMAR, CONFIRMAR)  # Verificar -> Compartir la aclaración con contexto -> hoja
+    escenario = EscenarioDecision(datos["escenarios"][ZONA_COLEGIO], DESMENTIDO)
+    terminal = _navegar(escenario, CONFIRMAR, CONFIRMAR, CONFIRMAR)  # Verificar -> Publicar aclaración -> hoja
     assert terminal.resultado == PURIFICACION_EXITOSA
     consecuencia = escenario.consecuencia_para(terminal)
     assert consecuencia.exito and consecuencia.opcion == "Verificar"
@@ -139,8 +142,8 @@ def test_tiempo_agotado_a_mitad_del_arbol_es_consecuencia_de_tiempo(datos):
 
 
 def test_reportar_abusivo_detona_aunque_haya_pruebas(datos):
-    escenario = EscenarioDecision(datos["escenarios"][ZONA_HOSPITAL], DESMENTIDO)
-    abusivo = escenario.consecuencia_por_camino("Reportar", "Pedir que bloqueen a quien la comparta")
+    escenario = EscenarioDecision(datos["escenarios"][ZONA_COLEGIO], DESMENTIDO)
+    abusivo = escenario.consecuencia_por_camino("Reportar", "Reportar en masa a la cuenta")
     assert abusivo.resultado == DETONACION and abusivo.efectos["conflictos"] > 0
 
 

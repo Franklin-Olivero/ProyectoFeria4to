@@ -151,12 +151,14 @@ def test_cerrar_mazmorra_aplica_consecuencia_una_sola_vez():
     assert partida.progreso.mazmorras_completadas == 1
     assert campania.ultima_consecuencia.exito
     assert campania.estado.valor("informacion_verificada") > antes["informacion_verificada"]
-    assert campania.puntos == 120 and campania.reputacion == REPUTACION_INICIAL + 10
+    assert campania.puntos == 120 and campania.reputacion > REPUTACION_INICIAL + 10
     despues = campania.estado.como_dict()
+    reputacion_tras_decidir = campania.reputacion
 
     # Segunda llamada con la misma mazmorra: nada cambia.
     assert not partida.cerrar_mazmorra(m, terminal.resultado, terminal)
     assert campania.estado.como_dict() == despues and campania.puntos == 120
+    assert campania.reputacion == reputacion_tras_decidir
     assert partida.progreso.mazmorras_completadas == 1
 
 
@@ -182,8 +184,9 @@ def test_repetir_zona_no_duplica_puntos_pero_si_efectos():
         terminal = _terminal_resuelta(partida, ZONA_COLEGIO, CONFIRMAR, CONFIRMAR, CONFIRMAR)
         assert partida.cerrar_mazmorra(m, terminal.resultado, terminal)
     assert campania.puntos == 120  # una sola recompensa
-    assert campania.reputacion == REPUTACION_INICIAL + 10
-    assert campania.estado.valor("informacion_verificada") == min(100, INDICADORES_INICIALES["informacion_verificada"] + 24)
+    assert len(campania.rep(0).historial) == 1  # la reputación tampoco se duplica
+    # Los efectos sí se repiten (y la corrección por el grafo suma encima).
+    assert campania.estado.valor("informacion_verificada") >= min(100, INDICADORES_INICIALES["informacion_verificada"] + 24)
 
 
 def test_tiempo_agotado_aplica_consecuencia_coherente():

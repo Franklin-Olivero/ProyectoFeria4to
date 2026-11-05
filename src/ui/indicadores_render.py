@@ -45,8 +45,10 @@ def dibujar_panel_estado(pantalla, campania, rect=assets.RECT_PANEL_ESTADO, most
     y += 6
     pygame.draw.line(pantalla, assets.COLOR_BORDE_PANEL, (x, y), (rect.right - 24, y))
     y += 14
-    dibujo.texto(pantalla, f"Reputación: {resumen['reputacion']}/100   Puntos: {resumen['puntos']}", (x, y),
-                 assets.COLOR_TEXTO_HUD, assets.TAMANIO_FUENTE_NORMAL)
+    dibujo.texto(pantalla, f"Reputación: {resumen['reputacion']:+d} · {resumen['nivel_reputacion']}", (x, y),
+                 assets.color_reputacion(resumen["reputacion"]), assets.TAMANIO_FUENTE_NORMAL, negrita=True)
+    dibujo.texto(pantalla, f"Puntos: {resumen['puntos']}", (rect.right - 24, y), assets.COLOR_TEXTO_HUD,
+                 assets.TAMANIO_FUENTE_NORMAL, ancla="topright")
     y += 26
     dibujo.texto(pantalla, f"Pistas NOVA_404: {resumen['pistas']}/{resumen['total_pistas']}", (x, y),
                  assets.COLOR_PISTA if resumen["pistas"] else assets.COLOR_TEXTO_SECUNDARIO, assets.TAMANIO_FUENTE_NORMAL)

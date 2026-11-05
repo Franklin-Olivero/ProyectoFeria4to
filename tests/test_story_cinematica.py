@@ -26,13 +26,14 @@ def test_intro_tiene_las_escenas_del_guion_y_termina_en_objetivos():
     partida = Partida()
     c = partida.campania.cinematica_intro("periodista", "Periodista")
     ids = [t.id for t in c.tomas]
-    assert ids[:4] == ["ciudad", "civitas", "caos", "amenaza"]
+    assert ids[:5] == ["ciudad", "civitas", "grieta", "caos", "amenaza"]
     assert ids[-1] == "objetivos" and c.tomas[-1].espera and len(c.tomas[-1].objetivos) == 5
     protagonista = next(t for t in c.tomas if t.id == "protagonista")
     assert protagonista.hablante == "Periodista" and protagonista.retrato == "periodista"
     assert "documentarlo" in protagonista.texto  # variante por rol
-    # Dura entre 25 y 45 s sin contar la pantalla de objetivos.
-    assert 25 <= sum(t.duracion for t in c.tomas) <= 45
+    # En avance automático dura entre 75 y 110 s sin contar los objetivos.
+    c.configurar_lectura(modo=cine.MODO_AUTOMATICO)
+    assert 75 <= sum(c.duracion_efectiva(t) or 0 for t in c.tomas) <= 110
     # La intro cuenta como prólogo visto: ni se repite ni aparece el prólogo en texto.
     assert partida.campania.cinematica_intro() is None
     assert partida.campania.dialogo_prologo() is None

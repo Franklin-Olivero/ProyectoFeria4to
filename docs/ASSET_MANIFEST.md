@@ -1,8 +1,8 @@
 # Manifiesto de assets del modo historia
 
 Regla: **nada se genera con Higgsfield sin aprobación del equipo** (créditos). El
-juego arranca completo sin ningún archivo de esta lista: cada imagen tiene un
-fallback dibujado en Pygame. Costos: Higgsfield los muestra al pedir una generación;
+juego arranca completo sin ningún archivo de esta lista: cada imagen y video tiene un
+fallback. Costos: Higgsfield los muestra al pedir una generación;
 no se inventan aquí.
 
 ## Lo que ya se dibuja en código o con hojas existentes (reutilizado)
@@ -49,6 +49,46 @@ a 1280×720 sin metadatos. Prompts completos en `docs/PLAN_ASSETS_CINEMATICOS.md
 | C04 | `assets/story/final_renace.png` | Final «Ciudad Nova renace» (`FONDO_POR_FINAL`). |
 | C05 | `assets/story/final_dividida.png` | Final «La ciudad dividida». |
 
+## Generadas el 5 nov 2026 (reputación y redención, 57 créditos)
+
+Saldo: 1180,5 → 1123,5 (verificado con `balance`). Costos verificados con `get_cost` antes de
+generar. Sin descartes: cada generación se usa en el juego. Referencias: `portada.png` para
+lugares, retrato base para personajes, para que nadie cambie de cara.
+
+| Id | Archivo | Modelo | Créditos | Uso |
+|---|---|---|---|---|
+| D01 | `assets/story/crisis_reputacion.png` | nano_banana_2 | 1,5 | Crisis |
+| D02 | `assets/story/redencion.png` | nano_banana_2 | 1,5 | Elección, misión y recuperación |
+| D03 | `assets/story/final_confianza_perdida.png` | nano_banana_2 | 1,5 | Final de derrota |
+| D04 | `assets/story/nova_aparicion.png` | nano_banana_2 | 1,5 | Cuadro base del clip de NOVA_404 |
+| D05 | `assets/sprites/retratos/rosa.png` | nano_banana_2 | 1,5 | Rosa Beltrán, la mediadora |
+| D06 | `assets/sprites/retratos/<rol>_preocupado.png` y `<rol>_decidido.png` (8) | nano_banana_2 | 12 | Retratos según reputación |
+| V01 | `assets/story/video/intro_ciudad/` | kling3_0, 5 s, sin sonido | 7,5 | Primera toma de la intro (recortado a 44 cuadros) |
+| V02 | `assets/story/video/nova_aparicion/` | kling3_0 | 7,5 | Primera aparición de NOVA_404 |
+| V03 | `assets/story/video/crisis/` | kling3_0 | 7,5 | Crisis (recortado a 34 cuadros: al final se deformaba) |
+| V04 | `assets/story/video/redencion/` | kling3_0 | 7,5 | Recuperación |
+| V05 | `assets/story/video/jefe/` | kling3_0 | 7,5 | Entrada al Servidor Central |
+
+Se descartó Seedance 2.5 (35 créditos por clip de 5 s) porque Kling mantenía bien el pixel art.
+
+Video: cuadros JPG de 1280×720 a 12 FPS (30 MB en total), extraídos con
+`tools/extraer_cuadros.py`. El juego no necesita ffmpeg ni internet; si falta la carpeta,
+la toma usa la ilustración con paneo. Clips con sonido apagado: el audio lo pone el juego.
+
+Retratos: fondo verde quitado con `tools/procesar_retrato.py`.
+
+## Audio (propio, sin costo ni licencias de terceros)
+
+`tools/generar_audio.py` compone por síntesis matemática 10 pistas en `assets/musica/`
+(menu, ciudad, combate, jefe, misterio, decision, crisis, redencion, victoria, derrota; 15 MB,
+WAV de 22 kHz) y 15 efectos en `assets/sonidos/`. Si faltan, el juego sintetiza colchones y
+pitidos. **Nadie las ha escuchado aún:** ver `docs/QA_VISUAL.md`.
+
+## Escenarios (sin Higgsfield)
+
+Colegio, Hospital, Medios y Servidor Central se pintan en código (`src/ui/temas_mazmorra.py`),
+sin créditos: coherentes con los sprites y sin pixel art roto al escalar.
+
 ## Pendiente (opcional, sin generar)
 
 | Id | Nombre lógico | Archivo esperado | Tamaño | Dónde se usaría | Fallback actual |
@@ -56,7 +96,7 @@ a 1280×720 sin metadatos. Prompts completos en `docs/PLAN_ASSETS_CINEMATICOS.md
 | A05 | Iconos de interfaz (pista, evidencia, candidato) | `assets/story/iconos/*.png` | 32×32, transparente | Tarjetas | Chips de texto |
 
 ## Procedencia y licencia
-Todas las imágenes de `assets/story/` (incluidas las 5 de las cinemáticas) y `civitas.png`/`nova.png`: generadas el 3 nov 2026
+Todas las imágenes de `assets/story/` y los retratos de Civitas, NOVA_404, Rosa y las emociones: generados el 3 y 5 nov 2026
 con Higgsfield (nano_banana_2) desde la cuenta del equipo, con los prompts del style guide
 (sin texto ni logos), para uso en este proyecto académico. Se guardan en el repo; nunca se
 referencian URL temporales en runtime.

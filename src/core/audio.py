@@ -3,14 +3,14 @@
 Es el único punto del juego que toca el mezclador. Hay dos grupos con su
 propio volumen (src/core/preferencias.py):
 
-    música  -> pygame.mixer.music (una pista en bucle, si existe el archivo)
-    efectos -> cada pygame.mixer.Sound cargado aquí (interfaz y, a futuro, combate)
+    música  -> una pista en bucle por momento del juego, con fundido cruzado
+    efectos -> cada pygame.mixer.Sound cargado aquí
 
-Recursos: si existe el archivo de assets.RUTAS_SONIDOS / RUTA_MUSICA_MENU
-se usa ese. Aún no hay archivos de audio en el repositorio, así que los
-efectos de interfaz se generan en código (un pitido de onda cuadrada de
-8 bits), igual que los sprites se dibujan en código mientras llega el
-arte real; la música queda en silencio hasta que se agregue la pista.
+Recursos: si existe el archivo de assets.RUTAS_SONIDOS / RUTAS_MUSICA se usa
+ese (los compone tools/generar_audio.py, son propios). Si falta, el efecto se
+sintetiza con un pitido y la música con un colchón de acordes: el juego nunca
+depende de un archivo. Las pistas se cargan una vez y quedan en memoria, así
+que cambiar de pista no bloquea un frame más que la primera vez (~35 ms).
 
 Si el equipo no tiene salida de audio, pygame.mixer no inicia: todo
 sigue funcionando y simplemente no suena nada.
@@ -40,8 +40,8 @@ class Audio:
             for nombre, (frecuencias, duracion) in assets.TONOS_SONIDOS.items():
                 self._efectos[nombre] = _cargar_o_sintetizar(assets.RUTAS_SONIDOS.get(nombre), frecuencias, duracion)
             self._efectos = {nombre: sonido for nombre, sonido in self._efectos.items() if sonido is not None}
-            self.hay_musica = _iniciar_musica(assets.RUTA_MUSICA_MENU)
-        self._pistas = {}  # nombre -> Sound sintetizado (bucle ambiental)
+            self.hay_musica = any(os.path.exists(ruta) for ruta in assets.RUTAS_MUSICA.values())
+        self._pistas = {}  # nombre -> Sound (archivo o colchón sintetizado)
         self._pista_actual = None
         self._canal_musica = None
         self._volumen_musica = 0.0
@@ -52,7 +52,6 @@ class Audio:
         if not self.disponible:
             return
         self._volumen_musica = a_volumen_mixer(preferencias.volumen_musica)
-        pygame.mixer.music.set_volume(self._volumen_musica)
         if self._canal_musica is not None:
             self._canal_musica.set_volume(self._volumen_musica)
         volumen = a_volumen_mixer(preferencias.volumen_efectos)
@@ -60,33 +59,37 @@ class Audio:
             sonido.set_volume(volumen)
 
     def musica(self, nombre):
-        """Cambia la pista ambiental ("menu", "ciudad", "misterio", "jefe").
-        Si existe el archivo de assets.RUTAS_MUSICA se usa; si no, suena un
-        colchón de acordes sintetizado (assets.ACORDES_MUSICA) en bucle.
-        Repetir la pista actual no la reinicia. None detiene la música."""
+        """Cambia la pista del momento con un fundido cruzado. Repetir la pista
+        actual no la reinicia. None detiene la música."""
         if not self.disponible or nombre == self._pista_actual:
             return
         self._pista_actual = nombre
-        pygame.mixer.music.stop()
         if self._canal_musica is not None:
-            self._canal_musica.fadeout(600)
+            self._canal_musica.fadeout(assets.FUNDIDO_MUSICA_MS)
             self._canal_musica = None
         if nombre is None:
             return
-        ruta = assets.RUTAS_MUSICA.get(nombre)
-        if ruta and os.path.exists(ruta) and _iniciar_musica(ruta):
-            self.hay_musica = True
-            return
-        acordes = assets.ACORDES_MUSICA.get(nombre)
-        if acordes is None:
-            return
-        if nombre not in self._pistas:
-            self._pistas[nombre] = _sintetizar_colchon(acordes)
-        pista = self._pistas[nombre]
+        pista = self._pista(nombre)
         if pista is None:
             return
-        pista.set_volume(self._volumen_musica)
-        self._canal_musica = pista.play(loops=-1, fade_ms=800)
+        canal = pista.play(loops=-1, fade_ms=assets.FUNDIDO_MUSICA_MS)
+        if canal is not None:
+            canal.set_volume(self._volumen_musica)
+        self._canal_musica = canal
+
+    def _pista(self, nombre):
+        if nombre not in self._pistas:
+            ruta = assets.RUTAS_MUSICA.get(nombre)
+            pista = None
+            if ruta and os.path.exists(ruta):
+                try:
+                    pista = pygame.mixer.Sound(ruta)
+                except pygame.error:
+                    pista = None
+            if pista is None and nombre in assets.ACORDES_MUSICA:
+                pista = _sintetizar_colchon(assets.ACORDES_MUSICA[nombre])
+            self._pistas[nombre] = pista
+        return self._pistas[nombre]
 
     def reproducir(self, nombre):
         """Reproduce el efecto `nombre` (o nada si no existe). Lo corta si
@@ -105,17 +108,6 @@ def _iniciar_mezclador():
     except pygame.error:
         return False
     return pygame.mixer.get_init() is not None
-
-
-def _iniciar_musica(ruta):
-    if not ruta or not os.path.exists(ruta):
-        return False
-    try:
-        pygame.mixer.music.load(ruta)
-        pygame.mixer.music.play(-1)
-    except pygame.error:
-        return False
-    return True
 
 
 def _cargar_o_sintetizar(ruta, frecuencias, duracion):

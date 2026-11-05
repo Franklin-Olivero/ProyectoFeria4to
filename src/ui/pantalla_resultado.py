@@ -1,10 +1,9 @@
-"""Pantalla de resultado de una mazmorra normal (solo presentación).
+"""Pantalla de consecuencias de una mazmorra normal (solo presentación).
 
-Se muestra justo después de la terminal de decisión, antes de volver
-a Ciudad Nova: fondo teal para Purificación Exitosa y magenta
-para Detonación, una ilustración en pixel art, la barra de colapso con
-el valor anterior y el nuevo, y el botón de continuar (ENTER, que
-atiende Main.py en la escena RESULTADO).
+Se muestra después de la terminal, antes de volver a Ciudad Nova. Sobre la
+ilustración de la zona: qué ocurrió (el texto narrativo manda) y tres paneles
+de lectura rápida: tu decisión, cómo cambió la ciudad y el colapso electoral.
+Enter continúa (lo atiende Main.py en la escena RESULTADO).
 """
 
 from dataclasses import dataclass, field
@@ -13,7 +12,7 @@ import pygame
 
 from src.core import assets
 from src.story.escenarios import NOMBRES_ESTADO_EVIDENCIA
-from src.ui import dibujo, indicadores_render, sprites
+from src.ui import dibujo, indicadores_render, kit, layout, sprites
 from src.ui.terminal_decision import PURIFICACION_EXITOSA
 
 # Explicación según la opción elegida en la terminal.
@@ -28,6 +27,10 @@ EXPLICACION_TIEMPO = "Se acabó el tiempo sin decidir. La publicación se propag
 EXPLICACION_EXITO = "La zona queda purificada."
 EXPLICACION_FALLO = "La zona detonó y la incursión falló."
 
+_RECT_DECISION = pygame.Rect(56, 300, 380, 280)
+_RECT_DELTAS = pygame.Rect(450, 300, 380, 280)
+_RECT_COLAPSO = pygame.Rect(844, 300, 380, 280)
+
 
 @dataclass
 class ResultadoMazmorra:
@@ -40,6 +43,7 @@ class ResultadoMazmorra:
     # reputación, puntos) y los deltas reales sobre los indicadores.
     consecuencia: object = None
     deltas: dict = field(default_factory=dict)
+    texto: str = ""  # invitado: la explicación que mandó el host
 
     @property
     def exito(self):
@@ -49,6 +53,8 @@ class ResultadoMazmorra:
     def explicacion(self):
         if self.consecuencia is not None:
             return self.consecuencia.texto
+        if self.texto:
+            return self.texto
         if self.opcion is None:
             return EXPLICACION_TIEMPO
         return EXPLICACIONES.get(self.opcion, EXPLICACION_EXITO if self.exito else EXPLICACION_FALLO)
@@ -56,102 +62,64 @@ class ResultadoMazmorra:
 
 def dibujar_resultado(pantalla, info):
     exito = info.exito
-    acento = assets.COLOR_TEAL if exito else assets.COLOR_MAGENTA
-    pantalla.fill(assets.COLOR_FONDO_EXITO if exito else assets.COLOR_FONDO_FALLO)
-    cx = pantalla.get_width() // 2
-
-    dibujo.texto(pantalla, "Resultado de la mazmorra", (cx, 70), assets.COLOR_TEXTO_SECUNDARIO,
-                 assets.TAMANIO_FUENTE_NORMAL, ancla="center")
-    titulo = "Purificación exitosa" if exito else "Detonación"
-    dibujo.texto(pantalla, titulo, (cx, 118), acento, assets.TAMANIO_FUENTE_ENORME, negrita=True, ancla="center")
-    dibujo.parrafo(pantalla, info.explicacion, (cx, 158), 640, assets.COLOR_TEXTO_HUD,
-                   assets.TAMANIO_FUENTE_MEDIA, interlineado=6, centrado=True)
-
-    _dibujar_ilustracion(pantalla, exito)
-    _dibujar_barra(pantalla, info, acento)
-    if info.consecuencia is not None:
-        _dibujar_consecuencia(pantalla, info)
-
-    boton = dibujo.panel(pantalla, assets.RECT_BOTON_RESULTADO, acento, None, 0, radio=6)
-    dibujo.texto(pantalla, "Volver a Ciudad Nova", boton.center, assets.COLOR_FONDO,
-                 assets.TAMANIO_FUENTE_MEDIA, negrita=True, ancla="center")
-    chip = dibujo.chip(pantalla, "Enter", (cx - 40, boton.bottom + 36), ancla="midright")
-    dibujo.texto(pantalla, "para continuar", (chip.right + 8, chip.centery), assets.COLOR_TEXTO_SECUNDARIO,
-                 assets.TAMANIO_FUENTE_NORMAL, ancla="midleft")
-
-
-def _dibujar_consecuencia(pantalla, info):
-    """Paneles laterales del modo historia: a la izquierda qué se eligió
-    y con qué evidencia (más reputación y puntos); a la derecha los
-    indicadores de Ciudad Nova que cambiaron."""
-    c = info.consecuencia
-    panel = dibujo.panel(pantalla, assets.RECT_PANEL_EVIDENCIA_RESULTADO, assets.COLOR_FONDO_PANEL,
-                         assets.COLOR_BORDE_PANEL, 1, radio=8)
-    x, y = panel.left + 18, panel.top + 14
-    dibujo.texto(pantalla, "Tu decisión", (x, y), assets.COLOR_TEXTO_SECUNDARIO, assets.TAMANIO_FUENTE_NORMAL, negrita=True)
-    y += 28
-    camino = " › ".join(c.camino) if c.camino else "Sin decidir (tiempo agotado)"
-    for linea in dibujo.ajustar_texto(camino, assets.TAMANIO_FUENTE_NORMAL, panel.width - 36, negrita=True)[:2]:
-        dibujo.texto(pantalla, linea, (x, y), assets.COLOR_TEXTO_HUD, assets.TAMANIO_FUENTE_NORMAL, negrita=True)
-        y += 20
-    y += 8
-    color_sello = assets.COLOR_SELLO_EVIDENCIA.get(c.estado_evidencia, assets.COLOR_TEXTO_SECUNDARIO)
-    rotulo = dibujo.texto(pantalla, "Evidencia al decidir:", (x, y), assets.COLOR_TEXTO_SECUNDARIO,
-                          assets.TAMANIO_FUENTE_NORMAL)
-    dibujo.chip(pantalla, NOMBRES_ESTADO_EVIDENCIA.get(c.estado_evidencia, c.estado_evidencia),
-                (rotulo.right + 10, y - 4), color_sello, assets.COLOR_FONDO_PANEL, color_sello)
-    y += 34
-    signo = "+" if c.reputacion >= 0 else "−"
-    dibujo.texto(pantalla, f"Reputación {signo}{abs(c.reputacion)}   Puntos +{c.puntos}", (x, y),
-                 assets.COLOR_TEXTO_HUD, assets.TAMANIO_FUENTE_NORMAL)
-    indicadores_render.dibujar_deltas(pantalla, assets.RECT_PANEL_DELTAS, info.deltas)
-
-
-def _dibujar_ilustracion(pantalla, exito):
-    marco = dibujo.panel(pantalla, assets.RECT_ILUSTRACION_RESULTADO, assets.COLOR_MARCO_ILUSTRACION, None, 0, radio=4)
-    interior = marco.inflate(-24, -24)
-    # Piso de baldosas en miniatura, como el del cuarto.
-    lado = 20
-    pygame.draw.rect(pantalla, assets.COLOR_BALDOSA_A, interior)
-    for fila, y in enumerate(range(interior.top, interior.bottom, lado)):
-        for columna, x in enumerate(range(interior.left, interior.right, lado)):
-            if (fila + columna) % 2:
-                pygame.draw.rect(pantalla, assets.COLOR_BALDOSA_B, pygame.Rect(x, y, lado, lado).clip(interior))
-    if exito:
-        icono = sprites.sprite(sprites.CHULO, sprites.PALETA_CHULO, escala=6)
-        destello = sprites.sprite(sprites.DESTELLO, sprites.PALETA_DESTELLO, escala=3)
-        for dx, dy in ((-110, -40), (-70, 40), (90, -45), (120, 35), (40, 50)):
-            pantalla.blit(destello, destello.get_rect(center=(marco.centerx + dx, marco.centery + dy)))
+    acento = assets.COLOR_VERIFICADO if exito else assets.COLOR_NOVA
+    fondo = sprites.fondo_historia(assets.FONDO_POR_ZONA[info.zona], pantalla.get_size()) if info.zona in assets.FONDO_POR_ZONA else None
+    if fondo is not None:
+        pantalla.blit(fondo, (0, 0))
     else:
-        icono = sprites.sprite(sprites.EXPLOSION, sprites.PALETA_EXPLOSION, escala=6)
-        for dx, dy in ((-120, -50), (110, -55), (-105, 45), (115, 50)):
-            pygame.draw.rect(pantalla, assets.COLOR_AMARILLO, (marco.centerx + dx, marco.centery + dy, 8, 8))
-        # Grietas desde la explosión.
-        for angulo in (-150, -30, 150, 30):
-            inicio = pygame.Vector2(50, 0).rotate(angulo) + marco.center
-            fin = pygame.Vector2(135, 0).rotate(angulo + 12) + marco.center
-            pygame.draw.line(pantalla, assets.COLOR_MAGENTA, inicio, fin, 2)
-    pantalla.blit(icono, icono.get_rect(center=marco.center))
+        pantalla.fill(assets.COLOR_NOCHE)
+    kit.velo(pantalla, 205)
+
+    kit.rotulo(pantalla, f"Consecuencias · {info.zona}", (56, 44), assets.COLOR_TEXTO_SECUNDARIO)
+    titulo = "Purificación exitosa" if exito else "Detonación"
+    dibujo.texto(pantalla, titulo, (56, 66), acento, assets.TAMANIO_FUENTE_ENORME, negrita=True)
+    layout.parrafo_en_caja(pantalla, info.explicacion, pygame.Rect(56, 138, 1168, 100), assets.COLOR_TEXTO_HUD,
+                           assets.TAMANIO_FUENTE_TITULO, interlineado=8)
+
+    _dibujar_decision(pantalla, info, acento)
+    if info.consecuencia is not None:
+        indicadores_render.dibujar_deltas(pantalla, _RECT_DELTAS, info.deltas)
+    else:
+        kit.panel(pantalla, _RECT_DELTAS, assets.COLOR_CIVITAS)
+    _dibujar_colapso(pantalla, info, acento)
+    kit.tecla(pantalla, "Enter", "continuar", (pantalla.get_width() // 2, 620), ancla="center")
 
 
-def _dibujar_barra(pantalla, info, acento):
-    rect = pygame.Rect(assets.RECT_BARRA_RESULTADO)
-    dibujo.texto(pantalla, "Barra de colapso electoral", (rect.left, rect.top - 24), assets.COLOR_TEXTO_SECUNDARIO,
+def _dibujar_decision(pantalla, info, acento):
+    kit.panel(pantalla, _RECT_DECISION, acento)
+    x, y = _RECT_DECISION.left + 22, _RECT_DECISION.top + 18
+    kit.rotulo(pantalla, "Tu decisión", (x, y), assets.COLOR_TEXTO_SECUNDARIO)
+    c = info.consecuencia
+    camino = " › ".join(c.camino) if c is not None and c.camino else (info.opcion or "Sin decidir (tiempo agotado)")
+    y = layout.parrafo_en_caja(pantalla, camino, pygame.Rect(x, y + 22, _RECT_DECISION.width - 44, 72), assets.COLOR_TEXTO_HUD,
+                               assets.TAMANIO_FUENTE_MEDIA, negrita=True, interlineado=4) + 10
+    if c is None:
+        return
+    kit.rotulo(pantalla, "Pruebas al decidir", (x, y), assets.COLOR_TEXTO_SECUNDARIO)
+    dibujo.texto(pantalla, NOMBRES_ESTADO_EVIDENCIA.get(c.estado_evidencia, c.estado_evidencia), (x, y + 20), assets.COLOR_TEXTO_HUD,
                  assets.TAMANIO_FUENTE_NORMAL)
-    dibujo.texto(pantalla, f"{info.colapso_antes:.1f}% → {info.colapso_despues:.1f}%", (rect.right, rect.top - 24),
-                 acento, assets.TAMANIO_FUENTE_NORMAL, negrita=True, ancla="topright")
-    dibujo.barra(pantalla, rect, info.colapso_despues / 100.0)
-    # Marca blanca en el valor anterior.
-    x_antes = rect.left + round(rect.width * info.colapso_antes / 100.0)
-    pygame.draw.line(pantalla, assets.COLOR_TEXTO_HUD, (x_antes, rect.top - 4), (x_antes, rect.bottom + 4), 3)
-    dibujo.texto(pantalla, "0%", (rect.left, rect.bottom + 6), assets.COLOR_TEXTO_SECUNDARIO, assets.TAMANIO_FUENTE_PEQUENA)
-    dibujo.texto(pantalla, "100%", (rect.right, rect.bottom + 6), assets.COLOR_TEXTO_SECUNDARIO,
-                 assets.TAMANIO_FUENTE_PEQUENA, ancla="topright")
+    y += 54
+    kit.rotulo(pantalla, "Tu reputación", (x, y), assets.COLOR_TEXTO_SECUNDARIO)
+    signo = "+" if c.reputacion > 0 else "−" if c.reputacion < 0 else "±"
+    color = assets.COLOR_VERIFICADO if c.reputacion > 0 else assets.COLOR_NOVA if c.reputacion < 0 else assets.COLOR_TEXTO_SECUNDARIO
+    dibujo.texto(pantalla, f"{signo}{abs(c.reputacion)}", (x, y + 18), color, assets.TAMANIO_FUENTE_TITULO, negrita=True)
+    dibujo.texto(pantalla, f"Puntos +{c.puntos}", (_RECT_DECISION.right - 22, y + 22), assets.COLOR_TEXTO_SECUNDARIO,
+                 assets.TAMANIO_FUENTE_NORMAL, ancla="topright")
 
+
+def _dibujar_colapso(pantalla, info, acento):
+    kit.panel(pantalla, _RECT_COLAPSO, assets.COLOR_ALERTA)
+    x, y = _RECT_COLAPSO.left + 22, _RECT_COLAPSO.top + 18
+    kit.rotulo(pantalla, "Colapso electoral", (x, y), assets.COLOR_TEXTO_SECUNDARIO)
+    dibujo.texto(pantalla, f"{info.colapso_despues:.1f} %", (x, y + 22), acento, assets.TAMANIO_FUENTE_GRANDE, negrita=True)
+    barra = pygame.Rect(x, y + 84, _RECT_COLAPSO.width - 44, 12)
+    dibujo.barra(pantalla, barra, info.colapso_despues / 100.0)
+    x_antes = barra.left + round(barra.width * info.colapso_antes / 100.0)
+    pygame.draw.line(pantalla, assets.COLOR_TEXTO_HUD, (x_antes, barra.top - 4), (x_antes, barra.bottom + 3), 2)
     delta = info.colapso_despues - info.colapso_antes
     signo = "+" if delta >= 0 else "−"
-    dibujo.chip(pantalla, f"{signo}{abs(delta):.1f}%", (rect.centerx, rect.bottom + 44), acento,
-                assets.COLOR_FONDO_PANEL, acento, assets.TAMANIO_FUENTE_MEDIA, ancla="center", alto=34, margen=18)
-    nota = "Cada mazmorra purificada reduce el colapso." if info.exito else "Cada incursión fallida aumenta el colapso."
-    dibujo.texto(pantalla, nota, (rect.centerx, rect.bottom + 84), assets.COLOR_TEXTO_SECUNDARIO,
-                 assets.TAMANIO_FUENTE_NORMAL, ancla="center")
+    dibujo.texto(pantalla, f"{signo}{abs(delta):.1f} % respecto a antes", (x, barra.bottom + 10), assets.COLOR_TEXTO_HUD,
+                 assets.TAMANIO_FUENTE_NORMAL)
+    nota = "Cada zona purificada aleja la ciudad del colapso." if info.exito else "Si llega a 100 %, Ciudad Nova cae."
+    layout.parrafo_en_caja(pantalla, nota, pygame.Rect(x, barra.bottom + 40, _RECT_COLAPSO.width - 44, 60), assets.COLOR_TEXTO_SECUNDARIO,
+                           assets.TAMANIO_FUENTE_NORMAL, interlineado=4)

@@ -1,4 +1,4 @@
-"""Tests del capítulo 3 (infiltrado) y del final (elecciones y tres finales), sin pygame."""
+"""Tests del capítulo 3 (origen de la señal) y del final (elecciones y tres finales), sin pygame."""
 
 import os
 import sys
@@ -6,7 +6,7 @@ import sys
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
 from src.core.balance import (  # noqa: E402
-    PUNTOS_INFILTRADO_CORRECTO,
+    PUNTOS_ORIGEN_RASTREADO,
     REPORTES_POR_ZONA,
     ZONA_COLEGIO,
     ZONA_EMPRESA_MEDIOS,
@@ -40,7 +40,15 @@ def _purificar(partida, zona):
     assert partida.cerrar_mazmorra(m, terminal.resultado, terminal)
 
 
-def test_investigacion_navega_y_acusa_por_pistas():
+def _ruta_hasta_el_origen(inv):
+    """Sigue el hilo correcto eligiendo la opción por su cuenta."""
+    for cuenta in ("nova_despierta", "repetidor", "nova_root"):
+        while inv.opcion_seleccionada.cuenta != cuenta:
+            inv.navegar(DERECHA)
+        inv.navegar(CONFIRMAR)
+
+
+def test_investigacion_es_un_dfs_con_pila_y_backtracking():
     partida = Partida()
     campania = partida.campania
     assert not campania.investigacion_pendiente(ZONA_EMPRESA_MEDIOS)
@@ -49,32 +57,52 @@ def test_investigacion_navega_y_acusa_por_pistas():
     assert not campania.investigacion_pendiente(ZONA_COLEGIO)
 
     inv = campania.nueva_investigacion()
-    assert len(inv.cuentas) == 3 and inv.seleccionada["id"] == "hugo_oficial"
-    inv.navegar(IZQUIERDA)
-    assert inv.seleccionada["id"] == "elena_v"
-    inv.navegar(DERECHA)
-    inv.navegar(DERECHA)
-    assert inv.seleccionada["id"] == "eco_nova_ok"  # la de 2 mil seguidores, no la popular
+    assert inv.actual == "datos_nova" and inv.pila == ["datos_nova"]
+    # Bajar por un hilo que termina en una persona y volver (backtracking).
+    while inv.opcion_seleccionada.cuenta != "eco_nova":
+        inv.navegar(DERECHA)
     inv.navegar(CONFIRMAR)
-    assert inv.terminada and inv.resultado.correcto
-    inv.navegar(DERECHA)  # terminada: no cambia
-    assert inv.seleccionada["id"] == "eco_nova_ok"
+    assert inv.pila == ["datos_nova", "eco_nova"]
+    while inv.opcion_seleccionada.tipo != "volver":
+        inv.navegar(IZQUIERDA)
+    inv.navegar(CONFIRMAR)
+    assert inv.pila == ["datos_nova"] and "eco_nova" in inv.visitadas
+    # Una cuenta visitada no se ofrece otra vez.
+    assert "eco_nova" not in inv.vecinas_sin_visitar()
+    _ruta_hasta_el_origen(inv)
+    assert inv.pila == ["datos_nova", "nova_despierta", "repetidor", "nova_root"]
+    assert sorted(inv.orden_dfs_referencia()) == sorted(inv.cuentas)  # DFS real sobre el Grafo
+    while inv.opcion_seleccionada.tipo != "senalar":
+        inv.navegar(DERECHA)
+    inv.navegar(CONFIRMAR)
+    assert inv.terminada and inv.resultado.correcto and inv.resultado.tipo == "origen"
 
     puntos = campania.puntos
     assert campania.registrar_investigacion(inv.resultado)
-    assert campania.puntos == puntos + PUNTOS_INFILTRADO_CORRECTO
-    assert campania.infiltrado_correcto
+    assert campania.puntos == puntos + PUNTOS_ORIGEN_RASTREADO
+    assert campania.origen_rastreado
     assert not campania.investigacion_pendiente(ZONA_EMPRESA_MEDIOS)
     assert not campania.registrar_investigacion(inv.resultado)  # una sola vez
-    assert campania.puntos == puntos + PUNTOS_INFILTRADO_CORRECTO
+    assert campania.puntos == puntos + PUNTOS_ORIGEN_RASTREADO
 
 
-def test_acusar_a_la_victima_cuesta():
-    inv = Investigacion(Partida().campania.contenido["sospechosos"])
-    resultado = inv.acusar("elena_v")
-    assert not resultado.correcto and resultado.efectos["conflictos"] > 0 and resultado.reputacion < 0
-    error = inv.acusar("hugo_oficial")
-    assert not error.correcto and error.puntos == 0
+def test_senalar_a_una_persona_inocente_cuesta_pero_no_bloquea():
+    inv = Investigacion(Partida().campania.contenido["red_cuentas"])
+    victima = inv.senalar("elena")
+    assert not victima.correcto and victima.efectos["conflictos"] > 0 and victima.reputacion == -20
+    error = inv.senalar("hugo")
+    assert not error.correcto and error.puntos == 0 and error.reputacion == -10
+    pieza = inv.senalar("eco_nova")
+    assert not pieza.correcto and pieza.reputacion == 0
+
+
+def test_no_quedan_rastros_de_un_modo_impostor():
+    datos = Partida().campania.contenido
+    assert "sospechosos" not in datos
+    assert datos["capitulos"][ZONA_EMPRESA_MEDIOS]["titulo"] == "El origen de la señal"
+    texto = str(datos).lower()
+    for palabra in ("impostor", "infiltrado", "traidor", "votar para expulsar"):
+        assert palabra not in texto
 
 
 def test_apoyos_son_deterministas_suman_100_y_dependen_del_estado():
@@ -98,8 +126,8 @@ def test_tres_finales_con_umbrales():
     assert determinar_final(campania) == FINAL_RENACE
     campania.pistas = ["col_e3", "hos_e3", "med_e3"]
     campania.jefe_derrotado = True
-    assert determinar_final(campania) == FINAL_RENACE  # falta acusar bien
-    campania.registrar_investigacion(campania.nueva_investigacion().acusar("eco_nova_ok"))
+    assert determinar_final(campania) == FINAL_RENACE  # falta rastrear el origen
+    campania.registrar_investigacion(campania.nueva_investigacion().senalar("nova_root"))
     assert determinar_final(campania) == FINAL_ARQUITECTO
     resumen = resumen_final(campania)
     assert resumen["titulo"] == "El arquitecto" and resumen["pistas_completas"]
@@ -115,4 +143,4 @@ def test_jefe_derrotado_una_vez_y_reinicio_limpia():
     puntos = campania.puntos
     assert not campania.registrar_jefe_derrotado() and campania.puntos == puntos
     partida.reiniciar()
-    assert not campania.jefe_derrotado and campania.infiltrado_elegido is None and campania.puntos == 0
+    assert not campania.jefe_derrotado and campania.origen_elegido is None and campania.puntos == 0

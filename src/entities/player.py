@@ -277,6 +277,7 @@ class JugadorBase:
             while self.tiempo_para_disparo <= 0:
                 nuevos.extend(self.ataque_basico())
                 self.tiempo_para_disparo += self.intervalo_disparo()
+                self._retroceso_hasta = pygame.time.get_ticks() / 1000.0 + assets.DURACION_RETROCESO_DISPARO
         else:
             self.tiempo_para_disparo = max(self.tiempo_para_disparo, 0.0)
         return nuevos
@@ -361,18 +362,36 @@ class JugadorBase:
         # colisión y sobresale un poco por arriba, como en un top-down.
         from src.ui import sprites
 
+        ahora = pygame.time.get_ticks() / 1000.0
+        caminando = self.velocidad_actual.length_squared() > 0
         imagen = sprites.sprite_jugador(
-            self.COLOR, rol=self.rol, tiempo=pygame.time.get_ticks() / 1000.0,
-            caminando=self.velocidad_actual.length_squared() > 0, dash=self.dash.activo,
+            self.COLOR, rol=self.rol, tiempo=ahora,
+            caminando=caminando, dash=self.dash.activo,
             apariencia=self.apariencia,
         )
+        # Vida del personaje, solo visual: rebote al caminar, retroceso al
+        # disparar y destello blanco al recibir un golpe. La posición de
+        # colisión no cambia.
+        vida_antes = getattr(self, "_vida_dibujada", self.vida)
+        if self.vida < vida_antes:
+            self._destello_hasta = ahora + assets.DURACION_DESTELLO_DANIO
+        self._vida_dibujada = self.vida
+        rebote = round(abs(math.sin(ahora * assets.FRECUENCIA_PASO)) * assets.AMPLITUD_PASO) if caminando and not self.dash.activo else 0
+        dx, dy = 0, 0
+        if ahora < getattr(self, "_retroceso_hasta", 0.0):
+            dx = round(-self.direccion_mirada.x * assets.DISTANCIA_RETROCESO_DISPARO)
+            dy = round(-self.direccion_mirada.y * assets.DISTANCIA_RETROCESO_DISPARO)
+        if ahora < getattr(self, "_destello_hasta", 0.0):
+            imagen = imagen.copy()
+            imagen.fill((200, 200, 200, 0), special_flags=pygame.BLEND_RGBA_ADD)
+        sprites.dibujar_sombra(pantalla, (self.rect.centerx, self.rect.bottom + 2), self.rect.width + 4)
         # Imágenes fantasma del dash: la más nueva (última del rastro) es la más opaca.
         for alfa, centro in zip(assets.DASH_AFTERIMAGE_ALFA, reversed(self.rastro_dash)):
             fantasma = imagen.copy()
             fantasma.set_alpha(alfa)
             pantalla.blit(fantasma, fantasma.get_rect(midbottom=(centro[0], centro[1] + self.rect.height // 2 + 4)))
         if self.invulnerabilidad.visible:
-            pantalla.blit(imagen, imagen.get_rect(midbottom=(self.rect.centerx, self.rect.bottom + 4)))
+            pantalla.blit(imagen, imagen.get_rect(midbottom=(self.rect.centerx + dx, self.rect.bottom + 4 - rebote + dy)))
 
 
 class Ciudadano(JugadorBase):

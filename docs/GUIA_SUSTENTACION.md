@@ -67,8 +67,24 @@ semilla el resultado es idéntico (tests con semillas fijas).
   (una vez) → colapso + pesos de calles + consecuencia narrativa.
 - Indicadores 0-100 acotados en un único método (`EstadoCiudad.aplicar`).
 - Final determinista por umbrales (`balance.py`), nunca por un botón:
-  `determinar_final`. El secreto exige 3 pistas + coordinadora correcta + jefe.
+  `determinar_final`. El secreto exige 3 pistas + origen de la señal rastreado + jefe,
+  y reputación colectiva de -19 o más. Si nadie del equipo conserva la voz: «La confianza perdida».
 - Elecciones: fórmula transparente en `calcular_apoyos`; se normaliza a 100 %.
+
+## Reputación y redención
+- **¿Cómo se decide si una acción es responsable?** Se cruza la acción con la veracidad real
+  y con lo que el jugador podía saber: `valorar_accion`, tabla en `balance.py`. Compartir algo
+  verdadero y comprobado suma; reportarlo daña a una inocente. Ignorar sin pruebas no castiga.
+- **¿No es un número decorativo?** No: decide cuántos saltos alcanza tu corrección en el BFS,
+  si las pruebas parciales te bastan, diálogos, reacciones, votos y finales.
+- **¿Cómo se evitan dobles recompensas?** Con claves: `aplicar(..., clave="decision:Colegio")`.
+- **¿Cómo funciona la redención?** Árbol para reconocer, BFS real para corregir (75 % de los
+  expuestos), árbol para ayudar. Da +45, baja el tope a +59 y no borra el historial.
+- **¿Y si alguien se niega?** En solitario, final «La confianza perdida» con punto de control.
+  En equipo queda sin voz y los demás siguen. El host fija la reputación de todos.
+- **¿Había un modo impostor?** No. El capítulo 3 es un rastreo por DFS de cuentas. Lo inspirado
+  en Among Us es solo el lobby: sala, vestidores, listos.
+- Detalle: `docs/SISTEMA_REPUTACION.md`, `docs/SISTEMA_REDENCION.md`.
 
 ## Cliente-servidor (Online)
 Host autoritativo por TCP (`Online/`): el invitado envía input, el host simula y
@@ -93,22 +109,26 @@ mensaje de votación colectiva para el capítulo 3.
 
 ## Guía rápida para la Feria Gamer: qué mostrar y cómo explicarlo (3 nov 2026)
 
-**Demo de 6-8 min:** JUGAR → Periodista → ver la intro (o Esc para ir a los objetivos) → Colegio
-(tarjeta de capítulo, misión «INVESTIGA EL COLEGIO», 3 pruebas, terminal con el árbol) →
-Hospital (pantalla de propagación BFS/DFS) → Empresa de Medios (investigación) → Alcaldía
-(cinemática del jefe, combate, caída del servidor, elecciones, final).
+**Demo de 8-10 min:** JUGAR → Periodista → intro (Esc para ir a los objetivos) → Colegio
+(recoger pruebas, terminal, indicador de reputación) → Hospital (la publicación es verdadera:
+muestra que reportar hace daño) → Empresa de Medios (rastreo por DFS) → Alcaldía → elecciones.
+
+**Demo de la crisis (3 min, mejor preparada):** elegir «Compartir» o insistir en dos zonas con
+todas las pruebas. Al volver a la ciudad aparece la crisis. Aceptar y hacer la etapa 2 en el
+Kiosco de la Plaza: es el BFS más visual del juego.
 
 **Frases para explicar las mejoras:**
-- «La intro responde en 40 segundos quién eres, qué es Civitas, qué pasa con las elecciones,
-  quién es NOVA_404 y qué tienes que hacer; termina en una lista de objetivos.»
+- «La intro cuenta quién eres, qué es Civitas y quién es NOVA_404, y espera a que leas; termina
+  en una lista de objetivos.»
 - «El panel MISIÓN ACTUAL no guarda estado: se calcula cada frame a partir de la campaña y de la
   mazmorra (grafo de cuartos), por eso nunca se desincroniza, ni en cooperativo ni en red.»
 - «Cada decisión navega un árbol N-ario real; con menos pruebas la misma hoja lleva a otro
   resultado. La publicación viaja por BFS en el grafo social y el rastreo usa DFS.»
-- «Las elecciones y el final salen de los 7 indicadores, las pistas y a quién señalaste: hay
-  tres finales (renace, dividida, el arquitecto) y las cinemáticas usan esos datos reales.»
+- «Las elecciones y el final salen de los indicadores, las pistas, la reputación y a quién
+  señalaste: hay cuatro finales y las cinemáticas usan esos datos reales.»
 - «El juego arranca sin internet ni Higgsfield: las ilustraciones son archivos del repo y cada
   pantalla tiene un respaldo dibujado en código.»
 
 **Si algo falla en vivo:** Esc salta cualquier cinemática; EXTRAS → VER INTRODUCCIÓN la repite;
-`python -m pytest -q` debe dar 853 pruebas en verde.
+`python -m pytest -q` debe dar todas las pruebas en verde (más de 940) y
+`python tools/prueba_ventana.py` confirma FPS y audio. Lista previa en `docs/QA_VISUAL.md`.

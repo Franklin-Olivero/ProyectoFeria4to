@@ -95,6 +95,25 @@ def parrafo_en_caja(pantalla, cadena, rect, color=assets.COLOR_TEXTO_HUD, tamani
     return y
 
 
+def parrafo_progresivo(pantalla, cadena, visibles, rect, color=assets.COLOR_TEXTO_HUD,
+                       tamanio=assets.TAMANIO_FUENTE_NORMAL, negrita=False, interlineado=4):
+    """Máquina de escribir: el párrafo se parte en líneas con el texto
+    COMPLETO y se dibujan solo los primeros `visibles` caracteres. Así una
+    palabra no salta de línea a mitad de escribirse."""
+    rect = pygame.Rect(rect)
+    tamanio_final, lineas = texto_que_cabe(cadena, rect.width, rect.height, tamanio, negrita, interlineado)
+    alto_linea = fuente(tamanio_final, negrita).get_height() + interlineado
+    y = rect.top
+    restantes = visibles
+    for linea in lineas:
+        if restantes <= 0:
+            break
+        dibujo.texto(pantalla, linea[:restantes], (rect.left, y), color, tamanio_final, negrita)
+        restantes -= len(linea) + 1
+        y += alto_linea
+    return y
+
+
 def texto_en_ancho(pantalla, cadena, posicion, ancho, color=assets.COLOR_TEXTO_HUD,
                    tamanio=assets.TAMANIO_FUENTE_NORMAL, negrita=False, ancla="topleft",
                    minimo=assets.TAMANIO_FUENTE_PEQUENA):

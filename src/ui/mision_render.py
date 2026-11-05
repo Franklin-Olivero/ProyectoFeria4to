@@ -14,7 +14,7 @@ import math
 import pygame
 
 from src.core import assets
-from src.ui import dibujo, layout
+from src.ui import dibujo, kit, layout
 from src.ui.fuentes import fuente
 
 ROTULO = "MISIÓN ACTUAL"
@@ -35,9 +35,7 @@ def dibujar_panel_mision(pantalla, mision, rect, transcurrido=1.0, compacto=Fals
     alto_fila = 20
     alto = 54 + alto_fila * len(objetivos) + (0 if compacto else 48)
     rect = pygame.Rect(rect.left, rect.top, rect.width, alto)
-    dibujo.panel_alfa(pantalla, rect, assets.COLOR_FONDO_MISION, radio=8)
-    pygame.draw.line(pantalla, assets.COLOR_BORDE_MISION, (rect.left + 1, rect.top + 8),
-                     (rect.left + 1, rect.bottom - 8), 3)
+    kit.panel(pantalla, rect, assets.COLOR_BORDE_MISION, alfa=222, radio=8)
     x, y = rect.left + 14, rect.top + 8
     dibujo.texto(pantalla, ROTULO, (x, y), assets.COLOR_TEXTO_SECUNDARIO, assets.TAMANIO_FUENTE_MINI, negrita=True)
     layout.texto_en_ancho(pantalla, mision.titulo, (x, y + 12), rect.width - 28, assets.COLOR_TITULO_MISION,

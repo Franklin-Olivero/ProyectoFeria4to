@@ -9,7 +9,7 @@ opciones. Las teclas las atiende Main.py (estado Escena.VICTORIA).
 import pygame
 
 from src.core import assets
-from src.ui import dibujo, sprites
+from src.ui import dibujo, kit, sprites
 
 TITULO = "Servidor Central purificado"
 DETALLE = "La Alcaldía vuelve a estar en línea. El colapso baja 0.1%."
@@ -42,7 +42,7 @@ def dibujar_panel_final(
     velo.fill(color_velo)
     pantalla.blit(velo, (0, 0))
 
-    panel = dibujo.panel(pantalla, rect_panel, color_fondo, color_borde, grosor_borde, radio=10)
+    panel = kit.panel(pantalla, rect_panel, color_borde, alfa=246, radio=12, filo="arriba")
     y = panel.top + 34
     if icono is not None:
         pantalla.blit(icono, icono.get_rect(center=(panel.centerx, y + 10)))

@@ -8,10 +8,12 @@ determinista: los mismos indicadores dan el mismo resultado. Ningún
 candidato tiene la victoria escrita.
 
 Finales (umbrales en balance.py):
-    - "arquitecto" (secreto): las 3 pistas, la coordinadora correcta en
-      el capítulo 3 y el jefe derrotado;
-    - "renace": información verificada y confianza altas y
-      desinformación baja;
+    - "confianza_perdida" (derrota): nadie del equipo tiene ya voz porque
+      todos rechazaron o fallaron la redención;
+    - "arquitecto" (secreto): las 3 pistas, el origen de la señal rastreado
+      en el capítulo 3 y el jefe derrotado, sin reputación cuestionada;
+    - "renace": información verificada y confianza altas, desinformación
+      baja y sin reputación cuestionada;
     - "dividida": en cualquier otro caso.
 """
 
@@ -22,11 +24,13 @@ from src.core.balance import (
     PESO_INDICADOR_AFIN_ELECCION,
     PESO_REPUTACION_ELECCION,
     PISTAS_PARA_FINAL_SECRETO,
+    REPUTACION_MIN_FINAL_POSITIVO,
 )
 
 FINAL_RENACE = "renace"
 FINAL_DIVIDIDA = "dividida"
 FINAL_ARQUITECTO = "arquitecto"
+FINAL_CONFIANZA_PERDIDA = "confianza_perdida"
 
 
 def calcular_apoyos(candidatos, estado, reputacion):
@@ -50,10 +54,13 @@ def calcular_apoyos(candidatos, estado, reputacion):
 def determinar_final(campania):
     """Clave del final según el estado de la campaña (ver módulo)."""
     estado = campania.estado
-    if (len(campania.pistas) >= PISTAS_PARA_FINAL_SECRETO and campania.infiltrado_correcto
+    if campania.todos_sin_voz():
+        return FINAL_CONFIANZA_PERDIDA
+    respetado = campania.reputacion_colectiva() >= REPUTACION_MIN_FINAL_POSITIVO
+    if (respetado and len(campania.pistas) >= PISTAS_PARA_FINAL_SECRETO and campania.origen_rastreado
             and campania.jefe_derrotado):
         return FINAL_ARQUITECTO
-    if (estado.valor("informacion_verificada") >= FINAL_RENACE_VERIFICADA_MIN
+    if (respetado and estado.valor("informacion_verificada") >= FINAL_RENACE_VERIFICADA_MIN
             and estado.valor("confianza") >= FINAL_RENACE_CONFIANZA_MIN
             and estado.valor("desinformacion") <= FINAL_RENACE_DESINFORMACION_MAX):
         return FINAL_RENACE
@@ -68,7 +75,8 @@ def resumen_final(campania):
         "clave": clave,
         "titulo": final["titulo"],
         "texto": final["texto"],
-        "apoyos": calcular_apoyos(campania.contenido["candidatos"], campania.estado, campania.reputacion),
+        "epilogo": final.get("epilogo_redimido", "") if campania.hubo_redencion() else "",
+        "apoyos": calcular_apoyos(campania.contenido["candidatos"], campania.estado, campania.reputacion_colectiva()),
         "resumen": campania.resumen(),
         "pistas_completas": len(campania.pistas) >= PISTAS_PARA_FINAL_SECRETO,
         "nota": campania.contenido.get("nota", ""),

@@ -24,7 +24,7 @@ from Online.protocolo import (
     BIENVENIDA, DESCONEXION, ESTADO, GrafoSala, INICIAR, LOBBY, PING, PONG,
     POSICION_LOBBY, ENTRAR_MAZMORRA, CAMBIO_ESCENA, CAMBIO_CUARTO,
     deserializar_buffer, msg_elegir_apariencia, msg_elegir_rol, msg_hola, msg_input, msg_ping,
-    msg_pong, msg_posicion_lobby, msg_entrar_mazmorra, msg_decision_nav,
+    msg_pong, msg_posicion_lobby, msg_entrar_mazmorra, msg_decision_nav, msg_historia,
 )
 from Online.red_local import (
     ahora_ms, clasificar_error_conexion, enviar_todo, sin_retraso, suavizar,
@@ -131,6 +131,10 @@ class Cliente:
     def enviar_decision_nav(self, direccion):
         """Envía la selección o confirmación de la terminal de decisión al host."""
         self._enviar(msg_decision_nav(direccion, self.id_jugador if self.id_jugador is not None else 1))
+
+    def enviar_historia(self, evento, **datos):
+        """Avisa al host de una decisión de la crisis o de la misión de redención."""
+        self._enviar(msg_historia(evento, self.id_jugador if self.id_jugador is not None else 1, **datos))
 
     def enviar_ping(self):
         """Envía un ping para medir latencia (el host lo devuelve como PONG)."""

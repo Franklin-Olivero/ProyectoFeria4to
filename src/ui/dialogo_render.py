@@ -52,15 +52,16 @@ def dibujar_dialogo(pantalla, dialogo, tiempo=0.0, transcurrido=1.0):
     dibujo.texto(pantalla, linea.hablante, (x_texto, panel.top + 18), assets.COLOR_NOMBRE_DIALOGO,
                  assets.TAMANIO_FUENTE_MEDIA, negrita=True)
     caja = pygame.Rect(x_texto, panel.top + 50, panel.right - 24 - x_texto, panel.height - 50 - 44)
-    layout.parrafo_en_caja(pantalla, linea.texto, caja, assets.COLOR_TEXTO_HUD, assets.TAMANIO_FUENTE_MEDIA,
-                           interlineado=6)
+    # Progresivo sobre el párrafo ya partido: las palabras no saltan de línea al escribirse.
+    layout.parrafo_progresivo(pantalla, linea.texto, dialogo.caracteres_visibles, caja, assets.COLOR_TEXTO_HUD,
+                              assets.TAMANIO_FUENTE_MEDIA, interlineado=6)
 
     actual, total = dialogo.progreso
     dibujo.texto(pantalla, f"{actual}/{total}", (panel.right - 20, panel.top + 18), assets.COLOR_TEXTO_SECUNDARIO,
                  assets.TAMANIO_FUENTE_PEQUENA, ancla="topright")
-    # Indicador que late para invitar a seguir.
+    # Indicador que late para invitar a seguir (solo cuando ya se puede leer todo).
     fase = (math.sin(tiempo * 2 * math.pi / assets.DURACION_PARPADEO_INDICADOR) + 1) / 2
-    visible = fase > 0.35
+    visible = fase > 0.35 and dialogo.texto_completo
     ultimo = actual == total
     if visible:
         chip = dibujo.chip(pantalla, TEXTO_FIN if ultimo else TEXTO_CONTINUAR, (panel.right - 20, panel.bottom - 16),

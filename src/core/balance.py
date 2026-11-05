@@ -442,16 +442,78 @@ INDICADORES_INICIALES = {
 }
 INDICADOR_MINIMO = 0
 INDICADOR_MAXIMO = 100
-REPUTACION_INICIAL = 50  # reputación del jugador, también 0-100
-# Terminal de decisión con árbol de dos niveles: más tiempo que los 10 s
-# del árbol plano original.
-DURACION_TERMINAL_HISTORIA = 15.0  # s
+# Reputación individual (src/story/reputacion.py): de -100 a +100, por jugador.
+REPUTACION_INICIAL = 0
+REPUTACION_MINIMA = -100
+REPUTACION_MAXIMA = 100
+# (id, nombre visible, valor mínimo del tramo), de mayor a menor.
+NIVELES_REPUTACION = (
+    ("referente", "Referente de Ciudad Nova", 60),
+    ("confiable", "Ciudadano confiable", 20),
+    ("neutral", "Reputación neutral", -19),
+    ("cuestionada", "Reputación cuestionada", -59),
+    ("crisis", "Crisis de reputación", -100),
+)
+UMBRAL_CRISIS_REPUTACION = -60  # a este valor o menos se activa la crisis
+UMBRAL_DESCONFIANZA = -20  # las pruebas parciales ya no bastan: la ciudad pide más
+UMBRAL_CONFIANZA = 20  # un ciudadano aporta una prueba al entrar a cada zona
+UMBRAL_REFERENTE = 60  # más alcance de las correcciones y más tiempo en la terminal
+TIEMPO_EXTRA_TERMINAL_REFERENTE = 10.0  # s
+# Saltos de una corrección publicada según la reputación de quien la publica
+# (la credibilidad decide hasta dónde llega por el grafo social).
+SALTOS_CORRECCION_REFERENTE = 4
+SALTOS_CORRECCION_CUESTIONADA = 2
+SALTOS_CORRECCION_CRISIS = 1
+# Valoración de cada acción: (sin saber, con indicios, sabiéndolo) según la
+# veracidad REAL de la publicación. Los valores dependen de lo que el
+# jugador podía saber: equivocarse no pesa igual que manipular.
+VALORACION_ACCIONES = {
+    # Compartir la publicación tal cual.
+    "compartir": {"enganosa": (-12, -20, -30), "veraz": (4, 8, 15)},
+    # Publicar información comprobada (aclaración o dato verificado).
+    "publicar_verificado": {"enganosa": (-4, 8, 20), "veraz": (-2, 6, 15)},
+    # Reportar la publicación como falsa o engañosa.
+    "reportar": {"enganosa": (-2, 8, 25), "veraz": (-10, -15, -20)},
+    # Denunciar a quienes atacan una publicación verdadera.
+    "denunciar_ataque": {"enganosa": (-6, -8, -10), "veraz": (-2, 10, 20)},
+    # Linchamiento: reportes en masa, bloqueos, acusar sin pruebas.
+    "linchar": {"enganosa": (-10, -12, -15), "veraz": (-15, -20, -25)},
+    # Afirmar de más: "es 100 % falso" o creer sin comprobar.
+    "afirmar_sin_matiz": {"enganosa": (-8, -10, -12), "veraz": (-10, -14, -18)},
+    # Seguir difundiendo después de revisarla.
+    "insistir": {"enganosa": (-15, -22, -35), "veraz": (-2, -2, -2)},
+    # No actuar: no siempre es malo (no amplificar lo que no se pudo comprobar).
+    "ignorar": {"enganosa": (0, -3, -8), "veraz": (-2, -5, -10)},
+    # Se acabó el reloj.
+    "no_decidir": {"enganosa": (-3, -4, -6), "veraz": (-3, -5, -8)},
+}
+# La gravedad del daño posible escala solo las penalizaciones.
+MULTIPLICADOR_GRAVEDAD = {"baja": 0.75, "media": 1.0, "alta": 1.25}
+# El alcance real en el grafo social ajusta el cambio (BFS, no un número fijo).
+PENALIZACION_POR_AFECTADO = 1
+PENALIZACION_MAXIMA_ALCANCE = 5
+AFECTADOS_POR_PUNTO_BONO = 3
+BONO_MAXIMO_ALCANCE = 3
+# Redención (src/story/redencion.py)
+RECUPERACION_REDENCION = 45  # reputación que devuelve la misión completa
+TOPE_REPUTACION_TRAS_REDENCION = 59  # la huella queda: no se vuelve a ser "referente"
+EFECTOS_REDENCION = {"desinformacion": -10, "confianza": 8, "informacion_verificada": 5, "convivencia": 4}
+EFECTOS_RECHAZO_REDENCION = {"confianza": -12, "desinformacion": 8, "conflictos": 6}
+OPORTUNIDADES_REDENCION = 3  # errores permitidos por intento de la misión
+REINTENTOS_REDENCION = 1  # veces que la misión se puede reintentar antes de fallar
+PUBLICACIONES_REDENCION = 2  # correcciones que se pueden publicar en la etapa 2
+COBERTURA_REDENCION = 0.75  # fracción de los expuestos que debe recibir la corrección
+SALTOS_CORRECCION_REDENCION = 2
+REPUTACION_MIN_FINAL_POSITIVO = -19  # "renace" y "arquitecto" exigen no estar cuestionado
+# Terminal de decisión: hay que leer la publicación y las pruebas, así que el
+# reloj presiona sin impedir la lectura.
+DURACION_TERMINAL_HISTORIA = 45.0  # s
 # Evidencia por zona: con esta fracción de las pruebas reveladas el
 # estado pasa de "sin pruebas" a "parcial"; con todas, a "verificado" o
 # "desmentido" según el veredicto real de la publicación.
 # Finales (src/story/eleccion.py). Umbrales sobre los indicadores
-# finales; el final "arquitecto" exige además las 3 pistas, el
-# coordinador correcto en el capítulo 3 y el jefe derrotado.
+# finales; el final "arquitecto" exige además las 3 pistas, haber rastreado
+# el origen de la señal en el capítulo 3 y el jefe derrotado.
 FINAL_RENACE_VERIFICADA_MIN = 55
 FINAL_RENACE_CONFIANZA_MIN = 50
 FINAL_RENACE_DESINFORMACION_MAX = 45
@@ -459,7 +521,7 @@ PISTAS_PARA_FINAL_SECRETO = 3
 # Elecciones simuladas: cuánto pesa cada indicador afín en el apoyo de
 # un candidato (ver content/campaign.json, "afin").
 PESO_INDICADOR_AFIN_ELECCION = 0.5
-PESO_REPUTACION_ELECCION = 0.2
+PESO_REPUTACION_ELECCION = 0.1  # sobre la reputación colectiva (-100 a +100)
 # Grafo social (src/story/red_social.py)
 SALTOS_MAXIMOS_PROPAGACION = 3
 PROBABILIDAD_REBOTE_BASE = 0.7  # chance de que un contacto reenvíe una publicación
@@ -469,11 +531,11 @@ PROBABILIDAD_REBOTE_CORREGIDA = 0.25  # tras una corrección publicada
 #   influencer: amplifica más al compartir (rebote extra en la propagación);
 #   ciudadano: cada éxito refuerza la confianza vecinal;
 #   periodista: identifica una fuente extra al entrar a una zona;
-#   candidato: mayor cuidado reputacional (las penalizaciones pesan doble).
+#   candidato: mayor cuidado reputacional (las penalizaciones pesan ×1.5).
 REBOTE_EXTRA_INFLUENCER = 0.15
 CONFIANZA_EXTRA_CIUDADANO = 2
 EVIDENCIA_INICIAL_PERIODISTA = 1
-MULTIPLICADOR_PENALIZACION_CANDIDATO = 2
+MULTIPLICADOR_PENALIZACION_CANDIDATO = 1.5
 # Efecto del alcance de una publicación sobre los indicadores: cada
 # ciudadano que recibe un rumor sin corrección suma desinformación; cada
 # dos que reciben la corrección suman información verificada.
@@ -481,10 +543,10 @@ DESINFORMACION_POR_ALCANZADO = 1
 BIENESTAR_POR_ALCANZADO = -0.5
 VERIFICADA_POR_CORREGIDO = 0.5
 EVENTOS_RECIENTES_CINTILLO = 2  # titulares de eventos aleatorios que quedan en el cintillo
-# Investigación del infiltrado (src/story/investigacion.py)
-PUNTOS_INFILTRADO_CORRECTO = 150
-REPUTACION_INFILTRADO_CORRECTO = 8
-REPUTACION_INFILTRADO_ERRADO = -8
+# Investigación del origen de la señal, capítulo 3 (src/story/investigacion.py):
+# reputación y puntos según a qué tipo de cuenta se señale.
+PUNTOS_ORIGEN_RASTREADO = 150
+REPUTACION_POR_TIPO_CUENTA = {"origen": 15, "amplificador": 0, "error": -10, "victima": -20}
 # Jefe derrotado / derrotas en la arena (efectos narrativos, una vez)
 EFECTOS_JEFE_DERROTADO = {"desinformacion": -10, "confianza": 6, "bienestar_digital": 6}
 PUNTOS_JEFE_DERROTADO = 200

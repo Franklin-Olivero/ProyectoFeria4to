@@ -17,6 +17,9 @@ Quién usa cada preferencia:
                                         Los diálogos y eventos del modo historia
                                         ya son texto en pantalla.
     alto_contraste                   -> src/ui/filtro_color.py (toda la pantalla)
+    avance_cinematicas               -> manual (el jugador avanza) o automatico
+                                        (respeta el tiempo de lectura)
+    velocidad_texto                  -> caracteres por segundo de diálogos y cinemáticas
 """
 
 import json
@@ -33,10 +36,18 @@ ESQUEMA_TECLADO = "teclado"
 ESQUEMA_MANDO = "mando"
 ESQUEMAS_CONTROLES = (ESQUEMA_TECLADO, ESQUEMA_MANDO)
 
+AVANCE_MANUAL = "manual"
+AVANCE_AUTOMATICO = "automatico"
+AVANCES_CINEMATICA = (AVANCE_MANUAL, AVANCE_AUTOMATICO)
+VELOCIDADES_TEXTO = ("lenta", "normal", "rapida")
+CARACTERES_POR_SEGUNDO = {"lenta": 18.0, "normal": 28.0, "rapida": 45.0}
+
 # Opciones válidas de los campos de texto (los demás se validan por tipo).
 OPCIONES_TEXTO = {
     "filtro_daltonismo": FILTROS_DALTONISMO,
     "esquema_controles": ESQUEMAS_CONTROLES,
+    "avance_cinematicas": AVANCES_CINEMATICA,
+    "velocidad_texto": VELOCIDADES_TEXTO,
 }
 # Campos enteros que son un porcentaje 0-100.
 CAMPOS_PORCENTAJE = ("volumen_musica", "volumen_efectos", "opacidad_cono")
@@ -53,6 +64,9 @@ class Preferencias:
     reducir_movimiento: bool = False
     # Modo historia: realza el contraste de toda la imagen (src/ui/filtro_color.py).
     alto_contraste: bool = False
+    # Modo historia: el texto espera al jugador salvo que elija avance automático.
+    avance_cinematicas: str = AVANCE_MANUAL
+    velocidad_texto: str = "normal"
     esquema_controles: str = ESQUEMA_TECLADO
     mostrar_cono: bool = True
     # 40% de assets.ALFA_MAXIMO_CONO = el cono que el juego tenía antes de este ajuste.

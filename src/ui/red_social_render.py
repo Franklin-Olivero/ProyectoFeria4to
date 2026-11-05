@@ -15,7 +15,7 @@ import pygame
 
 from src.core import assets
 from src.story.red_social import CORRECCION
-from src.ui import dibujo
+from src.ui import dibujo, kit, layout
 
 TITULO = "Así viajó la publicación"
 SUBTITULO = "Grafo social de Ciudad Nova · propagación por BFS (anchura), rastreo por DFS (profundidad)"
@@ -33,6 +33,15 @@ def _posiciones(red):
     return posiciones
 
 
+def posiciones_en(red, rect):
+    """Los mismos ciudadanos en círculo, dentro de `rect` (misión de redención)."""
+    nodos = red.ciudadanos()
+    radio_x, radio_y = rect.width / 2 - 40, rect.height / 2 - 30
+    return {nodo: (round(rect.centerx + math.cos(-math.pi / 2 + 2 * math.pi * i / max(1, len(nodos))) * radio_x),
+                   round(rect.centery + math.sin(-math.pi / 2 + 2 * math.pi * i / max(1, len(nodos))) * radio_y))
+            for i, nodo in enumerate(nodos)}
+
+
 def capas_visibles(propagacion, tiempo):
     """Cuántas capas del BFS se muestran ya en el instante `tiempo`."""
     if propagacion is None:
@@ -41,7 +50,7 @@ def capas_visibles(propagacion, tiempo):
 
 
 def dibujar_pantalla_propagacion(pantalla, campania, tiempo):
-    pantalla.fill(assets.COLOR_FONDO)
+    pantalla.fill(assets.COLOR_NOCHE)
     dibujo.texto(pantalla, TITULO, (60, 36), assets.COLOR_TEXTO_HUD, assets.TAMANIO_FUENTE_GRANDE, negrita=True)
     dibujo.texto(pantalla, SUBTITULO, (60, 82), assets.COLOR_TEXTO_SECUNDARIO, assets.TAMANIO_FUENTE_NORMAL)
     red = campania.red
@@ -49,8 +58,11 @@ def dibujar_pantalla_propagacion(pantalla, campania, tiempo):
     correccion = campania.correccion_reciente()
     if correccion is not None and rumor is not None and red.historial.index(correccion) < red.historial.index(rumor):
         correccion = None  # una corrección vieja, de otra zona
+    verdad = rumor is not None and rumor.tipo == CORRECCION  # lo que viajó era verdadero
+    if verdad:
+        correccion = None
 
-    panel = dibujo.panel(pantalla, assets.RECT_PANEL_GRAFO_SOCIAL, assets.COLOR_FONDO_PANEL, assets.COLOR_BORDE_PANEL, 1)
+    panel = kit.panel(pantalla, assets.RECT_PANEL_GRAFO_SOCIAL, assets.COLOR_CIVITAS)
     posiciones = _posiciones(red)
     # Aristas de contacto.
     dibujadas = set()
@@ -69,8 +81,8 @@ def dibujar_pantalla_propagacion(pantalla, campania, tiempo):
             alcanzados.update(capa)
         for de, a in rumor.aristas:
             if a in alcanzados:
-                pygame.draw.line(pantalla, assets.COLOR_ARISTA_RUMOR, posiciones[de], posiciones[a],
-                                 assets.GROSOR_ARISTA_PROPAGADA)
+                pygame.draw.line(pantalla, assets.COLOR_ARISTA_CORRECCION if verdad else assets.COLOR_ARISTA_RUMOR,
+                                 posiciones[de], posiciones[a], assets.GROSOR_ARISTA_PROPAGADA)
     corregidos = set()
     if correccion is not None and rumor is not None and visibles >= len(rumor.capas):
         retraso = tiempo - len(rumor.capas) * assets.SEGUNDOS_POR_CAPA
@@ -86,7 +98,7 @@ def dibujar_pantalla_propagacion(pantalla, campania, tiempo):
         elif nodo in corregidos:
             relleno = assets.COLOR_NODO_CORREGIDO
         elif nodo in alcanzados:
-            relleno = assets.COLOR_NODO_RUMOR
+            relleno = assets.COLOR_NODO_CORREGIDO if verdad else assets.COLOR_NODO_RUMOR
         else:
             relleno = assets.COLOR_NODO_SOCIAL
         pygame.draw.circle(pantalla, relleno, (x, y), assets.RADIO_NODO_SOCIAL)
@@ -125,15 +137,17 @@ def _leyenda(pantalla, panel):
 
 def _datos(pantalla, campania, rumor, correccion, visibles):
     red = campania.red
-    panel = dibujo.panel(pantalla, assets.RECT_PANEL_DATOS_SOCIAL, assets.COLOR_FONDO_PANEL, assets.COLOR_BORDE_PANEL, 1)
+    panel = kit.panel(pantalla, assets.RECT_PANEL_DATOS_SOCIAL, assets.COLOR_VERIFICADO)
     x, y = panel.left + 20, panel.top + 18
     if rumor is None:
         dibujo.texto(pantalla, "Esta publicación no salió de la zona.", (x, y), assets.COLOR_TEXTO_SECUNDARIO)
         return
     total = len(red.ciudadanos())
     contados = sum(len(capa) for capa in rumor.capas[:visibles])
-    dibujo.texto(pantalla, f"La publicación llegó a {contados} de {total} ciudadanos", (x, y), assets.COLOR_NODO_RUMOR,
-                 assets.TAMANIO_FUENTE_MEDIA, negrita=True)
+    verdad = rumor.tipo == CORRECCION
+    layout.texto_en_ancho(pantalla, f"{'La información' if verdad else 'La publicación'} llegó a {contados} de {total} ciudadanos", (x, y), panel.width - 40,
+                          assets.COLOR_NODO_CORREGIDO if verdad else assets.COLOR_NODO_RUMOR, assets.TAMANIO_FUENTE_MEDIA, negrita=True,
+                          minimo=assets.TAMANIO_FUENTE_NORMAL)
     y += 30
     dibujo.texto(pantalla, f"Origen: {red.nombre(rumor.origen)} ({red.roles.get(rumor.origen, '')})", (x, y),
                  assets.COLOR_TEXTO_HUD)
@@ -155,16 +169,19 @@ def _datos(pantalla, campania, rumor, correccion, visibles):
         y += 17
     y += 8
     dfs = red.rastrear(rumor.origen)
-    rastro = " → ".join(red.nombre(n).split()[0] for n in dfs[:6]) + (" …" if len(dfs) > 6 else "")
+    rastro = " → ".join(red.nombre(n).split()[0] for n in dfs)
     dibujo.texto(pantalla, "Rastreo DFS desde el origen (a quién pudo llegar):", (x, y), assets.COLOR_TEXTO_HUD, negrita=True)
     y += 20
-    for linea in dibujo.ajustar_texto(rastro, assets.TAMANIO_FUENTE_PEQUENA, panel.width - 40)[:2]:
+    for linea in dibujo.ajustar_texto(rastro, assets.TAMANIO_FUENTE_PEQUENA, panel.width - 40):
         dibujo.texto(pantalla, linea, (x, y), assets.COLOR_TEXTO_SECUNDARIO, assets.TAMANIO_FUENTE_PEQUENA)
         y += 17
     y += 10
-    if correccion is not None:
-        dibujo.texto(pantalla, f"Tu corrección alcanzó a {correccion.total} ciudadanos", (x, y),
-                     assets.COLOR_NODO_CORREGIDO, assets.TAMANIO_FUENTE_MEDIA, negrita=True)
+    if verdad:
+        texto = "Quienes la recibieron ya pueden actuar. Cada persona informada suma información verificada a la ciudad."
+    elif correccion is not None:
+        layout.texto_en_ancho(pantalla, f"Tu corrección alcanzó a {correccion.total} ciudadanos", (x, y), panel.width - 40,
+                              assets.COLOR_NODO_CORREGIDO, assets.TAMANIO_FUENTE_MEDIA, negrita=True,
+                              minimo=assets.TAMANIO_FUENTE_NORMAL)
         y += 26
         texto = ("Quienes la recibieron reenvían menos en adelante. Lo que ya vieron no se borra: "
                  f"{len(red.expuestos)} personas siguen expuestas al rumor.")

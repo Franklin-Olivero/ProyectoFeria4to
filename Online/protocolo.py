@@ -58,6 +58,7 @@ ENTRAR_MAZMORRA = "ENTRAR_MAZMORRA"
 CAMBIO_ESCENA = "CAMBIO_ESCENA"
 CAMBIO_CUARTO = "CAMBIO_CUARTO"
 DECISION_NAV = "DECISION_NAV"
+HISTORIA = "HISTORIA"  # un invitado decide en su crisis: el host fija la reputación
 
 # --- Roles (mismos nombres que las clases del juego) ---------------------
 
@@ -280,5 +281,9 @@ def msg_cambio_cuarto(cuarto_idx):
 
 def msg_decision_nav(direccion, id_jugador=None):
     return serializar(crear_mensaje(DECISION_NAV, dir=direccion, id=id_jugador))
+
+
+def msg_historia(evento, id_jugador=None, **datos):
+    return serializar(crear_mensaje(HISTORIA, evento=evento, id=id_jugador, **datos))
 
 

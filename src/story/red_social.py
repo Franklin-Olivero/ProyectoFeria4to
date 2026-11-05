@@ -153,6 +153,8 @@ class RedSocial:
         que esté a <= saltos_max (BFS exacto, Grafo.bfs) y marca a esos
         ciudadanos como corregidos. Devuelve la Propagacion de la
         corrección. No quita a nadie de `expuestos`."""
+        if origen not in self.grafo:
+            raise KeyError(f"El ciudadano {origen!r} no existe en la red.")
         _, distancias, predecesores = self.grafo.bfs(origen)
         resultado = Propagacion(CORRECCION, origen)
         capas = {}

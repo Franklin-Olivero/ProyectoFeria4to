@@ -15,7 +15,7 @@ import pygame
 
 from src.core import assets
 from src.story.eleccion import FINAL_ARQUITECTO, FINAL_RENACE
-from src.ui import dibujo, indicadores_render, layout, sprites
+from src.ui import dibujo, indicadores_render, kit, layout, sprites
 
 TITULO = "Elecciones de Ciudad Nova"
 TEXTO_REVELAR = "Enter: conocer el desenlace"
@@ -48,10 +48,9 @@ def dibujar_elecciones(pantalla, resumen, tiempo=10.0, mostrar_final=True):
                           assets.COLOR_TEXTO_APAGADO, assets.TAMANIO_FUENTE_PEQUENA, minimo=11)
 
     conteo = fraccion_conteo(tiempo)
-    panel = dibujo.panel(pantalla, assets.RECT_PANEL_CANDIDATOS, assets.COLOR_FONDO_PANEL, assets.COLOR_BORDE_PANEL, 1, radio=8)
+    panel = kit.panel(pantalla, assets.RECT_PANEL_CANDIDATOS, assets.COLOR_CIVITAS, alfa=236)
     x, y = panel.left + 24, panel.top + 16
-    dibujo.texto(pantalla, "Apoyo simulado (según los indicadores y tu reputación)", (x, y),
-                 assets.COLOR_TEXTO_SECUNDARIO, assets.TAMANIO_FUENTE_NORMAL, negrita=True)
+    kit.rotulo(pantalla, "Apoyo simulado según los indicadores y la reputación", (x, y), assets.COLOR_TEXTO_SECUNDARIO)
     y += 34
     ancho = panel.width - 48
     maximo = max(p for _, p in resumen["apoyos"]) or 1
@@ -72,14 +71,14 @@ def dibujar_elecciones(pantalla, resumen, tiempo=10.0, mostrar_final=True):
     epilogo = pygame.Rect(assets.RECT_PANEL_EPILOGO)
     if mostrar_final:
         color_final = COLORES_FINAL.get(resumen["clave"], assets.COLOR_FINAL_DIVIDIDA)
-        dibujo.panel(pantalla, epilogo, assets.COLOR_FONDO_PANEL, color_final, 2, radio=8)
+        kit.panel(pantalla, epilogo, color_final, alfa=240, filo="arriba")
         dibujo.texto(pantalla, resumen["titulo"], (epilogo.left + 20, epilogo.top + 12), color_final,
                      assets.TAMANIO_FUENTE_TITULO, negrita=True)
-        layout.parrafo_en_caja(pantalla, resumen["texto"], (epilogo.left + 20, epilogo.top + 44, epilogo.width - 40,
-                                                            epilogo.height - 54),
+        layout.parrafo_en_caja(pantalla, f"{resumen['texto']} {resumen.get('epilogo', '')}".strip(),
+                               (epilogo.left + 20, epilogo.top + 44, epilogo.width - 40, epilogo.height - 54),
                                assets.COLOR_TEXTO_HUD, assets.TAMANIO_FUENTE_PEQUENA, interlineado=3)
     else:
-        dibujo.panel(pantalla, epilogo, assets.COLOR_FONDO_PANEL, assets.COLOR_BORDE_PANEL, 1, radio=8)
+        kit.panel(pantalla, epilogo, assets.COLOR_ALERTA, alfa=236, filo="arriba")
         pulso = 0.6 + 0.4 * math.sin(tiempo * 4)
         dibujo.texto(pantalla, "¿Qué ciudad queda después de la elección?", (epilogo.centerx, epilogo.centery - 22),
                      assets.COLOR_TEXTO_HUD, assets.TAMANIO_FUENTE_MEDIA, negrita=True, ancla="center")
