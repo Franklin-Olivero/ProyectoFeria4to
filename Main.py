@@ -248,6 +248,7 @@ class _Sesion:
     jugadores: list
     entradas: list
     audio: object = None  # src/core/audio.Audio (música y efectos de la historia)
+    id_impostor: object = None  # modo Online: id de red del jugador que sorteó el host
 
 
 def _reproducir_cinematica(pantalla, reloj, cinematica, preferencias, audio, presentar):
@@ -1404,11 +1405,12 @@ def _curar(jugadores):
 
 def _jugadores_nuevos(jugadores):
     """Los mismos roles desde cero para la partida nueva tras la derrota
-    global. La apariencia del vestidor (modo Online) no es progreso de la
-    partida: se conserva."""
+    global. La apariencia del vestidor y el impostor (modo Online) no son
+    progreso de la partida: se conservan, porque no se vuelve al lobby."""
     nuevos = [type(j)(0, 0) for j in jugadores]
     for nuevo, viejo in zip(nuevos, jugadores):
         nuevo.apariencia = getattr(viejo, "apariencia", None)
+        nuevo.es_impostor = getattr(viejo, "es_impostor", False)
     return nuevos
 
 

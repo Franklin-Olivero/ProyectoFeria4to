@@ -40,6 +40,8 @@ class Cliente:
         id_jugador  — número asignado por el servidor (0=host, 1=invitado)
         sala        — GrafoSala reconstruido del último LOBBY recibido
         iniciado    — True cuando recibe INICIAR
+        id_impostor — id del jugador que sorteó el host (None hasta iniciar)
+        unido_en_curso — True si al conectarse la partida ya había iniciado
         conectado   — True mientras el socket está abierto
         error       — str con el último error, o None
         tipo_error  — por qué falló conectar (red_local.TIMEOUT, RECHAZADA...)
@@ -52,6 +54,8 @@ class Cliente:
         self.id_jugador = None
         self.sala = GrafoSala()
         self.iniciado = False
+        self.id_impostor = None
+        self.unido_en_curso = False
         self.estado_partida = {"escena": "CIUDAD", "zona": None, "cuarto_idx": 0}
         self.conectado = False
         self.error = None
@@ -210,6 +214,8 @@ class Cliente:
             self.sala = GrafoSala.de_dict(msg.get("sala", {}))
             self._pesar_arista_propia()
             if msg.get("iniciado"):
+                self.id_impostor = msg.get("id_impostor")
+                self.unido_en_curso = True
                 self.iniciado = True
                 if msg.get("estado_partida"):
                     self.estado_partida.update(msg.get("estado_partida"))
@@ -219,6 +225,9 @@ class Cliente:
             self._pesar_arista_propia()
 
         elif tipo == INICIAR:
+            # Primero el impostor: el lobby sale de la sala al ver `iniciado`,
+            # desde otro hilo, y ahí mismo pregunta quién es.
+            self.id_impostor = msg.get("id_impostor")
             self.iniciado = True
             if msg.get("estado_partida"):
                 self.estado_partida.update(msg.get("estado_partida"))

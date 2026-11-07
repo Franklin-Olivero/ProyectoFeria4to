@@ -109,6 +109,8 @@ class JugadorBase:
         # Cosmética de los vestidores del lobby online (src/core/apariencia.py):
         # piel, cabeza y traje. None = la hoja de su rol, como en partida local.
         self.apariencia = None
+        # Lo sorteó el host al iniciar (modo Online); en partida local no hay.
+        self.es_impostor = False
 
         # Puede tener fracciones por la carga compartida del equipo.
         self.carga_habilidad = 0.0

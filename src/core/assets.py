@@ -860,6 +860,38 @@ COLOR_ACENTO_VESTIDOR = COLOR_CIAN_NEON
 COLOR_SOMBRA_VESTIDOR = (0, 0, 0, 110)  # RGBA: sombra bajo el jugador de la vista previa
 
 # ----------------------------------------------------------------------
+# Revelación de rol del modo Online (Online/pantalla_rol.py), estilo Among
+# Us: sale al iniciar la partida desde el lobby. El texto "pixelado" es la
+# fuente del juego sin suavizado, ampliada sin interpolar.
+# ----------------------------------------------------------------------
+COLOR_IMPOSTOR = (255, 26, 26)  # #FF1A1A
+COLOR_TRIPULANTE = (112, 229, 255)  # #70E5FF
+COLOR_FONDO_IMPOSTOR = (0, 0, 0)
+COLOR_FONDO_TRIPULANTE = (11, 14, 20)  # #0B0E14
+COLOR_RESPLANDOR_IMPOSTOR = (128, 10, 14)  # centro del óvalo rojo; se suma al fondo
+COLOR_VELO_REVELACION = (0, 0, 0)  # fundido desde y hacia negro
+TEXTO_TITULO_IMPOSTOR = "IMPOSTOR"
+TEXTO_SUBTITULO_IMPOSTOR = "Evita que los demás completen sus tareas saboteándolos"
+TEXTO_ENCABEZADO_TRIPULANTE = "Tu rol es"
+TEXTO_SUBTITULO_TRIPULANTE = "Completa tus tareas y descubre al impostor"
+DURACION_REVELACION = 3.8  # s en total: fundido, jugador fijo y fundido
+DURACION_FUNDIDO_REVELACION = 0.5
+TIEMPO_MINIMO_OMITIR_REVELACION = 2.0  # s antes de poder omitir con Espacio o Enter
+CENTRO_REVELACION = (640, 360)
+ESCALA_AVATAR_REVELACION = 10  # 160x200 px
+AMPLITUD_FLOTACION_REVELACION = 6  # px
+FRECUENCIA_FLOTACION_REVELACION = 3.0  # rad/s
+TAMANIO_OVALO_RESPLANDOR = (980, 600)
+PASOS_OVALO_RESPLANDOR = 48  # elipses concéntricas de la que sale el degradado
+FRECUENCIA_PULSO_RESPLANDOR = 2.5  # rad/s
+BRILLO_MINIMO_RESPLANDOR = 0.7  # fracción del brillo en lo más bajo del pulso
+# Cada texto: (tamaño de la fuente, ampliación, y del centro).
+TEXTO_ENCABEZADO_REVELACION = (14, 3, 74)
+TEXTO_TITULO_TRIPULANTE_REVELACION = (20, 5, 168)
+TEXTO_TITULO_IMPOSTOR_REVELACION = (24, 6, 142)
+TEXTO_SUBTITULO_REVELACION = (13, 2, 590)
+
+# ----------------------------------------------------------------------
 # Tipos de enemigo: todo lo visual de cada tipo, en un solo lugar. Las
 # claves son los valores de TipoEnemigo (src/entities/tipos_enemigo.py).
 # Para usar arte real basta con dejar <ID_SPRITE_ENEMIGO[tipo]>.png en

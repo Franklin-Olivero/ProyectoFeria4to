@@ -12,11 +12,13 @@ Flujo:
        BIENVENIDA y sincroniza el lobby con todos.
     3. Cada jugador puede moverse en la sala de espera, elegir su rol y
        su apariencia (vestidores).
-    4. El host inicia la partida cuando hay al menos 2 jugadores listos.
+    4. El host inicia la partida cuando hay al menos 2 jugadores listos:
+       sortea al impostor entre los conectados y lo difunde en INICIAR.
     5. Durante la partida: los inputs de los clientes se envían al host,
        y los estados del juego se difunden a todos los clientes.
 """
 
+import random
 import socket
 import threading
 import time
@@ -45,6 +47,7 @@ class Servidor:
     def __init__(self):
         self.sala = GrafoSala()
         self.iniciado = False
+        self.id_impostor = None  # id de red del jugador sorteado al iniciar
         self.estado_partida = {"escena": "CIUDAD", "zona": None, "cuarto_idx": 0}
         self.ultimo_snapshot_estado = None
         self.error = None
@@ -60,11 +63,25 @@ class Servidor:
         self._lock = threading.RLock()
         self._proximo_ping = 0.0
 
+    def sortear_impostor(self):
+        """Elige al impostor al azar entre los vértices del grafo de sala:
+        1 de 2, 1 de 3 o 1 de 4. Solo el host decide y una sola vez por
+        partida; los invitados lo reciben en INICIAR. O(V)."""
+        if self.id_impostor is None:
+            jugadores = self.sala.jugadores()
+            if jugadores:
+                self.id_impostor = random.choice(jugadores)
+        return self.id_impostor
+
     def marcar_iniciado(self, estado_partida=None):
-        """Marca que la partida ha iniciado y guarda el estado actual."""
-        self.iniciado = True
-        if estado_partida:
-            self.estado_partida.update(estado_partida)
+        """Marca que la partida ha iniciado y guarda el estado actual. El
+        sorteo va antes que `iniciado`: quien se una desde ese instante ya
+        lo recibe en su BIENVENIDA."""
+        with self._lock:
+            self.sortear_impostor()
+            self.iniciado = True
+            if estado_partida:
+                self.estado_partida.update(estado_partida)
 
     def actualizar_estado_partida(self, escena=None, zona=None, cuarto_idx=None):
         """Actualiza el estado actual de la partida (escena, zona o cuarto)."""
@@ -255,6 +272,7 @@ class Servidor:
                 nuevo_id, self.sala.a_dict(),
                 iniciado=self.iniciado,
                 estado_partida=self.estado_partida if self.iniciado else None,
+                id_impostor=self.id_impostor if self.iniciado else None,
             )
             try:
                 enviar_todo(sock, bienvenida)
@@ -265,7 +283,7 @@ class Servidor:
             if self.iniciado:
                 # La partida ya arrancó: notificar al cliente de inmediato para que salte a juego
                 try:
-                    enviar_todo(sock, msg_iniciar(self.estado_partida))
+                    enviar_todo(sock, msg_iniciar(self.estado_partida, id_impostor=self.id_impostor))
                     if self.ultimo_snapshot_estado is not None:
                         enviar_todo(sock, self.ultimo_snapshot_estado)
                 except OSError:

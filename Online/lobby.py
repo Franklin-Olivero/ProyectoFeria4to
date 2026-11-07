@@ -10,6 +10,8 @@ Características:
     6. Botón central de inicio: requiere mínimo 2 jugadores y solo el Host puede iniciar.
     7. Las 4 cajas son vestidores (estilo Among Us): de cerca, [E] o clic abre
        el modal COLOR / HAT / SKIN y toda la sala ve el cambio al instante.
+    8. Al iniciar, el host sortea al impostor y cada jugador ve su rol, vestido
+       como eligió, en la pantalla de revelación (Online/pantalla_rol.py).
 """
 
 import math
@@ -19,14 +21,16 @@ import pygame
 from src.core import assets
 from src.core.apariencia import PREDETERMINADA
 from src.core.config import FPS
+from src.core.preferencias import cargar as cargar_preferencias
 from src.ui import dibujo, hud, sprites
 
 from Online.servidor import Servidor, PUERTO_DEFAULT, MAX_JUGADORES
 from Online.cliente import Cliente
 from Online.codigo_sala import generar_codigo, resolver_entrada, ip_local
+from Online.pantalla_rol import mostrar_pantalla_revelacion_rol
 from Online.personalizacion import PESTANAS, Vestidor
 from Online.personalizacion_render import CERRAR, FUERA, OPCION, PESTANA, dibujar_vestidor, objetivo_en
-from Online import firewall
+from Online import firewall, registro_errores
 from Online.red_local import CONSEJOS, OTRO, InfoRed, MedidorInternet, formatear_ms
 from Online.protocolo import (
     ROLES, GrafoSala, ELEGIR_ROL, INICIAR, LOBBY, ESTADO, POSICION_LOBBY,
@@ -328,15 +332,15 @@ def pantalla_sala_espera(pantalla, reloj, presentar, clases_rol, es_host, conexi
             latencia = conexion.latencia_promedio()
         else:
             if getattr(conexion, "iniciado", False):
-                clases = _armar_clases_partida(conexion.sala, clases_rol)
-                return clases, conexion, False
+                return _entrar_a_partida(pantalla, reloj, presentar, conexion, False, clases_rol,
+                                         id_local, rol_local, apariencia_local)
             for msg in conexion.leer_mensajes():
                 tipo = msg.get("tipo")
                 if tipo == INICIAR:
                     # El host inició la partida!
                     conexion.iniciado = True
-                    clases = _armar_clases_partida(conexion.sala, clases_rol)
-                    return clases, conexion, False
+                    return _entrar_a_partida(pantalla, reloj, presentar, conexion, False, clases_rol,
+                                             id_local, rol_local, apariencia_local)
             sala = conexion.sala
             id_local = conexion.id_jugador if conexion.id_jugador is not None else 1
             posiciones = dict(conexion.posiciones_lobby)
@@ -372,22 +376,12 @@ def pantalla_sala_espera(pantalla, reloj, presentar, clases_rol, es_host, conexi
             if evento.type == pygame.MOUSEBUTTONDOWN and evento.button == 1:
                 # Clic en botón de inicio
                 if rect_boton_inicio.collidepoint(mouse_pos) and es_host:
-                    if cantidad_conectados < 2:
-                        aviso_temporal = "¡Se necesitan al menos 2 jugadores para iniciar!"
-                        aviso_timer = 2.5
-                    elif not sala.todos_listos():
-                        aviso_temporal = "¡Todos los jugadores deben elegir su rol!"
-                        aviso_timer = 2.5
+                    aviso = _motivo_para_no_iniciar(cantidad_conectados, sala)
+                    if aviso:
+                        aviso_temporal, aviso_timer = aviso, 2.5
                     else:
-                        # Iniciar partida
-                        if hasattr(conexion, "marcar_iniciado"):
-                            conexion.marcar_iniciado()
-                        else:
-                            conexion.iniciado = True
-                        estado_p = getattr(conexion, "estado_partida", None)
-                        conexion.enviar_a_todos(msg_iniciar(estado_p))
-                        clases = _armar_clases_partida(sala, clases_rol)
-                        return clases, conexion, True
+                        return _entrar_a_partida(pantalla, reloj, presentar, conexion, True, clases_rol,
+                                                 id_local, rol_local, apariencia_local)
 
                 # Clic en la caja-vestidor que está al lado
                 if (caja_cercana is not None and not modal_roles_abierto
@@ -435,21 +429,12 @@ def pantalla_sala_espera(pantalla, reloj, presentar, clases_rol, es_host, conexi
                     if modal_roles_abierto:
                         modal_roles_abierto = False
                     elif es_host:
-                        if cantidad_conectados < 2:
-                            aviso_temporal = "¡Se necesitan al menos 2 jugadores para iniciar!"
-                            aviso_timer = 2.5
-                        elif not sala.todos_listos():
-                            aviso_temporal = "¡Todos los jugadores deben elegir su rol!"
-                            aviso_timer = 2.5
+                        aviso = _motivo_para_no_iniciar(cantidad_conectados, sala)
+                        if aviso:
+                            aviso_temporal, aviso_timer = aviso, 2.5
                         else:
-                            if hasattr(conexion, "marcar_iniciado"):
-                                conexion.marcar_iniciado()
-                            else:
-                                conexion.iniciado = True
-                            estado_p = getattr(conexion, "estado_partida", None)
-                            conexion.enviar_a_todos(msg_iniciar(estado_p))
-                            clases = _armar_clases_partida(sala, clases_rol)
-                            return clases, conexion, True
+                            return _entrar_a_partida(pantalla, reloj, presentar, conexion, True, clases_rol,
+                                                     id_local, rol_local, apariencia_local)
 
                 # Navegar modal de roles con flechas si está abierto
                 if modal_roles_abierto:
@@ -611,14 +596,62 @@ def _evento_vestidor(evento, vestidor):
     return None
 
 
-def _armar_clases_partida(sala, clases_rol):
-    """Retorna la lista de clases en orden de ID de los jugadores conectados."""
+def _armar_clases_partida(sala, clases_rol, ids=None):
+    """Retorna la lista de clases en orden de ID de los jugadores conectados
+    (o de los jugadores de `ids`)."""
     clases = []
-    for jid in sala.jugadores():
+    for jid in (sala.jugadores() if ids is None else ids):
         rol_nom = sala.rol_de(jid)
         idx = ROLES.index(rol_nom) if (rol_nom and rol_nom in ROLES) else 0
         clases.append(clases_rol[idx])
     return clases
+
+
+def _motivo_para_no_iniciar(cantidad_conectados, sala):
+    """Por qué el host aún no puede iniciar la partida, o None si ya puede."""
+    if cantidad_conectados < 2:
+        return "¡Se necesitan al menos 2 jugadores para iniciar!"
+    if not sala.todos_listos():
+        return "¡Todos los jugadores deben elegir su rol!"
+    return None
+
+
+def _entrar_a_partida(pantalla, reloj, presentar, conexion, es_host, clases_rol,
+                      id_local, rol_local, apariencia_local):
+    """Sale de la sala hacia la partida. El host sortea al impostor y avisa a
+    todos; en cada PC se fijan las clases y el orden de sus jugadores, y luego
+    se revela el rol: la pantalla dura casi 4 s y si alguien se desconecta
+    mientras tanto, sesion_red debe seguir emparejando cada clase con su id
+    (_ids_de_partida). Retorna lo que retorna pantalla_sala_espera:
+    (clases, conexion, es_host), o None si se cierra la ventana."""
+    if es_host:
+        conexion.marcar_iniciado()
+        conexion.enviar_a_todos(msg_iniciar(conexion.estado_partida, id_impostor=conexion.id_impostor))
+    sala = conexion.sala
+    ids = sala.jugadores()
+    clases = _armar_clases_partida(sala, clases_rol, ids)
+    conexion.ids_partida = ids
+    # Quien vuelve a una partida en curso (reconexión) ya conoce su rol: salta directo.
+    if not getattr(conexion, "unido_en_curso", False):
+        nombre_rol = sala.rol_de(id_local) or rol_local  # el rol con el que se armó su clase
+        if not _revelar_rol(pantalla, reloj, presentar, id_local == conexion.id_impostor,
+                            nombre_rol, apariencia_local):
+            conexion.detener()
+            return None
+    return clases, conexion, es_host
+
+
+def _revelar_rol(pantalla, reloj, presentar, es_impostor, nombre_rol, apariencia):
+    """Muestra la revelación de rol con la ropa elegida en los vestidores. Es
+    solo presentación: si falla se anota y la partida arranca igual. Retorna
+    False si se cierra la ventana."""
+    try:
+        return mostrar_pantalla_revelacion_rol(
+            pantalla, reloj, es_impostor, nombre_rol, apariencia, presentar=presentar,
+            reducir_movimiento=cargar_preferencias().reducir_movimiento)
+    except Exception:
+        registro_errores.registrar("mostrar_pantalla_revelacion_rol")
+        return True
 
 
 # =========================================================================

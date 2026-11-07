@@ -39,7 +39,7 @@ Define las reglas de comunicación y la serialización de datos:
   - `LOBBY`: Actualización del estado de la sala (nodos del grafo, roles elegidos y apariencias).
   - `ELEGIR_ROL`: Envío de la selección o confirmación de rol.
   - `ELEGIR_APARIENCIA`: Un jugador cambió su color de piel, cabeza o traje en un vestidor (ver sección 6).
-  - `INICIAR`: Comando emitido por el host para arrancar la partida cuando todos están listos.
+  - `INICIAR`: Comando emitido por el host para arrancar la partida cuando todos están listos. Lleva `id_impostor` (ver sección 7).
   - `INPUT`: Envío de teclas, dirección y botones del jugador invitado hacia el host.
   - `ESTADO`: Snapshot con posiciones y vidas enviado desde el host al invitado.
   - `DESCONEXION`: Notificación de desconexión limpia.
@@ -96,6 +96,9 @@ Interfaz visual del modo Online construida con Pygame:
 
 ### 📄 `Online/personalizacion.py` y `Online/personalizacion_render.py`
 El vestidor estilo Among Us: `Vestidor` (lógica pura: pestañas COLOR / HAT / SKIN, cuadrícula, qué se equipa) y su dibujo + clics. Detalle en la sección 6.
+
+### 📄 `Online/pantalla_rol.py`
+La pantalla de revelación de rol que sale al iniciar la partida (impostor o tripulante), con el jugador vestido como eligió. Detalle en la sección 7.
 
 ### 📄 `Online/sesion_red.py`
 Adaptador entre el bucle de juego de Civitas y la capa de red:
@@ -391,3 +394,45 @@ La apariencia es un atributo más de cada **nodo** del `GrafoSala`, igual que el
 2. Camina hasta cualquier caja → `E` → elige un tono, una cabeza y un traje.
 3. En la otra pantalla tu avatar cambia al instante.
 4. Inicia la partida: en Ciudad Nova y en las mazmorras cada jugador conserva lo que eligió.
+
+---
+
+## 7. Impostor y pantalla de revelación de rol
+
+### Qué hace
+Al iniciar la partida, el host sortea a **1 impostor** entre los jugadores conectados (1 de 2, 1 de 3 o 1 de 4). Antes de salir del lobby, cada PC muestra una pantalla de 3.8 s con lo que le tocó:
+
+| | Impostor | Los demás |
+|---|---|---|
+| Fondo | Negro con un óvalo rojo que pulsa | Negro limpio (`#0B0E14`) |
+| Arriba | **IMPOSTOR** en `#FF1A1A` | "Tu rol es" y el nombre de su rol, en `#70E5FF` |
+| Centro | El jugador **con la ropa de los vestidores**, flotando | Igual |
+| Abajo | "Evita que los demás completen sus tareas saboteándolos" | "Completa tus tareas y descubre al impostor" |
+
+- El avatar es el mismo sprite vestido de la sala y de la partida (`sprite_jugador(..., apariencia=)`), no una imagen aparte; no se agregó arte. El texto "pixelado" es la fuente del juego sin suavizado, ampliada sin interpolar.
+- Línea de tiempo: 0.5 s de fundido desde negro, jugador fijo y 0.5 s de fundido a negro. **Espacio** o **Enter** saltan al fundido de salida, pero solo pasados 2 s.
+- Respeta el filtro de daltonismo (usa el `presentar` del juego) y **Reducir movimiento** (sin flotar ni pulsar).
+- **Hoy el impostor no cambia la jugabilidad:** no hay tareas, sabotaje ni votación, y su clase de combate sigue siendo el rol que eligió. La partida solo guarda el dato, listo para cuando exista esa mecánica.
+
+### Flujo por red (host autoritativo)
+1. `Servidor.marcar_iniciado()` llama a `sortear_impostor()`: `random.choice` sobre los vértices del `GrafoSala` (`sala.jugadores()`, O(V)), una sola vez por partida.
+2. El lobby difunde `msg_iniciar(estado, id_impostor=...)`. Nadie conoce al impostor antes de iniciar.
+3. `Cliente._procesar` guarda `id_impostor` **antes** de poner `iniciado = True`: el lobby lee ese flag desde otro hilo y ahí mismo pregunta quién es.
+4. Cada PC compara con su propio id: `es_impostor = (id_local == id_impostor)`.
+5. `lobby._entrar_a_partida` fija las clases y el orden de los jugadores (`conexion.ids_partida`) **antes** de la pantalla: si alguien se desconecta durante esos casi 4 s, cada clase sigue emparejada con su id.
+6. `ConfigSesionHost` / `ConfigSesionJoin` (`_asignar_impostor`) dejan `sesion.id_impostor` y `jugador.es_impostor`. Tras una derrota global se conserva, porque no se vuelve al lobby.
+
+Como la apariencia se lee de la sala **después** de la pantalla, un cambio de ropa hecho justo antes del Enter del host alcanza a llegar a todas las PCs.
+
+### Quien vuelve a una partida en curso
+Un invitado que se reconecta recibe `id_impostor` ya en la `BIENVENIDA` (`unido_en_curso = True`, porque `iniciado` se activa antes de que llegue `INICIAR`) y **no ve la pantalla**: entra directo, como antes.
+
+### Archivos
+- Nuevos: `Online/pantalla_rol.py` y `tests/test_impostor_online.py`.
+- Modificados: `Online/protocolo.py` (`msg_iniciar`, `msg_bienvenida`), `Online/servidor.py` (sorteo), `Online/cliente.py`, `Online/lobby.py` (`_entrar_a_partida`, `_revelar_rol`, `_motivo_para_no_iniciar`), `Online/sesion_red.py`, `src/entities/player.py`, `src/core/assets.py` y `Main.py`.
+
+### Cómo probarlo
+1. Host y al menos un invitado en la sala. Vístanse en las cajas.
+2. El host presiona Enter o el botón START.
+3. Cada PC ve su pantalla con su ropa; exactamente una dice IMPOSTOR.
+4. Después sigue el juego de siempre (la introducción del modo historia y Ciudad Nova).

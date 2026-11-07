@@ -12,7 +12,7 @@ Tipos de mensaje (campo "tipo"):
     LOBBY         — estado del lobby (jugadores conectados, roles, apariencias)
     ELEGIR_ROL    — un jugador confirma su clase
     ELEGIR_APARIENCIA — un jugador cambia piel, cabeza o traje en un vestidor
-    INICIAR       — el host arranca la partida
+    INICIAR       — el host arranca la partida (lleva quién es el impostor)
     INPUT         — input de un frame (dirección, disparando, etc.)
     ESTADO        — snapshot del estado del juego (posiciones, vidas...)
     DESCONEXION   — un jugador se fue
@@ -223,8 +223,9 @@ def msg_hola(nombre="Jugador"):
     return serializar(crear_mensaje(HOLA, nombre=nombre))
 
 
-def msg_bienvenida(id_jugador, sala_dict, iniciado=False, estado_partida=None):
-    return serializar(crear_mensaje(BIENVENIDA, id=id_jugador, sala=sala_dict, iniciado=iniciado, estado_partida=estado_partida))
+def msg_bienvenida(id_jugador, sala_dict, iniciado=False, estado_partida=None, id_impostor=None):
+    return serializar(crear_mensaje(BIENVENIDA, id=id_jugador, sala=sala_dict, iniciado=iniciado,
+                                    estado_partida=estado_partida, id_impostor=id_impostor))
 
 
 def msg_lobby(sala_dict):
@@ -239,8 +240,8 @@ def msg_elegir_apariencia(id_jugador, apariencia_dict):
     return serializar(crear_mensaje(ELEGIR_APARIENCIA, id=id_jugador, apariencia=apariencia_dict))
 
 
-def msg_iniciar(estado_partida=None):
-    return serializar(crear_mensaje(INICIAR, estado_partida=estado_partida))
+def msg_iniciar(estado_partida=None, id_impostor=None):
+    return serializar(crear_mensaje(INICIAR, estado_partida=estado_partida, id_impostor=id_impostor))
 
 
 def msg_input(id_jugador, datos_input):

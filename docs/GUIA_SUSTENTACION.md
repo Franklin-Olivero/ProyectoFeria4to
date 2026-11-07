@@ -82,8 +82,10 @@ semilla el resultado es idéntico (tests con semillas fijas).
   expuestos), árbol para ayudar. Da +45, baja el tope a +59 y no borra el historial.
 - **¿Y si alguien se niega?** En solitario, final «La confianza perdida» con punto de control.
   En equipo queda sin voz y los demás siguen. El host fija la reputación de todos.
-- **¿Había un modo impostor?** No. El capítulo 3 es un rastreo por DFS de cuentas. Lo inspirado
-  en Among Us es solo el lobby: sala, vestidores, listos.
+- **¿Hay un modo impostor?** En la campaña no: el capítulo 3 es un rastreo por DFS de cuentas.
+  Lo inspirado en Among Us está en el modo Online: sala, vestidores, listos y, al iniciar, el host
+  sortea un impostor entre los vértices del grafo de sala y cada PC revela su rol. Hoy eso no
+  cambia la jugabilidad: no hay tareas, sabotaje ni votación.
 - Detalle: `docs/SISTEMA_REPUTACION.md`, `docs/SISTEMA_REDENCION.md`.
 
 ## Cliente-servidor (Online)

@@ -38,7 +38,8 @@ red usa ids de conexión (0..3); `ids_red[indice]` es el id de cada uno
 (el lobby los fija al iniciar: Online/lobby.py). Con ese mismo orden,
 cada PC viste a cada jugador con la apariencia de su nodo en el grafo
 de sala (_vestir_jugadores); no viaja en el ESTADO porque no cambia
-durante la partida.
+durante la partida. Igual con el impostor que sorteó el host al iniciar
+(_asignar_impostor): llega en INICIAR y queda en la sesión y en su jugador.
 """
 
 import functools
@@ -1713,6 +1714,7 @@ class ConfigSesionHost:
             entradas.append(EntradaRed(adaptador, id_jugador=jid))
         sesion.entradas = entradas
         _vestir_jugadores(sesion, self.conexion, self.ids_red)
+        _asignar_impostor(sesion, self.conexion, self.ids_red)
         return sesion
 
 
@@ -1738,6 +1740,7 @@ class ConfigSesionJoin:
                 entradas.append(EntradaRemotaHost(adaptador, id_jugador=jid))
         sesion.entradas = entradas
         _vestir_jugadores(sesion, self.conexion, self.ids_red)
+        _asignar_impostor(sesion, self.conexion, self.ids_red)
         return sesion
 
 
@@ -1790,6 +1793,21 @@ def _vestir_jugadores(sesion, conexion, ids_red):
             jugador.apariencia = apariencia
     except Exception:
         registro_errores.registrar("_vestir_jugadores")
+
+
+def _asignar_impostor(sesion, conexion, ids_red):
+    """Deja en la sesión el id de red del impostor (lo sorteó el host) y marca
+    a su jugador, por el mismo orden de `ids_red` que la ropa. Por ahora es
+    solo el dato: ninguna mecánica de la partida lo usa todavía."""
+    try:
+        id_impostor = getattr(conexion, "id_impostor", None)
+        sesion.id_impostor = id_impostor
+        jugadores = getattr(sesion, "jugadores", None) or []
+        ids = ids_red if ids_red is not None else _ids_de_partida(conexion, len(jugadores))
+        for jugador, id_red in zip(jugadores, ids):
+            jugador.es_impostor = id_red == id_impostor
+    except Exception:
+        registro_errores.registrar("_asignar_impostor")
 
 
 def preparar_sesion_online(clases, mando, conexion, es_host):
