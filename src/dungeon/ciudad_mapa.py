@@ -1,15 +1,20 @@
 """Ciudad Nova como mapa 2D de casillas (datos y funciones puras, sin Pygame).
 
-El mundo es una cuadrícula de 64x44 casillas de TAM_CASILLA px (48),
+El mundo es una cuadrícula de 64x47 casillas de TAM_CASILLA px (48),
 más grande que la ventana: la cámara sigue al jugador. Cada carácter de
 MAPA es una casilla:
 
     .  pasto (transitable)            #  edificio de zona (sólido)
-    :  acera / plaza (transitable)    H  casa decorativa (sólida)
-    c  calle (transitable)            T  árbol (sólido)
-    =  calle con carril horizontal    F  farola (sólida)
-    |  calle con carril vertical      E  entrada de edificio (transitable)
+    :  acera / plaza / sendero        H  casa decorativa (sólida)
+    c  calle (transitable)            T  seto de árboles (sólido)
+    =  calle con carril horizontal    E  entrada de edificio (transitable)
+    |  calle con carril vertical
     X  barricada de la Alcaldía (sólida solo mientras está sellada)
+
+Manzanas: arriba, tres filas libres y el jardín entre el Colegio y la
+Alcaldía (así ningún edificio toca el borde del mundo); al noroeste, el
+parque, con un sendero y una sola entrada desde la Plaza (un callejón sin
+salida: no permite rodear ninguna barricada).
 
 Las calles forman un grafo (src/dungeon/grafo_ciudad.py): NODOS_CALLE
 dice en qué casilla está cada nodo y TRAMOS, por qué casillas pasa cada
@@ -17,10 +22,9 @@ arista y cuál es su sección transversal, donde se levanta su barricada
 cuando la calle se satura. Cada sección va de un sólido a otro (acera,
 3 casillas de calle, acera), así una barricada corta el paso de verdad.
 
-PROPS: mobiliario urbano sólido (bancas, basureros, parada de bus,
-bicicletas...) en casillas que no cortan ninguna calle ni acera de paso:
-el patio cerrado junto al Colegio, la acera de su puerta y las esquinas
-de la Plaza. Su dibujo es el pack urbano (src/ui/ciudad_render.py).
+Decoración (farolas, bancas, árboles, canteros...): se genera por reglas
+en src/dungeon/layout_decoracion.py sobre este mapa; las casillas de los
+props sólidos se suman a es_solida (PROPS_SOLIDOS).
 
 Funciones para el movimiento y la cámara: es_solida, casilla_de,
 entrada_cercana, mover_con_colision y calcular_camara.
@@ -42,6 +46,7 @@ from src.core.balance import (
     ZONA_HOSPITAL,
     ZONA_PLAZA,
 )
+from src.dungeon import layout_decoracion
 from src.structures.graph import Grafo
 
 # Leyenda
@@ -53,33 +58,35 @@ CALLE_VERTICAL = "|"
 EDIFICIO = "#"
 CASA = "H"
 ARBOL = "T"
-FAROLA = "F"
 ENTRADA = "E"
 BARRICADA = "X"
 
 CALLES = (CALLE, CALLE_HORIZONTAL, CALLE_VERTICAL)
-SOLIDAS = (EDIFICIO, CASA, ARBOL, FAROLA)
+SOLIDAS = (EDIFICIO, CASA, ARBOL)
 
 MAPA = [
     "TTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTT",
+    "T..............................................................T",
+    "T..............................................................T",
+    "T..............................................................T",
     "T.............###########.............#############............T",
-    "THHHHH........###########.HHHHH.HHHHH.#############.......HHHHHT",
-    "THHHHH........###########.HHHHH.HHHHH.#############.......HHHHHT",
-    "THHHHH........###########.HHHHH.HHHHH.#############.......HHHHHT",
-    "THHHHH........###########.HHHHH.HHHHH.#############.......HHHHHT",
-    "THHHHHTTTTTTTT#####E#####THHHHHTHHHHHT######E######TTTTTTTHHHHHT",
-    "T.....T:::::::::::::::::::::F::::::F:::::::XXX:::::::::::T.....T",
+    "THHHHH........###########.............#############.......HHHHHT",
+    "THHHHH........###########.............#############.......HHHHHT",
+    "THHHHH........###########.............#############.......HHHHHT",
+    "THHHHH........###########.............#############.......HHHHHT",
+    "THHHHHTTTTTTTT#####E#####TTTTTTTTTTTTT######E######TTTTTTTHHHHHT",
+    "T.....T::::::::::::::::::::::::::::::::::::XXX:::::::::::T.....T",
     "T.....T:cccccccccccccccccccccccccccccccccccccccccccccccc:T.....T",
     "T.....T:ccc====================ccc===================ccc:T.....T",
     "T.....T:cccccccccccccccccccccccccccccccccccccccccccccccc:T.....T",
-    "T.....T:c|c:::F::::::::::::::::ccc:::::::::::::::F:::c|c:T.....T",
+    "T.....T:c|c::::::::::::::::::::ccc:::::::::::::::::::c|c:T.....T",
     "T.....T:c|c:TTTTTTTTTTTTTTTTTT:c|c:TTTTTTTTTTTTTTTTT:c|c:T.....T",
-    "THHHHHT:c|c:THHHHHH..HHHHHHH.T:c|c:THHHHHHH..HHHHHHT:c|c:THHHHHT",
-    "THHHHHT:c|c:THHHHHH..HHHHHHH.T:c|c:THHHHHHH..HHHHHHT:c|c:THHHHHT",
-    "THHHHHT:c|c:THHHHHH..HHHHHHH.T:c|c:THHHHHHH..HHHHHHT:c|c:THHHHHT",
-    "THHHHHT:c|c:THHHHHH.....TTTTTT:c|c:TTTTTT....HHHHHHT:c|c:THHHHHT",
-    "THHHHHT:c|cFTHHHHHH.....T:::::::::::::::T....HHHHHHTFc|c:THHHHHT",
-    "THHHHHT:c|c:THHHHHH.....T:F:::::::::::F:T....HHHHHHT:c|c:THHHHHT",
+    "THHHHHT:c|c:T.....:..........T:c|c:THHHHHHH..HHHHHHT:c|c:THHHHHT",
+    "THHHHHT:c|c:T.....:..........T:c|c:THHHHHHH..HHHHHHT:c|c:THHHHHT",
+    "THHHHHT:c|c:T.....:..........T:c|c:THHHHHHH..HHHHHHT:c|c:THHHHHT",
+    "THHHHHT:c|c:T.....:.....TTTTTT:c|c:TTTTTT....HHHHHHT:c|c:THHHHHT",
+    "THHHHHT:c|c:T:::::::::::::::::::::::::::T....HHHHHHT:c|c:THHHHHT",
+    "THHHHHT:c|c:T...........T:::::::::::::::T....HHHHHHT:c|c:THHHHHT",
     "T.....T:c|c:TTTTTTTTTTTTT:::::::::::::::TTTTTTTTTTTT:c|c:T.....T",
     "T.....T:c|c::::::::::::::::::::::::::::::::::::::::::c|c:T.....T",
     "T.....T:ccccccccccccccccc:::::::::::::::cccccccccccccccc:T.....T",
@@ -87,17 +94,17 @@ MAPA = [
     "T.....T:ccccccccccccccccc:::::::::::::::cccccccccccccccc:T.....T",
     "T.....T:c|c::::::::::::::::::::::::::::::::::::::::::c|c:T.....T",
     "THHHHHT:c|c:TTTTTTTTTTTTT:::::::::::::::TTTTTTTTTTTT:c|c:THHHHHT",
-    "THHHHHT:c|c:T###########T:F:::::::::::F:T###########:c|c:THHHHHT",
-    "THHHHHT:c|cFT###########T:::::::::::::::T###########Fc|c:THHHHHT",
+    "THHHHHT:c|c:T###########T:::::::::::::::T###########:c|c:THHHHHT",
+    "THHHHHT:c|c:T###########T:::::::::::::::T###########:c|c:THHHHHT",
     "THHHHHT:c|c:T###########TTTTTT:c|c:TTTTTT###########:c|c:THHHHHT",
     "THHHHHT:c|c:T###########.....T:c|c:T.....###########:c|c:THHHHHT",
     "THHHHHT:c|c:T###########.....T:c|c:T.....###########:c|c:THHHHHT",
     "T.....T:c|c:T#####E#####TTTTTT:c|c:TTTTTT#####E#####:c|c:T.....T",
-    "T.....T:c|c:::F::::::::::::::::ccc:F:::::::::::::::::c|c:T.....T",
+    "T.....T:c|c::::::::::::::::::::ccc:::::::::::::::::::c|c:T.....T",
     "T.....T:cccccccccccccccccccccccccccccccccccccccccccccccc:T.....T",
     "T.....T:ccc====================ccc===================ccc:T.....T",
     "T.....T:cccccccccccccccccccccccccccccccccccccccccccccccc:T.....T",
-    "T.....T:::::::::::::::F:::::::::::::::::::F::::::::::::::T.....T",
+    "T.....T::::::::::::::::::::::::::::::::::::::::::::::::::T.....T",
     "T.....TTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTT.....T",
     "T............HHHHHH..HHHHHHH........HHHHHHH..HHHHHHH...........T",
     "T............HHHHHH..HHHHHHH........HHHHHHH..HHHHHHH...........T",
@@ -114,57 +121,57 @@ TAM_MUNDO = (COLUMNAS * TAM_CASILLA, FILAS * TAM_CASILLA)
 # Edificios de zona: (columna, fila, ancho, alto) en casillas. Todas las
 # puertas miran al sur (fachada estilo Pokémon) y dan a una acera.
 EDIFICIOS = {
-    ZONA_COLEGIO: (14, 1, 11, 6),
-    ZONA_ALCALDIA: (38, 1, 13, 6),
-    ZONA_HOSPITAL: (13, 26, 11, 6),
-    ZONA_EMPRESA_MEDIOS: (41, 26, 11, 6),
+    ZONA_COLEGIO: (14, 4, 11, 6),
+    ZONA_ALCALDIA: (38, 4, 13, 6),
+    ZONA_HOSPITAL: (13, 29, 11, 6),
+    ZONA_EMPRESA_MEDIOS: (41, 29, 11, 6),
 }
 # Casilla de la puerta (una 'E' del mapa) de cada edificio.
 ENTRADAS = {
-    ZONA_COLEGIO: (19, 6),
-    ZONA_ALCALDIA: (44, 6),
-    ZONA_HOSPITAL: (18, 31),
-    ZONA_EMPRESA_MEDIOS: (46, 31),
+    ZONA_COLEGIO: (19, 9),
+    ZONA_ALCALDIA: (44, 9),
+    ZONA_HOSPITAL: (18, 34),
+    ZONA_EMPRESA_MEDIOS: (46, 34),
 }
 # Casillas 'X' frente a la Alcaldía: sólidas mientras está sellada.
 BARRICADAS_ALCALDIA = frozenset(
     (col, fila) for fila, linea in enumerate(MAPA) for col, letra in enumerate(linea) if letra == BARRICADA
 )
 
-# Mobiliario urbano sólido: casilla -> nombre del prop (assets.PROPS_URBANOS).
-PROPS = {
-    # Patio del Colegio (cerrado por árboles: solo decora).
-    (8, 2): "banca", (11, 2): "jardinera", (13, 2): "maceta_grande",
-    (7, 5): "bicicletero", (9, 5): "bicicleta", (10, 5): "bicicleta", (12, 5): "cartelera",
-    # Acera frente al Colegio, sin tapar su puerta (19, 6).
-    (15, 7): "basurero", (23, 7): "buzon",
-    # Esquinas de la Plaza (las columnas 30-34 quedan libres para el camino al norte y al sur).
-    (25, 17): "jardinera", (27, 17): "banca", (37, 17): "banca", (39, 17): "jardinera",
-    (25, 27): "jardinera", (27, 27): "banca", (37, 27): "banca", (39, 27): "jardinera",
-    # Aceras de la avenida central.
-    (14, 20): "parada_bus", (16, 20): "maquina", (48, 20): "hidrante", (20, 24): "reciclaje",
-    (44, 24): "basurero",
-}
-
 # Plaza central: (columna, fila, ancho, alto). Es acera ':' para la
 # lógica; solo cambia su dibujo (losas y mosaico).
-PLAZA = (25, 17, 15, 11)
+PLAZA = (25, 20, 15, 11)
+
+# Parque (manzana noroeste): pasto con un sendero en T; su única entrada
+# es (24, 20), desde la Plaza.
+PARQUE = (13, 16, 16, 6)
+SENDEROS_PARQUE = frozenset([(col, 20) for col in range(13, 25)] + [(18, fila) for fila in range(16, 20)])
+# Jardines decorativos que no se ven desde la calle por reglas: la fila
+# libre del norte (coníferas), el patio del Colegio y el jardín entre el
+# Colegio y la Alcaldía. (tipo, casilla, variante de árbol).
+JARDINES = (
+    [("arbol", (col, 2), (1, 3)[i % 2]) for i, col in enumerate(range(3, 62, 5))]
+    + [("bicicletero", (7, 6), 0), ("bicicleta", (8, 6), 0), ("bicicleta", (9, 6), 0), ("cartelera", (11, 5), 0),
+       ("arbol", (12, 7), 36), ("arbol", (7, 8), 38)]
+    + [("arbol", (27, 6), 75), ("arbol", (35, 6), 75), ("arbol", (31, 5), 38),
+       ("jardinera", (29, 7), 0), ("jardinera", (33, 7), 0)]
+)
 
 # Aparición inicial: en la Plaza, junto a su nodo.
-SPAWN = (32, 23)
+SPAWN = (32, 26)
 
 # Nodos del grafo de calles: la casilla de calle donde está cada uno.
 # Los de los edificios están en la calle frente a su puerta.
 NODOS_CALLE = {
-    ZONA_PLAZA: (32, 22),
-    CRUCE_NORTE: (32, 9),
-    CRUCE_SUR: (32, 34),
-    CRUCE_OESTE: (9, 22),
-    CRUCE_ESTE: (54, 22),
-    ZONA_COLEGIO: (19, 9),
-    ZONA_ALCALDIA: (44, 9),
-    ZONA_HOSPITAL: (18, 34),
-    ZONA_EMPRESA_MEDIOS: (46, 34),
+    ZONA_PLAZA: (32, 25),
+    CRUCE_NORTE: (32, 12),
+    CRUCE_SUR: (32, 37),
+    CRUCE_OESTE: (9, 25),
+    CRUCE_ESTE: (54, 25),
+    ZONA_COLEGIO: (19, 12),
+    ZONA_ALCALDIA: (44, 12),
+    ZONA_HOSPITAL: (18, 37),
+    ZONA_EMPRESA_MEDIOS: (46, 37),
 }
 
 
@@ -194,19 +201,19 @@ def _fila(fila, col_desde, col_hasta):
 
 TRAMOS = [
     # Radios de la Plaza
-    Tramo(ZONA_PLAZA, CRUCE_NORTE, ((32, 22), (32, 9)), _fila(14, 30, 34)),
-    Tramo(ZONA_PLAZA, CRUCE_SUR, ((32, 22), (32, 34)), _fila(30, 30, 34)),
-    Tramo(ZONA_PLAZA, CRUCE_OESTE, ((32, 22), (9, 22)), _columna(18, 20, 24)),
-    Tramo(ZONA_PLAZA, CRUCE_ESTE, ((32, 22), (54, 22)), _columna(46, 20, 24)),
+    Tramo(ZONA_PLAZA, CRUCE_NORTE, ((32, 25), (32, 12)), _fila(17, 30, 34)),
+    Tramo(ZONA_PLAZA, CRUCE_SUR, ((32, 25), (32, 37)), _fila(33, 30, 34)),
+    Tramo(ZONA_PLAZA, CRUCE_OESTE, ((32, 25), (9, 25)), _columna(18, 23, 27)),
+    Tramo(ZONA_PLAZA, CRUCE_ESTE, ((32, 25), (54, 25)), _columna(46, 23, 27)),
     # Anillo exterior
-    Tramo(CRUCE_NORTE, ZONA_COLEGIO, ((32, 9), (19, 9)), _columna(25, 7, 11)),
-    Tramo(ZONA_COLEGIO, CRUCE_OESTE, ((19, 9), (9, 9), (9, 22)), _fila(15, 7, 11)),
-    Tramo(CRUCE_OESTE, ZONA_HOSPITAL, ((9, 22), (9, 34), (18, 34)), _fila(28, 7, 11)),
-    Tramo(ZONA_HOSPITAL, CRUCE_SUR, ((18, 34), (32, 34)), _columna(25, 32, 36)),
-    Tramo(CRUCE_SUR, ZONA_EMPRESA_MEDIOS, ((32, 34), (46, 34)), _columna(39, 32, 36)),
-    Tramo(ZONA_EMPRESA_MEDIOS, CRUCE_ESTE, ((46, 34), (54, 34), (54, 22)), _fila(28, 52, 56)),
-    Tramo(CRUCE_ESTE, ZONA_ALCALDIA, ((54, 22), (54, 9), (44, 9)), _fila(15, 52, 56)),
-    Tramo(ZONA_ALCALDIA, CRUCE_NORTE, ((44, 9), (32, 9)), _columna(38, 7, 11)),
+    Tramo(CRUCE_NORTE, ZONA_COLEGIO, ((32, 12), (19, 12)), _columna(25, 10, 14)),
+    Tramo(ZONA_COLEGIO, CRUCE_OESTE, ((19, 12), (9, 12), (9, 25)), _fila(18, 7, 11)),
+    Tramo(CRUCE_OESTE, ZONA_HOSPITAL, ((9, 25), (9, 37), (18, 37)), _fila(31, 7, 11)),
+    Tramo(ZONA_HOSPITAL, CRUCE_SUR, ((18, 37), (32, 37)), _columna(25, 35, 39)),
+    Tramo(CRUCE_SUR, ZONA_EMPRESA_MEDIOS, ((32, 37), (46, 37)), _columna(39, 35, 39)),
+    Tramo(ZONA_EMPRESA_MEDIOS, CRUCE_ESTE, ((46, 37), (54, 37), (54, 25)), _fila(31, 52, 56)),
+    Tramo(CRUCE_ESTE, ZONA_ALCALDIA, ((54, 25), (54, 12), (44, 12)), _fila(18, 52, 56)),
+    Tramo(ZONA_ALCALDIA, CRUCE_NORTE, ((44, 12), (32, 12)), _columna(38, 10, 14)),
 ]
 
 
@@ -280,7 +287,7 @@ def es_solida(col, fila, barricadas=frozenset()):
     """True si no se puede pisar: edificio, casa, árbol, farola, un prop,
     fuera del mundo o una casilla de `barricadas` (las barricadas activas)."""
     letra = casilla(col, fila)
-    if letra is None or letra in SOLIDAS or (col, fila) in PROPS:
+    if letra is None or letra in SOLIDAS or (col, fila) in PROPS_SOLIDOS:
         return True
     return (col, fila) in barricadas
 
@@ -418,3 +425,15 @@ def grafo_casillas(es_solida_fn):
                 if not es_solida_fn(*vecino):
                     grafo.agregar_arista((col, fila), vecino)
     return grafo
+
+
+# ----------------------------------------------------------------------
+# Decoración (farolas, bancas, árboles...): reglas en layout_decoracion.py
+# ----------------------------------------------------------------------
+
+DECORACION = layout_decoracion.generar(
+    MAPA, CALLES, [(t.puntos, t.seccion) for t in TRAMOS], NODOS_CALLE.values(), ENTRADAS.values(), SPAWN,
+    PLAZA, PARQUE, SENDEROS_PARQUE, JARDINES, EDIFICIOS.values(),
+)
+# Casillas que la decoración vuelve sólidas (las suma es_solida).
+PROPS_SOLIDOS = frozenset(prop.casilla for prop in DECORACION if prop.solido)

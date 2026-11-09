@@ -23,11 +23,11 @@ TODAS_LAS_BARRICADAS = frozenset(c for t in cm.TRAMOS for c in t.seccion) | cm.B
 # Datos del mapa
 # ----------------------------------------------------------------------
 
-def test_mapa_rectangular_de_64x44_y_casillas_de_48px():
+def test_mapa_rectangular_de_64x47_y_casillas_de_48px():
     assert TAM_CASILLA == 48
-    assert cm.FILAS == 44
+    assert cm.FILAS == 47
     assert all(len(fila) == cm.COLUMNAS == 64 for fila in cm.MAPA)
-    letras_validas = set(".:c=|#HTFEX")
+    letras_validas = set(".:c=|#HTEX")
     assert all(set(fila) <= letras_validas for fila in cm.MAPA)
 
 
@@ -230,8 +230,8 @@ def test_un_jugador_cabe_por_una_puerta_de_una_casilla():
 @pytest.mark.parametrize("jugador, esperada", [
     ((0, 0), (0, 0)),  # arriba a la izquierda
     ((99999, 0), (64 * 48 - 1280, 0)),  # arriba a la derecha
-    ((0, 99999), (0, 44 * 48 - 568)),  # abajo a la izquierda
-    ((99999, 99999), (64 * 48 - 1280, 44 * 48 - 568)),  # abajo a la derecha
+    ((0, 99999), (0, 47 * 48 - 568)),  # abajo a la izquierda
+    ((99999, 99999), (64 * 48 - 1280, 47 * 48 - 568)),  # abajo a la derecha
 ])
 def test_camara_se_limita_a_los_bordes_en_las_cuatro_esquinas(jugador, esperada):
     assert cm.calcular_camara(jugador, cm.TAM_MUNDO, (1280, 568)) == esperada
@@ -248,9 +248,9 @@ def test_camara_centra_un_mundo_mas_chico_que_la_vista():
 def test_polilinea_de_ruta_sigue_los_codos_y_termina_en_la_puerta():
     puntos = cm.polilinea_ruta((100.0, 100.0), ["Colegio", "Cruce Oeste"])
     assert puntos[0] == (100.0, 100.0)
-    assert puntos[1] == cm.centro_casilla(19, 9)
-    assert cm.centro_casilla(9, 9) in puntos  # el codo
-    assert puntos[-1] == cm.centro_casilla(9, 22)
+    assert puntos[1] == cm.centro_casilla(19, 12)
+    assert cm.centro_casilla(9, 12) in puntos  # el codo
+    assert puntos[-1] == cm.centro_casilla(9, 25)
     hacia_puerta = cm.polilinea_ruta((0, 0), ["Plaza", "Cruce Norte", "Colegio"])
     assert hacia_puerta[-1] == cm.centro_casilla(*cm.ENTRADAS["Colegio"])
 

@@ -9,6 +9,7 @@ siempre: el juego nunca depende de un archivo de arte.
     recorte(ruta, rect, ...)   -> pieza (escalada, opcionalmente oscurecida) o None
     prop_urbano(nombre)        -> prop de la ciudad (assets.PROPS_URBANOS), recortado a su contenido
     pieza_colegio(nombre)      -> pieza del pack del Colegio (assets.PIEZAS_COLEGIO)
+    arbol(numero, escala)      -> árbol del pack Trees_Vol2 (assets.RUTA_ARBOLES)
 
 Las rutas y rects viven en src/core/assets.py.
 """
@@ -73,6 +74,15 @@ def prop_urbano(nombre, factor=1.0):
     col, fila = assets.PROPS_URBANOS[nombre]
     lado = assets.CELDA_PROPS_URBANOS
     return recorte(assets.RUTA_PROPS_URBANOS, (col * lado, fila * lado, lado, lado), factor=factor, ajustar=True)
+
+
+def arbol(numero, escala=assets.ESCALA_ARBOLES):
+    """Árbol `numero` del pack (assets.RUTA_ARBOLES), escalado entero; None si falta."""
+    ruta = os.path.join(assets.RUTA_ARBOLES, f"arbol_{numero:02d}.png")
+    imagen = hoja(ruta)
+    if imagen is None:
+        return None
+    return recorte(ruta, imagen.get_rect(), escala=escala)
 
 
 def pieza_colegio(nombre, factor=1.0):

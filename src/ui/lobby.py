@@ -6,7 +6,8 @@ y el Ciudadano sostiene. Cada par de roles distintos tiene una razón
 para jugar junto; repetir rol funciona, pero no se complementa.
 """
 
-from src.core.balance import STATS_POR_ROL
+from src.core.balance import PUNTAJE_MAXIMO
+from src.core.puntajes_roles import puntaje_de
 
 DESCRIPCION_HABILIDAD = {
     "ciudadano": "Levanta un domo comunitario durante 4 s.",
@@ -67,10 +68,6 @@ def nombre(rol):
 
 
 def valor_estadistica(rol, atributo):
-    """Texto del valor real de una estadística, para el lado de su barra."""
-    valor = getattr(STATS_POR_ROL[rol], atributo)
-    if atributo == "cadencia":
-        return f"{valor:g}/s"
-    if atributo == "carga_maxima":
-        return f"{valor} kills"
-    return f"×{valor:g}"
+    """Texto del puntaje 1-10 de una estadística ("7/10"), al lado de su
+    barra segmentada. Los valores reales no se muestran: ver puntajes_roles."""
+    return f"{puntaje_de(rol, atributo)}/{PUNTAJE_MAXIMO}"

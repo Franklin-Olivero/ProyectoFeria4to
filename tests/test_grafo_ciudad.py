@@ -186,8 +186,9 @@ def test_nodo_mas_cercano_no_cruza_una_barricada():
     cercano a pie es el Cruce Sur aunque Medios esté cerca en línea recta."""
     ciudad = GrafoCiudad()
     col = ciudad_mapa.tramo(CRUCE_SUR, ZONA_EMPRESA_MEDIOS).seccion[0][0]
-    posicion_oeste = ciudad_mapa.centro_casilla(col - 1, 34)
-    posicion_este = ciudad_mapa.centro_casilla(col + 1, 34)
+    fila = ciudad_mapa.NODOS_CALLE[CRUCE_SUR][1]
+    posicion_oeste = ciudad_mapa.centro_casilla(col - 1, fila)
+    posicion_este = ciudad_mapa.centro_casilla(col + 1, fila)
     ciudad.bloquear((CRUCE_SUR, ZONA_EMPRESA_MEDIOS))
     assert ciudad.nodo_mas_cercano(posicion_oeste) == CRUCE_SUR
     assert ciudad.nodo_mas_cercano(posicion_este) == ZONA_EMPRESA_MEDIOS

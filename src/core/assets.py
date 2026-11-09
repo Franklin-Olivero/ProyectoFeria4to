@@ -219,7 +219,9 @@ ANCHO_TARJETA_SELECCION = 270
 ALTO_TARJETA_SELECCION = 420
 SEPARACION_FILAS_SELECCION = 28
 DESPLAZAMIENTO_BARRA_X = 80  # de la etiqueta de la stat al inicio de su barra
-ANCHO_MAXIMO_BARRA = 88  # ancho de la barra del rol con el valor máximo
+ANCHO_MAXIMO_BARRA = 110  # barra segmentada de 10 casillas (puntaje 1-10)
+SEPARACION_SEGMENTOS_BARRA = 2
+COLOR_SEGMENTO_VACIO = (40, 36, 78)  # ancho de la barra del rol con el valor máximo
 ALTO_BARRA = 10
 # Lobby (src/ui/seleccion_rol.py): paleta neón, animación y paneles.
 ESCALA_SPRITE_LOBBY = 4  # sprite animado de cada tarjeta
@@ -405,7 +407,7 @@ GROSOR_CANDADO = 2
 # Misma escala en x y en y: el largo dibujado de cada calle es
 # proporcional a su largo real (y a su peso base, ver grafo_ciudad.py).
 # El origen centra la red de calles (columnas 9-54) en la pantalla.
-ORIGEN_MAPA_MUNDO = (224, 56)  # px de pantalla de la casilla (0, 0)
+ORIGEN_MAPA_MUNDO = (224, 17)  # px de pantalla de la casilla (0, 0)
 ESCALA_MAPA_MUNDO = (13, 13)  # px de pantalla por casilla, en x y en y
 POSICION_ESCALA_MAPA = (1240, 606)  # extremo derecho de la barra de escala (junto al panel de la ruta)
 COLOR_ESCALA_MAPA = COLOR_TEXTO_SECUNDARIO
@@ -880,6 +882,33 @@ PROPS_URBANOS = {
     "bicicleta": (12, 15),
     "cartelera": (3, 1),
 }
+# Árboles (pack Trees_Vol2, reducidos a sprites nativos de 18-48 px de
+# alto; arbol_<número del pack>.png). Se dibujan a ESCALA_PIXEL, como el
+# resto del pixel art, apoyados en el borde inferior de su casilla.
+RUTA_ARBOLES = os.path.join("assets", "sprites", "ciudad", "arboles")
+ESCALA_ARBOLES = ESCALA_PIXEL
+# Lobby: siluetas de árboles al fondo (números del pack, escala entera y
+# x relativa al ancho de pantalla). Se tiñen con la paleta neón nocturna.
+ARBOLES_LOBBY = ((24, 10, -0.01), (1, 13, 0.035), (18, 10, 1.01), (3, 13, 0.965))
+COLOR_SILUETA_LOBBY = (54, 30, 104)
+COLOR_BORDE_SILUETA_LOBBY = (120, 70, 210)
+ALFA_SILUETA_LOBBY = 150
+AMPLITUD_BALANCEO_LOBBY = 0.9  # grados que se mecen las siluetas
+# Edificios de Ciudad Nova: de qué arte sale cada fachada y con qué escala
+# entera se dibuja (vecino más cercano, sin suavizado). La huella en
+# casillas vive en ciudad_mapa.EDIFICIOS; la imagen mide exactamente
+# huella * TAM_CASILLA y se ancla por su base-centro a la base de la huella.
+ANCLA_EDIFICIOS = "midbottom"
+ARTE_EDIFICIOS = {
+    "Colegio": {"fuente": "pack_colegio", "escala": 2},  # tejas de 32 px: 2 px de pantalla por píxel
+    "Hospital": {"fuente": "pixel_art", "escala": ESCALA_PIXEL},
+    "Empresa de Medios": {"fuente": "pixel_art", "escala": ESCALA_PIXEL},
+    "Alcaldía": {"fuente": "pixel_art", "escala": ESCALA_PIXEL},
+}
+COLOR_PUERTA_COLEGIO = (34, 46, 70)
+COLOR_MARCO_PUERTA_COLEGIO = (84, 62, 44)
+COLOR_TECHO_COLEGIO = (40, 34, 56)
+
 # Colegio ("Traditional School Asset pack 32x32", assets/colegio/).
 # Pieza -> (archivo, rect en px de la hoja).
 RUTA_COLEGIO = os.path.join("assets", "colegio")

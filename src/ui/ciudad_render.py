@@ -13,9 +13,9 @@ import math
 import pygame
 
 from src.core import assets
-from src.core.balance import TAM_CASILLA
+from src.core.balance import ADELANTO_CAMARA_CIUDAD, TAM_CASILLA
 from src.dungeon import ciudad_mapa
-from src.ui import arte_colegio, cargador_assets, casillas_ciudad, dibujo, sprites
+from src.ui import cargador_assets, casillas_ciudad, decoracion_ciudad, dibujo, edificios_ciudad, sprites
 from src.ui.fuentes import fuente
 from src.ui.mapa_render import color_toxicidad
 
@@ -28,7 +28,10 @@ def vista():
 
 
 def camara_para(posicion):
-    return ciudad_mapa.calcular_camara(posicion, ciudad_mapa.TAM_MUNDO, vista().size)
+    """Cámara centrada ADELANTO_CAMARA_CIUDAD px por encima del jugador
+    (limitada a los bordes del mundo)."""
+    objetivo = (posicion[0], posicion[1] - ADELANTO_CAMARA_CIUDAD)
+    return ciudad_mapa.calcular_camara(objetivo, ciudad_mapa.TAM_MUNDO, vista().size)
 
 
 # ----------------------------------------------------------------------
@@ -43,10 +46,6 @@ def _imagen_casilla(col, fila, letra):
         return casillas_ciudad.casilla_calle(marca)
     if letra == ciudad_mapa.ARBOL:
         return casillas_ciudad.casilla_arbol()
-    if letra == ciudad_mapa.FAROLA:
-        if cargador_assets.prop_urbano("farola") is None:
-            return casillas_ciudad.casilla_farola()
-        letra = ciudad_mapa.ACERA  # la farola del pack se dibuja encima (ver _dibujar_props)
     if letra == ciudad_mapa.CASA:
         con_techo = ciudad_mapa.casilla(col, fila - 1) != ciudad_mapa.CASA
         return casillas_ciudad.casilla_casa(con_techo, col * 31 + fila * 17)
@@ -68,46 +67,15 @@ def mundo_base():
         mosaico = casillas_ciudad.mosaico_plaza()
         superficie.blit(mosaico, mosaico.get_rect(
             center=ciudad_mapa.centro_casilla(*ciudad_mapa.NODOS_CALLE[ciudad_mapa.ZONA_PLAZA])))
-        for zona, (col, fila, ancho, alto) in ciudad_mapa.EDIFICIOS.items():
-            puerta = ciudad_mapa.ENTRADAS[zona][0] - col
-            fachada = casillas_ciudad.fachada(zona, ancho, alto, puerta)
-            if zona == ciudad_mapa.ZONA_COLEGIO and arte_colegio.disponible():
-                x, y, w, h = casillas_ciudad.placa_rotulo(ancho, alto, puerta)
-                placa = pygame.Rect(x * assets.ESCALA_PIXEL, y * assets.ESCALA_PIXEL,
-                                    w * assets.ESCALA_PIXEL, h * assets.ESCALA_PIXEL)
-                fachada = arte_colegio.vestir_fachada(fachada, ancho, alto, puerta, placa)
-            superficie.blit(fachada, (col * TAM_CASILLA, fila * TAM_CASILLA))
-        _dibujar_props(superficie)
+        # Cada edificio con su escala entera, del tamaño de su huella (edificios_ciudad).
+        edificios_ciudad.dibujar_todos(superficie)
         _cache["mundo"] = superficie
     return _cache["mundo"]
 
 
-def _dibujar_props(superficie):
-    """Farolas y mobiliario urbano del pack, de arriba hacia abajo (lo de
-    más abajo tapa a lo de arriba), apoyados en el borde inferior de su
-    casilla. Sin el pack, las farolas ya salieron como casilla y los props
-    se ven como un bolardo."""
-    lugares = [((col, fila), "farola") for fila, linea in enumerate(ciudad_mapa.MAPA)
-               for col, letra in enumerate(linea) if letra == ciudad_mapa.FAROLA]
-    lugares += list(ciudad_mapa.PROPS.items())
-    for (col, fila), nombre in sorted(lugares, key=lambda lugar: (lugar[0][1], lugar[0][0])):
-        imagen = cargador_assets.prop_urbano(nombre)
-        base = (round((col + 0.5) * TAM_CASILLA), (fila + 1) * TAM_CASILLA - 4)
-        if imagen is not None:
-            superficie.blit(imagen, imagen.get_rect(midbottom=base))
-        elif nombre != "farola":
-            caja = pygame.Rect(0, 0, TAM_CASILLA // 3, TAM_CASILLA // 2)
-            caja.midbottom = base
-            pygame.draw.rect(superficie, assets.COLOR_COLUMNA, caja, border_radius=4)
-
-
 def _farolas():
     if "farolas" not in _cache:
-        _cache["farolas"] = [
-            ciudad_mapa.centro_casilla(col, fila)
-            for fila, linea in enumerate(ciudad_mapa.MAPA)
-            for col, letra in enumerate(linea) if letra == ciudad_mapa.FAROLA
-        ]
+        _cache["farolas"] = decoracion_ciudad.farolas()
     return _cache["farolas"]
 
 
@@ -146,11 +114,17 @@ def dibujar_ciudad(pantalla, partida, jugador, tiempo, ruta=None):
     _dibujar_barricadas(pantalla, partida, rect_vista, dx, dy)
     if ruta:
         _dibujar_ruta(pantalla, ruta, dx, dy, tiempo)
-    if jugador.invulnerabilidad.visible:
-        imagen = sprites.sprite_jugador(jugador.COLOR, rol=jugador.rol, tiempo=tiempo,
-                                        caminando=jugador.caminando_en_ciudad,
-                                        apariencia=getattr(jugador, "apariencia", None))
-        sprites.dibujar_centrado(pantalla, imagen, (round(posicion[0] + dx), round(posicion[1] + dy - 6)))
+
+    def dibujar_jugador():
+        if jugador.invulnerabilidad.visible:
+            imagen = sprites.sprite_jugador(jugador.COLOR, rol=jugador.rol, tiempo=tiempo,
+                                            caminando=jugador.caminando_en_ciudad,
+                                            apariencia=getattr(jugador, "apariencia", None))
+            sprites.dibujar_centrado(pantalla, imagen, (round(posicion[0] + dx), round(posicion[1] + dy - 6)))
+
+    # Farolas, árboles, bancas y el jugador, ordenados por su base (Y).
+    vista_mundo = pygame.Rect(camara, rect_vista.size)
+    decoracion_ciudad.dibujar_con_jugador(pantalla, vista_mundo, dx, dy, dibujar_jugador, jugador.rect.bottom)
     pantalla.set_clip(None)
 
 
@@ -189,16 +163,15 @@ def _dibujar_auras(pantalla, partida, rect_vista, dx, dy, tiempo):
 
 
 def _dibujar_rotulos(pantalla, rect_vista, dx, dy):
-    """Nombre de la zona en neón sobre la placa de su fachada."""
-    escala = assets.ESCALA_PIXEL
-    for zona, (col, fila, ancho, alto) in ciudad_mapa.EDIFICIOS.items():
-        puerta = ciudad_mapa.ENTRADAS[zona][0] - col
-        x, y, w, h = casillas_ciudad.placa_rotulo(ancho, alto, puerta)
-        placa = pygame.Rect(col * TAM_CASILLA + x * escala + dx, fila * TAM_CASILLA + y * escala + dy,
-                            w * escala, h * escala)
+    """Nombre de la zona en neón sobre la placa de su fachada (la placa se
+    redibuja aquí para que todos los edificios la tengan igual)."""
+    for zona in ciudad_mapa.EDIFICIOS:
+        placa = edificios_ciudad.rect_placa(zona).move(dx, dy)
         if not placa.colliderect(rect_vista):
             continue
         neon = assets.COLORES_NEON_ZONA[zona]
+        pygame.draw.rect(pantalla, assets.COLOR_MARCO_VENTANA, placa)
+        pygame.draw.rect(pantalla, neon, placa, assets.ESCALA_PIXEL)
         texto = fuente(assets.TAMANIO_FUENTE_ROTULO, True).render(zona.upper(), True, neon)
         brillo = texto.copy()
         brillo.set_alpha(assets.ALFA_BRILLO_ROTULO)

@@ -386,9 +386,10 @@ def _emblema(lienzo, zona, w, h, px):
             lienzo.rect(x, h - 2 * LADO + 14, 3, 2 * LADO - 17, "c")
 
 
-def fachada(zona, ancho, alto, columna_puerta):
-    """Surface de la fachada de `zona` (cacheada por zona y tamaño)."""
-    clave = (zona, ancho, alto, columna_puerta)
+def fachada(zona, ancho, alto, columna_puerta, escala=assets.ESCALA_PIXEL):
+    """Surface de la fachada de `zona` en pixel art (16 px por casilla) a
+    `escala` entera (cacheada por zona, tamaño y escala)."""
+    clave = (zona, ancho, alto, columna_puerta, escala)
     if clave not in _fachadas:
         neon = assets.COLORES_NEON_ZONA[zona]
         paleta = {
@@ -403,5 +404,5 @@ def fachada(zona, ancho, alto, columna_puerta):
         # sprites.sprite cachea por id(filas): las filas se guardan aquí
         # junto con la Surface para que no se recolecten.
         filas = filas_fachada(zona, ancho, alto, columna_puerta)
-        _fachadas[clave] = (filas, sprites.sprite(filas, paleta))
+        _fachadas[clave] = (filas, sprites.sprite(filas, paleta, escala))
     return _fachadas[clave][1]

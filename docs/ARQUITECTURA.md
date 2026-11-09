@@ -194,6 +194,8 @@ corrupto → predeterminados) y `guardar(ruta)` (escribe a un temporal y lo
 renombra). El archivo es `preferencias.json`, en la carpeta de datos de usuario (`src/core/datos_usuario.py`), fuera del repo.
 *Depende de:* nada.
 
+**Ciudad decorada** — `src/dungeon/layout_decoracion.py` (puro) genera los props por reglas sobre el mapa; `src/ui/decoracion_ciudad.py` los dibuja por Y con el jugador y `src/ui/edificios_ciudad.py` cada edificio a escala entera de su huella; `src/core/puntajes_roles.py` lleva los stats a 1–10.
+
 **Ajustes y pausa** — `src/audio/ajustes_audio.py` (puro) carga/guarda en la carpeta de datos de usuario los volúmenes y el silencio, y `src/audio/gestor_audio.py` aplica el volumen efectivo en cada `Sound` (música en 2 canales reservados); `src/ui/pausa.py` (puro) es el menú de pausa: con `congelada` el bucle de `Main._jugar` no llama a ningún actualizar.
 
 **`src/audio/gestor_audio.py`** — **`Audio`**: único punto que toca `pygame.mixer` (gestor de audio por ID).

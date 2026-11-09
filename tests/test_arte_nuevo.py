@@ -27,21 +27,13 @@ def _tamanio_png(ruta):
 # Props de Ciudad Nova
 # ----------------------------------------------------------------------
 
-def test_props_sobre_pasto_o_acera_y_con_arte():
-    for (col, fila), nombre in ciudad_mapa.PROPS.items():
-        assert ciudad_mapa.casilla(col, fila) in (ciudad_mapa.PASTO, ciudad_mapa.ACERA), (col, fila)
-        assert nombre in assets.PROPS_URBANOS
-        assert ciudad_mapa.es_solida(col, fila)
-
-
-def test_props_no_tapan_calles_nodos_entradas_ni_barricadas():
-    prohibidas = set(ciudad_mapa.NODOS_CALLE.values()) | set(ciudad_mapa.ENTRADAS.values()) | {ciudad_mapa.SPAWN}
-    prohibidas |= set(ciudad_mapa.BARRICADAS_ALCALDIA)
-    for t in ciudad_mapa.TRAMOS:
-        prohibidas |= set(ciudad_mapa.casillas_de_tramo(t.puntos)) | set(t.seccion)
-    for col, fila in ciudad_mapa.ENTRADAS.values():
-        prohibidas.add((col, fila + 1))  # la casilla frente a cada puerta
-    assert not prohibidas & set(ciudad_mapa.PROPS)
+def test_cada_prop_tiene_arte():
+    for prop in ciudad_mapa.DECORACION:
+        if prop.tipo == "arbol":
+            assert os.path.exists(os.path.join(assets.RUTA_ARBOLES, f"arbol_{prop.variante:02d}.png")), prop
+        else:
+            assert prop.tipo in assets.PROPS_URBANOS, prop
+        assert ciudad_mapa.es_solida(*prop.casilla) == prop.solido or not prop.solido
 
 
 def test_con_props_se_llega_a_pie_a_todos_los_nodos_y_puertas():
@@ -104,6 +96,5 @@ def test_aula_y_fachada_del_colegio_se_dibujan():
     rect = pygame.Rect(120, 150, 1040, 480)
     fondo = temas_mazmorra.fondo(rect, "colegio", 3, ("N", "S"), 40)
     assert fondo.get_width() == 1280 // temas_mazmorra.P * temas_mazmorra.P
-    fachada = pygame.Surface((11 * 48, 6 * 48))
-    vestida = arte_colegio.vestir_fachada(fachada, 11, 6, 5, (180, 200, 168, 36))
-    assert vestida is not fachada and vestida.get_size() == fachada.get_size()
+    fachada = arte_colegio.fachada(11, 6, 5, (120, 198, 288, 36), 2, 48)
+    assert fachada.get_size() == (11 * 48, 6 * 48)

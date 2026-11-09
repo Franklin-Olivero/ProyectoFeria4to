@@ -96,6 +96,16 @@ ESTADISTICAS_VISIBLES = [
 # En estas, menos es mejor (menos kills para llenar la habilidad): su
 # barra es el mínimo entre los roles dividido por el valor del rol.
 ESTADISTICAS_INVERSAS = ("carga_maxima",)
+# Escala de la tarjeta del lobby: cada estadística se muestra de 1 a 10
+# (src/core/puntajes_roles.py) entre el mínimo y el máximo de los 4 roles,
+# así se aprovecha toda la escala. Los valores reales de STATS_POR_ROL no
+# cambian: es solo cómo se muestran.
+PUNTAJE_MINIMO, PUNTAJE_MAXIMO = 1, 10
+RANGOS_STATS = {
+    atributo: (min(getattr(s, atributo) for s in STATS_POR_ROL.values()),
+               max(getattr(s, atributo) for s in STATS_POR_ROL.values()))
+    for _, atributo in ESTADISTICAS_VISIBLES
+}
 
 
 def intervalo_disparo(cadencia, buff_activo=False):
@@ -682,3 +692,19 @@ PASO_VOLUMEN_LOBBY = 10
 PUEDE_PAUSAR_MULTIJUGADOR = False
 FACTOR_MUSICA_PAUSA = 0.35  # la música baja a este factor mientras dura la pausa
 DURACION_ATENUACION_PAUSA = 0.4  # s del fundido de la música al pausar / reanudar
+
+# ----------------------------------------------------------------------
+# Decoración de Ciudad Nova (src/dungeon/layout_decoracion.py). Todo se
+# coloca por reglas sobre el mapa, con una semilla fija: la ciudad es
+# siempre la misma y se puede probar.
+# ----------------------------------------------------------------------
+ESPACIADO_FAROLAS = 6  # casillas entre dos farolas seguidas de una misma acera
+MARGEN_FAROLAS_CRUCE = 3  # casillas desde el inicio de un tramo hasta su primera farola
+ESPACIADO_ARBOLES_AVENIDA = 4  # casillas entre árboles de una hilera sobre un seto
+ESPACIADO_MOBILIARIO_ACERA = 12  # casillas entre papeleras, canteros, buzones o hidrantes
+ARBOLES_PARQUE = 9  # árboles agrupados en el parque
+SEPARACION_ARBOLES_PARQUE = 2  # casillas mínimas entre dos árboles del parque (Chebyshev)
+SEMILLA_DECORACION = 404
+# Cámara de la ciudad: encuadra un poco más arriba del jugador (las
+# fachadas miran al sur: frente a una puerta se ve el edificio entero).
+ADELANTO_CAMARA_CIUDAD = 72  # px

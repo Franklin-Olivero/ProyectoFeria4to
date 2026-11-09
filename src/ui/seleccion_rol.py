@@ -2,14 +2,16 @@
 
 Una tarjeta por rol: número (atajo 1-4 del J1), sprite animado (idle;
 camina cuando un cursor la elige), nombre, habilidad con una descripción
-corta y una barra por estadística (Velocidad, Cadencia, Daño, Vida,
-Carga) con su valor real al lado. El largo de cada barra sale de
-balance.stats_normalizadas: de un vistazo se ve quién es rápido, quién
-aguanta y a quién le cuesta menos llenar la habilidad.
+corta y, por estadística (Velocidad, Cadencia, Daño, Vida, Carga), una
+barra de 10 segmentos con su puntaje "7/10" (src/core/puntajes_roles.py,
+entre el mínimo y el máximo de los 4 roles): de un vistazo se ve quién
+es rápido, quién aguanta y a quién le cuesta menos llenar la habilidad,
+sin multiplicadores. Los valores reales de balance no cambian.
 
 Abajo, un panel con el resumen de la partida, la sinergia del equipo
 elegido (src/ui/lobby.py), el volumen y los controles. El fondo es la
-portada con una rejilla neón y partículas que se mueven despacio (se
+portada con siluetas de árboles neón que se mecen, una rejilla neón y
+partículas que se mueven despacio (se
 quedan quietas con "reducir movimiento").
 
 VistaSeleccion guarda solo estado de dibujo (cuánto está levantada cada
@@ -22,8 +24,9 @@ import math
 import pygame
 
 from src.core import assets
-from src.core.balance import ESTADISTICAS_VISIBLES, stats_normalizadas
-from src.ui import dibujo, kit, lobby, sprites
+from src.core.balance import ESTADISTICAS_VISIBLES, PUNTAJE_MAXIMO
+from src.core.puntajes_roles import puntajes
+from src.ui import cargador_assets, dibujo, kit, lobby, sprites
 
 TITULO = "Elige tu personaje"
 TITULO_DOS = "Elijan sus personajes"
@@ -80,10 +83,9 @@ class VistaSeleccion:
         dibujo.texto(pantalla, SUBTITULO_DOS if dos else SUBTITULO, (cx, cy + 34), assets.COLOR_TEXTO_SECUNDARIO,
                      assets.TAMANIO_FUENTE_NORMAL, ancla="center")
 
-        normalizadas = stats_normalizadas()
         for indice, clase in enumerate(clases_rol):
             encima = [(n, cursor.confirmado) for n, cursor in enumerate(seleccion.cursores) if cursor.indice == indice]
-            _dibujar_tarjeta(pantalla, indice, clase, encima, normalizadas[clase.rol], self.elevacion[indice], t)
+            _dibujar_tarjeta(pantalla, indice, clase, encima, puntajes(clase.rol), self.elevacion[indice], t)
 
         roles = [clases_rol[cursor.indice].rol for cursor in seleccion.cursores]
         _dibujar_resumen(pantalla, seleccion, clases_rol, roles, volumen, silenciado)
@@ -114,6 +116,7 @@ def _dibujar_fondo(pantalla, t):
     else:
         pantalla.fill(assets.COLOR_FONDO)
     ancho, alto = pantalla.get_size()
+    _dibujar_arboles(pantalla, t)
     capa = pygame.Surface((ancho, alto), pygame.SRCALPHA)
     # Rejilla neón en perspectiva bajo el horizonte: las líneas bajan despacio.
     horizonte = alto * 0.55
@@ -135,7 +138,41 @@ def _dibujar_fondo(pantalla, t):
     pantalla.blit(capa, (0, 0))
 
 
-def _dibujar_tarjeta(pantalla, indice, clase, encima, fracciones, elevacion, t):
+_siluetas = {}
+
+
+def _silueta(numero, escala):
+    """Árbol del pack como silueta neón: relleno violeta translúcido y borde
+    más claro (cacheada). None si falta el PNG: el fondo sigue sin árboles."""
+    clave = (numero, escala)
+    if clave not in _siluetas:
+        arbol = cargador_assets.arbol(numero, escala)
+        silueta = None
+        if arbol is not None:
+            mascara = pygame.mask.from_surface(arbol)
+            silueta = mascara.to_surface(setcolor=(*assets.COLOR_SILUETA_LOBBY, assets.ALFA_SILUETA_LOBBY),
+                                         unsetcolor=(0, 0, 0, 0))
+            for punto in mascara.outline(escala):
+                pygame.draw.rect(silueta, (*assets.COLOR_BORDE_SILUETA_LOBBY, 170), (*punto, escala, escala))
+        _siluetas[clave] = silueta
+    return _siluetas[clave]
+
+
+def _dibujar_arboles(pantalla, t):
+    """Siluetas de árboles al fondo, apoyadas abajo y meciéndose apenas
+    (cada una con su fase); detrás de las tarjetas, nunca encima."""
+    ancho, alto = pantalla.get_size()
+    for i, (numero, escala, x_relativa) in enumerate(assets.ARBOLES_LOBBY):
+        silueta = _silueta(numero, escala)
+        if silueta is None:
+            continue
+        angulo = assets.AMPLITUD_BALANCEO_LOBBY * math.sin(t * 0.7 + i * 1.3)
+        figura = pygame.transform.rotate(silueta, angulo) if angulo else silueta
+        deriva = 6 * math.sin(t * 0.15 + i)  # parallax muy suave
+        pantalla.blit(figura, figura.get_rect(midbottom=(round(ancho * x_relativa + deriva), alto)))
+
+
+def _dibujar_tarjeta(pantalla, indice, clase, encima, puntajes_rol, elevacion, t):
     resaltada = bool(encima)
     confirmada = any(confirmado for _, confirmado in encima)
     tarjeta = rect_tarjeta(indice).move(0, -round(elevacion))
@@ -176,11 +213,20 @@ def _dibujar_tarjeta(pantalla, indice, clase, encima, fracciones, elevacion, t):
     y = tarjeta.top + 268
     for etiqueta, atributo in ESTADISTICAS_VISIBLES:
         dibujo.texto(pantalla, etiqueta, (x, y), assets.COLOR_TEXTO_HUD, assets.TAMANIO_FUENTE_PEQUENA)
-        dibujo.barra(pantalla, (x + assets.DESPLAZAMIENTO_BARRA_X, y + 3, assets.ANCHO_MAXIMO_BARRA, assets.ALTO_BARRA),
-                     fracciones[atributo], clase.COLOR, borde=None, radio=3)
+        _barra_segmentada(pantalla, (x + assets.DESPLAZAMIENTO_BARRA_X, y + 3), puntajes_rol[atributo], clase.COLOR)
         dibujo.texto(pantalla, lobby.valor_estadistica(clase.rol, atributo), (tarjeta.right - 14, y),
-                     assets.COLOR_TEXTO_SECUNDARIO, assets.TAMANIO_FUENTE_PEQUENA, ancla="topright")
+                     assets.COLOR_TEXTO_HUD, assets.TAMANIO_FUENTE_PEQUENA, negrita=True, ancla="topright")
         y += assets.SEPARACION_FILAS_SELECCION
+
+
+def _barra_segmentada(pantalla, origen, puntaje, color):
+    """PUNTAJE_MAXIMO casillas; las primeras `puntaje` encendidas."""
+    hueco = assets.SEPARACION_SEGMENTOS_BARRA
+    lado = (assets.ANCHO_MAXIMO_BARRA - hueco * (PUNTAJE_MAXIMO - 1)) // PUNTAJE_MAXIMO
+    x, y = origen
+    for i in range(PUNTAJE_MAXIMO):
+        relleno = color if i < puntaje else assets.COLOR_SEGMENTO_VACIO
+        pygame.draw.rect(pantalla, relleno, (x + i * (lado + hueco), y, lado, assets.ALTO_BARRA), border_radius=2)
 
 
 def _dibujar_resumen(pantalla, seleccion, clases_rol, roles, volumen, silenciado):

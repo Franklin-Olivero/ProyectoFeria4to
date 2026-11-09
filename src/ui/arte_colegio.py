@@ -2,9 +2,9 @@
 el aula de su mazmorra, con el "Traditional School Asset pack"
 (assets/colegio/, piezas en assets.PIEZAS_COLEGIO).
 
-    vestir_fachada(fachada, ...)  -> pared crema con ventanas en los pisos
-        altos de la fachada pintada en código; el techo con el emblema y la
-        planta baja (placa del rótulo y puerta) quedan como estaban.
+    fachada(...)    -> el Colegio entero (techo, dos pisos de pared con
+        ventanas, puerta) a la resolución del pack y con escala entera,
+        del tamaño exacto de su huella (assets.ARTE_EDIFICIOS).
     vestir_aula(fondo, rect, ...) -> tablones de madera multiplicados sobre
         el piso pintado (así conserva su luz, su viñeta y las grietas de
         NOVA según la toxicidad), pizarra y reloj en la cara del muro,
@@ -35,31 +35,55 @@ def disponible():
 # Fachada en la ciudad
 # ----------------------------------------------------------------------
 
-def vestir_fachada(fachada, ancho, alto, columna_puerta, rect_placa):
-    """Copia de `fachada` (Surface) con la pared del pack en los pisos
-    altos. `ancho`/`alto` en casillas, `rect_placa` en px de pantalla
-    dentro de la fachada (nunca se tapa)."""
+def fachada(ancho, alto, columna_puerta, rect_placa, escala, tam_casilla):
+    """Surface del Colegio para su huella de `ancho` x `alto` casillas,
+    armada a la resolución nativa del pack y escalada por `escala` entera
+    (vecino más cercano): mide exactamente ancho*tam_casilla x alto*tam_casilla.
+
+    Techo arriba, dos pisos de pared crema (ventanas arriba; abajo, pared
+    lisa detrás de la placa del rótulo y la puerta) y la puerta en la
+    casilla `columna_puerta` de la fila de abajo. `rect_placa` va en px
+    de pantalla dentro de la fachada. None si falta el pack."""
     ventana = cargador_assets.pieza_colegio("muro_ventana", assets.FACTOR_FACHADA_COLEGIO)
     liso = cargador_assets.pieza_colegio("muro_liso", assets.FACTOR_FACHADA_COLEGIO)
     alta = cargador_assets.pieza_colegio("muro_ventana_alta", assets.FACTOR_FACHADA_COLEGIO)
     if ventana is None or liso is None or alta is None:
-        return fachada
-    resultado = fachada.copy()
-    lado = fachada.get_width() // ancho
-    lado_pieza = ventana.get_width()
-    arriba = lado  # bajo la fila del techo
-    abajo = (alto - 2) * lado  # la planta baja (placa y puerta) queda como está
-    columnas = fachada.get_width() // lado_pieza
-    margen = (fachada.get_width() - columnas * lado_pieza) // 2
-    placa = pygame.Rect(rect_placa).inflate(8, 8)
-    for fila, y in enumerate(range(arriba, abajo - lado_pieza + 1, lado_pieza)):
-        for col in range(columnas):
-            destino = pygame.Rect(margen + col * lado_pieza, y, lado_pieza, lado_pieza)
-            if destino.colliderect(placa):
-                continue
-            pieza = (ventana, alta, ventana, liso)[(col + fila) % 4]
-            resultado.blit(pieza, destino)
-    return resultado
+        return None
+    ancho_n, alto_n = ancho * tam_casilla // escala, alto * tam_casilla // escala
+    lienzo = pygame.Surface((ancho_n, alto_n))
+    lado = ventana.get_width()  # 64: dos tejas del pack
+    techo = alto_n - 2 * lado
+    # Techo plano con su alero de madera.
+    lienzo.fill(assets.COLOR_TECHO_COLEGIO)
+    pygame.draw.rect(lienzo, assets.COLOR_MARCO_PUERTA_COLEGIO, (0, techo - 3, ancho_n, 3))
+    pygame.draw.line(lienzo, _aclarar(assets.COLOR_TECHO_COLEGIO, 18), (0, 1), (ancho_n, 1))
+    # Dos pisos de pared, centrados (las piezas de los bordes se recortan igual a cada lado).
+    columnas = -(-ancho_n // lado) + 1
+    inicio = (ancho_n - columnas * lado) // 2
+    placa = pygame.Rect(rect_placa)
+    placa = pygame.Rect(placa.x // escala, placa.y // escala, -(-placa.w // escala), -(-placa.h // escala))
+    centro_puerta = (columna_puerta * tam_casilla + tam_casilla // 2) // escala
+    puerta = pygame.Rect(0, 0, tam_casilla // escala, tam_casilla // escala)
+    puerta.midbottom = (centro_puerta, alto_n)
+    for piso in range(2):
+        y = techo + piso * lado
+        for i in range(columnas):
+            destino = pygame.Rect(inicio + i * lado, y, lado, lado)
+            if piso == 1 and (destino.colliderect(placa.inflate(4, 4)) or destino.colliderect(puerta)):
+                pieza = liso
+            else:
+                pieza = (ventana, alta)[i % 2]
+            lienzo.blit(pieza, destino)
+    # Puerta con marco de madera y vidrio oscuro (la casilla 'E' del mapa).
+    pygame.draw.rect(lienzo, assets.COLOR_MARCO_PUERTA_COLEGIO, puerta)
+    pygame.draw.rect(lienzo, assets.COLOR_PUERTA_COLEGIO, puerta.inflate(-4, -3).move(0, 2))
+    pygame.draw.line(lienzo, assets.COLOR_MARCO_PUERTA_COLEGIO, (puerta.centerx, puerta.top + 2),
+                     (puerta.centerx, puerta.bottom))
+    return pygame.transform.scale(lienzo, (ancho_n * escala, alto_n * escala))
+
+
+def _aclarar(color, d):
+    return tuple(min(255, c + d) for c in color)
 
 
 # ----------------------------------------------------------------------

@@ -43,11 +43,12 @@ def test_mismo_rol_una_estrella_y_maximo_tres():
 
 
 @pytest.mark.parametrize("rol, atributo, texto", [
-    ("ciudadano", "cadencia", "2.4/s"),
-    ("candidato", "carga_maxima", "4 kills"),
-    ("influencer", "velocidad_mult", "×1.25"),
+    ("ciudadano", "cadencia", "10/10"),  # la cadencia más alta
+    ("candidato", "carga_maxima", "10/10"),  # menos kills: Carga 10
+    ("ciudadano", "carga_maxima", "1/10"),
+    ("influencer", "velocidad_mult", "10/10"),
 ])
-def test_valor_real_junto_a_la_barra(rol, atributo, texto):
+def test_puntaje_1_a_10_junto_a_la_barra(rol, atributo, texto):
     assert lobby.valor_estadistica(rol, atributo) == texto
 
 
