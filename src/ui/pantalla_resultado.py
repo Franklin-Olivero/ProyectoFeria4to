@@ -19,6 +19,7 @@ from src.ui.terminal_decision import PURIFICACION_EXITOSA
 EXPLICACIONES = {
     "Verificar": "Contrastaste la publicación con la fuente oficial. La zona queda purificada.",
     "Reportar": "Reportaste la publicación antes de que siguiera creciendo. La zona queda purificada.",
+    "Me gusta": "Le diste me gusta al rumor y el algoritmo lo mostró a más gente. La zona detonó y la incursión falló.",
     "Compartir": "Compartiste el rumor y se propagó. La zona detonó y la incursión falló.",
     "Ignorar": "Ignoraste la publicación y siguió creciendo. La zona detonó y la incursión falló.",
     "Derrota": "Todo el equipo cayó en combate. La zona detonó y la incursión falló.",

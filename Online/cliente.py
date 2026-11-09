@@ -25,6 +25,7 @@ from Online.protocolo import (
     POSICION_LOBBY, ENTRAR_MAZMORRA, CAMBIO_ESCENA, CAMBIO_CUARTO,
     deserializar_buffer, msg_elegir_apariencia, msg_elegir_rol, msg_hola, msg_input, msg_ping,
     msg_pong, msg_posicion_lobby, msg_entrar_mazmorra, msg_decision_nav, msg_historia, msg_reunion,
+    msg_sabotaje,
 )
 from Online.red_local import (
     ahora_ms, clasificar_error_conexion, enviar_todo, sin_retraso, suavizar,
@@ -143,6 +144,10 @@ class Cliente:
     def enviar_reunion(self, evento, **datos):
         """Reunión de emergencia: pide convocarla, vota o escribe en su chat."""
         self._enviar(msg_reunion(evento, self.id_jugador if self.id_jugador is not None else 1, **datos))
+
+    def enviar_sabotaje(self):
+        """El impostor aprieta SABOTEAR (el host decide si se puede)."""
+        self._enviar(msg_sabotaje(self.id_jugador if self.id_jugador is not None else 1))
 
     def enviar_ping(self):
         """Envía un ping para medir latencia (el host lo devuelve como PONG)."""

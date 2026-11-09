@@ -8,6 +8,11 @@ Cooperativo local: un jugador sin vida queda "caído" mientras algún
 compañero siga en pie (no se mueve, no dispara, los enemigos lo
 ignoran) y revive con VIDA_AL_REVIVIR al pasar al siguiente cuarto. Si
 caen todos, nadie queda fuera: se comporta igual que jugando solo.
+
+Modo Online: el jugador expulsado en una reunión (`jugador.expulsado`) es
+un fantasma: ya no está en combate (los enemigos no lo persiguen, no
+recoge pruebas, no abre puertas, no se dibuja para los demás) y no cuenta
+para saber si cayó todo el equipo.
 """
 
 import math
@@ -28,11 +33,18 @@ def registrar_kill_equipo(asesino, aliados):
             aliado.sumar_carga(CARGA_COMPARTIDA)
 
 
+def en_juego(jugador):
+    """False para el fantasma de un expulsado (modo Online)."""
+    return not getattr(jugador, "expulsado", False)
+
+
 def jugadores_en_combate(jugadores):
-    """Los que siguen en pie. Si no queda ninguno, todos (como en solitario,
-    donde el jugador nunca queda fuera del cuarto). O(n)."""
-    vivos = [jugador for jugador in jugadores if jugador.vivo]
-    return vivos or list(jugadores)
+    """Los que siguen en pie (sin fantasmas). Si no queda ninguno, todos los
+    que siguen en juego (como en solitario, donde el jugador nunca queda
+    fuera del cuarto). O(n)."""
+    en_partida = [jugador for jugador in jugadores if en_juego(jugador)] or list(jugadores)
+    vivos = [jugador for jugador in en_partida if jugador.vivo]
+    return vivos or en_partida
 
 
 def jugador_mas_cercano(punto, jugadores):
@@ -45,7 +57,8 @@ def jugador_mas_cercano(punto, jugadores):
 
 
 def todos_caidos(jugadores):
-    return not any(jugador.vivo for jugador in jugadores)
+    """Cayó todo el equipo (un fantasma no lo sostiene en pie)."""
+    return not any(jugador.vivo and en_juego(jugador) for jugador in jugadores)
 
 
 def revivir_caidos(jugadores):

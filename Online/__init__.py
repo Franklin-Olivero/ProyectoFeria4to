@@ -15,6 +15,7 @@ Módulos:
     sabotaje    — bloqueo del sabotaje del impostor en la terminal (puro)
     sabotaje_render — indicador del sabotaje que solo ve el impostor
     reunion     — reunión de emergencia: botón REPORTAR, chat y votación (puro)
-    reunion_render — dibujo y ratón de la reunión y del botón REPORTAR
+    reunion_render — dibujo y ratón de la reunión, los botones REPORTAR y SABOTEAR y el fin de partida
+    post_sabotaje — botón SABOTEAR del impostor: publicación viral para todos (puro)
     sesion_red  — adaptador que conecta el juego existente con la red
 """

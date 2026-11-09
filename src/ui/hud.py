@@ -155,8 +155,9 @@ def dibujar_panel_jugador(pantalla, jugador, numero):
     x = rect.left + 9
     dibujo.texto(pantalla, f"J{numero + 1}", (x, rect.top + 6), jugador.COLOR, assets.TAMANIO_FUENTE_TITULO,
                  negrita=True)
-    estado = jugador.NOMBRE if jugador.vivo else "CAÍDO"
-    color_estado = assets.COLOR_TEXTO_SECUNDARIO if jugador.vivo else assets.COLOR_MAGENTA
+    fantasma = getattr(jugador, "expulsado", False)  # Online: lo expulsó una reunión
+    estado = "FANTASMA" if fantasma else jugador.NOMBRE if jugador.vivo else "CAÍDO"
+    color_estado = assets.COLOR_MAGENTA if fantasma or not jugador.vivo else assets.COLOR_TEXTO_SECUNDARIO
     dibujo.texto(pantalla, estado, (x, rect.top + 34), color_estado, assets.TAMANIO_FUENTE_PEQUENA)
     dibujar_corazones(pantalla, jugador.vida, jugador.vida_maxima, (x, rect.top + 56),
                       assets.CORAZONES_POR_FILA_PANEL)

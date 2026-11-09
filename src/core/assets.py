@@ -907,14 +907,26 @@ COLOR_FONDO_BARRA_SABOTAJE = (60, 14, 22)
 TEXTO_ESPERA_LECTURA_UNO = "Esperando a que {quien} termine de leer"
 TEXTO_ESPERA_LECTURA_VARIOS = "Esperando a que {quienes} terminen de leer"
 POSICION_AVISO_ESPERA_LECTURA = (640, 116)
+POSICION_AVISO_VERSION = (640, 150)  # "J2 tiene otra versión del juego..."
+ALFA_FANTASMA = 110  # el expulsado se ve a sí mismo medio transparente
 
 # Reunión de emergencia (Online/reunion_render.py). Botón REPORTAR abajo a la
 # derecha (sobre la barra de controles, fuera de la mazmorra); la reunión es
 # un modal encima de todo: tarjetas para votar a la izquierda, chat a la derecha.
-RECT_BOTON_REPORTAR = (1160, 556, 108, 92)
+# Dentro del rincón inferior derecho del cuarto: el margen derecho es del
+# panel de J2/J4 en cooperativo. En la terminal va chico, en la barra de controles.
+RECT_BOTON_REPORTAR = (1040, 546, 100, 92)
+RECT_BOTON_SABOTEAR = (932, 546, 100, 92)  # solo el impostor lo ve, junto a REPORTAR
+RECT_BOTON_REPORTAR_TERMINAL = (1044, 666, 224, 48)
+ALTO_MINIMO_BOTON_GRANDE = 70  # más bajo que esto, el botón se dibuja en una sola fila
 TEXTO_BOTON_REPORTAR = "REPORTAR"
 COLOR_REPORTAR = (236, 52, 64)  # rojo de alarma (el botón listo)
 COLOR_REPORTAR_APAGADO = (70, 66, 104)  # mientras recarga
+COLOR_SABOTEAR = (150, 28, 44)  # rojo oscuro: el botón del impostor
+TEXTO_BOTON_SABOTEAR = "SABOTEAR"
+# Tarjetas de la reunión: el morado de Civitas (no el azul de la ciudad).
+COLOR_FONDO_TARJETA_REUNION = (38, 22, 70)
+COLOR_FONDO_AVATAR_REUNION = (70, 42, 124)
 ALFA_VELO_REUNION = 215
 RECT_PANEL_REUNION = (40, 28, 1200, 620)
 RECT_CANDIDATOS_REUNION = (64, 132, 680, 380)  # rejilla de tarjetas (2 columnas)
@@ -937,6 +949,34 @@ TEXTO_ERA_IMPOSTOR = "Era el impostor"
 TEXTO_NO_ERA_IMPOSTOR = "No era el impostor"
 TEXTO_IMPOSTOR_DESCUBIERTO = "Impostor descubierto"
 CONTROLES_REUNION = [("← →", "elegir"), ("Enter", "votar (dos veces)"), ("Esc", "cancelar"), ("Teclado", "chat")]
+
+# Fin de la partida Online por votación (Online/reunion_render.dibujar_fin_partida).
+ESPERA_SALIR_FIN_PARTIDA = 2.0  # s antes de aceptar Enter (que nadie la salte sin verla)
+TEXTOS_FIN_PARTIDA = {
+    # (fin, ¿esta PC es la del impostor?) -> (título, subtítulo, remate)
+    ("tripulacion", False): ("¡Felicidades!", "Has descubierto al impostor", "Civitas se ha salvado"),
+    ("tripulacion", True): ("Te descubrieron", "La tripulación te expulsó", "Civitas se ha salvado"),
+    ("impostor", False): ("El impostor ha ganado", "Expulsaron inocentes hasta quedar solo él y uno más",
+                          "Civitas cayó en manos de la desinformación"),
+    ("impostor", True): ("¡Ganaste!", "El impostor ha ganado", "Engañaste a toda la tripulación"),
+}
+TEXTO_FIN_ERA_IMPOSTOR = "{nombre} era el impostor"
+CONTROLES_FIN_PARTIDA = [("Enter", "volver al menú")]
+CANTIDAD_CONFETI = 70
+
+# Publicación del botón SABOTEAR (Online/post_sabotaje.py): se dibuja con la
+# terminal tipo celular; arriba al centro, el aviso para la tripulación (el
+# impostor ve ahí su bloqueo) y al terminar, una tarjeta con cómo terminó.
+TEXTO_SUBTITULO_POST_SABOTAJE = "¡Alerta!  ·  Publicación viral"
+TEXTO_ALERTA_POST_SABOTAJE = "¡Publicación viral! Decidan rápido qué hacer"
+RECT_RESULTADO_POST_SABOTAJE = (340, 250, 600, 190)
+TEXTO_POST_FRENADO = "¡Sabotaje frenado!"
+TEXTO_POST_VIRAL = "El sabotaje funcionó"
+TEXTO_POST_ELIGIERON = "Eligieron: {opcion}"
+TEXTO_POST_SIN_TIEMPO = "Se acabó el tiempo: el rumor se volvió viral"
+TEXTO_POST_EFECTO_FRENADO = "La información verificada sube"
+TEXTO_POST_EFECTO_VIRAL = "Sube la desinformación y la barra de colapso"
+TEXTO_AVISO_FANTASMA = "Eres un fantasma: los demás no te ven"
 
 # ----------------------------------------------------------------------
 # Tipos de enemigo: todo lo visual de cada tipo, en un solo lugar. Las
@@ -1309,8 +1349,11 @@ AMPLITUD_MUSICA_SINTETIZADA = 0.07
 # reloj y el árbol N-ario. Nada importante cae bajo RECT_INDICADOR_SABOTAJE
 # (x 440-840, y 20-84) ni bajo la barra de controles (ALTO_BARRA_CONTROLES).
 # ----------------------------------------------------------------------
-RECT_CELULAR_PERFIL = (40, 14, 364, 638)
-RECT_CELULAR_FEED = (876, 14, 364, 638)
+RECT_CELULAR_PERFIL = (40, 14, 368, 638)
+# Fondo detrás de los celulares: morado oscuro de Civitas (la red social), no el azul de la ciudad.
+COLOR_FONDO_TERMINAL_CIVITAS = (24, 12, 46)
+COLOR_TRAMA_TERMINAL_CIVITAS = (44, 24, 80)
+RECT_CELULAR_FEED = (872, 14, 368, 638)
 RECT_CONSOLA_TERMINAL = (428, 96, 424, 552)  # columna central, debajo del indicador del impostor
 RADIO_CELULAR = 34  # esquinas del cuerpo
 GROSOR_MARCO_CELULAR = 4  # canto entre el borde del cuerpo y la pantalla
@@ -1358,7 +1401,7 @@ RECORTE_FOTO_POST = {  # (x, y, ancho, alto) dentro de la ilustración de 1280x7
 # fracción del alto)).
 HISTORIAS_CELULAR = (
     ("civitas", "civitas", (0.50, 0.48, 0.66)),
-    ("rosa", "rosa.beltran", (0.50, 0.15, 0.24)),
+    ("rosa", "rosa", (0.50, 0.15, 0.24)),
     ("periodista", "periodista", (0.45, 0.17, 0.30)),
     ("ciudadano", "ciudadano", (0.30, 0.18, 0.30)),
     ("influencer", "influencer", (0.32, 0.17, 0.30)),

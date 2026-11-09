@@ -6,8 +6,13 @@ DURACION_REUNION segundos para hablar por el chat y votar a quién cree que
 es el impostor, o saltar. Al acabarse el tiempo (o cuando ya votaron
 todos) solo cuentan los votos emitidos: quien no votó no le suma a nadie.
 Si alguien tiene más votos que cualquier otro y que los saltos, queda
-expulsado: ya no mueve la terminal de decisión, no vota ni convoca, y todos
-ven si era el impostor. Con el impostor descubierto ya no hay reuniones.
+expulsado: se vuelve un fantasma (src/core/equipo.py), ya no mueve la
+terminal de decisión, no vota ni convoca, y todos ven si era el impostor.
+
+Fin de la partida: si expulsan al impostor, gana la tripulación ("Civitas
+se ha salvado"). Con JUGADORES_MINIMOS_VICTORIA_IMPOSTOR o más jugadores,
+si expulsan inocentes hasta que quedan solo el impostor y uno más, gana el
+impostor. Con 2 jugadores eso no pasa: el juego sigue.
 
 El host lleva todo (autoritativo) y lo manda en el ESTADO (`a_dict`); cada
 invitado solo lo muestra (`vista_de_dict`) y le pide al host convocar,
@@ -18,7 +23,7 @@ con M <= MAX_MENSAJES_REUNION mensajes).
 from dataclasses import dataclass
 
 from src.core.balance import (
-    COOLDOWN_REUNION, DURACION_REUNION, DURACION_RESULTADO_REUNION,
+    COOLDOWN_REUNION, DURACION_REUNION, DURACION_RESULTADO_REUNION, JUGADORES_MINIMOS_VICTORIA_IMPOSTOR,
     MAX_LARGO_MENSAJE_REUNION, MAX_MENSAJES_REUNION,
 )
 
@@ -34,6 +39,10 @@ EXPULSADO = "expulsado"  # alguien tuvo más votos que nadie (y que los saltos)
 EMPATE = "empate"  # los más votados empataron (también con saltar)
 SALTADA = "saltada"  # ganó saltar
 SIN_VOTOS = "sin_votos"  # nadie votó
+
+# Quién ganó la partida Online por votación.
+GANA_TRIPULACION = "tripulacion"
+GANA_IMPOSTOR = "impostor"
 
 
 def contar_votos(votos):
@@ -124,11 +133,14 @@ class ControlReuniones:
         self.expulsados = set()
         self.impostor_descubierto = False
         self.numero = 0  # reuniones convocadas: el invitado nota cuándo empieza otra
+        self.fin = None  # GANA_TRIPULACION o GANA_IMPOSTOR: la partida terminó
+        self.impostor = None  # índice del impostor, que se revela al terminar
 
     @property
     def en_curso(self):
-        """Hay reunión o se está mostrando su resultado: el mundo espera."""
-        return self.reunion is not None or self.resultado_restante > 0.0
+        """Hay reunión, se está mostrando su resultado o terminó la partida:
+        el mundo espera."""
+        return self.fin is not None or self.reunion is not None or self.resultado_restante > 0.0
 
     def puede_convocar(self, indice, activos):
         """`activos`: índices de los jugadores conectados."""
@@ -155,23 +167,32 @@ class ControlReuniones:
         if self.reunion is not None:
             self.reunion.olvidar(indice)
 
-    def actualizar(self, dt, es_impostor=lambda indice: False):
-        """El reloj de la reunión, el del resultado o el del botón (uno a la vez)."""
+    def actualizar(self, dt, es_impostor=lambda indice: False, total=0):
+        """El reloj de la reunión, el del resultado o el del botón (uno a la
+        vez). `total`: jugadores de la partida (para saber si gana el impostor)."""
+        if self.fin is not None:
+            return  # la partida terminó: nada más corre
         if self.reunion is not None:
             self.reunion.actualizar(dt)
             if self.reunion.terminada:
-                self._cerrar(es_impostor)
+                self._cerrar(es_impostor, total)
         elif self.resultado_restante > 0.0:
             self.resultado_restante = max(0.0, self.resultado_restante - dt)
         else:
             self.recarga_restante = max(0.0, self.recarga_restante - dt)
 
-    def _cerrar(self, es_impostor):
+    def _cerrar(self, es_impostor, total=0):
         expulsado, motivo, _ = self.reunion.resultado()
         era_impostor = expulsado is not None and bool(es_impostor(expulsado))
+        impostor = next((i for i in self.reunion.candidatos if es_impostor(i)), None)
         if expulsado is not None:
             self.expulsados.add(expulsado)
             self.impostor_descubierto = self.impostor_descubierto or era_impostor
+        if era_impostor:
+            self.fin, self.impostor = GANA_TRIPULACION, expulsado
+        elif (expulsado is not None and impostor is not None and total >= JUGADORES_MINIMOS_VICTORIA_IMPOSTOR
+              and total - len(self.expulsados) <= 2):
+            self.fin, self.impostor = GANA_IMPOSTOR, impostor  # quedan él y uno más
         self.resultado = {"exp": expulsado, "mot": motivo, "imp": era_impostor,
                           "votos": sorted([votante, objetivo] for votante, objetivo in self.reunion.votos.items())}
         self.reunion = None
@@ -188,6 +209,11 @@ class ControlReuniones:
                             "cand": list(r.candidatos), "vot": sorted(r.votos), "chat": [list(m) for m in r.chat]}
         elif self.resultado is not None and self.resultado_restante > 0.0:
             datos["res"] = dict(self.resultado, tr=round(self.resultado_restante, 2))
+        if self.fin is not None:
+            datos["fin"] = self.fin
+            datos["impostor"] = self.impostor
+            if self.resultado is not None:
+                datos["res"] = dict(self.resultado, tr=0)  # los votos, para la pantalla final
         return datos
 
 
@@ -211,14 +237,16 @@ class VistaReunion:
     era_impostor: bool = False
     votos: tuple = ()  # ((votante, objetivo), ...) revelados al final
     resultado_restante: float = 0.0
+    fin: str | None = None  # GANA_TRIPULACION o GANA_IMPOSTOR
+    impostor: int | None = None  # quién era (se revela al terminar)
 
     @property
     def mostrando_resultado(self):
-        return self.motivo is not None and self.resultado_restante > 0.0
+        return self.motivo is not None and self.resultado_restante > 0.0 and self.fin is None
 
     @property
     def en_curso(self):
-        return self.activa or self.mostrando_resultado
+        return self.fin is not None or self.activa or self.mostrando_resultado
 
 
 def _numero(valor, por_defecto=0.0):
@@ -264,6 +292,8 @@ def vista_de_dict(datos):
                       duracion=_numero(reunion.get("dur"), DURACION_REUNION) or DURACION_REUNION,
                       convocante=_indice(reunion.get("conv")), candidatos=_indices(reunion.get("cand")),
                       votaron=_indices(reunion.get("vot")), chat=tuple(chat[-MAX_MENSAJES_REUNION:]))
+    if datos.get("fin") in (GANA_TRIPULACION, GANA_IMPOSTOR):
+        campos.update(fin=datos["fin"], impostor=_indice(datos.get("impostor")))
     resultado = datos.get("res")
     if isinstance(resultado, dict) and resultado.get("mot") in (EXPULSADO, EMPATE, SALTADA, SIN_VOTOS):
         votos = []

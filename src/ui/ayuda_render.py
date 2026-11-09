@@ -16,7 +16,7 @@ SECCIONES = [
         "Ciudad Nova elige alcalde y la red Civitas se llena de rumores firmados por NOVA_404.",
         "Entra a cada edificio, limpia sus cuartos (cada cuarto limpio revela una prueba) y decide",
         "qué hacer con la publicación de esa zona. Verificar antes de compartir y reportar con pruebas",
-        "purifica la zona; compartir sin contexto o reportar en masa la detona.",
+        "purifica la zona; compartir sin contexto, darle me gusta o reportar en masa la detona.",
     ]),
     ("Cómo ganar", [
         "Purifica al menos una zona para abrir la Alcaldía y derrota al Servidor Central (3 fases, 180 s).",

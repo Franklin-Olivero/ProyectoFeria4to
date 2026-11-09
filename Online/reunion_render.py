@@ -6,6 +6,10 @@
   puso en los vestidores), el botón Saltar, el chat y el reloj. Durante la
   votación solo se ve QUIÉN votó; a quién, recién en el resultado.
 - El resultado: a quién expulsaron y si era el impostor, y quién votó a quién.
+- El fin de la partida: "¡Felicidades! Has descubierto al impostor" o "El
+  impostor ha ganado", con el impostor a la vista.
+- El botón SABOTEAR del impostor y los avisos de su publicación viral
+  (la publicación misma se dibuja con la terminal tipo celular).
 
 La regla está en Online/reunion.py y las constantes en src/core/assets.py.
 """
@@ -14,7 +18,8 @@ import math
 
 import pygame
 
-from Online.reunion import EXPULSADO, SALTAR
+from Online.reunion import EXPULSADO, GANA_TRIPULACION, SALTAR
+from src.ui.terminal_decision import PURIFICACION_EXITOSA
 from src.core import assets
 from src.core.balance import DURACION_RESULTADO_REUNION
 from src.ui import dibujo, kit, layout, sprites
@@ -65,8 +70,12 @@ def objetivo_en(posicion, candidatos):
     return None
 
 
-def en_boton_reportar(posicion):
-    return pygame.Rect(assets.RECT_BOTON_REPORTAR).collidepoint(posicion)
+def en_boton_reportar(posicion, rect=None):
+    return pygame.Rect(rect or assets.RECT_BOTON_REPORTAR).collidepoint(posicion)
+
+
+def en_boton_sabotear(posicion):
+    return pygame.Rect(assets.RECT_BOTON_SABOTEAR).collidepoint(posicion)
 
 
 def opciones_de_voto(vista):
@@ -93,36 +102,68 @@ def _megafono(pantalla, centro, tamanio, color):
         pygame.draw.arc(pantalla, color, caja, -0.7, 0.7, 2)
 
 
-def dibujar_boton_reportar(pantalla, recarga, total, tiempo=0.0):
-    """Listo (recarga <= 0): rojo, con pulso. Si no, apagado con los segundos."""
-    rect = pygame.Rect(assets.RECT_BOTON_REPORTAR)
+def _rayo(pantalla, centro, tamanio, color):
+    """Rayo con primitivas: el sabotaje."""
+    x, y = centro
+    t = tamanio
+    pygame.draw.polygon(pantalla, color, [(x + t * 0.12, y - t * 0.55), (x - t * 0.32, y + t * 0.06),
+                                          (x - t * 0.02, y + t * 0.06), (x - t * 0.14, y + t * 0.55),
+                                          (x + t * 0.32, y - t * 0.08), (x + t * 0.02, y - t * 0.08)])
+
+
+def _dibujar_boton(pantalla, rect, texto, tecla, color, icono, recarga, total, tiempo):
+    """Listo (recarga <= 0): de su color, con pulso. Si no, apagado y con los
+    segundos que faltan. Bajo (< ALTO_MINIMO_BOTON_GRANDE): en una sola fila."""
+    rect = pygame.Rect(rect)
     listo = recarga <= 0.0
+    grande = rect.height >= assets.ALTO_MINIMO_BOTON_GRANDE
     if listo:
         pulso = 0.5 + 0.5 * math.sin(tiempo * 4.0)
         halo = rect.inflate(round(6 + 4 * pulso), round(6 + 4 * pulso))
-        dibujo.panel_alfa(pantalla, halo, (*assets.COLOR_REPORTAR, round(60 + 60 * pulso)), radio=16)
-        dibujo.panel(pantalla, rect, assets.COLOR_REPORTAR, assets.COLOR_TEXTO_HUD, 2, radio=14)
-        _megafono(pantalla, (rect.centerx, rect.top + 34), 36, assets.COLOR_TEXTO_HUD)
-        layout.texto_en_ancho(pantalla, assets.TEXTO_BOTON_REPORTAR, (rect.centerx, rect.bottom - 18), rect.width - 10,
-                              assets.COLOR_TEXTO_HUD, assets.TAMANIO_FUENTE_NORMAL, negrita=True, ancla="center", minimo=10)
+        dibujo.panel_alfa(pantalla, halo, (*color, round(60 + 60 * pulso)), radio=16)
+        dibujo.panel(pantalla, rect, color, assets.COLOR_TEXTO_HUD, 2, radio=14 if grande else 10)
+        tinta, tinta_texto = assets.COLOR_TEXTO_HUD, assets.COLOR_TEXTO_HUD
     else:
-        dibujo.panel(pantalla, rect, assets.COLOR_FONDO_PANEL, assets.COLOR_REPORTAR_APAGADO, 2, radio=14)
+        dibujo.panel(pantalla, rect, assets.COLOR_FONDO_PANEL, assets.COLOR_REPORTAR_APAGADO, 2, radio=14 if grande else 10)
         lleno = 1.0 - recarga / total if total > 0 else 1.0
         relleno = pygame.Rect(rect.left + 2, rect.bottom - 2 - round((rect.height - 4) * lleno), rect.width - 4,
                               round((rect.height - 4) * lleno))
         if relleno.height > 0:
-            dibujo.panel_alfa(pantalla, relleno, (*assets.COLOR_REPORTAR_APAGADO, 110), radio=12)
-        _megafono(pantalla, (rect.centerx, rect.top + 30), 30, assets.COLOR_REPORTAR_APAGADO)
-        dibujo.texto(pantalla, f"{math.ceil(recarga)} s", (rect.centerx, rect.bottom - 30), assets.COLOR_TEXTO_SECUNDARIO,
-                     assets.TAMANIO_FUENTE_MEDIA, negrita=True, ancla="center")
-        layout.texto_en_ancho(pantalla, assets.TEXTO_BOTON_REPORTAR, (rect.centerx, rect.bottom - 11), rect.width - 10,
-                              assets.COLOR_TEXTO_APAGADO, assets.TAMANIO_FUENTE_PEQUENA, negrita=True, ancla="center", minimo=9)
-    dibujo.chip(pantalla, "R", (rect.right - 6, rect.top + 6), ancla="topright")
+            dibujo.panel_alfa(pantalla, relleno, (*assets.COLOR_REPORTAR_APAGADO, 110), radio=12 if grande else 8)
+        tinta, tinta_texto = assets.COLOR_REPORTAR_APAGADO, assets.COLOR_TEXTO_APAGADO
+    if grande:
+        icono(pantalla, (rect.centerx, rect.top + (34 if listo else 30)), 36 if listo else 30, tinta)
+        if not listo:
+            dibujo.texto(pantalla, f"{math.ceil(recarga)} s", (rect.centerx, rect.bottom - 30), assets.COLOR_TEXTO_SECUNDARIO,
+                         assets.TAMANIO_FUENTE_MEDIA, negrita=True, ancla="center")
+        layout.texto_en_ancho(pantalla, texto, (rect.centerx, rect.bottom - (18 if listo else 11)), rect.width - 10,
+                              tinta_texto, assets.TAMANIO_FUENTE_NORMAL if listo else assets.TAMANIO_FUENTE_PEQUENA,
+                              negrita=True, ancla="center", minimo=9)
+        dibujo.chip(pantalla, tecla, (rect.right - 6, rect.top + 6), ancla="topright")
+        return
+    # Compacto (en la barra de controles de la terminal): tecla, ícono, texto y segundos.
+    chip = dibujo.chip(pantalla, tecla, (rect.left + 8, rect.centery), ancla="midleft")
+    icono(pantalla, (chip.right + 24, rect.centery), 22, tinta)  # ocupa de x-16 a x+22
+    etiqueta = texto if listo else f"{texto}  {math.ceil(recarga)} s"
+    layout.texto_en_ancho(pantalla, etiqueta, (chip.right + 52, rect.centery), rect.right - chip.right - 58, tinta_texto,
+                          assets.TAMANIO_FUENTE_NORMAL, negrita=True, ancla="midleft", minimo=9)
 
 
-def dibujar_aviso_red(pantalla, texto, color):
-    """Chip sobre el botón: "Expulsado" o "Impostor descubierto"."""
-    rect = pygame.Rect(assets.RECT_BOTON_REPORTAR)
+def dibujar_boton_reportar(pantalla, recarga, total, tiempo=0.0, rect=None):
+    """REPORTAR: rojo cuando está listo (R o clic)."""
+    _dibujar_boton(pantalla, rect or assets.RECT_BOTON_REPORTAR, assets.TEXTO_BOTON_REPORTAR, "R", assets.COLOR_REPORTAR,
+                   _megafono, recarga, total, tiempo)
+
+
+def dibujar_boton_sabotear(pantalla, recarga, total, tiempo=0.0):
+    """SABOTEAR: solo el impostor lo ve (Q o clic)."""
+    _dibujar_boton(pantalla, assets.RECT_BOTON_SABOTEAR, assets.TEXTO_BOTON_SABOTEAR, "Q", assets.COLOR_SABOTEAR,
+                   _rayo, recarga, total, tiempo)
+
+
+def dibujar_aviso_red(pantalla, texto, color, rect=None):
+    """Chip en lugar del botón: "Expulsado" o "Impostor descubierto"."""
+    rect = pygame.Rect(rect or assets.RECT_BOTON_REPORTAR)
     dibujo.chip(pantalla, texto, (rect.right, rect.bottom), color, assets.COLOR_FONDO_PANEL, color,
                 assets.TAMANIO_FUENTE_PEQUENA, ancla="bottomright", alto=30, margen=10)
 
@@ -145,7 +186,7 @@ def _reloj(pantalla, vista, panel_rect):
 
 def _tarjeta(pantalla, rect, indice, jugadores, vista, indice_local, enfocada, armada, mi_voto, tiempo):
     votó = indice in vista.votaron
-    fondo = assets.COLOR_OPCION_FONDO
+    fondo = assets.COLOR_FONDO_TARJETA_REUNION
     borde = assets.COLOR_BORDE_VIDRIO
     if armada:
         borde = assets.COLOR_REPORTAR
@@ -157,7 +198,7 @@ def _tarjeta(pantalla, rect, indice, jugadores, vista, indice_local, enfocada, a
         dibujo.panel_alfa(pantalla, rect.inflate(6, 6), (*assets.COLOR_CIVITAS, round(30 + 40 * pulso)), radio=12)
     avatar = _avatar(indice, jugadores, assets.ESCALA_AVATAR_REUNION)
     zona_avatar = pygame.Rect(rect.left + 12, rect.top + 12, min(rect.height - 24, 120), rect.height - 24)
-    pygame.draw.rect(pantalla, assets.COLOR_FONDO, zona_avatar, border_radius=8)
+    pygame.draw.rect(pantalla, assets.COLOR_FONDO_AVATAR_REUNION, zona_avatar, border_radius=8)
     if avatar is not None:
         if avatar.get_height() > zona_avatar.height - 8:
             factor = (zona_avatar.height - 8) / avatar.get_height()
@@ -185,7 +226,7 @@ def _tarjeta(pantalla, rect, indice, jugadores, vista, indice_local, enfocada, a
 def _boton_saltar(pantalla, enfocado, armado, mi_voto, cuantos):
     rect = pygame.Rect(assets.RECT_SALTAR_REUNION)
     borde = assets.COLOR_REPORTAR if armado else assets.COLOR_CIVITAS if enfocado else assets.COLOR_BORDE_VIDRIO
-    dibujo.panel(pantalla, rect, assets.COLOR_OPCION_FONDO, borde, 3 if (enfocado or armado) else 1, radio=10)
+    dibujo.panel(pantalla, rect, assets.COLOR_FONDO_TARJETA_REUNION, borde, 3 if (enfocado or armado) else 1, radio=10)
     texto = assets.TEXTO_SALTAR_REUNION + ("  ·  Enter o clic otra vez" if armado else "")
     if mi_voto == SALTAR:
         texto = "Saltaste la votación"
@@ -324,3 +365,102 @@ def dibujar_resultado_reunion(pantalla, vista, jugadores, tiempo=0.0):
         y += 24
     barra = pygame.Rect(panel_rect.centerx - 160, panel_rect.bottom - 28, 320, 4)
     dibujo.barra(pantalla, barra, vista.resultado_restante / DURACION_RESULTADO_REUNION, acento, assets.COLOR_FONDO_BARRA, None)
+
+
+# ----------------------------------------------------------------------
+# Fin de la partida
+# ----------------------------------------------------------------------
+
+_CONFETI = [((numero * 97) % 1280, (numero * 53) % 720, 40 + (numero * 31) % 70, numero % 4) for numero in
+            range(assets.CANTIDAD_CONFETI)]
+
+
+def _confeti(pantalla, tiempo):
+    """Papelitos que caen (posiciones fijas que se desplazan con el tiempo)."""
+    colores = (assets.COLOR_VERIFICADO, assets.COLOR_CIVITAS, assets.COLOR_ALERTA, assets.COLOR_TRIPULANTE)
+    alto = pantalla.get_height()
+    for x, y, velocidad, color in _CONFETI:
+        cae = (y + tiempo * velocidad) % alto
+        vaiven = math.sin(tiempo * 2.0 + x) * 8
+        pygame.draw.rect(pantalla, colores[color], (round(x + vaiven), round(cae), 6, 10), border_radius=2)
+
+
+def textos_fin(fin, es_impostor_local):
+    """(título, subtítulo, remate) de la pantalla final para esta PC."""
+    return assets.TEXTOS_FIN_PARTIDA[(fin, bool(es_impostor_local))]
+
+
+def dibujar_fin_partida(pantalla, vista, jugadores, indice_local, tiempo=0.0):
+    """Pantalla final: ganó la tripulación (confeti) o el impostor (rojo), con
+    el impostor a la vista. Los textos dependen de si esta PC es la del impostor."""
+    gana_tripulacion = vista.fin == GANA_TRIPULACION
+    acento = assets.COLOR_VERIFICADO if gana_tripulacion else assets.COLOR_IMPOSTOR
+    kit.velo(pantalla, 235)
+    if gana_tripulacion:
+        _confeti(pantalla, tiempo)
+    titulo, subtitulo, remate = textos_fin(vista.fin, indice_local == vista.impostor)
+    centro_x = pantalla.get_width() // 2
+    layout.texto_en_ancho(pantalla, titulo, (centro_x, 70), pantalla.get_width() - 120, acento,
+                          assets.TAMANIO_FUENTE_ENORME, negrita=True, ancla="midtop")
+    layout.texto_en_ancho(pantalla, subtitulo, (centro_x, 140), pantalla.get_width() - 160, assets.COLOR_TEXTO_HUD,
+                          assets.TAMANIO_FUENTE_TITULO, negrita=True, ancla="midtop")
+    if vista.impostor is not None:
+        avatar = _avatar(vista.impostor, jugadores, assets.ESCALA_AVATAR_RESULTADO_REUNION)
+        centro = (centro_x, 300 + round(math.sin(tiempo * 2.0) * 5))
+        pulso = 0.5 + 0.5 * math.sin(tiempo * 3.0)
+        halo = pygame.Rect(0, 0, 200, 200)
+        halo.center = centro
+        dibujo.panel_alfa(pantalla, halo, (*assets.COLOR_IMPOSTOR, round(40 + 50 * pulso)), radio=100)
+        if avatar is not None:
+            sprites.dibujar_centrado(pantalla, avatar, centro)
+        dibujo.texto(pantalla, assets.TEXTO_FIN_ERA_IMPOSTOR.format(nombre=nombre_jugador(vista.impostor, jugadores)),
+                     (centro_x, 418), assets.COLOR_IMPOSTOR, assets.TAMANIO_FUENTE_MEDIA, negrita=True, ancla="midtop")
+    layout.texto_en_ancho(pantalla, remate, (centro_x, 470), pantalla.get_width() - 160, assets.COLOR_CIVITAS if
+                          gana_tripulacion else assets.COLOR_TEXTO_SECUNDARIO, assets.TAMANIO_FUENTE_GRANDE,
+                          negrita=True, ancla="midtop")
+    y = 540
+    for fila in _texto_votos(vista, jugadores)[:3]:
+        dibujo.texto(pantalla, fila, (centro_x, y), assets.COLOR_TEXTO_SECUNDARIO, assets.TAMANIO_FUENTE_PEQUENA,
+                     ancla="midtop")
+        y += 20
+    # "Enter: volver al menú" va en la barra de controles (Main), cuando ya se puede salir.
+
+
+# ----------------------------------------------------------------------
+# Publicación del botón SABOTEAR
+# ----------------------------------------------------------------------
+
+def dibujar_alerta_post(pantalla, tiempo=0.0):
+    """Arriba al centro, para la tripulación (el impostor ve ahí su bloqueo)."""
+    rect = pygame.Rect(assets.RECT_INDICADOR_SABOTAJE)
+    kit.panel(pantalla, rect, assets.COLOR_REPORTAR)
+    if int(tiempo * 3) % 2 == 0:
+        pygame.draw.rect(pantalla, assets.COLOR_REPORTAR, rect, 2, border_radius=10)
+    kit.rotulo(pantalla, "Alerta", (rect.left + 16, rect.top + 8), assets.COLOR_REPORTAR)
+    layout.texto_en_ancho(pantalla, assets.TEXTO_ALERTA_POST_SABOTAJE, (rect.left + 16, rect.top + 28), rect.width - 32,
+                          assets.COLOR_TEXTO_HUD, assets.TAMANIO_FUENTE_NORMAL, negrita=True, minimo=10)
+
+
+def textos_resultado_post(vista):
+    """(título, detalle, efecto) de cómo terminó la publicación del sabotaje."""
+    frenado = vista.resultado == PURIFICACION_EXITOSA
+    titulo = assets.TEXTO_POST_FRENADO if frenado else assets.TEXTO_POST_VIRAL
+    detalle = assets.TEXTO_POST_ELIGIERON.format(opcion=vista.opcion) if vista.opcion else assets.TEXTO_POST_SIN_TIEMPO
+    efecto = assets.TEXTO_POST_EFECTO_FRENADO if frenado else assets.TEXTO_POST_EFECTO_VIRAL
+    return titulo, detalle, efecto
+
+
+def dibujar_resultado_post(pantalla, vista):
+    """Tarjeta con cómo terminó la publicación: frenada (cian) o viral (rojo)."""
+    frenado = vista.resultado == PURIFICACION_EXITOSA
+    acento = assets.COLOR_VERIFICADO if frenado else assets.COLOR_REPORTAR
+    kit.velo(pantalla, 150)
+    rect = pygame.Rect(assets.RECT_RESULTADO_POST_SABOTAJE)
+    kit.panel(pantalla, rect, acento)
+    titulo, detalle, efecto = textos_resultado_post(vista)
+    layout.texto_en_ancho(pantalla, titulo, (rect.centerx, rect.top + 26), rect.width - 40, acento,
+                          assets.TAMANIO_FUENTE_GRANDE, negrita=True, ancla="midtop")
+    layout.texto_en_ancho(pantalla, detalle, (rect.centerx, rect.top + 84), rect.width - 40, assets.COLOR_TEXTO_HUD,
+                          assets.TAMANIO_FUENTE_MEDIA, negrita=True, ancla="midtop")
+    layout.texto_en_ancho(pantalla, efecto, (rect.centerx, rect.top + 124), rect.width - 40, assets.COLOR_TEXTO_SECUNDARIO,
+                          assets.TAMANIO_FUENTE_NORMAL, ancla="midtop")

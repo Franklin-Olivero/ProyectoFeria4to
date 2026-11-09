@@ -527,6 +527,19 @@ DURACION_REUNION = 60.0  # s
 DURACION_RESULTADO_REUNION = 6.0  # s que todos ven a quién expulsaron
 MAX_MENSAJES_REUNION = 14  # mensajes del chat que guarda el host (y manda en el ESTADO)
 MAX_LARGO_MENSAJE_REUNION = 80  # caracteres por mensaje
+# Fin de la partida Online por votación: expulsar al impostor la gana la
+# tripulación; con al menos estos jugadores, si expulsan inocentes hasta que
+# quedan solo el impostor y uno más, gana el impostor (con 2 jugadores no).
+JUGADORES_MINIMOS_VICTORIA_IMPOSTOR = 3
+# Modo Online: botón SABOTEAR del impostor (Online/post_sabotaje.py). A todos
+# les salta una publicación falsa y tienen poco tiempo para frenarla
+# (Verificar o Reportar); el impostor puede elegir recién tras su bloqueo.
+COOLDOWN_POST_SABOTAJE = 75.0  # s entre sabotajes (también al empezar la partida)
+DURACION_POST_SABOTAJE = 20.0  # s para elegir
+BLOQUEO_POST_SABOTAJE = 5.0  # s en que el impostor todavía no puede elegir
+DURACION_RESULTADO_POST_SABOTAJE = 4.0  # s que todos ven cómo terminó
+EFECTOS_POST_SABOTAJE_VIRAL = {"desinformacion": 6, "confianza": -3}  # y la barra de colapso, como una incursión fallida
+EFECTOS_POST_SABOTAJE_FRENADO = {"informacion_verificada": 2, "desinformacion": -2}
 # Evidencia por zona: con esta fracción de las pruebas reveladas el
 # estado pasa de "sin pruebas" a "parcial"; con todas, a "verificado" o
 # "desmentido" según el veredicto real de la publicación.

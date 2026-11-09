@@ -92,7 +92,10 @@ partida va sin semilla y los tests le pasan una.
   sortea un impostor entre los vértices del grafo de sala y cada PC revela su rol. El impostor
   sabotea la terminal de decisión: al abrirse queda bloqueado entre 10 y 15 s (lo sortea el
   host), así el resto tiene ese tiempo para elegir la respuesta correcta; después elige normal.
-  No hay tareas ni votación.
+  También tiene un botón SABOTEAR: a todos les salta una publicación viral con 20 s para frenarla.
+  Cualquiera puede apretar REPORTAR (cada 60 s): reunión de 60 s con chat y votación (solo cuentan
+  los votos emitidos). El expulsado queda como fantasma; si expulsan al impostor gana la
+  tripulación, y con 3 o más jugadores, si solo quedan él y uno más, gana el impostor.
 - Detalle: `docs/SISTEMA_REPUTACION.md`, `docs/SISTEMA_REDENCION.md`.
 
 ## Cliente-servidor (Online)

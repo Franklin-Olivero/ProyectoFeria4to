@@ -1530,5 +1530,63 @@
     "recuperacion": "Una segunda oportunidad no significa que el pasado haya desaparecido. Significa que has decidido actuar de otra manera.",
     "mensaje_recuperacion": "Reconociste tu error, corregiste lo que difundiste y ayudaste a quien resultó afectado. La ciudad empieza a escucharte otra vez.",
     "mensaje_rechazo": "Te negaste a reparar el daño. NOVA_404 usa tus publicaciones como ejemplo de lo fácil que es manipular a una comunidad."
-  }
+  },
+  "sabotajes": [
+    {
+      "usuario": "@AlertaNovaYa",
+      "hace": "hace 1 min",
+      "texto": "ÚLTIMA HORA: cortan el agua en toda Ciudad Nova por 3 días desde esta noche. Llenen todo lo que puedan. ¡Reenvíen YA!",
+      "imagen": "[captura de un aviso sin logo ni fecha]",
+      "etiqueta": "Sin fuente oficial",
+      "compartidos": "6.2 mil compartidos",
+      "comentarios": "1.8 mil comentarios",
+      "fuente": {
+        "tipo": "desconocida",
+        "detalle": "Cuenta creada ayer. Es su primera publicación."
+      },
+      "zona": "Hospital"
+    },
+    {
+      "usuario": "@VotoLimpioNova",
+      "hace": "hace 2 min",
+      "texto": "Cambiaron los puestos de votación de TODOS los barrios del sur. Pongan su cédula en este formulario para saber el nuevo.",
+      "imagen": "[captura de un formulario que pide la cédula]",
+      "etiqueta": "Enlace sospechoso",
+      "compartidos": "4.7 mil compartidos",
+      "comentarios": "950 comentarios",
+      "fuente": {
+        "tipo": "desconocida",
+        "detalle": "Perfil sin foto que copia el logo de la Registraduría."
+      },
+      "zona": "Empresa de Medios"
+    },
+    {
+      "usuario": "@ProfeAnonimoNova",
+      "hace": "hace 3 min",
+      "texto": "Confirmado: suspenden las clases toda la semana por una plaga en los colegios. ¡Compartan para que nadie mande a sus hijos!",
+      "imagen": "[foto de otra ciudad, de hace años]",
+      "etiqueta": "Imagen fuera de contexto",
+      "compartidos": "9.3 mil compartidos",
+      "comentarios": "3.0 mil comentarios",
+      "fuente": {
+        "tipo": "desconocida",
+        "detalle": "No dice qué colegio ni quién lo confirmó."
+      },
+      "zona": "Colegio"
+    },
+    {
+      "usuario": "@NovaVerdad404",
+      "hace": "hace 1 min",
+      "texto": "El Hospital de Ciudad Nova dejó de atender urgencias desde hoy. Si se enferman, váyanse a otra ciudad.",
+      "imagen": "[audio reenviado muchas veces]",
+      "etiqueta": "Reenviado muchas veces",
+      "compartidos": "11.4 mil compartidos",
+      "comentarios": "4.1 mil comentarios",
+      "fuente": {
+        "tipo": "desconocida",
+        "detalle": "La cuenta pegó el mismo texto en 40 grupos al mismo minuto."
+      },
+      "zona": "Hospital"
+    }
+  ]
 }

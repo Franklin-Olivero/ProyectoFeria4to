@@ -94,6 +94,7 @@ def validar(datos):
     for nivel in NIVELES:
         if not datos["reacciones"].get(nivel):
             raise ContenidoInvalido(f"reacciones: falta el nivel {nivel!r}.")
+    _validar_sabotajes(datos.get("sabotajes", []), datos["escenarios"])
     for clave in CLAVES_FINALES:
         final = datos["finales"].get(clave)
         if not isinstance(final, dict) or "titulo" not in final or "texto" not in final:
@@ -262,3 +263,19 @@ def _validar_candidatos(candidatos):
                 raise ContenidoInvalido(f"candidatos[{candidato.get('id')}]: falta {clave!r}.")
         if candidato["afin"] not in INDICADORES:
             raise ContenidoInvalido(f"candidatos[{candidato['id']}]: indicador afín desconocido.")
+
+
+def _validar_sabotajes(sabotajes, escenarios):
+    """Publicaciones del botón SABOTEAR del modo Online (Online/post_sabotaje.py):
+    las mismas claves que el post de un escenario; "zona" (opcional) elige
+    la ilustración de la foto."""
+    if not isinstance(sabotajes, list):
+        raise ContenidoInvalido("'sabotajes' debe ser una lista.")
+    for numero, post in enumerate(sabotajes):
+        if not isinstance(post, dict):
+            raise ContenidoInvalido(f"sabotajes[{numero}] debe ser un objeto.")
+        for clave in CLAVES_POST:
+            if not isinstance(post.get(clave), str) or not post[clave]:
+                raise ContenidoInvalido(f"sabotajes[{numero}] necesita {clave!r}.")
+        if "zona" in post and post["zona"] not in escenarios:
+            raise ContenidoInvalido(f"sabotajes[{numero}]: la zona {post['zona']!r} no tiene escenario.")

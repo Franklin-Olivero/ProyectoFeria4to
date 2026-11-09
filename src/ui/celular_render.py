@@ -258,14 +258,13 @@ def dibujar_icono(pantalla, nombre, centro, tamanio, color, grosor=2):
         for dy in (-0.26, 0.0, 0.26):
             pygame.draw.line(pantalla, color, _p(c, s, -0.36, dy), _p(c, s, 0.36, dy), g)
     elif nombre == "candado":
-        cuerpo = pygame.Rect(0, 0, round(s * 0.64), round(s * 0.46))
-        cuerpo.midtop = _p(c, s, 0, -0.04)
-        pygame.draw.rect(pantalla, color, cuerpo, g, border_radius=3)
-        arco = pygame.Rect(0, 0, round(s * 0.40), round(s * 0.52))
-        arco.midtop = _p(c, s, 0, -0.40)
-        pygame.draw.arc(pantalla, color, arco, 0, math.pi, g)
-        pygame.draw.line(pantalla, color, (arco.left, arco.centery), (arco.left, cuerpo.top), g)
-        pygame.draw.line(pantalla, color, (arco.right - 1, arco.centery), (arco.right - 1, cuerpo.top), g)
+        # Arco arriba y cuerpo macizo: se lee como candado aun a 16 px.
+        arco = pygame.Rect(0, 0, round(s * 0.50), round(s * 0.56))
+        arco.midtop = _p(c, s, 0, -0.44)
+        pygame.draw.rect(pantalla, color, arco, g, border_radius=round(s * 0.25))
+        cuerpo = pygame.Rect(0, 0, round(s * 0.76), round(s * 0.52))
+        cuerpo.midtop = _p(c, s, 0, -0.06)
+        pygame.draw.rect(pantalla, color, cuerpo, border_radius=2)
     elif nombre == "alerta":
         pygame.draw.polygon(pantalla, color, _puntos(c, s, ((0.0, -0.40), (0.42, 0.36), (-0.42, 0.36))), g)
         pygame.draw.line(pantalla, color, _p(c, s, 0, -0.14), _p(c, s, 0, 0.10), g)

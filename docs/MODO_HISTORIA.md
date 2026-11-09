@@ -40,7 +40,7 @@ automático dura unos 100 s.
 | Ciudad Nova | Caminar, ruta sugerida, mapa, **I** estado de la ciudad, **H** ayuda. Cintillo con eventos. | WASD · E · G · TAB · M · I · H |
 | Entrar a una zona | **Intro del capítulo** (una vez por zona). El Periodista recibe una prueba al entrar. | Enter / Esc |
 | Mazmorra | Combate de siempre, en un escenario propio del lugar. **Cada cuarto limpio deja una prueba en el suelo: hay que recogerla.** La 3.ª de cada zona es una **pista de NOVA_404**. | combate normal |
-| Cuarto final | **Terminal de decisión** (45 s): publicación, fuente, pruebas reunidas y Verificar / Me gusta / Compartir / Reportar / Ignorar, con 2.º nivel en Verificar y Reportar. Nada delata la respuesta. | ← → · Enter |
+| Cuarto final | **Terminal de decisión** (45 s) con forma de **celular** (la app Civitas): a la izquierda el perfil de quien publicó, con las pruebas como capturas; al centro el reloj y el árbol; a la derecha el post con la fila de botones Verificar / Me gusta / Compartir / Reportar / Ignorar. El 2.º nivel de Verificar y Reportar sale como hoja inferior del celular. Nada delata la respuesta. | ← → · Enter |
 | Resultado | **Indicador de reputación** animado, consecuencia, pruebas con las que decidiste, puntos y cómo cambió Ciudad Nova. | Enter |
 | Las 3 zonas | Pantalla **«Así viajó la publicación»**: BFS animado sobre el grafo social, saltos, cadena de contagio, rastreo DFS y alcance de la corrección. | Enter |
 | Empresa de Medios | **El origen de la señal**: rastreo por DFS en un grafo de cuentas, con pila y regreso, hasta señalar el origen. | ← → · Enter |
@@ -130,7 +130,7 @@ por éxito · Periodista: 1 evidencia al entrar · Candidato: penalización repu
 | `src/dungeon/partida.py` | `campania`, `fabrica_arbol(zona)`, `cerrar_mazmorra(..., terminal=None)`, titulares con eventos, reinicio completo. |
 | `src/dungeon/cuarto.py`, `mazmorra_jugable.py` | `fabrica_arbol` y `duracion_terminal` opcionales (por defecto, el árbol fijo de siempre). |
 | `Online/sesion_red.py` | El invitado arma la mazmorra con la misma fábrica (mismos ids de nodo). |
-| `src/ui/terminal_decision_render.py` | Tarjeta con datos del escenario, sello de evidencia, lista de pruebas, raíz ancha y texto en 3 líneas. |
+| `src/ui/terminal_decision_render.py`, `src/ui/celular_render.py` | La terminal como dos celulares (perfil con las pruebas como capturas y feed con el post y sus botones) y una consola central con el reloj y el árbol. Los iconos y el marco del celular se dibujan con primitivas; la foto del post reutiliza la ilustración del capítulo. Sin assets nuevos. |
 | `src/ui/pantalla_resultado.py` | `ResultadoMazmorra(consecuencia, deltas)`; paneles «Tu decisión» y «Así cambió Ciudad Nova». |
 | `src/core/preferencias.py`, `src/ui/ajustes*.py`, `src/ui/filtro_color.py` | Preferencia **ALTO CONTRASTE** (toda la imagen). |
 | `Main.py` | Overlays: diálogo (pausa el mundo), tarjeta de evidencia, panel I, ayuda H, propagación, investigación, elecciones. Sin tocar combate ni jefe. |

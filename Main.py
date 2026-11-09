@@ -59,7 +59,10 @@ from src.core.equipo import jugadores_en_combate, registrar_kill_equipo, revivir
 from src.core.escenas import ESCENAS_DE_COMBATE, Escena, escena_tras_colapso
 from src.dungeon.arena_jefe import ArenaJefe
 from src.dungeon.cuarto import FASE_DECISION, FASE_RESUELTO
-from src.core.balance import ALCANCE_AVISO_SELLADA, COOLDOWN_REUNION, DURACION_TERMINAL_HISTORIA, MAX_LARGO_MENSAJE_REUNION
+from src.core.balance import (
+    ALCANCE_AVISO_SELLADA, BLOQUEO_POST_SABOTAJE, COOLDOWN_POST_SABOTAJE, COOLDOWN_REUNION, DURACION_TERMINAL_HISTORIA,
+    MAX_LARGO_MENSAJE_REUNION,
+)
 from src.dungeon import ciudad_mapa
 from src.dungeon.grafo_ciudad import EDIFICIOS, ZONA_FINAL, ZONA_INICIO
 from src.dungeon.mazmorra import Mazmorra
@@ -93,13 +96,13 @@ from src.ui.pantalla_modo import dibujar_modo
 from src.ui.particulas import SistemaParticulas
 from src.ui.seleccion import DOS_JUGADORES, UN_JUGADOR, ONLINE, SeleccionRoles, SelectorModo
 from src.ui.seleccion_rol import dibujar_seleccion
-from src.ui.terminal_decision import CONFIRMAR, DERECHA, DETONACION, IZQUIERDA
+from src.ui.terminal_decision import CONFIRMAR, DERECHA, DETONACION, IZQUIERDA, PURIFICACION_EXITOSA
 from src.ui.terminal_decision_render import dibujar_terminal
 
 from Online import reunion_render, sabotaje_render
 from Online.lobby import menu_online
 from Online.sesion_red import AdaptadorOnlineHost, EntradaRed
-from Online.sesion_red import compartir_combate_con_sesion, normalizar_escena, proteger_partida_online
+from Online.sesion_red import cerrar_red_de_sesion, compartir_combate_con_sesion, normalizar_escena, proteger_partida_online
 
 TECLAS_CONFIRMAR = (pygame.K_RETURN, pygame.K_KP_ENTER)
 TECLA_SALIR = pygame.K_ESCAPE
@@ -173,6 +176,10 @@ TECLA_MAPA_MUNDO = pygame.K_m
 TECLA_ESTADO_CIUDAD = pygame.K_i  # panel de indicadores del modo historia
 TECLA_AYUDA = pygame.K_h
 TECLA_REPORTAR = pygame.K_r  # Online: reunión de emergencia (botón REPORTAR)
+TECLA_SABOTEAR = pygame.K_q  # Online: el impostor lanza una publicación viral (botón SABOTEAR)
+# Dónde el impostor ve el botón SABOTEAR (en la terminal ya hay una decisión).
+ESCENAS_BOTON_SABOTEAR = (Escena.CIUDAD, Escena.MAZMORRA, Escena.JEFE)
+TECLAS_SALIR_FIN_PARTIDA = (pygame.K_RETURN, pygame.K_KP_ENTER, pygame.K_ESCAPE)
 # Dónde se ve el botón REPORTAR: con el mundo en marcha (Online/sesion_red.ESCENAS_REUNION).
 ESCENAS_BOTON_REPORTAR = (Escena.CIUDAD, Escena.MAZMORRA, Escena.DECISION, Escena.JEFE)
 # Diálogos del modo historia (overlay sobre cualquier escena).
@@ -225,7 +232,10 @@ def main():
                 break
             continue
         if accion == JUGAR:
-            # Partida nueva: 1 o 2 jugadores, y luego cada uno elige su rol.
+            # Partida nueva: la de antes suelta su red (si era Online, el puerto
+            # 7777 queda libre para volver a crear una sala).
+            cerrar_red_de_sesion(sesion)
+            # 1 o 2 jugadores, y luego cada uno elige su rol.
             eleccion = _menu_inicio(pantalla, reloj, mando, presentar)
             if eleccion is None:
                 break
@@ -238,6 +248,10 @@ def main():
             sesion.audio = audio
         if _jugar(pantalla, reloj, sesion, preferencias, presentar) == SALIR:
             break
+        if getattr(sesion, "partida_online_terminada", False):
+            # Alguien ganó por votación (Online/reunion.py): no hay nada que continuar.
+            cerrar_red_de_sesion(sesion)
+            sesion = None
     guardar_preferencias(preferencias)
     pygame.quit()
     sys.exit()
@@ -535,7 +549,10 @@ def _jugar(pantalla, reloj, sesion, preferencias, presentar):
     voto_local = None  # (número de reunión, objetivo) que votó esta PC
     numero_reunion = 0  # la última reunión que vio esta PC
     resultado_sonado = 0  # la última votación cuyo resultado ya sonó
-    en_reunion = False
+    en_reunion = False  # reunión, publicación del sabotaje o fin: el mundo espera
+    tiempo_fin = 0.0  # s desde que terminó la partida Online (Enter vuelve al menú)
+    numero_sabotaje = 0  # la última publicación del sabotaje que vio esta PC
+    resultado_sabotaje_sonado = 0
 
     def vista_reunion():
         return adaptador_red.estado_reunion() if hasattr(adaptador_red, "estado_reunion") else None
@@ -543,13 +560,29 @@ def _jugar(pantalla, reloj, sesion, preferencias, presentar):
     def mi_voto(vista):
         return voto_local[1] if voto_local is not None and voto_local[0] == vista.numero else None
 
+    def vista_sabotaje():
+        return adaptador_red.estado_sabotaje() if hasattr(adaptador_red, "estado_sabotaje") else None
+
+    def evento_red_en_curso():
+        """Reunión, publicación del sabotaje, sus resultados o el fin de la partida."""
+        return bool(hasattr(adaptador_red, "evento_red_en_curso") and adaptador_red.evento_red_en_curso())
+
+    def rect_boton_reportar():
+        # En la terminal, chico y en la barra de controles: los celulares ocupan el rincón.
+        return assets.RECT_BOTON_REPORTAR_TERMINAL if escena == Escena.DECISION else assets.RECT_BOTON_REPORTAR
+
     def boton_reportar_visible(vista):
         """Online con impostor en juego, el mundo en marcha, sin modal y sin
         haber sido expulsado ni descubierto ya al impostor."""
         return (vista is not None and len(jugadores) >= 2 and any(getattr(j, "es_impostor", False) for j in jugadores)
-                and escena in ESCENAS_BOTON_REPORTAR and not vista.en_curso and dialogo is None
+                and escena in ESCENAS_BOTON_REPORTAR and not evento_red_en_curso() and dialogo is None
                 and not pantalla_historia_abierta() and indicador_rep is None
                 and indice_local not in vista.expulsados and not vista.impostor_descubierto)
+
+    def boton_sabotear_visible(vista):
+        """Solo para el impostor (no expulsado), con el mundo en marcha."""
+        return (boton_reportar_visible(vista) and escena in ESCENAS_BOTON_SABOTEAR
+                and getattr(jugador, "es_impostor", False) and vista_sabotaje() is not None)
 
     def reportar():
         """REPORTAR desde esta PC (tecla R o clic). True si la tecla era suya."""
@@ -559,6 +592,20 @@ def _jugar(pantalla, reloj, sesion, preferencias, presentar):
         if vista.recarga <= 0.0:
             adaptador_red.convocar_reunion(indice_local)
         return True
+
+    def sabotear():
+        """SABOTEAR desde esta PC (tecla Q o clic): solo el impostor."""
+        if not boton_sabotear_visible(vista_reunion()):
+            return False
+        if vista_sabotaje().recarga <= 0.0:
+            adaptador_red.sabotear(indice_local)
+        return True
+
+    def navegar_post(direccion):
+        """Tecla en la publicación del sabotaje (la decide el host)."""
+        nonlocal aviso_sabotaje
+        if not adaptador_red.navegar_sabotaje(indice_local, direccion) and getattr(jugador, "es_impostor", False):
+            aviso_sabotaje = assets.DURACION_AVISO_SABOTAJE
 
     def votar(vista, objetivo):
         nonlocal voto_local, voto_armado
@@ -625,9 +672,23 @@ def _jugar(pantalla, reloj, sesion, preferencias, presentar):
                 voto_armado = seleccion_voto
 
     def _dibujar_capa_reunion(modal):
-        """Encima de todo: la reunión, su resultado o el botón REPORTAR."""
+        """Encima de todo: el fin de la partida, la reunión, la publicación del
+        sabotaje, sus resultados o los botones REPORTAR y SABOTEAR."""
         vista = vista_reunion()
         if vista is None:
+            return
+        vista_sab = vista_sabotaje()
+        if vista.fin is not None:
+            puede_salir = tiempo_fin >= assets.ESPERA_SALIR_FIN_PARTIDA
+            reunion_render.dibujar_fin_partida(pantalla, vista, jugadores, indice_local, tiempo_fin)
+            if puede_salir:
+                hud.dibujar_barra_controles(pantalla, assets.CONTROLES_FIN_PARTIDA)
+            return
+        if vista_sab is not None and vista_sab.activo:
+            _dibujar_post_sabotaje(vista_sab)
+            return
+        if vista_sab is not None and vista_sab.mostrando_resultado:
+            reunion_render.dibujar_resultado_post(pantalla, vista_sab)
             return
         if vista.activa:
             reunion_render.dibujar_reunion(pantalla, vista, jugadores, indice_local, seleccion_voto, voto_armado,
@@ -636,13 +697,39 @@ def _jugar(pantalla, reloj, sesion, preferencias, presentar):
         elif vista.mostrando_resultado:
             reunion_render.dibujar_resultado_reunion(pantalla, vista, jugadores, tiempo_overlay)
         elif modal is None and boton_reportar_visible(vista):
-            reunion_render.dibujar_boton_reportar(pantalla, vista.recarga, COOLDOWN_REUNION, tiempo_overlay)
+            reunion_render.dibujar_boton_reportar(pantalla, vista.recarga, COOLDOWN_REUNION, tiempo_overlay,
+                                                  rect_boton_reportar())
+            if boton_sabotear_visible(vista):
+                reunion_render.dibujar_boton_sabotear(pantalla, vista_sab.recarga, COOLDOWN_POST_SABOTAJE, tiempo_overlay)
         elif modal is None and escena in ESCENAS_BOTON_REPORTAR and dialogo is None \
                 and any(getattr(j, "es_impostor", False) for j in jugadores):
             if indice_local in vista.expulsados:
-                reunion_render.dibujar_aviso_red(pantalla, "Expulsado", assets.COLOR_GRAVE)
+                reunion_render.dibujar_aviso_red(pantalla, assets.TEXTO_AVISO_FANTASMA, assets.COLOR_GRAVE,
+                                                 rect_boton_reportar())
             elif vista.impostor_descubierto:
-                reunion_render.dibujar_aviso_red(pantalla, assets.TEXTO_IMPOSTOR_DESCUBIERTO, assets.COLOR_IMPOSTOR)
+                reunion_render.dibujar_aviso_red(pantalla, assets.TEXTO_IMPOSTOR_DESCUBIERTO, assets.COLOR_IMPOSTOR,
+                                                 rect_boton_reportar())
+        aviso = adaptador_red.aviso_version() if hasattr(adaptador_red, "aviso_version") else None
+        if aviso and modal is None:
+            dibujo.chip(pantalla, aviso, assets.POSICION_AVISO_VERSION, assets.COLOR_ALERTA, assets.COLOR_FONDO_PANEL,
+                        assets.COLOR_ALERTA, assets.TAMANIO_FUENTE_PEQUENA, ancla="center", alto=30, margen=12)
+
+    def _dibujar_post_sabotaje(vista_sab):
+        """La publicación viral con la terminal tipo celular (pantalla completa)."""
+        terminal = adaptador_red.terminal_sabotaje()
+        post = adaptador_red.post_sabotaje(vista_sab.indice_post)
+        if terminal is None or post is None:
+            return
+        expulsado_local = indice_local in vista_reunion().expulsados
+        dibujar_terminal(pantalla, terminal, assets.TEXTO_SUBTITULO_POST_SABOTAJE, post=post, evidencias=[],
+                         total_evidencias=0, tiempo=tiempo_overlay, zona=post.get("zona"),
+                         nota_decisor=assets.TEXTO_AVISO_FANTASMA if expulsado_local else "")
+        if getattr(jugador, "es_impostor", False) and not expulsado_local:
+            sabotaje_render.dibujar_sabotaje(pantalla, vista_sab.bloqueo, aviso_sabotaje, BLOQUEO_POST_SABOTAJE)
+            hud.dibujar_barra_controles(pantalla, sabotaje_render.CONTROLES_IMPOSTOR)
+        else:
+            reunion_render.dibujar_alerta_post(pantalla, tiempo_overlay)
+            hud.dibujar_barra_controles(pantalla, hud.CONTROLES_TERMINAL)
 
     def presentar():
         """Overlays de la historia encima de lo que dibujó la escena, en
@@ -804,12 +891,32 @@ def _jugar(pantalla, reloj, sesion, preferencias, presentar):
             if evento.type == pygame.QUIT:
                 return SALIR
             vista_actual = vista_reunion()
+            if vista_actual is not None and vista_actual.fin is not None:
+                # Terminó la partida: tras unos segundos, Enter vuelve al menú.
+                if tiempo_fin >= assets.ESPERA_SALIR_FIN_PARTIDA and (
+                        (evento.type == pygame.KEYDOWN and evento.key in TECLAS_SALIR_FIN_PARTIDA)
+                        or (evento.type == pygame.CONTROLLERBUTTONDOWN and evento.button in (BOTON_CONFIRMAR, BOTON_CANCELAR))):
+                    sesion.partida_online_terminada = True
+                    return MENU
+                continue
+            vista_sab = vista_sabotaje()
+            if vista_sab is not None and vista_sab.en_curso:
+                # Publicación viral del sabotaje: solo se elige (o se espera su resultado).
+                if vista_sab.activo:
+                    if evento.type == pygame.KEYDOWN and evento.key in TECLAS_TERMINAL:
+                        navegar_post(TECLAS_TERMINAL[evento.key])
+                    elif evento.type == pygame.CONTROLLERBUTTONDOWN and BOTONES_NAV_HISTORIA.get(evento.button):
+                        navegar_post(BOTONES_NAV_HISTORIA[evento.button])
+                continue
             if vista_actual is not None and vista_actual.en_curso:
                 # Reunión de emergencia: se lleva el teclado, el ratón y el control.
                 manejar_evento_reunion(evento, vista_actual)
                 continue
             if evento.type == pygame.MOUSEBUTTONDOWN and evento.button == 1 \
-                    and reunion_render.en_boton_reportar(evento.pos) and reportar():
+                    and reunion_render.en_boton_reportar(evento.pos, rect_boton_reportar()) and reportar():
+                continue
+            if evento.type == pygame.MOUSEBUTTONDOWN and evento.button == 1 \
+                    and reunion_render.en_boton_sabotear(evento.pos) and sabotear():
                 continue
             if evento.type == pygame.CONTROLLERBUTTONDOWN:
                 # El control también navega la historia y la terminal (J2 en cooperativo).
@@ -846,6 +953,8 @@ def _jugar(pantalla, reloj, sesion, preferencias, presentar):
                 continue
             if evento.key == TECLA_REPORTAR and dialogo is None and reportar():
                 continue
+            if evento.key == TECLA_SABOTEAR and dialogo is None and sabotear():
+                continue
             if dialogo is not None:
                 # Un diálogo o cinemática abiertos se quedan con todas las teclas.
                 if evento.key in TECLAS_DIALOGO_AVANZAR:
@@ -856,6 +965,9 @@ def _jugar(pantalla, reloj, sesion, preferencias, presentar):
                     siguiente_historia()
             elif escena == Escena.CIUDAD:
                 # La escena CIUDAD consume todas sus teclas (sin disparo ni F).
+                if evento.key == TECLA_ENTRAR and getattr(jugador, "expulsado", False):
+                    toasts.append([assets.TEXTO_AVISO_FANTASMA, 2.0, "Expulsado"])
+                    continue
                 if evento.key == TECLA_ENTRAR and not mostrar_mapa_mundo:
                     # Una etapa de la misión de redención tiene prioridad sobre la puerta.
                     baliza = _baliza_cercana(campania, indices_locales, jugador)
@@ -1013,6 +1125,22 @@ def _jugar(pantalla, reloj, sesion, preferencias, presentar):
                 resultado_sonado = vista_actual.numero
                 sonar("decision_buena" if vista_actual.era_impostor else
                       "decision_mala" if vista_actual.expulsado is not None else "notificacion")
+            if vista_actual is not None:
+                # El expulsado es un fantasma en todas las PCs (src/core/equipo.py).
+                for _i_fantasma, _j_fantasma in enumerate(jugadores):
+                    _j_fantasma.expulsado = _i_fantasma in vista_actual.expulsados
+                if vista_actual.fin is not None:
+                    if tiempo_fin == 0.0:
+                        gano_esta_pc = (vista_actual.fin == "tripulacion") != (indice_local == vista_actual.impostor)
+                        sonar("victoria" if gano_esta_pc else "derrota")
+                    tiempo_fin += dt
+            vista_sab = vista_sabotaje()
+            if vista_sab is not None and vista_sab.numero != numero_sabotaje:
+                numero_sabotaje = vista_sab.numero
+                sonar("viral")
+            if vista_sab is not None and vista_sab.mostrando_resultado and resultado_sabotaje_sonado != vista_sab.numero:
+                resultado_sabotaje_sonado = vista_sab.numero
+                sonar("decision_buena" if vista_sab.resultado == PURIFICACION_EXITOSA else "decision_mala")
 
         # Con un diálogo o cinemática abiertos el mundo queda quieto (ni
         # caminar ni combate) y la tarjeta de evidencia espera a que termine.
@@ -1041,7 +1169,7 @@ def _jugar(pantalla, reloj, sesion, preferencias, presentar):
         sesion.historia_ocupada = dialogo is not None or pantalla_historia_abierta() or indicador_rep is not None
         en_dialogo = sesion.historia_ocupada
         # Online: en la reunión de emergencia (y su resultado) el mundo espera en todas las PCs.
-        en_reunion = bool(hasattr(adaptador_red, "reunion_en_curso") and adaptador_red.reunion_en_curso())
+        en_reunion = evento_red_en_curso()
         # Online, en combate: el mundo también espera a quien siga leyendo en
         # otra PC (la tarjeta del capítulo, la cinemática del jefe...), así a
         # nadie lo atacan mientras lee.
@@ -1247,6 +1375,7 @@ def _jugar(pantalla, reloj, sesion, preferencias, presentar):
                     verificacion=escenario_historia.resultado_verificacion if escenario_historia is not None else "",
                     exige_mas_pruebas=campania.exige_mas_pruebas,
                     tiempo=tiempo,
+                    zona=zona_terminal,
                     nota_decisor="Expulsado: tu equipo decide por ti" if expulsado_local else
                     "" if campania.puede_decidir(indice_local) else "Sin voz: tu equipo decide por ti",
                 )
@@ -1329,6 +1458,8 @@ def _jugar(pantalla, reloj, sesion, preferencias, presentar):
                 combate_render.dibujar_gracia(lienzo, j, escenario.gracia.fraccion)
             if j is not jugador and j.apunta_con_mouse:
                 combate_render.dibujar_indicador_apuntado(lienzo, j)  # J2 no tiene mira
+        if getattr(jugador, "expulsado", False):
+            _dibujar_fantasma(lienzo, jugador, tiempo)  # los demás no lo ven; él sí
         for proyectiles in proyectiles_por_jugador:
             for proyectil in proyectiles:
                 proyectil.dibujar(lienzo)
@@ -1368,6 +1499,8 @@ def _jugar(pantalla, reloj, sesion, preferencias, presentar):
             hud.dibujar_barra_controles(pantalla, hud.CONTROLES_COMBATE)
         if coop:
             for numero, j in enumerate(jugadores):
+                if getattr(j, "expulsado", False) and j is not jugador:
+                    continue  # el fantasma de otro no se ve
                 hud.dibujar_panel_jugador(pantalla, j, numero)
         if escena == Escena.VICTORIA:
             dibujar_victoria(pantalla)
@@ -1398,6 +1531,10 @@ def _frame_de_combate(
         # Se lee aunque esté caído, para que un botón mantenido no cuente
         # como "recién apretado" al revivir.
         pedido = _leer_entrada(entrada, teclas, sacudida)
+        if getattr(jugador, "expulsado", False):
+            # Fantasma (lo expulsaron en una reunión, modo Online): camina, no pelea.
+            jugador.manejar_input(replace(pedido, dash=False), dt, escenario.rect)
+            continue
         if jugador not in en_combate:
             continue
         # Gracia de entrada al cuarto: el jugador solo puede moverse.
@@ -1421,6 +1558,16 @@ def _frame_de_combate(
         _resolver_colisiones_contra_enemigos(proyectiles, escenario.enemigos, jugador, jugadores, textos)
     for jugador in en_combate:
         _resolver_colision_contra_jugador(proyectiles_enemigos, jugador, textos)
+
+
+def _dibujar_fantasma(lienzo, jugador, tiempo):
+    """El expulsado se ve a sí mismo medio transparente (los demás no lo ven)."""
+    from src.ui import sprites
+    imagen = sprites.sprite_jugador(jugador.COLOR, rol=jugador.rol, tiempo=tiempo,
+                                    caminando=jugador.velocidad_actual.length_squared() > 0,
+                                    apariencia=getattr(jugador, "apariencia", None)).copy()
+    imagen.set_alpha(assets.ALFA_FANTASMA)
+    lienzo.blit(imagen, imagen.get_rect(midbottom=jugador.rect.midbottom))
 
 
 def _leer_entrada(entrada, teclas, sacudida):
@@ -1561,7 +1708,8 @@ def _dibujar_ciudad(pantalla, partida, jugador, destino, tiempo, mostrar_ruta, m
         ciudad_render.dibujar_ciudad(pantalla, partida, jugador, tiempo, puntos)
         if hasattr(partida, "jugadores_online") and not mostrar_mapa_mundo:
             for _j_otro in partida.jugadores_online:
-                if _j_otro is not jugador and getattr(_j_otro.invulnerabilidad, "visible", True):
+                if _j_otro is not jugador and getattr(_j_otro.invulnerabilidad, "visible", True) \
+                        and not getattr(_j_otro, "expulsado", False):
                     from src.ui import sprites
                     _rect_v = ciudad_render.vista()
                     _cam = ciudad_render.camara_para((jugador.posicion.x, jugador.posicion.y))

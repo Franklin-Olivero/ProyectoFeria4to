@@ -476,12 +476,13 @@ Al entrar a una mazmorra, la tarjeta del capítulo y su diálogo solo salían en
 
 ### Qué hace
 Como en Among Us, cualquier jugador puede llamar a una reunión para debatir quién es el impostor.
-- **Botón REPORTAR** abajo a la derecha (o la tecla **R**, o un clic). Se puede usar **cada 60 s** (`balance.COOLDOWN_REUNION`): el tiempo cuenta desde que arranca la partida y desde que termina cada reunión. Mientras recarga se ve apagado con los segundos que faltan.
+- **Botón REPORTAR** abajo a la derecha, dentro del rincón del cuarto (o la tecla **R**, o un clic; en la terminal va chico en la barra de controles). Se puede usar **cada 60 s** (`balance.COOLDOWN_REUNION`): el tiempo cuenta desde que arranca la partida y desde que termina cada reunión. Mientras recarga se ve apagado con los segundos que faltan.
 - Al apretarlo, el juego **se detiene en todas las PCs** (combate, caminar por la ciudad, el reloj de la terminal y el bloqueo del impostor) y se abre la reunión: **60 s** (`balance.DURACION_REUNION`) para hablar por el **chat** y **votar**.
 - **Votar:** flechas para elegir y **Enter dos veces** (o dos clics) sobre un jugador o sobre **Saltar votación**. El voto no se cambia. Durante la votación solo se ve quién ya votó; a quién, recién en el resultado.
 - **Chat:** se escribe con el teclado y se envía con Enter (80 caracteres por mensaje; se ven los últimos 14).
 - **Conteo:** se acaba el minuto (o ya votaron todos) y **solo cuentan los votos emitidos**: quien no votó no le suma a nadie. Si alguien tiene más votos que cualquier otro y que los saltos, queda **expulsado** y todos ven si **era el impostor**. Empate, mayoría de saltos o nadie votó: no se expulsa a nadie. El resultado se ve 6 s.
-- **Expulsado:** ya no mueve la terminal de decisión ni la investigación del capítulo 3, no vota, no escribe y no convoca. Sigue peleando con el equipo. Si expulsaron al impostor, su sabotaje terminó y el botón desaparece ("Impostor descubierto").
+- **Expulsado = fantasma:** los demás ya no lo ven (ni su muñeco ni su panel), los enemigos no lo persiguen y no recibe daño. Él sigue viendo a todos normal y se ve a sí mismo medio transparente; camina, pero no dispara, no usa habilidad ni dash, no recoge pruebas, no abre puertas ni entra a edificios. Tampoco mueve la terminal ni la investigación del capítulo 3, no vota, no escribe y no convoca (`src/core/equipo.py`, `jugador.expulsado`).
+- **Fin de la partida:** si expulsan al **impostor**, gana la tripulación: pantalla "¡Felicidades! Has descubierto al impostor · Civitas se ha salvado" (con 2, 3 o 4 jugadores). Con **3 o más** jugadores, si expulsan inocentes hasta que quedan **solo el impostor y uno más**, gana el impostor: pantalla "El impostor ha ganado" (con 4 jugadores hacen falta 2 inocentes; con 2 jugadores no pasa y el juego sigue). Las dos muestran quién era el impostor; tras 2 s, Enter vuelve al menú y la partida Online se cierra (`balance.JUGADORES_MINIMOS_VICTORIA_IMPOSTOR`).
 - Solo hay botón en una partida Online con impostor, en la ciudad, las mazmorras, la terminal y el jefe (no en las pantallas de resultado ni en los finales).
 
 ### Host autoritativo
@@ -496,3 +497,32 @@ Como en Among Us, cualquier jugador puede llamar a una reunión para debatir qui
 3. Escriban en el chat, voten (Enter dos veces) o salten. Al terminar, todos ven el resultado y el botón vuelve a recargar 60 s.
 
 Tests: `tests/test_reunion_online.py` (conteo, reglas, host, invitado, red real, loop real de Main y dibujo).
+
+---
+
+## 11. Botón SABOTEAR del impostor (publicación viral)
+
+### Qué hace
+- Solo el impostor ve el botón **SABOTEAR** (tecla **Q** o clic), al lado de REPORTAR. Se puede cada **75 s** (`balance.COOLDOWN_POST_SABOTAJE`), en la ciudad, las mazmorras y el jefe (no en la terminal: ahí ya hay una decisión).
+- Al apretarlo, a **todas las PCs** les salta en el celular una **publicación falsa** (como la terminal del final de la mazmorra, con el árbol fijo: Verificar / Me gusta / Compartir / Reportar / Ignorar) y el mundo se detiene. Nadie sabe quién la lanzó; arriba sale "¡Publicación viral! Decidan rápido qué hacer".
+- Hay **20 s** (`DURACION_POST_SABOTAJE`). Verificar o Reportar la **frenan**; Me gusta, Compartir o Ignorar la **vuelven viral**, y si se acaba el tiempo también.
+- El impostor también elige, pero recién después de **5 s** (`BLOQUEO_POST_SABOTAJE`, ve su indicador "Se habilita en N s"): si nadie eligió bien antes, puede elegir una mala.
+- Resultado (4 s para todos): "¡Sabotaje frenado!" (sube la información verificada) o "El sabotaje funcionó" (sube la desinformación y la barra de colapso, como una incursión fallida). Los efectos están en `balance.EFECTOS_POST_SABOTAJE_*`.
+- Las publicaciones salen de `content/campaign.json` ("sabotajes", validadas por `contenido.py`) sin repetirse hasta usarlas todas.
+
+### Host autoritativo
+- `Online/post_sabotaje.py` (puro): `ControlSabotajes` (botón, publicación en curso con su `TerminalDecision`, bloqueo del impostor y resultado) y `vista_de_dict` para el invitado.
+- Mensaje nuevo `SABOTAJE` (invitado → host). Mientras hay publicación, el host manda **todas** las `DECISION_NAV` a ella (`navegar_sabotaje`); el impostor espera su bloqueo y el expulsado no elige. El host aplica los efectos **una sola vez** al terminar.
+- El ESTADO lleva `sbp`; el invitado arma una copia congelada de la publicación (`terminal_sabotaje`) para dibujarla con la terminal tipo celular.
+- No hay reunión durante una publicación ni publicación durante una reunión.
+
+---
+
+## 12. La terminal tipo celular en todas las PCs, y el aviso de versión
+
+- La terminal del final de la mazmorra se dibuja como dos celulares (`src/ui/terminal_decision_render.py` y `src/ui/celular_render.py`) en **todas** las PCs: es el mismo código. Si en una PC se ve la terminal vieja (azul, con tarjetas), esa PC tiene otro código: copien o actualicen el proyecto completo en todas las PCs (por ejemplo con `git pull` después del commit).
+- Para notarlo en el momento: el invitado manda su `VERSION_ESTADO` en cada INPUT y el host la suya en el ESTADO. Si no coinciden, aparece arriba "J2 tiene otra versión del juego: copien el mismo código en todas las PCs" (o "El host tiene otra versión…").
+- Si el host llega a la terminal antes de que el invitado limpie el cuarto, el invitado arma la terminal con el **árbol de la historia** del cuarto (`fabrica_arbol`), no con el árbol fijo: misma publicación y mismos ids que el host.
+- Al empezar una partida nueva o al terminar una Online, la red de la partida anterior se cierra (`cerrar_red_de_sesion`), así el puerto 7777 queda libre para volver a crear una sala.
+
+Tests: `tests/test_fin_y_sabotaje_online.py` (fantasma, fin de partida, sabotaje, versión, terminal del invitado) y `tests/test_terminal_celular.py` (la terminal tipo celular).

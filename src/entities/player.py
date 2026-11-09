@@ -111,6 +111,10 @@ class JugadorBase:
         self.apariencia = None
         # Lo sorteó el host al iniciar (modo Online); en partida local no hay.
         self.es_impostor = False
+        # Lo expulsó una reunión de emergencia (modo Online, Online/reunion.py):
+        # queda como fantasma. Camina, pero no pelea, no recibe daño, los
+        # enemigos no lo ven y los demás jugadores tampoco (src/core/equipo.py).
+        self.expulsado = False
 
         # Puede tener fracciones por la carga compartida del equipo.
         self.carga_habilidad = 0.0
@@ -349,7 +353,7 @@ class JugadorBase:
         inicia_invulnerabilidad=False: respetan la ventana pero no la abren.
         Durante el dash (DASH_INVULNERABLE) ningún golpe entra ni abre la
         ventana; si ya estaba abierta, sigue corriendo igual."""
-        if self.dash.invulnerable:
+        if self.dash.invulnerable or self.expulsado:
             return
         self.vida = self.invulnerabilidad.aplicar_golpe(
             self.vida, danio, inicia=inicia_invulnerabilidad

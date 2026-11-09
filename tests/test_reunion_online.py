@@ -25,7 +25,7 @@ from Online import reunion_render  # noqa: E402
 from Online.cliente import Cliente  # noqa: E402
 from Online.protocolo import DECISION_NAV, DESCONEXION, REUNION  # noqa: E402
 from Online.reunion import (  # noqa: E402
-    CONVOCAR, EMPATE, ESCRIBIR, EXPULSADO, SALTADA, SALTAR, SIN_VOTOS, VOTAR,
+    CONVOCAR, EMPATE, ESCRIBIR, EXPULSADO, GANA_IMPOSTOR, GANA_TRIPULACION, SALTADA, SALTAR, SIN_VOTOS, VOTAR,
     ControlReuniones, Reunion, VistaReunion, contar_votos, limpiar_mensaje, vista_de_dict,
 )
 from Online.servidor import Servidor  # noqa: E402
@@ -152,7 +152,9 @@ def test_la_vista_viaja_por_el_estado_y_tolera_basura():
     control.votar(1, 1)
     control.actualizar(0.0, es_impostor=lambda i: i == 1)
     vista = vista_de_dict(control.a_dict())
-    assert not vista.activa and vista.mostrando_resultado and vista.expulsado == 1 and vista.era_impostor
+    # Expulsaron al impostor: terminó la partida (la pantalla final reemplaza al resultado).
+    assert not vista.activa and not vista.mostrando_resultado and vista.en_curso
+    assert vista.fin == GANA_TRIPULACION and vista.impostor == 1 and vista.expulsado == 1 and vista.era_impostor
     assert vista.votos == ((0, 1), (1, 1)) and vista.expulsados == (1,) and vista.impostor_descubierto
     roto = {"rcd": "x", "exp": [1, "a", -3, True], "reu": {"t": float("nan"), "cand": "no", "chat": [[0, 5], [1, "ok"], "z"]},
             "res": {"mot": "inventado"}}
@@ -373,6 +375,9 @@ class _RedReunion(_Red):
         return vista_de_dict(self.reuniones.a_dict())
 
     def reunion_en_curso(self):
+        return self.reuniones.en_curso
+
+    def evento_red_en_curso(self):
         return self.reuniones.en_curso
 
     def expulsado(self, indice):
