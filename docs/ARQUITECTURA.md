@@ -191,15 +191,17 @@ predeterminados explícitos): `volumen_musica`, `volumen_efectos`,
 valida campo por campo (tipo, rango 0-100, opciones válidas; lo inválido
 toma su valor predeterminado), `cargar(ruta)` (archivo ausente o JSON
 corrupto → predeterminados) y `guardar(ruta)` (escribe a un temporal y lo
-renombra). El archivo es `preferencias.json`, ignorado por git.
+renombra). El archivo es `preferencias.json`, en la carpeta de datos de usuario (`src/core/datos_usuario.py`), fuera del repo.
 *Depende de:* nada.
 
-**`audio.py`** — **`Audio`**: único punto que toca `pygame.mixer` (gestor de audio por ID).
+**Ajustes y pausa** — `src/audio/ajustes_audio.py` (puro) carga/guarda en la carpeta de datos de usuario los volúmenes y el silencio, y `src/audio/gestor_audio.py` aplica el volumen efectivo en cada `Sound` (música en 2 canales reservados); `src/ui/pausa.py` (puro) es el menú de pausa: con `congelada` el bucle de `Main._jugar` no llama a ningún actualizar.
+
+**`src/audio/gestor_audio.py`** — **`Audio`**: único punto que toca `pygame.mixer` (gestor de audio por ID).
 `reproducir(id)`, `musica(id, bucle, fade_ms)`, `detener_musica`, `alternar_silencio` (N) y
 `procesar_eventos()` (vacía `eventos_sonido`, la cola pura donde la lógica pide sonidos). Rutas en
-`assets.SONIDOS` / `assets.MUSICA` (`assets/audio/`), mezcla y anti-spam puros en `mezcla_audio.py`
+`assets.SONIDOS` / `assets.MUSICA` (`assets/audio/`), mezcla y anti-spam puros en `src/audio/mezcla.py`
 (números en `balance.py`), carga perezosa con caché y fallback silencioso: sin archivo o sin salida
-de audio no suena nada y el juego sigue. *Depende de:* `pygame`, `assets`, `mezcla_audio`, `eventos_sonido`.
+de audio no suena nada y el juego sigue. *Depende de:* `pygame`, `assets`, `mezcla`, `ajustes_audio`, `eventos_sonido`.
 
 **`apariencia.py`** — puro. **`Apariencia`** (dataclass inmutable:
 `piel` = índice en `assets.TONOS_PIEL`, `cabeza` y `traje` = rol de

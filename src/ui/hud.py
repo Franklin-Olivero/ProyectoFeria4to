@@ -24,6 +24,7 @@ CONTROLES_COMBATE = [
     ("Shift", "dash"),
     ("M", "minimapa"),
     ("Tab", "ver árbol"),
+    ("Esc", "pausa"),
 ]
 CONTROLES_JEFE = [
     ("WASD", "mover"),
@@ -32,6 +33,7 @@ CONTROLES_JEFE = [
     ("F", "habilidad"),
     ("Shift", "dash"),
     ("Tab", "ver árbol"),
+    ("Esc", "pausa"),
 ]
 CONTROLES_TERMINAL = [("← →", "elegir opción"), ("Enter", "confirmar")]
 CONTROLES_CIUDAD = [
@@ -42,7 +44,7 @@ CONTROLES_CIUDAD = [
     ("M", "mapa del mundo"),
     ("I", "estado de la ciudad"),
     ("H", "ayuda"),
-    ("Esc", "menú principal"),
+    ("Esc / P", "pausa"),
 ]
 CONTROLES_DIALOGO = [("Enter", "continuar"), ("Esc", "saltar")]
 CONTROLES_MAPA_MUNDO = [("Tab", "cambiar destino"), ("M", "volver a la ciudad")]

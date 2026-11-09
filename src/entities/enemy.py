@@ -35,7 +35,8 @@ y reutiliza vida, empuje, escudo, agro, la rama de congelado y la
 import pygame
 
 from src.ai.behavior_tree import EXITO, FALLO, Action, Selector, Sequence
-from src.core import assets, eventos_sonido
+from src.audio import eventos_sonido
+from src.core import assets
 from src.entities.projectile import Proyectil
 
 

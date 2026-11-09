@@ -4,7 +4,7 @@ Las entidades y la lógica del juego no conocen el mezclador: cuando pasa
 algo que suena (un disparo, un enemigo que muere, una barricada que se
 levanta) llaman a `emitir(id)` con un ID de assets.SONIDOS. Main.py
 vacía la cola una vez por frame con `drenar()` y le pasa cada ID al
-gestor de audio (src/core/audio.py), que decide si suena (anti-spam,
+gestor de audio (src/audio/gestor_audio.py), que decide si suena (anti-spam,
 silencio, dispositivo).
 
 Así la lógica se sigue probando sin audio: emitir es solo agregar a una

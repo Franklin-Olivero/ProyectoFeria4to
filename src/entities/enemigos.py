@@ -47,7 +47,8 @@ from src.ai.nodos_combate import (
     direccion,
     punto_detras,
 )
-from src.core import assets, eventos_sonido
+from src.audio import eventos_sonido
+from src.core import assets
 from src.core.balance import (
     CADENCIA_TIRADOR_S,
     COOLDOWN_CONTACTO_PERSEGUIDOR,

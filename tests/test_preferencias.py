@@ -28,7 +28,7 @@ def test_modulo_no_importa_pygame():
 
 def test_valores_predeterminados_explicitos():
     p = Preferencias()
-    assert (p.volumen_musica, p.volumen_efectos) == (70, 80)
+    assert p.hud_detallado is True
     assert p.subtitulos is False
     assert p.filtro_daltonismo == FILTRO_NINGUNO
     assert p.reducir_movimiento is False
@@ -38,7 +38,7 @@ def test_valores_predeterminados_explicitos():
 
 
 def test_ida_y_vuelta_por_dict():
-    p = Preferencias(volumen_musica=10, subtitulos=True, filtro_daltonismo="Tritanopia",
+    p = Preferencias(hud_detallado=False, subtitulos=True, filtro_daltonismo="Tritanopia",
                      esquema_controles="mando", opacidad_cono=0)
     assert desde_dict(a_dict(p)) == p
     assert a_dict(p)["version"] == 1
@@ -46,8 +46,8 @@ def test_ida_y_vuelta_por_dict():
 
 def test_campos_invalidos_toman_su_valor_predeterminado():
     p = desde_dict({
-        "volumen_musica": "fuerte",  # tipo equivocado
-        "volumen_efectos": True,  # bool no es un volumen
+        "opacidad_cono": "fuerte",  # tipo equivocado
+        "hud_detallado": "no",  # texto no es bool
         "subtitulos": 1,  # 1 no es bool
         "filtro_daltonismo": "Acromatopsia",  # opción inexistente
         "esquema_controles": None,
@@ -57,33 +57,48 @@ def test_campos_invalidos_toman_su_valor_predeterminado():
 
 
 def test_porcentajes_se_recortan_a_0_100():
-    p = desde_dict({"volumen_musica": 250, "volumen_efectos": -30, "opacidad_cono": 33.6})
-    assert (p.volumen_musica, p.volumen_efectos, p.opacidad_cono) == (100, 0, 34)
+    assert desde_dict({"opacidad_cono": 250}).opacidad_cono == 100
+    assert desde_dict({"opacidad_cono": -30}).opacidad_cono == 0
+    assert desde_dict({"opacidad_cono": 33.6}).opacidad_cono == 34
 
 
 def test_campos_faltantes_y_no_dict():
-    assert desde_dict({"subtitulos": True}).volumen_musica == 70
+    assert desde_dict({"subtitulos": True}).opacidad_cono == 40
     assert desde_dict(["no", "es", "dict"]) == Preferencias()
 
 
 def test_guardar_y_cargar(tmp_path):
     ruta = str(tmp_path / "prefs.json")
-    p = Preferencias(volumen_efectos=25, reducir_movimiento=True)
+    p = Preferencias(opacidad_cono=25, reducir_movimiento=True)
     assert guardar(p, ruta)
     assert cargar(ruta) == p
     assert not os.path.exists(ruta + ".tmp")
 
 
 def test_archivo_inexistente_o_corrupto_da_predeterminados(tmp_path):
-    assert cargar(str(tmp_path / "no_existe.json")) == Preferencias()
+    assert cargar(str(tmp_path / "no_existe.json"), ruta_legado=None) == Preferencias()
     corrupto = tmp_path / "corrupto.json"
     corrupto.write_text("{ esto no es json", encoding="utf-8")
-    assert cargar(str(corrupto)) == Preferencias()
+    assert cargar(str(corrupto), ruta_legado=None) == Preferencias()
 
 
 def test_archivo_de_version_anterior_conserva_lo_valido(tmp_path):
     viejo = tmp_path / "viejo.json"
-    viejo.write_text(json.dumps({"version": 0, "volumen_musica": 15, "brillo": 3}), encoding="utf-8")
+    viejo.write_text(json.dumps({"version": 0, "volumen_musica": 15, "subtitulos": True, "brillo": 3}),
+                     encoding="utf-8")
     p = cargar(str(viejo))
-    assert p.volumen_musica == 15
-    assert p.volumen_efectos == 80
+    assert p.subtitulos is True  # lo válido se conserva; el volumen ya no vive aquí
+    assert p.opacidad_cono == 40
+
+
+def test_sin_archivo_nuevo_se_lee_el_preferencias_viejo_del_juego(tmp_path):
+    viejo = tmp_path / "preferencias.json"
+    viejo.write_text(json.dumps({"reducir_movimiento": True}), encoding="utf-8")
+    assert cargar(str(tmp_path / "datos" / "preferencias.json"), ruta_legado=str(viejo)).reducir_movimiento
+
+
+def test_por_defecto_se_guarda_en_la_carpeta_de_datos_de_usuario(tmp_path, monkeypatch):
+    monkeypatch.setenv("CIVITAS_DATOS", str(tmp_path / "civitas"))
+    assert guardar(Preferencias(subtitulos=True))
+    assert (tmp_path / "civitas" / "preferencias.json").exists()
+    assert cargar(ruta_legado=None).subtitulos is True

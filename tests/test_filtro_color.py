@@ -10,7 +10,7 @@ os.environ.setdefault("SDL_VIDEODRIVER", "dummy")
 import pygame  # noqa: E402
 import pytest  # noqa: E402
 
-from src.core.audio import a_volumen_mixer  # noqa: E402
+from src.audio.gestor_audio import a_volumen_mixer  # noqa: E402
 from src.ui.combate_render import alfa_cono  # noqa: E402
 from src.ui.filtro_color import (  # noqa: E402
     UMBRAL_COEFICIENTE,

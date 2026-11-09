@@ -45,7 +45,8 @@ import random
 from dataclasses import dataclass, field
 
 from src.ai.behavior_tree import EXITO, FALLO, Action, Selector, Sequence
-from src.core import assets, eventos_sonido
+from src.audio import eventos_sonido
+from src.core import assets
 from src.core.balance import (
     CHARCO_DISTANCIA_MIN_JUGADOR,
     CHARCO_INTERVALO,

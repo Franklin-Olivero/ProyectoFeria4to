@@ -48,7 +48,8 @@ from collections import deque
 
 import pygame
 
-from src.core import assets, eventos_sonido
+from src.audio import eventos_sonido
+from src.core import assets
 from src.core.apuntado import calcular_direccion_apuntado
 from src.core.balance import (
     ACELERACION_MOVIMIENTO,

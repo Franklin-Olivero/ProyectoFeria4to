@@ -20,6 +20,9 @@ Thumbs.db
 # Registros (p. ej. Online/errores_online.log)
 *.log
 
-# Preferencias de cada jugador (volumen, accesibilidad, controles)
+# Ajustes de cada jugador: hoy viven en su carpeta de datos de usuario
+# (src/core/datos_usuario.py); estos son los de versiones viejas.
 preferencias.json
 preferencias.json.tmp
+ajustes_audio.json
+ajustes_audio.json.tmp

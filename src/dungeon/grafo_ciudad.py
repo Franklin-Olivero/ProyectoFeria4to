@@ -50,7 +50,7 @@ from src.core.balance import (
     ZONA_HOSPITAL,
     ZONA_PLAZA,
 )
-from src.core import eventos_sonido
+from src.audio import eventos_sonido
 from src.dungeon import ciudad_mapa
 from src.structures.graph import INFINITO, Grafo
 

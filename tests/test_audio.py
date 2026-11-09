@@ -14,7 +14,8 @@ os.chdir(RAIZ)
 
 import pytest  # noqa: E402
 
-from src.core import assets, eventos_sonido  # noqa: E402
+from src.audio import eventos_sonido  # noqa: E402
+from src.core import assets  # noqa: E402
 from src.core.balance import (  # noqa: E402
     DURACION_MAXIMA_LARGO,
     DURACION_MAXIMA_SFX,
@@ -24,7 +25,8 @@ from src.core.balance import (  # noqa: E402
     STATS_POR_ROL,
     VOLUMEN_CATEGORIA,
 )
-from src.core.mezcla_audio import LimitadorSonidos, categoria, resolver_ruta, volumen_final  # noqa: E402
+from src.audio.ajustes_audio import AjustesAudio  # noqa: E402
+from src.audio.mezcla import LimitadorSonidos, categoria, resolver_ruta, volumen_final  # noqa: E402
 from src.entities.tipos_enemigo import TipoEnemigo  # noqa: E402
 
 
@@ -142,20 +144,29 @@ def test_categoria():
 # Mezcla
 # ----------------------------------------------------------------------
 
-def test_volumen_final_es_preferencia_por_categoria_por_ganancia():
-    esperado = 0.5 * VOLUMEN_CATEGORIA["sfx"] * GANANCIA_SONIDO["muerte_tirador"]
-    assert volumen_final("muerte_tirador", 50) == pytest.approx(esperado)
-    esperado = 0.8 * VOLUMEN_CATEGORIA["musica"] * GANANCIA_MUSICA["jefe"]
-    assert volumen_final("jefe", 80, es_musica=True) == pytest.approx(esperado)
+def test_volumen_final_es_general_por_categoria_por_ganancia():
+    ajustes = AjustesAudio(volumen_general=50, volumen_musica=80, volumen_efectos=60)
+    esperado = 0.5 * 0.6 * VOLUMEN_CATEGORIA["sfx"] * GANANCIA_SONIDO["muerte_tirador"]
+    assert volumen_final("muerte_tirador", ajustes) == pytest.approx(esperado)
+    esperado = 0.5 * 0.8 * VOLUMEN_CATEGORIA["musica"] * GANANCIA_MUSICA["jefe"]
+    assert volumen_final("jefe", ajustes, es_musica=True) == pytest.approx(esperado)
+    # Los de interfaz usan el volumen de efectos con la mezcla de su categoría.
+    esperado = 0.5 * 0.6 * VOLUMEN_CATEGORIA["ui"] * GANANCIA_SONIDO["navegar"]
+    assert volumen_final("navegar", ajustes) == pytest.approx(esperado)
+    # La pausa atenúa la música.
+    assert volumen_final("jefe", ajustes, es_musica=True, atenuacion=0.5) == pytest.approx(
+        0.5 * volumen_final("jefe", ajustes, es_musica=True))
 
 
 def test_volumen_final_silencio_cero_y_nunca_mas_de_uno():
-    assert volumen_final("dash", 100, silenciado=True) == 0.0
-    assert volumen_final("dash", 0) == 0.0
+    assert volumen_final("dash", AjustesAudio(silencio=True)) == 0.0
+    assert volumen_final("menu", AjustesAudio(silencio=True), es_musica=True) == 0.0
+    assert volumen_final("dash", AjustesAudio(volumen_general=0)) == 0.0
+    maximo = AjustesAudio(volumen_general=100, volumen_musica=100, volumen_efectos=100)
     for id_sonido in assets.SONIDOS:
-        assert 0.0 <= volumen_final(id_sonido, 250) <= 1.0
+        assert 0.0 <= volumen_final(id_sonido, maximo) <= 1.0
     for id_pista in assets.MUSICA:
-        assert 0.0 <= volumen_final(id_pista, 250, es_musica=True) <= 1.0
+        assert 0.0 <= volumen_final(id_pista, maximo, es_musica=True, atenuacion=3.0) <= 1.0
 
 
 # ----------------------------------------------------------------------
@@ -206,6 +217,7 @@ def test_cola_de_eventos_tiene_tope():
 
 
 def test_logica_de_audio_no_importa_pygame():
-    for modulo in ("src/core/mezcla_audio.py", "src/core/eventos_sonido.py", "src/ui/lobby.py"):
+    for modulo in ("src/audio/mezcla.py", "src/audio/eventos_sonido.py", "src/audio/ajustes_audio.py",
+                   "src/ui/lobby.py", "src/ui/pausa.py", "src/core/datos_usuario.py"):
         with open(modulo, encoding="utf-8") as archivo:
             assert "import pygame" not in archivo.read(), modulo

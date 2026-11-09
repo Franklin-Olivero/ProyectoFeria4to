@@ -579,7 +579,7 @@ EFECTOS_JEFE_DERROTADO = {"desinformacion": -10, "confianza": 6, "bienestar_digi
 PUNTOS_JEFE_DERROTADO = 200
 
 # ----------------------------------------------------------------------
-# Mezcla de audio (src/core/audio.py). Volumen final de un sonido =
+# Mezcla de audio (src/audio/gestor_audio.py). Volumen final de un sonido =
 # preferencia del jugador (música o efectos) * VOLUMEN_CATEGORIA *
 # GANANCIA_SONIDO[id] (o GANANCIA_MUSICA[id]). Las ganancias igualan
 # el volumen percibido sin editar los archivos: se calcularon para dejar
@@ -672,3 +672,13 @@ LARGOS_PERMITIDOS = (
 SEGUNDOS_TIC_TERMINAL = 5
 # Paso de las teclas - / + para el volumen general en el lobby (porcentaje).
 PASO_VOLUMEN_LOBBY = 10
+
+# ----------------------------------------------------------------------
+# Pausa (src/core/pausa.py). En partida individual el mundo se congela
+# de verdad; con 2+ jugadores (locales u online) el menú se abre pero el
+# juego sigue, para no detener a los demás. Si algún día se quiere que
+# la pausa congele también en multijugador, basta poner esto en True.
+# ----------------------------------------------------------------------
+PUEDE_PAUSAR_MULTIJUGADOR = False
+FACTOR_MUSICA_PAUSA = 0.35  # la música baja a este factor mientras dura la pausa
+DURACION_ATENUACION_PAUSA = 0.4  # s del fundido de la música al pausar / reanudar

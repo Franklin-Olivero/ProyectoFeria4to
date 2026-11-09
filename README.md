@@ -58,7 +58,7 @@ SDL_VIDEODRIVER=dummy SDL_AUDIODRIVER=dummy python tools/recorrido_campania.py
 | Ruta sugerida / cambiar destino | G / TAB | — |
 | Mapa del mundo (ciudad) | M | — |
 | Menús y terminal de decisión | Flechas y Enter | Cruceta y ✕ |
-| Volver al menú principal (ciudad) | Esc | — |
+| Pausa: ajustes, reiniciar, volver a la ciudad o salir | Esc o P | — |
 
 ## Estructura
 

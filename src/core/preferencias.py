@@ -1,13 +1,17 @@
-"""Preferencias del jugador: audio, accesibilidad y controles (lógica pura, sin Pygame).
+"""Preferencias del jugador: accesibilidad, interfaz y controles (lógica pura, sin Pygame).
 
-Se guardan en un JSON pequeño (RUTA_PREFERENCIAS, junto a Main.py) cada
-vez que el jugador cambia un ajuste. Al cargar se valida campo por campo:
-lo que falte, tenga otro tipo o esté fuera de rango toma su valor
+Se guardan en preferencias.json dentro de la carpeta de datos de usuario
+(src/core/datos_usuario.py, nunca en el repositorio) cada vez que el
+jugador cambia un ajuste. Al cargar se valida campo por campo: lo que
+falte, tenga otro tipo o esté fuera de rango toma su valor
 predeterminado, así un archivo viejo, editado a mano o corrupto nunca
-impide arrancar el juego.
+impide arrancar el juego. Si todavía no hay archivo ahí, se lee el
+preferencias.json viejo de la carpeta del juego (RUTA_LEGADO).
+
+El audio (volumen general, música, efectos y silencio) tiene sus propios
+ajustes: src/audio/ajustes_audio.py.
 
 Quién usa cada preferencia:
-    volumen_musica / volumen_efectos -> src/core/audio.py (pygame.mixer)
     filtro_daltonismo                -> src/ui/filtro_color.py (toda la pantalla)
     reducir_movimiento               -> fondo y título del menú, transición del
                                         modal y sacudida de cámara del jefe
@@ -20,14 +24,18 @@ Quién usa cada preferencia:
     avance_cinematicas               -> manual (el jugador avanza) o automatico
                                         (respeta el tiempo de lectura)
     velocidad_texto                  -> caracteres por segundo de diálogos y cinemáticas
+    hud_detallado                    -> barra de controles y panel de misión en la partida
 """
 
 import json
-import os
 from dataclasses import asdict, dataclass, fields
 
+from src.core import datos_usuario
+
 VERSION = 1
-RUTA_PREFERENCIAS = "preferencias.json"
+NOMBRE_ARCHIVO = "preferencias.json"
+# Donde se guardaban antes (junto a Main.py): solo se lee, para no perderlas.
+RUTA_LEGADO = "preferencias.json"
 
 FILTRO_NINGUNO = "Ninguno"
 FILTROS_DALTONISMO = (FILTRO_NINGUNO, "Protanopia", "Deuteranopia", "Tritanopia")
@@ -50,15 +58,13 @@ OPCIONES_TEXTO = {
     "velocidad_texto": VELOCIDADES_TEXTO,
 }
 # Campos enteros que son un porcentaje 0-100.
-CAMPOS_PORCENTAJE = ("volumen_musica", "volumen_efectos", "opacidad_cono")
+CAMPOS_PORCENTAJE = ("opacidad_cono",)
 
 
 @dataclass
 class Preferencias:
     """Valores predeterminados de una instalación sin preferencias guardadas."""
 
-    volumen_musica: int = 70
-    volumen_efectos: int = 80
     subtitulos: bool = False
     filtro_daltonismo: str = FILTRO_NINGUNO
     reducir_movimiento: bool = False
@@ -71,6 +77,8 @@ class Preferencias:
     mostrar_cono: bool = True
     # 40% de assets.ALFA_MAXIMO_CONO = el cono que el juego tenía antes de este ajuste.
     opacidad_cono: int = 40
+    # Barra de controles y panel de misión durante la partida (menú de pausa).
+    hud_detallado: bool = True
 
 
 def acotar_porcentaje(valor):
@@ -108,24 +116,28 @@ def a_dict(preferencias):
     return {"version": VERSION, **asdict(preferencias)}
 
 
-def cargar(ruta=RUTA_PREFERENCIAS):
-    """Lee el archivo; si no existe o no es JSON válido, valores predeterminados."""
-    try:
-        with open(ruta, encoding="utf-8") as archivo:
-            return desde_dict(json.load(archivo))
-    except (OSError, ValueError):
-        return Preferencias()
+def ruta_predeterminada():
+    return datos_usuario.ruta_datos(NOMBRE_ARCHIVO)
 
 
-def guardar(preferencias, ruta=RUTA_PREFERENCIAS):
+def cargar(ruta=None, ruta_legado=RUTA_LEGADO):
+    """Lee el archivo (por defecto, el de la carpeta de datos de usuario);
+    si no existe, el viejo de `ruta_legado`; si no hay ninguno válido,
+    valores predeterminados."""
+    for candidata in (ruta or ruta_predeterminada(), ruta_legado):
+        if candidata is None:
+            continue
+        try:
+            with open(candidata, encoding="utf-8") as archivo:
+                return desde_dict(json.load(archivo))
+        except (OSError, ValueError):
+            continue
+    return Preferencias()
+
+
+def guardar(preferencias, ruta=None):
     """Escribe primero un archivo temporal y luego lo renombra, así un
     cierre a mitad de escritura no deja el JSON cortado. Retorna False si
     no se pudo escribir (el juego sigue con los valores en memoria)."""
-    temporal = ruta + ".tmp"
-    try:
-        with open(temporal, "w", encoding="utf-8") as archivo:
-            json.dump(a_dict(preferencias), archivo, ensure_ascii=False, indent=2)
-        os.replace(temporal, ruta)
-        return True
-    except OSError:
-        return False
+    texto = json.dumps(a_dict(preferencias), ensure_ascii=False, indent=2)
+    return datos_usuario.guardar_json_atomico(texto, ruta or ruta_predeterminada())

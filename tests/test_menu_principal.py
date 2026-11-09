@@ -6,6 +6,7 @@ import sys
 
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
+from src.audio.ajustes_audio import AjustesAudio  # noqa: E402
 from src.core.preferencias import Preferencias  # noqa: E402
 from src.ui.ajustes import BARRA_PESTANAS, CERRAR, PASO_SLIDER, ModalAjustes  # noqa: E402
 from src.ui.menu_principal import (  # noqa: E402
@@ -37,7 +38,7 @@ from src.ui.navegacion import (  # noqa: E402
 
 
 def _menu(hay_partida=False):
-    return MenuPrincipal(hay_partida, Preferencias(), duracion_pulsado=0.1)
+    return MenuPrincipal(hay_partida, Preferencias(), duracion_pulsado=0.1, audio=AjustesAudio())
 
 
 def _terminar_pulsado(menu):
@@ -131,12 +132,14 @@ def test_ajustes_y_engranaje_abren_el_modal_y_devuelven_el_foco():
         assert menu.foco == opener
 
 
-def test_el_modal_edita_las_mismas_preferencias_del_menu():
+def test_el_modal_edita_los_mismos_ajustes_de_audio_del_menu():
     menu = _menu()
     menu.abrir_ajustes()
-    menu.accion(ABAJO)  # barra de pestañas -> música
+    menu.accion(ABAJO)  # barra de pestañas -> volumen general
+    menu.accion(ABAJO)  # -> música
     menu.accion(DERECHA)
-    assert menu.preferencias.volumen_musica == 70 + PASO_SLIDER
+    assert menu.audio.volumen_musica == 70 + PASO_SLIDER
+    assert menu.ajustes.audio is menu.audio  # el mismo objeto que usa el gestor de audio
 
 
 # --- Modal de ajustes ------------------------------------------------------------
@@ -144,7 +147,8 @@ def test_el_modal_edita_las_mismas_preferencias_del_menu():
 
 def test_foco_recorre_pestanas_controles_y_cerrar():
     modal = ModalAjustes(Preferencias())
-    assert modal.elementos() == [BARRA_PESTANAS, "volumen_musica", "volumen_efectos", CERRAR]
+    assert modal.elementos() == [BARRA_PESTANAS, "volumen_general", "volumen_musica", "volumen_efectos", "silencio",
+                                 CERRAR]
     modal.accion(ARRIBA)
     assert modal.foco == CERRAR
     modal.accion(ABAJO)
@@ -166,18 +170,18 @@ def test_pestanas_con_flechas_y_atajos():
 
 
 def test_cambiar_de_pestana_no_pierde_valores():
-    p = Preferencias()
-    modal = ModalAjustes(p)
+    audio = AjustesAudio()
+    modal = ModalAjustes(Preferencias(), audio)
     modal.accion(ABAJO)
     modal.accion(IZQUIERDA)
     modal.accion(PESTANA_SIGUIENTE)
     modal.accion(PESTANA_ANTERIOR)
-    assert p.volumen_musica == 70 - PASO_SLIDER
+    assert audio.volumen_general == 100 - PASO_SLIDER
 
 
 def test_sliders_se_acotan_y_cero_silencia():
-    p = Preferencias(volumen_efectos=5)
-    modal = ModalAjustes(p)
+    p = AjustesAudio(volumen_efectos=5)
+    modal = ModalAjustes(Preferencias(), p)
     modal.enfocar("volumen_efectos")
     assert modal.accion(IZQUIERDA) == SONIDO_NAVEGAR
     assert p.volumen_efectos == 0
@@ -185,6 +189,27 @@ def test_sliders_se_acotan_y_cero_silencia():
     assert modal.fijar("volumen_efectos", 140)
     assert p.volumen_efectos == 100
     assert modal.accion(CONFIRMAR) is None  # Enter no mueve un slider
+
+
+def test_silencio_y_hud_detallado_son_interruptores():
+    from src.ui.ajustes import PESTANAS_PAUSA
+
+    audio, p = AjustesAudio(), Preferencias()
+    modal = ModalAjustes(p, audio)
+    modal.enfocar("silencio")
+    assert modal.accion(CONFIRMAR) == SONIDO_CONFIRMAR and audio.silencio is True
+    pausa = ModalAjustes(p, audio, PESTANAS_PAUSA)
+    pausa.enfocar("hud_detallado")
+    assert pausa.accion(CONFIRMAR) == SONIDO_CONFIRMAR and p.hud_detallado is False
+
+
+def test_pestana_de_la_pausa():
+    from src.ui.ajustes import PESTANAS_PAUSA
+
+    modal = ModalAjustes(Preferencias(), AjustesAudio(), PESTANAS_PAUSA)
+    assert modal.pestana == "PARTIDA"
+    assert modal.controles() == ["volumen_general", "volumen_musica", "volumen_efectos", "silencio", "hud_detallado"]
+    assert not modal.elegir_pestana("AUDIO")  # solo existe PARTIDA
 
 
 def test_interruptores_y_selectores():

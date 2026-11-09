@@ -20,7 +20,7 @@ El dibujo vive aparte, en src/ui/terminal_decision_render.py, para que
 esta lógica se pueda probar con pytest sin Pygame.
 """
 
-from src.core import eventos_sonido
+from src.audio import eventos_sonido
 from src.core.balance import SEGUNDOS_TIC_TERMINAL
 from src.structures.tree import ArbolDecision
 

@@ -34,7 +34,8 @@ import random
 
 import pygame
 
-from src.core import assets, eventos_sonido
+from src.audio import eventos_sonido
+from src.core import assets
 from src.core.equipo import jugador_mas_cercano
 from src.dungeon.clasificador_toxicidad import (
     calcular_nivel_toxicidad,

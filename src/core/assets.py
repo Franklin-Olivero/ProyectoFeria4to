@@ -232,6 +232,12 @@ COLOR_NEON_LOBBY_2 = (80, 220, 255)  # cian
 COLOR_REJILLA_LOBBY = (120, 70, 200)
 CANTIDAD_PARTICULAS_LOBBY = 36
 RECT_PANEL_RESUMEN_LOBBY = (70, 548, 1140, 96)
+# Menú de pausa (src/ui/pausa_render.py): la misma paleta neón del lobby.
+ALFA_VELO_PAUSA = 175
+RECT_PANEL_PAUSA = (440, 130, 400, 440)
+ALTO_OPCION_PAUSA = 50
+RECT_CONFIRMACION_PAUSA = (360, 270, 560, 180)
+ANCHO_BOTON_CONFIRMACION = 140
 # Cursores de cada jugador sobre las tarjetas (chip "J1"/"J2" del color del
 # rol, arriba a la derecha)
 GROSOR_TARJETA_RESALTADA = 4
@@ -641,6 +647,7 @@ COLOR_FONDO_VISTA_PREVIA = (18, 16, 40)
 ANCHO_BOTON_CERRAR = 130
 ANCHO_PESTANA = 190
 ALTO_FILA_AJUSTES = 56
+ALTO_ZONA_INFERIOR_AJUSTES = 52  # notas de audio o muestras de color bajo las filas
 ANCHO_ETIQUETA_AJUSTES = 300
 ANCHO_ETIQUETA_COLUMNA = 196  # filas de la columna derecha (cono, en la vista MANDO)
 ANCHO_ZONA_MANDO = 450
@@ -723,7 +730,7 @@ INCLINACION_LLUVIA = 0.18  # px en x por px en y
 COLORES_LLUVIA = ((70, 80, 170), (100, 90, 200), (60, 120, 200))
 
 # ----------------------------------------------------------------------
-# Audio (src/core/audio.py, el único que toca el mezclador). Todo archivo
+# Audio (src/audio/gestor_audio.py, el único que toca el mezclador). Todo archivo
 # vive en assets/audio/ y se pide por su ID: SONIDOS[id] = (ruta,
 # categoría) y MUSICA[id] = ruta. Si falta un archivo o no hay
 # dispositivo de audio, ese ID simplemente no suena (nunca se cae).

@@ -65,9 +65,11 @@ LINEAS_CREDITOS = (
 
 
 class MenuPrincipal:
-    def __init__(self, hay_partida, preferencias, duracion_pulsado=assets.DURACION_PULSADO_MENU):
+    def __init__(self, hay_partida, preferencias, duracion_pulsado=assets.DURACION_PULSADO_MENU, audio=None):
+        """`audio`: los AjustesAudio que edita la pestaña AUDIO (los del gestor)."""
         self.hay_partida = hay_partida
         self.preferencias = preferencias
+        self.audio = audio
         self.duracion_pulsado = duracion_pulsado
         self.foco = CONTINUAR if hay_partida else JUGAR
         self.vista = VISTA_MENU
@@ -160,7 +162,7 @@ class MenuPrincipal:
 
     def abrir_ajustes(self):
         self._foco_antes_de_ajustes = self.foco
-        self.ajustes = ModalAjustes(self.preferencias)
+        self.ajustes = ModalAjustes(self.preferencias, self.audio)
 
     def cerrar_ajustes(self):
         """Cierra el modal y devuelve el foco al control que lo abrió."""

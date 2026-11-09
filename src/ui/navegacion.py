@@ -23,7 +23,7 @@ __all__ = [
     "SONIDO_NAVEGAR", "SONIDO_CONFIRMAR", "SONIDO_VOLVER",
 ]
 
-# Sonidos de interfaz (src/core/audio.py los carga por este nombre).
+# Sonidos de interfaz (src/audio/gestor_audio.py los carga por este nombre).
 SONIDO_NAVEGAR = "navegar"
 SONIDO_CONFIRMAR = "confirmar"
 SONIDO_VOLVER = "volver"

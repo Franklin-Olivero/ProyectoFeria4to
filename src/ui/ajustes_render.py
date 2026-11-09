@@ -26,7 +26,7 @@ from src.ui.ajustes import (
     PESTANA_ACCESIBILIDAD,
     PESTANA_AUDIO,
     PESTANA_CONTROLES,
-    PESTANAS,
+    PESTANA_PARTIDA,
     SELECTORES,
     SLIDERS,
 )
@@ -35,6 +35,9 @@ from src.ui.navegacion import CONFIRMAR, DERECHA, IZQUIERDA, SONIDO_CONFIRMAR, S
 TITULO = "AJUSTES"
 TEXTO_CERRAR = "CERRAR"
 ETIQUETAS = {
+    "volumen_general": "VOLUMEN GENERAL",
+    "silencio": "SILENCIO (N)",
+    "hud_detallado": "HUD DETALLADO",
     "volumen_musica": "MÚSICA",
     "volumen_efectos": "EFECTOS DE SONIDO",
     "subtitulos": "SUBTÍTULOS",
@@ -85,7 +88,7 @@ class VistaAjustes:
 
         for campo, fila in layout.filas.items():
             self._dibujar_fila(pantalla, layout, modal, campo, fila)
-        if modal.pestana == PESTANA_AUDIO:
+        if modal.pestana in (PESTANA_AUDIO, PESTANA_PARTIDA):
             self._notas_audio(pantalla, layout, audio)
         elif modal.pestana == PESTANA_ACCESIBILIDAD:
             self._muestras_color(pantalla, layout.zonas["muestras"])
@@ -136,7 +139,7 @@ class VistaAjustes:
         if descripcion:
             dibujo.texto(pantalla, descripcion, (fila.left + 26, fila.top + 46), assets.COLOR_TEXTO_APAGADO,
                          assets.TAMANIO_FUENTE_MINI, ancla="midleft")
-        valor = getattr(modal.preferencias, campo)
+        valor = modal.valor(campo)
         if campo in SLIDERS:
             _slider(pantalla, layout.pistas[campo], valor, enfocado, self.arrastre == campo)
         elif campo in INTERRUPTORES:
@@ -152,7 +155,7 @@ class VistaAjustes:
         notas = []
         if not audio.disponible:
             notas.append("No se detectó salida de audio: los volúmenes se guardan igual.")
-        notas.append("Música y efectos compuestos para el juego. Cada momento tiene su pista.")
+        notas.append("Los cambios suenan al instante y se guardan solos. N silencia en cualquier momento.")
         y = zona.top
         for nota in notas:
             y = dibujo.parrafo(pantalla, nota, (zona.left + 26, y), zona.width - 52, assets.COLOR_TEXTO_APAGADO,
@@ -238,15 +241,25 @@ class VistaAjustes:
 
 def _layout(modal, tamanio, desfase=0):
     ancho, alto = tamanio
-    m = pygame.Rect(0, 0, *assets.TAMANIO_MODAL_AJUSTES)
+    # El modal crece si su pestaña tiene más filas de las que caben, sin
+    # pisar la barra de controles de abajo.
+    alto_modal = assets.TAMANIO_MODAL_AJUSTES[1]
+    if modal.pestana != PESTANA_CONTROLES:
+        filas = sum(assets.ALTO_FILA_AJUSTES + (10 if campo in DESCRIPCIONES else 0) + 8 for campo in modal.controles())
+        alto_modal = max(alto_modal, 132 + filas + 10 + assets.ALTO_ZONA_INFERIOR_AJUSTES + 24)
+    m = pygame.Rect(0, 0, assets.TAMANIO_MODAL_AJUSTES[0], alto_modal)
     m.center = (ancho // 2, round(alto * assets.CENTRO_Y_MODAL_AJUSTES) + desfase)
+    limite = alto - assets.ALTO_BARRA_CONTROLES - 4 + desfase
+    if m.bottom > limite:
+        m.bottom = limite
+    m.top = max(m.top, 4 + desfase)
     layout = SimpleNamespace(
         modal=m, filas={}, pistas={}, interruptores={}, flechas={}, segmentos={}, zonas={},
         cerrar=pygame.Rect(m.right - 24 - assets.ANCHO_BOTON_CERRAR, m.top + 18, assets.ANCHO_BOTON_CERRAR, 36),
         pestanas={},
     )
     x = m.left + 28
-    for nombre in PESTANAS:
+    for nombre in modal.pestanas:
         layout.pestanas[nombre] = pygame.Rect(x, m.top + 70, assets.ANCHO_PESTANA, 40)
         x += assets.ANCHO_PESTANA + 8
     contenido = pygame.Rect(m.left + 28, m.top + 132, m.width - 56, m.height - 132 - 24)
@@ -278,7 +291,7 @@ def _layout(modal, tamanio, desfase=0):
         _registrar(layout, campo, fila, assets.ANCHO_ETIQUETA_AJUSTES)
         y += alto_fila + 8
     resto = pygame.Rect(contenido.left, y + 10, contenido.width, contenido.bottom - y - 10)
-    layout.zonas["notas" if modal.pestana == PESTANA_AUDIO else "muestras"] = resto
+    layout.zonas["notas" if modal.pestana in (PESTANA_AUDIO, PESTANA_PARTIDA) else "muestras"] = resto
     return layout
 
 

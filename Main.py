@@ -50,12 +50,14 @@ import pygame
 from pygame._sdl2 import controller
 
 from src.core import assets
-from src.core.audio import Audio
+from src.audio.gestor_audio import Audio
 from src.core.config import FPS, crear_pantalla, crear_reloj
-from src.core import eventos_sonido
+from src.audio import eventos_sonido
 from src.core.entrada import (
     TECLA_ARBOL, TECLA_MINIMAPA, TECLA_SILENCIO, TECLAS_VOLUMEN, EJE_MAXIMO, EntradaMando, EntradaTeclado,
 )
+from src.audio import ajustes_audio
+from src.core.preferencias import RUTA_LEGADO as RUTA_PREFERENCIAS_LEGADO
 from src.core.preferencias import cargar as cargar_preferencias
 from src.core.preferencias import guardar as guardar_preferencias
 from src.core.equipo import jugadores_en_combate, registrar_kill_equipo, revivir_caidos, todos_caidos
@@ -99,6 +101,9 @@ from src.ui.pantalla_modo import dibujar_modo
 from src.ui.particulas import SistemaParticulas
 from src.ui.seleccion import DOS_JUGADORES, UN_JUGADOR, ONLINE, SeleccionRoles, SelectorModo
 from src.ui.seleccion_rol import VistaSeleccion, tarjeta_en
+from src.ui.ajustes import ModalAjustes, PESTANAS_PAUSA
+from src.ui import pausa as menu_pausa
+from src.ui.pausa_render import VistaPausa
 from src.ui.terminal_decision import CONFIRMAR, DERECHA, DETONACION, IZQUIERDA, PURIFICACION_EXITOSA
 from src.ui.terminal_decision_render import dibujar_terminal
 
@@ -109,6 +114,7 @@ from Online.sesion_red import cerrar_red_de_sesion, compartir_combate_con_sesion
 
 TECLAS_CONFIRMAR = (pygame.K_RETURN, pygame.K_KP_ENTER)
 TECLA_SALIR = pygame.K_ESCAPE
+TECLAS_PAUSA = (pygame.K_ESCAPE, pygame.K_p)  # abren el menú de pausa en la partida
 
 # Tarjetas de la pantalla de selección, en orden (tecla 1 = la primera).
 CLASES_ROL = [Ciudadano, Influencer, Periodista, Candidato]
@@ -201,13 +207,21 @@ BOTONES_NAV_HISTORIA = {
 }
 
 
+def cargar_ajustes_audio():
+    """Ajustes de audio guardados (o los volúmenes de un preferencias.json viejo)."""
+    return ajustes_audio.cargar(ruta_legado=RUTA_PREFERENCIAS_LEGADO)
+
+
 def main():
+    # Orden de arranque: primero los ajustes guardados, después el
+    # mezclador (pygame.init), y el gestor los aplica a todo lo que suene.
+    preferencias = cargar_preferencias()
+    ajustes = cargar_ajustes_audio()
     pygame.init()
     controller.init()
     pantalla = crear_pantalla()
     reloj = crear_reloj()
-    preferencias = cargar_preferencias()
-    audio = Audio(preferencias)
+    audio = Audio(ajustes)
     audio.precargar_musica()
     filtro = FiltroColor()
 
@@ -269,7 +283,7 @@ class _Sesion:
     partida: Partida
     jugadores: list
     entradas: list
-    audio: object = None  # src/core/audio.Audio (música y efectos de la historia)
+    audio: object = None  # src/audio/gestor_audio.Audio (música y efectos de la historia)
     id_impostor: object = None  # modo Online: id de red del jugador que sorteó el host
 
 
@@ -522,7 +536,109 @@ def _jugar(pantalla, reloj, sesion, preferencias, presentar):
     # Online: otros jugadores que siguen leyendo una escena (en combate, el mundo los espera).
     lectores_red = []
     espera_equipo = False
-    presentar_frame = presentar
+    presentar_externo = presentar  # el `presentar` de main(): filtro de color y flip
+    pausa = menu_pausa.Pausa()
+    vista_pausa = VistaPausa()
+    sticks_pausa = (_StickMenu(pygame.CONTROLLER_AXIS_LEFTY, navegacion.ARRIBA, navegacion.ABAJO),)
+    fondo_pausa = None  # último frame antes de congelar: se redibuja tal cual
+
+    def presentar_frame():
+        """Muestra el frame; con la pausa abierta, su menú encima."""
+        nonlocal fondo_pausa
+        if pausa.abierta:
+            if fondo_pausa is None:
+                fondo_pausa = pantalla.copy()
+            vista_pausa.dibujar(pantalla, pausa, audio, preferencias.reducir_movimiento)
+        presentar_externo()
+
+    def barra_controles(controles):
+        """Barra de controles de la partida; se oculta con HUD detallado apagado."""
+        if preferencias.hud_detallado:
+            hud.dibujar_barra_controles(pantalla, controles)
+
+    def abrir_pausa():
+        if pausa.abrir(escena, len(jugadores), adaptador_red is not None):
+            if audio is not None:
+                audio.atenuar_musica(True)
+            sonar(navegacion.SONIDO_CONFIRMAR)
+            return True
+        return False
+
+    def cerrar_pausa():
+        nonlocal fondo_pausa
+        pausa.cerrar()
+        fondo_pausa = None
+        if audio is not None:
+            audio.atenuar_musica(False)
+
+    def entrar_a_zona(zona):
+        """Entra (o vuelve a entrar) al edificio `zona` con todo el equipo:
+        la Alcaldía abre la arena del jefe; los demás, una mazmorra nueva."""
+        nonlocal arena, mazmorra, escena, fundido
+        partida.entrar(zona)
+        limpiar_combate()
+        _curar(jugadores)
+        if zona == ZONA_FINAL:
+            arena = ArenaJefe(partida.colapso, jugadores)
+            escena = Escena.JEFE
+        else:
+            mazmorra = MazmorraJugable(
+                Mazmorra(partida.ciudad.reportes(zona), zona),
+                fabrica_arbol=partida.fabrica_arbol(zona),
+                duracion_terminal=DURACION_TERMINAL_HISTORIA + campania.duracion_extra_terminal(indice_local),
+            )
+            mazmorra.colocar_en_entrada(jugadores)
+            escena = Escena.MAZMORRA
+        fundido = assets.DURACION_FUNDIDO
+        al_entrar_a_zona(zona)
+
+    def atender_pausa():
+        """Un frame con la pausa abierta: solo su menú recibe el teclado, el
+        ratón y el control. Los ajustes se aplican y guardan al cambiar.
+        Retorna SALIR o MENU si hay que dejar la partida; si no, None."""
+        nonlocal mazmorra, arena, escena, fundido
+        audio_antes = replace(audio.ajustes) if audio is not None else None
+        hud_antes = preferencias.hud_detallado
+        for evento in pygame.event.get():
+            if evento.type == pygame.QUIT:
+                return SALIR
+            if evento.type == pygame.KEYDOWN and evento.key == TECLA_SILENCIO:
+                if audio is not None:
+                    audio.alternar_silencio()
+                continue
+            if (evento.type == pygame.KEYDOWN and evento.key == pygame.K_p
+                    and pausa.ajustes is None and pausa.confirmando is None):
+                sonar(pausa.elegir(menu_pausa.CONTINUAR))
+                continue
+            accion = _accion_menu(evento, sticks_pausa)
+            sonar(pausa.accion(accion) if accion is not None else vista_pausa.manejar_mouse(evento, pausa))
+        arrastrando = vista_pausa.ajustes.arrastre is not None
+        if audio is not None and audio.ajustes != audio_antes and not arrastrando:
+            audio.aplicar()
+            audio.guardar()
+        if preferencias.hud_detallado != hud_antes:
+            guardar_preferencias(preferencias)
+
+        eleccion = pausa.tomar_accion()
+        if eleccion == menu_pausa.AJUSTES:
+            ajustes = audio.ajustes if audio is not None else ajustes_audio.AjustesAudio()
+            pausa.abrir_ajustes(ModalAjustes(preferencias, ajustes, PESTANAS_PAUSA))
+        elif eleccion == menu_pausa.CONTINUAR:
+            cerrar_pausa()
+        elif eleccion == menu_pausa.REINICIAR:
+            cerrar_pausa()
+            entrar_a_zona(ZONA_FINAL if escena == Escena.JEFE else mazmorra.mazmorra.nombre_zona)
+        elif eleccion == menu_pausa.VOLVER_CIUDAD:
+            cerrar_pausa()
+            mazmorra = None
+            arena = None
+            limpiar_combate()
+            escena = _volver_a_la_ciudad(jugador, partida)
+            fundido = assets.DURACION_FUNDIDO
+        elif eleccion == menu_pausa.SALIR_MENU:
+            cerrar_pausa()
+            return MENU
+        return None
 
     def navegar_terminal(actor, direccion):
         """Única vía para mover o confirmar la terminal de decisión desde esta
@@ -743,7 +859,7 @@ def _jugar(pantalla, reloj, sesion, preferencias, presentar):
         # Capa de paneles (no modales).
         if tarjeta_evidencia is not None and escena in ESCENAS_DE_COMBATE and dialogo is None:
             tarjetas_render.dibujar_tarjeta_evidencia(pantalla, assets.RECT_TARJETA_EVIDENCIA, tarjeta_evidencia[0])
-        if mision is not None and dialogo is None:
+        if mision is not None and dialogo is None and preferencias.hud_detallado:
             if escena == Escena.CIUDAD and not mostrar_mapa_mundo and not mostrar_estado and not mostrar_ayuda:
                 mision_render.dibujar_panel_mision(pantalla, mision, assets.RECT_PANEL_MISION_CIUDAD, tiempo_overlay)
             elif escena in ESCENAS_DE_COMBATE:
@@ -876,6 +992,20 @@ def _jugar(pantalla, reloj, sesion, preferencias, presentar):
         # precisión y los frames salen de 16, 17 o 18 ms, lo que se ve
         # como tirones al moverse. busy_loop da frames regulares.
         dt = reloj.tick_busy_loop(FPS) / 1000
+        if audio is not None:
+            audio.actualizar(dt)
+        if pausa.abierta:
+            salida_pausa = atender_pausa()
+            if salida_pausa is not None:
+                return salida_pausa
+            if pausa.abierta and pausa.congelada:
+                # Congelada: el bucle no llama a ningún actualizar (enemigos,
+                # proyectiles, gracia, terminal, colapso, propagación, cintillo):
+                # solo se redibuja el último frame con el menú encima.
+                if fondo_pausa is not None:
+                    pantalla.blit(fondo_pausa, (0, 0))
+                presentar_frame()
+                continue
         tiempo += dt
         fundido = max(0.0, fundido - dt)
         tiempo_mensaje_mapa = max(0.0, tiempo_mensaje_mapa - dt)
@@ -965,6 +1095,10 @@ def _jugar(pantalla, reloj, sesion, preferencias, presentar):
                 continue
             if evento.key == TECLA_SABOTEAR and dialogo is None and sabotear():
                 continue
+            if (evento.key in TECLAS_PAUSA and dialogo is None
+                    and not (escena == Escena.CIUDAD and (mostrar_estado or mostrar_ayuda))
+                    and abrir_pausa()):
+                continue
             if dialogo is not None:
                 # Un diálogo o cinemática abiertos se quedan con todas las teclas.
                 if evento.key in TECLAS_DIALOGO_AVANZAR:
@@ -987,10 +1121,9 @@ def _jugar(pantalla, reloj, sesion, preferencias, presentar):
                         sonar("transicion")
                         continue
                 if evento.key == TECLA_SALIR:
-                    if mostrar_estado or mostrar_ayuda:
-                        mostrar_estado = mostrar_ayuda = False
-                        continue
-                    return MENU
+                    # Con Estado o Ayuda abiertos, Esc los cierra (si no, abrió la pausa).
+                    mostrar_estado = mostrar_ayuda = False
+                    continue
                 if evento.key == TECLA_ESTADO_CIUDAD:
                     mostrar_estado = not mostrar_estado
                     mostrar_ayuda = False
@@ -1010,22 +1143,7 @@ def _jugar(pantalla, reloj, sesion, preferencias, presentar):
                     zona = ciudad_mapa.entrada_cercana(_posicion(jugador))
                     if zona is None or (zona == ZONA_FINAL and not partida.alcaldia_desbloqueada()):
                         continue
-                    partida.entrar(zona)
-                    limpiar_combate()
-                    _curar(jugadores)
-                    if zona == ZONA_FINAL:
-                        arena = ArenaJefe(partida.colapso, jugadores)
-                        escena = Escena.JEFE
-                    else:
-                        mazmorra = MazmorraJugable(
-                            Mazmorra(partida.ciudad.reportes(zona), zona),
-                            fabrica_arbol=partida.fabrica_arbol(zona),
-                            duracion_terminal=DURACION_TERMINAL_HISTORIA + campania.duracion_extra_terminal(indice_local),
-                        )
-                        mazmorra.colocar_en_entrada(jugadores)
-                        escena = Escena.MAZMORRA
-                    fundido = assets.DURACION_FUNDIDO
-                    al_entrar_a_zona(zona)
+                    entrar_a_zona(zona)
             elif escena == Escena.DECISION:
                 if evento.key in TECLAS_TERMINAL:
                     navegar_terminal(indice_local, TECLAS_TERMINAL[evento.key])
@@ -1372,7 +1490,7 @@ def _jugar(pantalla, reloj, sesion, preferencias, presentar):
             elif mostrar_mapa_mundo:
                 hud.dibujar_barra_controles(pantalla, hud.CONTROLES_MAPA_MUNDO)
             else:
-                hud.dibujar_barra_controles(pantalla, hud.CONTROLES_CIUDAD)
+                barra_controles(hud.CONTROLES_CIUDAD)
             ciudad_render.dibujar_fundido(pantalla, fundido)
             presentar()
             sacudida = (0, 0)
@@ -1503,7 +1621,10 @@ def _jugar(pantalla, reloj, sesion, preferencias, presentar):
                                      etiqueta_hud)
             if arena is not None:
                 arena.dibujar_hud(pantalla)
-            hud.dibujar_barra_controles(pantalla, hud.CONTROLES_FINAL if escena == Escena.VICTORIA else hud.CONTROLES_JEFE)
+            if escena == Escena.VICTORIA:
+                hud.dibujar_barra_controles(pantalla, hud.CONTROLES_FINAL)
+            else:
+                barra_controles(hud.CONTROLES_JEFE)
         else:
             titulo, subtitulo = _titulo_mazmorra(mazmorra)
             enemigos_cant = len(escenario.enemigos) if escenario is not None else 0
@@ -1514,7 +1635,7 @@ def _jugar(pantalla, reloj, sesion, preferencias, presentar):
                                  assets.POSICION_MENSAJE_MAZMORRA)
             if mostrar_minimapa and mazmorra is not None and getattr(mazmorra, "mazmorra", None) is not None:
                 dibujar_minimapa(pantalla, mazmorra.mazmorra)
-            hud.dibujar_barra_controles(pantalla, hud.CONTROLES_COMBATE)
+            barra_controles(hud.CONTROLES_COMBATE)
         if coop:
             for numero, j in enumerate(jugadores):
                 if getattr(j, "expulsado", False) and j is not jugador:
@@ -1785,10 +1906,11 @@ def _menu_principal(pantalla, reloj, vista, hay_partida, preferencias, audio, pr
     acciones de src/ui/navegacion.py; el sonido sale de lo que retorna
     cada acción (un cambio real), así nunca se duplica. Retorna
     (JUGAR | CONTINUAR | SALIR, control)."""
-    menu = MenuPrincipal(hay_partida, preferencias)
+    menu = MenuPrincipal(hay_partida, preferencias, audio=audio.ajustes)
     sticks = (_StickMenu(),
               _StickMenu(pygame.CONTROLLER_AXIS_LEFTY, navegacion.ARRIBA, navegacion.ABAJO))
     guardadas = replace(preferencias)
+    audio_guardado = replace(audio.ajustes)
     pygame.mouse.set_visible(True)
     while True:
         dt = reloj.tick_busy_loop(FPS) / 1000
@@ -1805,11 +1927,14 @@ def _menu_principal(pantalla, reloj, vista, hay_partida, preferencias, audio, pr
         resultado = menu.actualizar(dt)
         # Los ajustes se aplican al instante y se guardan en disco al
         # cambiar (si se arrastra un slider, al soltarlo).
-        if preferencias != guardadas:
-            audio.aplicar(preferencias)
+        if audio.ajustes != audio_guardado:
+            audio.aplicar()
             if not vista.arrastrando:
-                guardar_preferencias(preferencias)
-                guardadas = replace(preferencias)
+                audio.guardar()
+                audio_guardado = replace(audio.ajustes)
+        if preferencias != guardadas and not vista.arrastrando:
+            guardar_preferencias(preferencias)
+            guardadas = replace(preferencias)
         if resultado is not None:
             return resultado, mando
         vista.actualizar(dt, menu, preferencias.reducir_movimiento)
@@ -1992,7 +2117,7 @@ def _elegir_roles(pantalla, reloj, modo, mando, presentar, audio=None, preferenc
             vista.empezar_salida()
 
         vista.actualizar(dt, seleccion)
-        volumen = preferencias.volumen_musica if preferencias is not None else 100
+        volumen = audio.ajustes.volumen_general if audio is not None else 100
         silenciado = audio.silenciado if audio is not None else False
         reducir = preferencias.reducir_movimiento if preferencias is not None else False
         vista.dibujar(pantalla, CLASES_ROL, seleccion, volumen, silenciado, reducir)
@@ -2003,18 +2128,16 @@ def _elegir_roles(pantalla, reloj, modo, mando, presentar, audio=None, preferenc
 
 
 def _tecla_de_audio(tecla, audio, preferencias):
-    """N silencia; - y + suben o bajan música y efectos juntos. True si la
+    """N silencia; - y + suben o bajan el volumen general. True si la
     tecla era de audio (y ya se atendió)."""
     if audio is None:
         return False
     if tecla == TECLA_SILENCIO:
         audio.alternar_silencio()
         return True
-    if tecla in TECLAS_VOLUMEN and preferencias is not None:
+    if tecla in TECLAS_VOLUMEN:
         paso = TECLAS_VOLUMEN[tecla] * PASO_VOLUMEN_LOBBY
-        preferencias.volumen_musica = max(0, min(100, preferencias.volumen_musica + paso))
-        preferencias.volumen_efectos = max(0, min(100, preferencias.volumen_efectos + paso))
-        audio.aplicar(preferencias)
+        audio.cambiar("volumen_general", audio.ajustes.volumen_general + paso)  # se aplica y se guarda
         audio.reproducir(navegacion.SONIDO_NAVEGAR)
         return True
     return False

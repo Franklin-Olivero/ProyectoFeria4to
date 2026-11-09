@@ -27,7 +27,8 @@ actualizar, dibujar, manejar_evento), así Main.py usa el mismo loop.
 
 import random
 
-from src.core import assets, eventos_sonido
+from src.audio import eventos_sonido
+from src.core import assets
 from src.core.equipo import jugadores_en_combate
 from src.dungeon.cuarto import HACIA_ADENTRO, Cuarto, punto_llegada
 from src.dungeon.gracia_entrada import GraciaEntrada

@@ -470,14 +470,18 @@ def ejecutar(guion=guion_completo, carpeta=None, ventana=False, tiempo_real=Fals
              maximo_frames=400000):
     if not ventana:
         os.environ["SDL_VIDEODRIVER"] = "dummy"
-        os.environ["SDL_AUDIODRIVER"] = "dummy"
+        os.environ.setdefault("SDL_AUDIODRIVER", "dummy")  # otro valor = probar sin dispositivo de audio
+    # Los ajustes que el recorrido cambie van a una carpeta temporal, nunca a
+    # la carpeta de datos del jugador (src/core/datos_usuario.py).
+    if not os.environ.get("CIVITAS_DATOS"):
+        import tempfile
+        os.environ["CIVITAS_DATOS"] = tempfile.mkdtemp(prefix="civitas_recorrido_")
     import pygame
     import Main
     from src.core import preferencias as prefs
 
     conductor = Conductor(pygame, carpeta, verboso)
     original_flip = pygame.display.flip
-    prefs_ruta = prefs.RUTA_PREFERENCIAS
     generador = {"g": None, "espera": 0}
 
     def flip():
@@ -506,7 +510,6 @@ def ejecutar(guion=guion_completo, carpeta=None, ventana=False, tiempo_real=Fals
         pass
     finally:
         pygame.display.flip = original_flip
-        prefs.RUTA_PREFERENCIAS = prefs_ruta
         pygame.quit()
     return conductor
 

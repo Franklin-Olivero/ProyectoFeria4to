@@ -20,7 +20,8 @@ en src/dungeon/arena_jefe.py.
 
 import random
 
-from src.core import assets, eventos_sonido
+from src.audio import eventos_sonido
+from src.core import assets
 from src.core.balance import (
     COLAPSO_DESBLOQUEO,
     MAZMORRAS_PARA_DESBLOQUEO,

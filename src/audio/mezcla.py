@@ -1,18 +1,19 @@
 """Reglas de la mezcla de audio (lógica pura, sin Pygame).
 
-Lo que src/core/audio.py decide antes de tocar el mezclador, separado
+Lo que src/audio/gestor_audio.py decide antes de tocar el mezclador, separado
 para probarlo sin dispositivo de audio:
 
     - resolver_ruta / categoria: de un ID a su archivo y su grupo de
       volumen, con None si el ID no existe o falta el archivo (el gestor
       entonces no reproduce nada: fallback silencioso).
-    - volumen_final: preferencia del jugador * categoría * ganancia del ID.
+    - volumen_final: ajustes del jugador * categoría * ganancia del ID.
     - LimitadorSonidos: anti-spam por ID (máximo de copias sonando a la
       vez e intervalo mínimo entre dos reproducciones).
 """
 
 import os
 
+from src.audio.ajustes_audio import volumen_efectivo
 from src.core import assets
 from src.core.balance import (
     GANANCIA_MUSICA,
@@ -46,15 +47,16 @@ def a_fraccion(porcentaje):
     return max(0, min(100, porcentaje)) / 100
 
 
-def volumen_final(id_sonido, porcentaje_preferencia, silenciado=False, es_musica=False):
-    """Volumen 0.0-1.0 con el que debe sonar `id_sonido`."""
-    if silenciado:
-        return 0.0
+def volumen_final(id_sonido, ajustes, es_musica=False, atenuacion=1.0):
+    """Volumen 0.0-1.0 con el que debe sonar `id_sonido` según los
+    AjustesAudio del jugador (src/audio/ajustes_audio.py): general ×
+    música/efectos × mezcla de su categoría × ganancia del ID × atenuación
+    (la pausa baja la música) × 0 si está en silencio."""
     if es_musica:
         grupo, ganancia = assets.CATEGORIA_MUSICA, GANANCIA_MUSICA.get(id_sonido, 1.0)
     else:
         grupo, ganancia = categoria(id_sonido), GANANCIA_SONIDO.get(id_sonido, 1.0)
-    return min(1.0, a_fraccion(porcentaje_preferencia) * VOLUMEN_CATEGORIA[grupo] * ganancia)
+    return volumen_efectivo(ajustes, es_musica, VOLUMEN_CATEGORIA[grupo], ganancia, atenuacion)
 
 
 class LimitadorSonidos:
