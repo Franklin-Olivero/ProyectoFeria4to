@@ -179,8 +179,14 @@ Todo cambio de balance se hace en `src/core/balance.py`, nunca dentro de las cla
 ```text
 PruebaPythonGame/
 │-- Main.py
+│-- README.md
 │-- requirements.txt
-│-- assets/             # fonts/ (JetBrains Mono); sonidos/ y musica/ aún vacíos (los efectos se sintetizan en código)
+│-- assets/             # fonts/ (JetBrains Mono), musica/ y sonidos/ (WAV de tools/generar_audio.py), sprites/, story/ (fondos y cuadros de video)
+│-- content/            # campaign.json (contenido del modo historia)
+│-- docs/               # arquitectura, arte, sustentación, QA, capturas
+│-- Online/             # modo en red: lobby, sala TCP, impostor (ver Online/README.md)
+│-- prompts/            # encargos para Claude (ver prompts/README.md)
+│-- tests/
 │-- tools/              # producción y QA: audio, cuadros de video, retratos, recorrido de la campaña
 │-- src/
 │   │-- core/          # constantes, balance, configuración de pantalla, reloj, escenas, apuntado, input por jugador, reglas de equipo, preferencias, audio
@@ -188,8 +194,9 @@ PruebaPythonGame/
 │   │-- ai/             # behavior tree genérico y nodos de combate, sin dependencias de Pygame
 │   │-- entities/       # jugadores (roles), dash, proyectiles, enemigos y sus tipos, jefe
 │   │-- dungeon/        # cuartos, mazmorra multi-cuarto, mapa de casillas y grafo de calles de Ciudad Nova, noticias, partida, clasificador, mazmorra final
+│   │-- story/          # modo historia «Código Nova»: campaña, escenarios, reputación, redención, cinemáticas (puro)
 │   │-- ui/             # menú principal y ajustes, filtro de daltonismo, minijuego de decisión, menú de modo y roles, Ciudad Nova (casillas y render), mapa del mundo, minimapa, victoria/derrota, HUD, partículas
-│   └-- network/        # (aún no existe) protocolo sockets, serialización, server/client
+│   └-- network/        # (no existe: el modo en red vive en Online/)
 ```
 No mezclar responsabilidades entre carpetas. `structures/` y `ai/` no deben importar `pygame`. La lógica de jefe, charcos, mazmorra final, invulnerabilidad, dash, reglas de equipo, progreso, balance, terminal de decisión, mazmorra multi-cuarto, mapa de casillas de Ciudad Nova, grafo de calles, noticias, partida, escenas, selector de destino, gracia de entrada, posiciones de aparición, tipos de enemigo y su composición, menú de inicio, menú principal, modal de ajustes y preferencias también es pura (sin `pygame`) para poder probarse en aislado; su dibujo vive en módulos aparte.
 

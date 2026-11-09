@@ -44,7 +44,6 @@ COLOR_VIDRIO_ABAJO = (13, 15, 40)
 COLOR_BORDE_VIDRIO = (58, 64, 116)
 COLOR_FOCO_FONDO = (44, 34, 96)
 COLOR_OPCION_FONDO = (18, 21, 52)
-COLOR_TRAMA_TERMINAL = (15, 19, 46)
 COLOR_ARISTA_RED = (64, 70, 122)
 COLOR_NODO_NEUTRO = (92, 96, 142)
 MARCAS_REPUTACION = (-60, -20, 20, 60)  # separaciones de los niveles en la barra
@@ -77,12 +76,6 @@ TAMANIO_FUENTE_MEDIA = 18
 TAMANIO_FUENTE_TITULO = 22
 TAMANIO_FUENTE_GRANDE = 34
 TAMANIO_FUENTE_ENORME = 48
-# Compatibilidad con módulos que piden "la fuente del HUD".
-TAMANIO_FUENTE_HUD = TAMANIO_FUENTE_NORMAL
-TAMANIO_FUENTE_SELECCION = TAMANIO_FUENTE_NORMAL
-TAMANIO_FUENTE_MAPA = TAMANIO_FUENTE_NORMAL
-TAMANIO_FUENTE_MINIMAPA = TAMANIO_FUENTE_PEQUENA
-TAMANIO_FUENTE_TITULO_VICTORIA = TAMANIO_FUENTE_GRANDE
 
 # ----------------------------------------------------------------------
 # Layout general
@@ -133,9 +126,6 @@ ALFA_AURA_DASH = 70  # alfa del anillo más interno (los de afuera se desvanecen
 DURACION_FLASH_DASH = 0.15  # s del destello al quedar disponible
 COLOR_FLASH_DASH = (255, 255, 255)
 ESCALA_ICONO_DASH = 2
-# Compatibilidad: textos sueltos del HUD antiguo
-POSICION_TEXTO_COLAPSO = (10, 10)
-POSICION_TEXTO_CARGA = (10, 40)
 
 # Chips de tecla en la barra de controles
 COLOR_FONDO_CHIP = (30, 28, 62)
@@ -213,62 +203,11 @@ COLOR_FONDO_GLOBO = (18, 16, 40)
 COLOR_BORDE_GLOBO = COLOR_TEAL
 DESPLAZAMIENTO_GLOBO = (64, -84)  # desde el centro del enemigo (hacia un lado y arriba)
 
-# ----------------------------------------------------------------------
-# Texto en pantalla (compatibilidad)
-# ----------------------------------------------------------------------
-COLOR_TEXTO_TERMINAL = COLOR_TEXTO_HUD
-
 # Habilidad del Ciudadano: Burbuja Comunitaria
 COLOR_BURBUJA = COLOR_TEAL
 GROSOR_BURBUJA = 2
 RADIO_BURBUJA = 70  # píxeles
 DURACION_BURBUJA = 4.0  # segundos
-
-# ----------------------------------------------------------------------
-# Terminal del minijuego de decisión (pantalla completa)
-# ----------------------------------------------------------------------
-COLOR_FONDO_TERMINAL = COLOR_FONDO
-COLOR_BORDE_TERMINAL = COLOR_BORDE_PANEL
-COLOR_OPCION_SELECCIONADA = COLOR_TEAL
-COLOR_TIEMPO_TERMINAL = COLOR_AMARILLO
-ANCHO_TERMINAL = 1280
-ALTO_TERMINAL = 720
-GROSOR_BORDE_TERMINAL = 2
-MARGEN_TERMINAL = 40
-SEPARACION_LINEAS_TERMINAL = 50
-RECT_TARJETA_PUBLICACION = (40, 142, 340, 440)
-COLOR_FONDO_TARJETA = (240, 236, 224)
-COLOR_TEXTO_TARJETA = (34, 30, 48)
-COLOR_TEXTO_TARJETA_SUAVE = (110, 106, 128)
-COLOR_IMAGEN_TARJETA = (40, 34, 84)
-RECT_PANEL_ARBOL = (410, 142, 830, 440)
-POSICION_TIEMPO_TERMINAL = (1240, 70)  # midright del número grande
-RECT_BARRA_TIEMPO = (880, 100, 360, 14)
-ANCHO_NODO_ARBOL = 150
-ALTO_NODO_ARBOL_3_LINEAS = 56  # nodo con texto en tres líneas (opciones largas)
-ALTO_NODO_ARBOL = 46
-ANCHO_NODO_HOJA = 220
-COLOR_NODO_RECORRIDO = (24, 72, 66)
-COLOR_BORDE_RECORRIDO = COLOR_TEAL
-COLOR_NODO_ELEGIBLE = COLOR_TEAL
-COLOR_TEXTO_ELEGIBLE = (12, 40, 36)
-COLOR_NODO_CERRADO = COLOR_FONDO_PANEL_CLARO
-COLOR_BORDE_CERRADO = (84, 78, 140)
-COLOR_RAMA = (70, 64, 120)
-COLOR_RAMA_RECORRIDA = COLOR_TEAL
-GROSOR_RAMA = 2
-GROSOR_RAMA_RECORRIDA = 3
-POSICION_CAMINO_TERMINAL = (40, 616)  # "Camino" (migas de pan), sobre la barra de controles
-
-# ----------------------------------------------------------------------
-# Pantalla de resultado (tras la terminal): dos variantes de color
-# ----------------------------------------------------------------------
-COLOR_FONDO_EXITO = (10, 42, 46)
-COLOR_FONDO_FALLO = (46, 12, 30)
-RECT_ILUSTRACION_RESULTADO = (480, 226, 320, 180)
-COLOR_MARCO_ILUSTRACION = (34, 30, 72)
-RECT_BARRA_RESULTADO = (400, 468, 480, 22)
-RECT_BOTON_RESULTADO = (480, 596, 320, 50)
 
 # ----------------------------------------------------------------------
 # Selección de personaje: 4 tarjetas (una por rol) con barras de stats
@@ -363,7 +302,6 @@ DISTANCIA_APARICION_PUERTA = 56
 DURACION_MENSAJE_MAZMORRA = 2.0  # s de "Cuarto final desbloqueado" / "Limpia todos..."
 COLOR_MENSAJE_MAZMORRA = COLOR_AMARILLO
 POSICION_MENSAJE_MAZMORRA = (640, 112)  # centro: bajo el muro superior del cuarto
-POSICION_TEXTO_CUARTOS_LIMPIOS = (10, 70)
 
 # ----------------------------------------------------------------------
 # Mazmorra final: arena, jefe, charcos y "juice"
@@ -390,11 +328,8 @@ SHAKE_INTENSIDAD = 5  # px máximos de desplazamiento
 # Barra de vida del jefe y textos de la mazmorra final (en el HUD)
 RECT_BARRA_JEFE = (440, 40, 400, 12)  # x, y, ancho, alto
 COLOR_BARRA_JEFE = COLOR_MAGENTA
-COLOR_FONDO_BARRA_JEFE = COLOR_FONDO_BARRA
 COLOR_MARCA_FASE = COLOR_TEXTO_HUD
 ANCHO_MARCA_FASE = 2
-POSICION_TEXTO_FASE = (440, 14)
-POSICION_TEXTO_TIEMPO_JEFE = (840, 14)  # topright
 POSICION_MENSAJE_CENTRAL = (640, 112)  # centro del texto de derrota
 COLOR_MENSAJE_VICTORIA = COLOR_TEAL
 COLOR_MENSAJE_DERROTA = COLOR_MAGENTA
@@ -462,7 +397,6 @@ ETIQUETAS_MAPA_MUNDO = {
     "Hospital": ("midtop", 0, 32),
     "Empresa de Medios": ("midtop", 0, 32),
 }
-MARGEN_FONDO_ETIQUETA = 4  # px de fondo alrededor de cada texto del mapa
 RADIO_ZONA_MAPA = 22
 RADIO_CRUCE_MAPA = 7
 COLOR_ZONA_MAPA = (66, 60, 120)
@@ -1106,13 +1040,6 @@ COLOR_TITULO_EVIDENCIA = (34, 30, 48)
 COLOR_FUENTE_EVIDENCIA = (110, 106, 128)
 COLOR_PISTA = COLOR_MAGENTA  # chip "PISTA NOVA_404"
 DURACION_TARJETA_EVIDENCIA = 6.0  # s visible en combate
-# Sello de la publicación según el estado de evidencia.
-COLOR_SELLO_EVIDENCIA = {
-    "sin_pruebas": (150, 150, 182),
-    "parcial": COLOR_AMARILLO,
-    "verificado": COLOR_TEAL,
-    "desmentido": COLOR_MAGENTA,
-}
 
 # Panel de estado de Ciudad Nova (tecla I en la ciudad y pantalla final).
 RECT_PANEL_ESTADO = (780, 80, 470, 560)
@@ -1122,9 +1049,6 @@ COLOR_INDICADOR_MALO = COLOR_MAGENTA
 COLOR_FONDO_INDICADOR = (40, 36, 78)
 ALTO_BARRA_INDICADOR = 12
 SEPARACION_INDICADORES = 44
-# Deltas de indicadores en la pantalla de resultado.
-RECT_PANEL_DELTAS = (840, 214, 400, 204)
-RECT_PANEL_EVIDENCIA_RESULTADO = (40, 214, 400, 204)
 COLOR_DELTA_POSITIVO = COLOR_TEAL
 COLOR_DELTA_NEGATIVO = COLOR_MAGENTA
 # Color de cada rol por su clave (JugadorBase.rol), para quien solo tiene la clave.
@@ -1134,11 +1058,6 @@ COLOR_POR_ROL = {
     "periodista": COLOR_PERIODISTA,
     "candidato": COLOR_CANDIDATO,
 }
-# Terminal del modo historia: la raíz lleva el título del escenario y la
-# lista de pruebas reunidas va entre el título y el reloj.
-ANCHO_NODO_RAIZ = 300
-POSICION_PRUEBAS_TERMINAL = (480, 36)
-ANCHO_PRUEBAS_TERMINAL = 370
 # Pantalla de propagación por la red social (src/ui/red_social_render.py).
 RECT_PANEL_GRAFO_SOCIAL = (60, 120, 660, 500)
 CENTRO_GRAFO_SOCIAL = (390, 352)
@@ -1155,14 +1074,6 @@ COLOR_ARISTA_CORRECCION = COLOR_TEAL
 GROSOR_ARISTA_PROPAGADA = 3
 SEGUNDOS_POR_CAPA = 0.6  # la onda del BFS avanza una capa cada tanto
 RECT_PANEL_DATOS_SOCIAL = (760, 120, 460, 500)
-# Investigación del origen de la señal (src/ui/investigacion_render.py).
-RECTS_TARJETA_SOSPECHOSO = ((40, 150, 380, 400), (450, 150, 380, 400), (860, 150, 380, 400))
-COLOR_FONDO_SOSPECHOSO = (22, 20, 46)
-COLOR_BORDE_SOSPECHOSO_SELECCIONADO = COLOR_AMARILLO
-COLOR_BORDE_SOSPECHOSO = COLOR_BORDE_PANEL
-COLOR_ACUSADO_CORRECTO = COLOR_TEAL
-COLOR_ACUSADO_ERRADO = COLOR_MAGENTA
-RECT_VEREDICTO_INVESTIGACION = (240, 566, 800, 92)
 # Pantalla de elecciones (src/ui/elecciones_render.py).
 RECT_PANEL_CANDIDATOS = (60, 150, 640, 330)
 RECT_PANEL_ESTADO_FINAL = (740, 110, 480, 540)

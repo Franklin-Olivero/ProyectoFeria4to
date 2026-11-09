@@ -108,10 +108,6 @@ class Puerta:
         self.bloqueada = True
         self.sellada = False
 
-    @property
-    def cruzable(self):
-        return not self.bloqueada and not self.sellada
-
     def color(self):
         if self.bloqueada:
             return assets.COLOR_PUERTA_BLOQUEADA

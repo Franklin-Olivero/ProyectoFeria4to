@@ -153,9 +153,3 @@ def entrada(rect, transcurrido, desde="abajo", distancia=24):
 
 def alfa_entrada(transcurrido):
     return round(255 * fraccion_entrada(transcurrido))
-
-
-def dentro_de(rect_hijo, rect_padre):
-    """True si `rect_hijo` cabe completo dentro de `rect_padre` (para tests
-    de layout que comprueban que nada queda fuera de pantalla)."""
-    return pygame.Rect(rect_padre).contains(pygame.Rect(rect_hijo))

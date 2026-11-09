@@ -1,10 +1,25 @@
+# Entornos virtuales
 venv/
+.venv/
+
+# Python
 __pycache__/
 *.pyc
+.pytest_cache/
+
+# Empaquetado
+dist/
+build/
+
+# Editores y sistema operativo
 .vscode/
+.idea/
+.DS_Store
+Thumbs.db
+
+# Registros (p. ej. Online/errores_online.log)
+*.log
+
 # Preferencias de cada jugador (volumen, accesibilidad, controles)
 preferencias.json
 preferencias.json.tmp
-.DS_Store
-*.log
-

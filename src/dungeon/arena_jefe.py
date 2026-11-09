@@ -34,7 +34,6 @@ from src.ui import dibujo, sprites, temas_mazmorra
 
 DISTANCIA_INICIO_JUGADOR = 50  # px desde el borde inferior de la arena
 SEMILLA_FONDO_ARENA = 777
-GRAFITIS_ARENA = 4
 NOMBRE_JEFE = "Servidor Central"
 # Tipos de los súbditos, en orden de invocación (se repite).
 TIPOS_SUBDITOS = (TipoEnemigo.PERSEGUIDOR, TipoEnemigo.TIRADOR)

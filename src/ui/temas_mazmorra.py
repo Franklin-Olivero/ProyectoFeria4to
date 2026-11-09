@@ -29,10 +29,6 @@ ALTO_CARA_MURO = 12  # en píxeles del cuadro (36 px en pantalla)
 _cache = {}
 
 
-def rect_px(x, y, w, h):
-    return pygame.Rect(x, y, w, h)
-
-
 def _caja(s, color, x, y, w, h, borde=None):
     pygame.draw.rect(s, color, (x, y, w, h))
     if borde is not None:

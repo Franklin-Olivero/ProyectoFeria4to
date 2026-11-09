@@ -1,0 +1,17 @@
+# Finales de línea: LF en el repositorio para todo archivo de texto.
+* text=auto eol=lf
+
+# Binarios: nunca convertir ni intentar un diff de texto.
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.ico binary
+*.wav binary
+*.ogg binary
+*.mp3 binary
+*.ttf binary
+*.otf binary
+*.aseprite binary
+*.zip binary
+*.pdf binary

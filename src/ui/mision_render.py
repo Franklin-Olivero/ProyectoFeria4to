@@ -9,8 +9,6 @@
 Lee una Mision (src/story/misiones.py); no la modifica.
 """
 
-import math
-
 import pygame
 
 from src.core import assets
@@ -90,11 +88,3 @@ def dibujar_toast_objetivo(pantalla, texto, restante, duracion=assets.DURACION_T
     capa.set_alpha(alfa)
     pantalla.blit(capa, rect.topleft)
     return rect
-
-
-def dibujar_aviso_mision(pantalla, texto, tiempo, centro):
-    """Aviso grande de cambio de misión ("NUEVA MISIÓN: ...") con pulso."""
-    pulso = 0.85 + 0.15 * math.sin(tiempo * 6)
-    dibujo.chip(pantalla, texto, centro, assets.COLOR_TITULO_MISION, assets.COLOR_FONDO_PANEL,
-                assets.COLOR_TITULO_MISION, assets.TAMANIO_FUENTE_MEDIA, ancla="center", alto=round(36 * pulso) + 4,
-                margen=16)
