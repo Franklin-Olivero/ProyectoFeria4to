@@ -3,9 +3,14 @@
 Nodos: la Plaza (inicio, sin mazmorra), 4 cruces y la entrada de cada
 edificio ("Colegio", "Hospital" y "Empresa de Medios" con mazmorra
 normal; "Alcaldía" con la mazmorra final). Aristas: los tramos de
-calle, con peso = saturación (PESOS_INICIALES_CIUDAD en balance.py).
-Dónde queda cada nodo y cada tramo en el mapa de casillas lo dice
+calle. Dónde queda cada nodo y cada tramo en el mapa de casillas lo dice
 src/dungeon/ciudad_mapa.py.
+
+Peso de una calle = peso base + saturación acumulada. El peso base sale
+del largo real del tramo por el mapa (peso_base: casillas *
+METROS_POR_CASILLA / METROS_POR_PUNTO_DE_PESO, redondeado): una calle
+que se ve el doble de larga pesa el doble, y caminarla tarda el doble
+(tiempo_recorrido).
 
 Mecánicas que gobierna el grafo:
     - ruta_sugerida(): Dijkstra desde el nodo más cercano al jugador
@@ -22,6 +27,8 @@ Caminar es gratis: el costo de una calle saturada es que se bloquea y
 hay que rodear.
 """
 
+import math
+
 from src.core.balance import (
     AJUSTE_DETONACION,
     AJUSTE_PURIFICACION,
@@ -32,15 +39,18 @@ from src.core.balance import (
     CRUCE_SUR,
     DESBLOQUEO_PESO,
     PESO_MAXIMO_CIUDAD,
+    METROS_POR_CASILLA,
+    METROS_POR_PUNTO_DE_PESO,
     PESO_MINIMO_CIUDAD,
-    PESOS_INICIALES_CIUDAD,
     REPORTES_POR_ZONA,
+    VELOCIDAD_BASE,
     ZONA_ALCALDIA,
     ZONA_COLEGIO,
     ZONA_EMPRESA_MEDIOS,
     ZONA_HOSPITAL,
     ZONA_PLAZA,
 )
+from src.core import eventos_sonido
 from src.dungeon import ciudad_mapa
 from src.structures.graph import INFINITO, Grafo
 
@@ -51,6 +61,28 @@ ZONAS = [ZONA_PLAZA, ZONA_COLEGIO, ZONA_HOSPITAL, ZONA_EMPRESA_MEDIOS, ZONA_ALCA
 EDIFICIOS = [ZONA_COLEGIO, ZONA_HOSPITAL, ZONA_EMPRESA_MEDIOS, ZONA_ALCALDIA]
 CRUCES = [CRUCE_NORTE, CRUCE_SUR, CRUCE_OESTE, CRUCE_ESTE]
 NODOS = ZONAS + CRUCES
+
+
+def metros_tramo(a, b):
+    """Largo real de la calle a-b en metros (su recorrido por el mapa)."""
+    return ciudad_mapa.largo_tramo(ciudad_mapa.tramo(a, b)) * METROS_POR_CASILLA
+
+
+def peso_base(a, b):
+    """Peso inicial de la calle a-b: sus metros en puntos de peso,
+    redondeados al entero más cercano (x.5 sube) y nunca bajo el mínimo."""
+    return max(PESO_MINIMO_CIUDAD, math.floor(metros_tramo(a, b) / METROS_POR_PUNTO_DE_PESO + 0.5))
+
+
+def tiempo_recorrido(a, b, velocidad=VELOCIDAD_BASE):
+    """Segundos que tarda en recorrer la calle a-b quien camina a
+    `velocidad` px/s: proporcional a su largo."""
+    largo_px = ciudad_mapa.largo_tramo(ciudad_mapa.tramo(a, b)) * ciudad_mapa.TAM_CASILLA
+    return largo_px / velocidad
+
+
+# (a, b, peso base) de cada calle, en el orden de ciudad_mapa.TRAMOS.
+PESOS_INICIALES_CIUDAD = [(t.a, t.b, peso_base(t.a, t.b)) for t in ciudad_mapa.TRAMOS]
 
 
 def _clave(a, b):
@@ -125,6 +157,7 @@ class GrafoCiudad:
         if not self.puede_bloquearse(arista):
             return False
         self.bloqueadas.add(_clave(*arista))
+        eventos_sonido.emitir("barricada")
         return True
 
     def desbloquear(self, arista):

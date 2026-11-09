@@ -34,7 +34,7 @@ import random
 
 import pygame
 
-from src.core import assets
+from src.core import assets, eventos_sonido
 from src.core.equipo import jugador_mas_cercano
 from src.dungeon.clasificador_toxicidad import (
     calcular_nivel_toxicidad,
@@ -244,6 +244,8 @@ class Cuarto:
 
         cantidad_antes = len(self.enemigos)
         self.enemigos = [enemigo for enemigo in self.enemigos if enemigo.vivo]
+        if cantidad_antes and not self.enemigos and not self.es_final:
+            eventos_sonido.emitir("cuarto_liberado")
         if len(self.enemigos) != cantidad_antes:
             self._actualizar_estado_puertas()
         else:

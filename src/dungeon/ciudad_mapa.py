@@ -17,6 +17,11 @@ arista y cuál es su sección transversal, donde se levanta su barricada
 cuando la calle se satura. Cada sección va de un sólido a otro (acera,
 3 casillas de calle, acera), así una barricada corta el paso de verdad.
 
+PROPS: mobiliario urbano sólido (bancas, basureros, parada de bus,
+bicicletas...) en casillas que no cortan ninguna calle ni acera de paso:
+el patio cerrado junto al Colegio, la acera de su puerta y las esquinas
+de la Plaza. Su dibujo es el pack urbano (src/ui/ciudad_render.py).
+
 Funciones para el movimiento y la cámara: es_solida, casilla_de,
 entrada_cercana, mover_con_colision y calcular_camara.
 """
@@ -126,6 +131,21 @@ BARRICADAS_ALCALDIA = frozenset(
     (col, fila) for fila, linea in enumerate(MAPA) for col, letra in enumerate(linea) if letra == BARRICADA
 )
 
+# Mobiliario urbano sólido: casilla -> nombre del prop (assets.PROPS_URBANOS).
+PROPS = {
+    # Patio del Colegio (cerrado por árboles: solo decora).
+    (8, 2): "banca", (11, 2): "jardinera", (13, 2): "maceta_grande",
+    (7, 5): "bicicletero", (9, 5): "bicicleta", (10, 5): "bicicleta", (12, 5): "cartelera",
+    # Acera frente al Colegio, sin tapar su puerta (19, 6).
+    (15, 7): "basurero", (23, 7): "buzon",
+    # Esquinas de la Plaza (las columnas 30-34 quedan libres para el camino al norte y al sur).
+    (25, 17): "jardinera", (27, 17): "banca", (37, 17): "banca", (39, 17): "jardinera",
+    (25, 27): "jardinera", (27, 27): "banca", (37, 27): "banca", (39, 27): "jardinera",
+    # Aceras de la avenida central.
+    (14, 20): "parada_bus", (16, 20): "maquina", (48, 20): "hidrante", (20, 24): "reciclaje",
+    (44, 24): "basurero",
+}
+
 # Plaza central: (columna, fila, ancho, alto). Es acera ':' para la
 # lógica; solo cambia su dibujo (losas y mosaico).
 PLAZA = (25, 17, 15, 11)
@@ -198,6 +218,25 @@ def tramo(a, b):
     raise KeyError(f"No hay tramo de calle entre {a!r} y {b!r}.")
 
 
+def largo_tramo(t):
+    """Largo del tramo `t` en casillas: los pasos de su eje de `a` a `b`
+    (los codos cuentan; siempre es el recorrido real por la calle)."""
+    return len(casillas_de_tramo(t.puntos)) - 1
+
+
+def punto_medio_tramo(t):
+    """(col, fila) fraccionarios a mitad del recorrido del tramo `t`
+    (donde el mapa del mundo pone la etiqueta de su peso)."""
+    restante = largo_tramo(t) / 2
+    for (c0, f0), (c1, f1) in zip(t.puntos, t.puntos[1:]):
+        largo = abs(c1 - c0) + abs(f1 - f0)
+        if restante <= largo:
+            fraccion = restante / largo if largo else 0.0
+            return (c0 + (c1 - c0) * fraccion, f0 + (f1 - f0) * fraccion)
+        restante -= largo
+    return t.puntos[-1]
+
+
 def casillas_de_tramo(puntos):
     """Todas las casillas del eje de un tramo, recorriendo sus puntos en
     línea recta (horizontal o vertical) de uno al siguiente."""
@@ -238,10 +277,10 @@ def casilla(col, fila):
 
 
 def es_solida(col, fila, barricadas=frozenset()):
-    """True si no se puede pisar: edificio, casa, árbol, farola, fuera
-    del mundo o una casilla de `barricadas` (las barricadas activas)."""
+    """True si no se puede pisar: edificio, casa, árbol, farola, un prop,
+    fuera del mundo o una casilla de `barricadas` (las barricadas activas)."""
     letra = casilla(col, fila)
-    if letra is None or letra in SOLIDAS:
+    if letra is None or letra in SOLIDAS or (col, fila) in PROPS:
         return True
     return (col, fila) in barricadas
 

@@ -53,6 +53,7 @@ SDL_VIDEODRIVER=dummy SDL_AUDIODRIVER=dummy python tools/recorrido_campania.py
 | Habilidad (se carga con kills) | F | L1 |
 | Dash | Shift | ✕ |
 | Minimapa (mazmorra) | M | — |
+| Silencio / volumen (lobby) | N / - + | — |
 | Entrar a un edificio | E | — |
 | Ruta sugerida / cambiar destino | G / TAB | — |
 | Mapa del mundo (ciudad) | M | — |
@@ -73,7 +74,7 @@ src/
   ui/            # todo el dibujo: menús, HUD, terminal, mapas, cinemáticas
 Online/          # modo en red (lobby, sala, impostor); ver Online/README.md
 content/         # campaign.json: textos y datos de la campaña
-assets/          # fuentes, música, sonidos, sprites y cuadros de video
+assets/          # audio/, colegio/, fuentes, sprites y cuadros de video
 tools/           # producción de contenido y QA (audio, video, retratos, recorrido)
 tests/           # suite de pytest
 docs/            # arquitectura, dirección de arte, guía de sustentación, QA, capturas

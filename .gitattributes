@@ -10,6 +10,7 @@
 *.wav binary
 *.ogg binary
 *.mp3 binary
+*.mid binary
 *.ttf binary
 *.otf binary
 *.aseprite binary

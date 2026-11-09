@@ -1,0 +1,34 @@
+BITCADE FREE MUSIC PACK - VOL. 1
+================================
+
+6 original chiptune loops for games, made 100 % with Bitcade.
+Every track loops seamlessly: put it on repeat and you will not hear the seam.
+
+LICENSE: CC BY 4.0. Use the music in any project, commercial or not, as long as
+you credit it, for example in your game's credits:
+
+    Music: Bitcade Audio - https://schniersky.itch.io/bitcade (CC BY 4.0)
+
+TRACKS
+------
+01-Title      120 BPM   64.0 s  heroic title theme, D major (16-bit FM)
+02-Overworld  150 BPM   51.2 s  happy adventure, G major (8-bit chip)
+03-Town       100 BPM   76.8 s  cozy town or shop, F major (16-bit samples: flute, marimba, guitar)
+04-Cave       100 BPM   76.8 s  dark cave or dungeon, D minor (8-bit computer)
+05-Battle     160 BPM   48.0 s  fast battle, E minor (16-bit FM)
+06-Boss       170 BPM   45.2 s  menacing boss fight, C minor (8-bit computer)
+
+WAV/   44.1 kHz, 16-bit, stereo, normalized to -1 dBFS. Seamless loops: no intro,
+       no fade-out, the echo and reverb tails are already at the start.
+MIDI/  the notes of every track, one MIDI track per instrument. The track names
+       tell you which Bitcade factory preset plays it.
+
+MADE WITH BITCADE
+-----------------
+Bitcade is a retro synth for chiptune music and a sound effect generator, with four
+engines: chip, 8-bit computer, 16-bit FM and sampler (VST3 plugin and standalone app,
+Windows). All instruments in these tracks come from its factory presets.
+
+Get Bitcade: https://schniersky.itch.io/bitcade
+
+Also free: Bitcade Free SFX Pack Vol. 1 (30 sounds): https://schniersky.itch.io/bitcade-free-sfx-pack

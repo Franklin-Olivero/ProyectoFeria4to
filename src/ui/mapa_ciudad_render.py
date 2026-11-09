@@ -2,19 +2,23 @@
 (tecla M en la escena CIUDAD, solo presentación y solo lectura).
 
 Cada nodo se dibuja en su casilla del mapa escalada
-(ORIGEN_MAPA_MUNDO + casilla * ESCALA_MAPA_MUNDO), así el dibujo
-conserva la forma de la ciudad: calles como líneas (por sus codos) con
-su peso encima, las bloqueadas en magenta con su barricada, zonas como
-círculos con nombre y toxicidad, cruces como puntos, el jugador en su
-lugar y la ruta sugerida (Dijkstra) hasta el destino elegido con TAB,
-con su saturación total en un panel inferior. No modifica la partida.
+(ORIGEN_MAPA_MUNDO + casilla * ESCALA_MAPA_MUNDO, la misma escala en x
+y en y), así el dibujo conserva la forma y las distancias de la ciudad:
+una calle que se ve el doble de larga mide y pesa el doble. Calles como
+líneas (por sus codos) con su peso en la mitad del recorrido, las
+bloqueadas en magenta con su barricada, zonas como círculos con nombre y
+toxicidad, cruces como puntos, el jugador en su lugar, una leyenda de
+escala y la ruta sugerida (Dijkstra) hasta el destino elegido con TAB,
+con sus metros, el tiempo a pie y el costo total en un panel inferior.
+No modifica la partida.
 """
 
 import pygame
 
 from src.core import assets
 from src.dungeon import ciudad_mapa
-from src.dungeon.grafo_ciudad import CRUCES, ZONA_FINAL, ZONA_INICIO
+from src.core.balance import METROS_POR_CASILLA, METROS_POR_PUNTO_DE_PESO
+from src.dungeon.grafo_ciudad import CRUCES, ZONA_FINAL, ZONA_INICIO, metros_tramo, tiempo_recorrido
 from src.ui import casillas_ciudad, dibujo, sprites
 from src.ui.fuentes import fuente
 
@@ -28,17 +32,6 @@ def a_pantalla(col, fila):
 
 def _puntos_tramo(a, b):
     return [a_pantalla(*punto) for punto in ciudad_mapa.tramo(a, b).puntos]
-
-
-def _punto_medio(puntos):
-    """Punto a mitad de largo de una polilínea (para poner el peso)."""
-    largos = [pygame.Vector2(p).distance_to(q) for p, q in zip(puntos, puntos[1:])]
-    restante = sum(largos) / 2
-    for (p, q), largo in zip(zip(puntos, puntos[1:]), largos):
-        if restante <= largo:
-            return pygame.Vector2(p).lerp(q, restante / largo if largo else 0)
-        restante -= largo
-    return pygame.Vector2(puntos[-1])
 
 
 def dibujar_mapa_mundo(pantalla, partida, seleccionada, posicion_jugador):
@@ -77,6 +70,7 @@ def dibujar_mapa_mundo(pantalla, partida, seleccionada, posicion_jugador):
     imagen = sprites.sprite_jugador(assets.COLOR_ZONA_ACTUAL, assets.ESCALA_JUGADOR_MAPA_MUNDO)
     sprites.dibujar_centrado(pantalla, imagen, a_pantalla(col, fila))
 
+    _dibujar_escala(pantalla)
     _dibujar_panel_ruta(pantalla, seleccionada, ruta)
 
 
@@ -93,7 +87,7 @@ def _dibujar_fondo(pantalla):
 
 
 def _dibujar_peso(pantalla, a, b, peso, en_ruta, bloqueada):
-    centro = _punto_medio(_puntos_tramo(a, b))
+    centro = pygame.Vector2(a_pantalla(*ciudad_mapa.punto_medio_tramo(ciudad_mapa.tramo(a, b))))
     if bloqueada:
         imagen = casillas_ciudad.casilla_barricada()
         pantalla.blit(imagen, imagen.get_rect(center=(centro.x, centro.y - 18)))
@@ -154,14 +148,33 @@ def _detalle_zona(partida, zona):
     return f"Toxicidad {partida.toxicidad(zona):.0f}"
 
 
+def _dibujar_escala(pantalla):
+    """Barra de escala (20 m = cuántas casillas) y cómo se calcula el peso."""
+    derecha, y = assets.POSICION_ESCALA_MAPA
+    casillas = METROS_POR_PUNTO_DE_PESO / METROS_POR_CASILLA
+    largo = round(casillas * assets.ESCALA_MAPA_MUNDO[0])
+    color = assets.COLOR_ESCALA_MAPA
+    pygame.draw.line(pantalla, color, (derecha - largo, y), (derecha, y), 2)
+    for x in (derecha - largo, derecha):
+        pygame.draw.line(pantalla, color, (x, y - 5), (x, y + 5), 2)
+    dibujo.texto(pantalla, f"{METROS_POR_PUNTO_DE_PESO} m = 1 de peso", (derecha - largo - 10, y), color,
+                 assets.TAMANIO_FUENTE_PEQUENA, ancla="midright")
+    dibujo.texto(pantalla, f"1 casilla = {METROS_POR_CASILLA} m · peso = largo + saturación", (derecha, y + 12),
+                 color, assets.TAMANIO_FUENTE_PEQUENA, ancla="topright")
+
+
 def _dibujar_panel_ruta(pantalla, destino, ruta):
     panel = dibujo.panel(pantalla, assets.RECT_PANEL_RUTA)
     x, y = assets.POSICION_TEXTO_RUTA
+    texto_ruta = " › ".join(ruta[0]) if ruta else assets.TEXTO_SIN_RUTA
     dibujo.texto(pantalla, f"Ruta sugerida a {destino} (Dijkstra, sin calles bloqueadas)", (x, y),
                  assets.COLOR_TEXTO_SECUNDARIO, assets.TAMANIO_FUENTE_PEQUENA)
-    texto_ruta = " › ".join(ruta[0]) if ruta else assets.TEXTO_SIN_RUTA
     dibujo.texto(pantalla, texto_ruta, (x, y + 22), assets.COLOR_TEXTO_HUD, assets.TAMANIO_FUENTE_NORMAL, negrita=True)
     if ruta:
-        dibujo.chip(pantalla, f"Saturación {ruta[1]:g}", (panel.right - 16, panel.centery), assets.COLOR_AMARILLO,
+        tramos = list(zip(ruta[0], ruta[0][1:]))
+        metros = sum(metros_tramo(a, b) for a, b in tramos)
+        segundos = sum(tiempo_recorrido(a, b) for a, b in tramos)
+        dibujo.chip(pantalla, f"Costo {ruta[1]:g} · {metros} m · ~{segundos:.0f} s", (panel.right - 16, panel.centery),
+                    assets.COLOR_AMARILLO,
                     assets.COLOR_FONDO, assets.COLOR_AMARILLO, assets.TAMANIO_FUENTE_NORMAL, ancla="midright",
                     alto=32, margen=12)

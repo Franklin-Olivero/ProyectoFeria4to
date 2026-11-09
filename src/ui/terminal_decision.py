@@ -20,6 +20,8 @@ El dibujo vive aparte, en src/ui/terminal_decision_render.py, para que
 esta lógica se pueda probar con pytest sin Pygame.
 """
 
+from src.core import eventos_sonido
+from src.core.balance import SEGUNDOS_TIC_TERMINAL
 from src.structures.tree import ArbolDecision
 
 DURACION_TERMINAL = 10.0  # segundos
@@ -158,7 +160,12 @@ class TerminalDecision:
         """Descuenta el reloj; si llega a 0 sin resultado, detona."""
         if not self.activa:
             return
+        antes = self.tiempo_restante
         self.tiempo_restante = max(0.0, self.tiempo_restante - dt)
+        # Tic de reloj al cruzar cada segundo entero de los últimos SEGUNDOS_TIC_TERMINAL.
+        segundo = int(antes)
+        if 0 < segundo <= SEGUNDOS_TIC_TERMINAL and self.tiempo_restante < segundo <= antes:
+            eventos_sonido.emitir("tick")
         if self.tiempo_restante == 0.0:
             self._terminar(DETONACION)
 

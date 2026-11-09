@@ -212,15 +212,26 @@ DURACION_BURBUJA = 4.0  # segundos
 # ----------------------------------------------------------------------
 # Selección de personaje: 4 tarjetas (una por rol) con barras de stats
 # ----------------------------------------------------------------------
-POSICION_TITULO_SELECCION = (640, 70)  # centro
-ORIGEN_COLUMNAS_SELECCION = (90, 150)  # esquina superior izq. de la 1ra tarjeta
-ANCHO_COLUMNA_SELECCION = 280  # paso entre tarjetas
-ANCHO_TARJETA_SELECCION = 250
-ALTO_TARJETA_SELECCION = 400
-SEPARACION_FILAS_SELECCION = 34
-DESPLAZAMIENTO_BARRA_X = 100  # de la etiqueta de la stat al inicio de su barra
-ANCHO_MAXIMO_BARRA = 110  # ancho de la barra del rol con el valor máximo
+POSICION_TITULO_SELECCION = (640, 52)  # centro
+ORIGEN_COLUMNAS_SELECCION = (70, 112)  # esquina superior izq. de la 1ra tarjeta
+ANCHO_COLUMNA_SELECCION = 290  # paso entre tarjetas
+ANCHO_TARJETA_SELECCION = 270
+ALTO_TARJETA_SELECCION = 420
+SEPARACION_FILAS_SELECCION = 28
+DESPLAZAMIENTO_BARRA_X = 80  # de la etiqueta de la stat al inicio de su barra
+ANCHO_MAXIMO_BARRA = 88  # ancho de la barra del rol con el valor máximo
 ALTO_BARRA = 10
+# Lobby (src/ui/seleccion_rol.py): paleta neón, animación y paneles.
+ESCALA_SPRITE_LOBBY = 4  # sprite animado de cada tarjeta
+ELEVACION_TARJETA_LOBBY = 10  # px que sube la tarjeta bajo un cursor
+SUAVIZADO_TARJETA_LOBBY = 12.0  # 1/s: qué tan rápido sube y baja (exponencial)
+DURACION_ENTRADA_LOBBY = 0.35  # s del fundido desde negro al entrar
+DURACION_SALIDA_LOBBY = 0.35  # s del destello + fundido al confirmar todos
+COLOR_NEON_LOBBY = (196, 120, 255)  # violeta Civitas
+COLOR_NEON_LOBBY_2 = (80, 220, 255)  # cian
+COLOR_REJILLA_LOBBY = (120, 70, 200)
+CANTIDAD_PARTICULAS_LOBBY = 36
+RECT_PANEL_RESUMEN_LOBBY = (70, 548, 1140, 96)
 # Cursores de cada jugador sobre las tarjetas (chip "J1"/"J2" del color del
 # rol, arriba a la derecha)
 GROSOR_TARJETA_RESALTADA = 4
@@ -385,8 +396,13 @@ GROSOR_CANDADO = 2
 # abstracto. Cada nodo se dibuja en ORIGEN + casilla * ESCALA, así el
 # dibujo conserva la forma de la ciudad y el jugador cae en su lugar.
 # ----------------------------------------------------------------------
-ORIGEN_MAPA_MUNDO = (32, 56)  # px de pantalla de la casilla (0, 0)
-ESCALA_MAPA_MUNDO = (19, 13)  # px de pantalla por casilla, en x y en y
+# Misma escala en x y en y: el largo dibujado de cada calle es
+# proporcional a su largo real (y a su peso base, ver grafo_ciudad.py).
+# El origen centra la red de calles (columnas 9-54) en la pantalla.
+ORIGEN_MAPA_MUNDO = (224, 56)  # px de pantalla de la casilla (0, 0)
+ESCALA_MAPA_MUNDO = (13, 13)  # px de pantalla por casilla, en x y en y
+POSICION_ESCALA_MAPA = (1240, 606)  # extremo derecho de la barra de escala (junto al panel de la ruta)
+COLOR_ESCALA_MAPA = COLOR_TEXTO_SECUNDARIO
 # Dónde va el nombre de cada zona respecto a su círculo: (ancla del
 # panel, dx, dy) desde el centro. Fuera del anillo de calles para que
 # las líneas no lo crucen.
@@ -530,7 +546,7 @@ COLOR_AVISO_SELLADA = COLOR_MAGENTA
 TEXTO_AVISO_ENTRADA = "E: entrar a {zona} (Toxicidad {nivel:.0f})"
 TEXTO_ALCALDIA_SELLADA = "Alcaldía sellada: purifica una mazmorra"
 TEXTO_SIN_RUTA = "Sin ruta"
-TEXTO_RUTA_DESTINO = "Ruta a {destino}  ·  saturación {costo:g}"
+TEXTO_RUTA_DESTINO = "Ruta a {destino}  ·  costo {costo:g}"
 
 # Cintillo "Breaking News Civitas"
 ETIQUETA_CINTILLO = "BREAKING NEWS CIVITAS"
@@ -707,21 +723,103 @@ INCLINACION_LLUVIA = 0.18  # px en x por px en y
 COLORES_LLUVIA = ((70, 80, 170), (100, 90, 200), (60, 120, 200))
 
 # ----------------------------------------------------------------------
-# Sonidos (src/core/audio.py). Si existe el archivo se usa; si no, el
-# efecto se genera en código con estos tonos (Hz) y duración (s).
+# Audio (src/core/audio.py, el único que toca el mezclador). Todo archivo
+# vive en assets/audio/ y se pide por su ID: SONIDOS[id] = (ruta,
+# categoría) y MUSICA[id] = ruta. Si falta un archivo o no hay
+# dispositivo de audio, ese ID simplemente no suena (nunca se cae).
+# Volúmenes y ganancias por categoría e ID: balance.py.
+# Elección evento por evento (pack nuevo Bitcade vs. audio propio de
+# tools/generar_audio.py): docs/ARQUITECTURA.md, sección de audio.
 # ----------------------------------------------------------------------
-RUTAS_SONIDOS = {
-    "navegar": os.path.join("assets", "sonidos", "navegar.wav"),
-    "confirmar": os.path.join("assets", "sonidos", "confirmar.wav"),
-    "volver": os.path.join("assets", "sonidos", "volver.wav"),
+RUTA_AUDIO = os.path.join("assets", "audio")
+CATEGORIA_MUSICA = "musica"
+CATEGORIA_SFX = "sfx"
+CATEGORIA_UI = "ui"
+
+
+def _sfx(carpeta, archivo):
+    return os.path.join(RUTA_AUDIO, "sfx", carpeta, archivo)
+
+
+SONIDOS = {
+    # Jugador: disparo y habilidad de cada rol, dash, golpe recibido.
+    "disparo_ciudadano": (_sfx("jugador", "bitcade_laser_pew.wav"), CATEGORIA_SFX),
+    "disparo_influencer": (_sfx("jugador", "bitcade_jump_double.wav"), CATEGORIA_SFX),
+    "disparo_periodista": (_sfx("jugador", "bitcade_laser_blaster.wav"), CATEGORIA_SFX),
+    "disparo_candidato": (_sfx("jugador", "bitcade_explosion_crunch.wav"), CATEGORIA_SFX),
+    "habilidad_ciudadano": (_sfx("jugador", "bitcade_magic_teleport.wav"), CATEGORIA_SFX),
+    "habilidad_influencer": (_sfx("jugador", "bitcade_magic_spell.wav"), CATEGORIA_SFX),
+    "habilidad_periodista": (_sfx("jugador", "bitcade_laser_charged.wav"), CATEGORIA_SFX),
+    "habilidad_candidato": (_sfx("jugador", "bitcade_jump_spring.wav"), CATEGORIA_SFX),
+    "habilidad_lista": (_sfx("jugador", "bitcade_powerup_charge.wav"), CATEGORIA_SFX),
+    "dash": (_sfx("jugador", "bitcade_jump_classic.wav"), CATEGORIA_SFX),
+    "jugador_herido": (_sfx("jugador", "bitcade_hit_hurt.wav"), CATEGORIA_SFX),
+    # Enemigos.
+    "impacto_enemigo": (_sfx("enemigos", "bitcade_hit_punch.wav"), CATEGORIA_SFX),
+    "muerte_perseguidor": (_sfx("enemigos", "bitcade_hit_defeated.wav"), CATEGORIA_SFX),
+    "muerte_tirador": (_sfx("enemigos", "bitcade_explosion_small.wav"), CATEGORIA_SFX),
+    "muerte_curandero": (_sfx("enemigos", "bitcade_hit_defeated.wav"), CATEGORIA_SFX),
+    "disparo_tirador": (_sfx("enemigos", "glitch.wav"), CATEGORIA_SFX),
+    "curacion": (_sfx("enemigos", "bitcade_magic_sparkle.wav"), CATEGORIA_SFX),
+    # Jefe.
+    "jefe_rafaga": (_sfx("jefe", "viral.wav"), CATEGORIA_SFX),
+    "jefe_fase": (_sfx("jefe", "bitcade_explosion_big.wav"), CATEGORIA_SFX),
+    "jefe_escudo_roto": (_sfx("jefe", "bitcade_hit_sword.wav"), CATEGORIA_SFX),
+    "jefe_derrotado": (_sfx("jefe", "bitcade_explosion_big.wav"), CATEGORIA_SFX),
+    # Mazmorra: puertas, cuartos, gracia de entrada.
+    "puerta": (_sfx("ciudad", "bitcade_land_thud.wav"), CATEGORIA_SFX),
+    "puerta_sellada": (_sfx("ui", "bitcade_ui_error.wav"), CATEGORIA_UI),
+    "cuarto_liberado": (_sfx("ui", "bitcade_jingle_level_up.wav"), CATEGORIA_SFX),
+    "cuarto_final_desbloqueado": (_sfx("ui", "bitcade_powerup_extra_life.wav"), CATEGORIA_SFX),
+    "gracia_entrada": (_sfx("ui", "bitcade_ui_confirm.wav"), CATEGORIA_UI),
+    # Ciudad Nova.
+    "transicion": (_sfx("ciudad", "transicion.wav"), CATEGORIA_SFX),
+    "barricada": (_sfx("ciudad", "bitcade_land_thud.wav"), CATEGORIA_SFX),
+    "ruta": (_sfx("ui", "bitcade_ui_confirm.wav"), CATEGORIA_UI),
+    "noticia": (_sfx("ui", "notificacion.wav"), CATEGORIA_UI),
+    # Minijuego de decisión.
+    "tick": (_sfx("ui", "bitcade_ui_select.wav"), CATEGORIA_UI),
+    "decision_buena": (_sfx("ui", "bitcade_jingle_victory.wav"), CATEGORIA_SFX),
+    "decision_mala": (_sfx("jefe", "bitcade_explosion_big.wav"), CATEGORIA_SFX),
+    "error_decision": (_sfx("ui", "bitcade_ui_error.wav"), CATEGORIA_UI),
+    # Interfaz (src/ui/navegacion.py) y modo historia.
+    "navegar": (_sfx("ui", "bitcade_ui_select.wav"), CATEGORIA_UI),
+    "confirmar": (_sfx("ui", "bitcade_ui_confirm.wav"), CATEGORIA_UI),
+    "volver": (_sfx("ui", "bitcade_ui_back.wav"), CATEGORIA_UI),
+    "notificacion": (_sfx("ui", "notificacion.wav"), CATEGORIA_UI),
+    "evidencia": (_sfx("ui", "bitcade_coin_bell.wav"), CATEGORIA_UI),
+    "mision": (_sfx("ui", "bitcade_powerup_rise.wav"), CATEGORIA_UI),
+    "reputacion_sube": (_sfx("ui", "bitcade_coin_ring.wav"), CATEGORIA_UI),
+    "reputacion_baja": (_sfx("ui", "reputacion_baja.wav"), CATEGORIA_UI),
+    "victoria": (_sfx("ui", "bitcade_jingle_victory.wav"), CATEGORIA_SFX),
+    "derrota": (_sfx("ui", "bitcade_jingle_game_over.wav"), CATEGORIA_SFX),
+    "crisis": (_sfx("ui", "crisis.wav"), CATEGORIA_SFX),
+    "redencion": (_sfx("ui", "redencion.wav"), CATEGORIA_SFX),
+    "glitch": (_sfx("enemigos", "glitch.wav"), CATEGORIA_SFX),
+    "viral": (_sfx("jefe", "viral.wav"), CATEGORIA_SFX),
 }
-TONOS_SONIDOS = {
-    "navegar": ((880,), 0.04),
-    "confirmar": ((660, 990), 0.12),
-    "volver": ((520, 390), 0.1),
+
+
+def _musica(archivo):
+    return os.path.join(RUTA_AUDIO, "musica", archivo)
+
+
+# Una pista en bucle por momento del juego (Main._pista_para).
+MUSICA = {
+    "menu": _musica("bitcade_title.ogg"),
+    "lobby": _musica("bitcade_overworld.ogg"),
+    "ciudad": _musica("bitcade_town.ogg"),
+    "combate": _musica("bitcade_battle.ogg"),
+    "jefe": _musica("bitcade_boss.ogg"),
+    "misterio": _musica("bitcade_cave.ogg"),
+    "decision": _musica("decision.wav"),
+    "crisis": _musica("crisis.wav"),
+    "redencion": _musica("redencion.wav"),
+    "victoria": _musica("victoria.wav"),
+    "derrota": _musica("derrota.wav"),
 }
-AMPLITUD_SONIDO_SINTETIZADO = 0.18  # fracción del máximo de 16 bits
-RUTA_MUSICA_MENU = os.path.join("assets", "musica", "menu.ogg")
+FUNDIDO_MUSICA_MS = 1400  # fundido cruzado entre pistas
+CANALES_MEZCLADOR = 32  # canales simultáneos de pygame.mixer
 
 # ----------------------------------------------------------------------
 # Hojas de sprites (arte real, pixel art hecho con Pixelbolt). Cada hoja
@@ -746,6 +844,59 @@ ESCALA_JEFE_V2 = 5  # 160x140 px
 DURACION_CUADRO_JEFE_V2 = 0.12
 DURACION_CUADRO_JEFE_V2_FURIA = 0.06  # en fase 3 camina el doble de rápido
 ALTO_RETRATO_SELECCION = 92  # alto del retrato en la tarjeta de selección
+# ----------------------------------------------------------------------
+# Packs de arte en hojas (src/ui/cargador_assets.py): se recortan por
+# rect y se dibujan a ESCALA_ARTE_PACKS. Están hechos para celdas de
+# 32-64 px, así que a escala 1 ya tienen el tamaño de mundo correcto
+# junto a casillas de 16 px * ESCALA_PIXEL (un banco ~ una casilla, un
+# pupitre ~ un jugador). Si falta la hoja, quien los pide dibuja su
+# placeholder de siempre (pixel art en código).
+# ----------------------------------------------------------------------
+ESCALA_ARTE_PACKS = 1
+# Props urbanos ("Modern Urban RPG Pixel Asset Pack"): hoja de 15x16
+# celdas de 64 px. Nombre -> (columna, fila) de su celda.
+RUTA_PROPS_URBANOS = os.path.join("assets", "sprites", "ciudad", "props_urbanos.png")
+CELDA_PROPS_URBANOS = 64
+PROPS_URBANOS = {
+    "farola": (11, 1),
+    "barricada": (10, 1),
+    "banca": (6, 0),
+    "basurero": (2, 1),
+    "reciclaje": (14, 0),
+    "parada_bus": (14, 1),
+    "maquina": (12, 1),
+    "hidrante": (7, 15),
+    "jardinera": (7, 0),
+    "maceta_grande": (9, 2),
+    "buzon": (4, 0),
+    "bicicletero": (4, 1),
+    "bicicleta": (12, 15),
+    "cartelera": (3, 1),
+}
+# Colegio ("Traditional School Asset pack 32x32", assets/colegio/).
+# Pieza -> (archivo, rect en px de la hoja).
+RUTA_COLEGIO = os.path.join("assets", "colegio")
+PIEZAS_COLEGIO = {
+    "piso": ("suelos.png", (64, 0, 32, 32)),  # tablones de madera
+    "muro_ventana": ("muros_autotile.png", (64, 96, 64, 64)),  # pared crema con ventana
+    "muro_liso": ("muros_autotile.png", (0, 96, 64, 64)),
+    "muro_ventana_alta": ("muros_autotile.png", (192, 96, 64, 64)),
+    "pupitre": ("props.png", (96, 55, 32, 39)),
+    "silla": ("props.png", (68, 50, 22, 44)),
+    "escritorio": ("props.png", (4, 32, 57, 64)),
+    "pizarra": ("props.png", (128, 192, 64, 32)),
+    "reloj": ("props.png", (100, 3, 23, 23)),
+    "casillero": ("props.png", (1, 250, 30, 70)),
+    "estante": ("props.png", (168, 394, 48, 86)),
+    "maceta": ("props.png", (289, 201, 30, 42)),
+    "mochila": ("props.png", (36, 129, 24, 30)),
+}
+# El piso del aula se multiplica sobre el piso pintado (que ya trae luz,
+# viñeta y grietas de NOVA): este gris neutro es su base. Los muebles se
+# oscurecen un poco para que personajes y balas se lean siempre encima.
+COLOR_BASE_PISO_COLEGIO = (124, 116, 122)
+FACTOR_MUEBLES_COLEGIO = 0.82
+FACTOR_FACHADA_COLEGIO = 0.9  # la pared real del Colegio en la ciudad, un poco en penumbra
 # Cuarto: piso y muro (cuarto.png, 16x16 por cuadro), puertas (puerta.png,
 # 27x6: abierta / bloqueada / sellada) y charco tóxico (charco.png, 30x30:
 # aviso / activo). Sin el PNG se dibujan con formas, como antes.
@@ -1196,60 +1347,6 @@ FONDO_CIUDADANOS = "ciudadanos_civitas"
 FONDO_PANTALLAS_NOVA = "pantallas_nova"
 FONDO_POR_FINAL = {"renace": "final_renace", "dividida": "final_dividida", "arquitecto": "servidor_caido",
                    "confianza_perdida": FONDO_CONFIANZA_PERDIDA}
-# Sonidos nuevos del modo historia (sintetizados; archivos opcionales en assets/sonidos/).
-RUTAS_SONIDOS.update({
-    "notificacion": os.path.join("assets", "sonidos", "notificacion.wav"),
-    "evidencia": os.path.join("assets", "sonidos", "evidencia.wav"),
-    "mision": os.path.join("assets", "sonidos", "mision.wav"),
-    "viral": os.path.join("assets", "sonidos", "viral.wav"),
-    "transicion": os.path.join("assets", "sonidos", "transicion.wav"),
-    "victoria": os.path.join("assets", "sonidos", "victoria.wav"),
-    "derrota": os.path.join("assets", "sonidos", "derrota.wav"),
-    "glitch": os.path.join("assets", "sonidos", "glitch.wav"),
-    "reputacion_sube": os.path.join("assets", "sonidos", "reputacion_sube.wav"),
-    "reputacion_baja": os.path.join("assets", "sonidos", "reputacion_baja.wav"),
-    "crisis": os.path.join("assets", "sonidos", "crisis.wav"),
-    "redencion": os.path.join("assets", "sonidos", "redencion.wav"),
-    "decision_buena": os.path.join("assets", "sonidos", "decision_buena.wav"),
-    "decision_mala": os.path.join("assets", "sonidos", "decision_mala.wav"),
-    "error_decision": os.path.join("assets", "sonidos", "error_decision.wav"),
-})
-TONOS_SONIDOS.update({
-    "notificacion": ((1320, 1760), 0.14),
-    "evidencia": ((784, 988, 1319), 0.22),
-    "mision": ((659, 784, 988, 1319), 0.4),
-    "viral": ((440, 415, 440, 415), 0.3),
-    "transicion": ((220, 330), 0.25),
-    "victoria": ((523, 659, 784, 1047, 1319), 0.8),
-    "derrota": ((392, 311, 233, 175), 0.9),
-    "glitch": ((110, 1760, 92, 1480), 0.18),
-    "reputacion_sube": ((659, 784, 1047), 0.5),
-    "reputacion_baja": ((294, 247, 196), 0.6),
-    "crisis": ((110, 104, 98), 1.2),
-    "redencion": ((262, 330, 392, 523), 1.2),
-    "decision_buena": ((392, 587), 0.5),
-    "decision_mala": ((294, 277), 0.5),
-    "error_decision": ((220, 175), 0.2),
-})
-# Música ambiental sintetizada (src/core/audio.py): acordes (Hz) por pista,
-# en bucle, si no existe el archivo de assets/musica/.
-RUTAS_MUSICA = {nombre: os.path.join("assets", "musica", f"{nombre}.wav") for nombre in (
-    "menu", "ciudad", "combate", "jefe", "misterio", "decision", "crisis", "redencion", "victoria", "derrota")}
-FUNDIDO_MUSICA_MS = 1400  # fundido cruzado entre pistas
-ACORDES_MUSICA = {
-    "menu": ((110.0, 164.8, 220.0, 329.6), (98.0, 146.8, 196.0, 293.7)),
-    "misterio": ((82.4, 123.5, 164.8, 246.9), (77.8, 116.5, 155.6, 233.1)),
-    "ciudad": ((130.8, 196.0, 261.6, 392.0), (116.5, 174.6, 233.1, 349.2)),
-    "jefe": ((73.4, 110.0, 146.8, 220.0), (69.3, 103.8, 138.6, 207.7)),
-    "combate": ((82.4, 123.5, 164.8), (65.4, 98.0, 130.8)),
-    "decision": ((87.3, 130.8, 174.6), (69.3, 103.8, 138.6)),
-    "crisis": ((61.7, 87.3, 123.5), (58.3, 82.4, 116.5)),
-    "redencion": ((130.8, 196.0, 261.6), (98.0, 146.8, 196.0)),
-    "victoria": ((130.8, 196.0, 261.6, 329.6), (174.6, 261.6, 349.2)),
-    "derrota": ((110.0, 164.8, 220.0), (87.3, 130.8, 174.6)),
-}
-SEGUNDOS_POR_ACORDE = 4.0
-AMPLITUD_MUSICA_SINTETIZADA = 0.07
 
 # ----------------------------------------------------------------------
 # Terminal de decisión como celular (src/ui/terminal_decision_render.py;

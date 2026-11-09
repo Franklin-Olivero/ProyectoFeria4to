@@ -27,7 +27,7 @@ actualizar, dibujar, manejar_evento), así Main.py usa el mismo loop.
 
 import random
 
-from src.core import assets
+from src.core import assets, eventos_sonido
 from src.core.equipo import jugadores_en_combate
 from src.dungeon.cuarto import HACIA_ADENTRO, Cuarto, punto_llegada
 from src.dungeon.gracia_entrada import GraciaEntrada
@@ -101,7 +101,10 @@ class MazmorraJugable:
             texto, restante = self.mensaje
             self.mensaje = (texto, restante - dt) if restante > dt else None
 
+        en_gracia = self.gracia.activa
         self.gracia.actualizar(dt)
+        if en_gracia and not self.gracia.activa:
+            eventos_sonido.emitir("gracia_entrada")  # terminó: armas libres
         self.cuarto.congelado = self.gracia.activa
         # Primero se registra el cuarto limpio (así el cuarto final, si el
         # jugador ya está en él, puede abrir la decisión este mismo frame).
@@ -109,6 +112,7 @@ class MazmorraJugable:
         hay_enemigos = bool(self.cuarto.enemigos)
         if not hay_enemigos and self.mazmorra.marcar_limpiado(self.mazmorra.actual):
             self._avisar(TEXTO_FINAL_DESBLOQUEADO)
+            eventos_sonido.emitir("cuarto_final_desbloqueado")
         self._sincronizar_sellos()
         self.mazmorra.actualizar(dt, hay_enemigos)
 
@@ -116,6 +120,8 @@ class MazmorraJugable:
         if puerta is None:
             return
         if puerta.sellada:
+            if self.mensaje is None or self.mensaje[0] != TEXTO_PUERTA_SELLADA:
+                eventos_sonido.emitir("puerta_sellada")
             self._avisar(TEXTO_PUERTA_SELLADA)
             return
         self._cruzar(puerta.direccion, jugadores)
@@ -152,6 +158,7 @@ class MazmorraJugable:
         # La fila va perpendicular a la dirección de entrada (a lo ancho de la puerta).
         ubicar_en_fila(jugadores, llegada, (-dy, dx))
         self.gracia.iniciar()
+        eventos_sonido.emitir("puerta")
 
     def manejar_evento(self, evento):
         self.cuarto.manejar_evento(evento)

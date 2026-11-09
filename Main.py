@@ -52,7 +52,10 @@ from pygame._sdl2 import controller
 from src.core import assets
 from src.core.audio import Audio
 from src.core.config import FPS, crear_pantalla, crear_reloj
-from src.core.entrada import TECLA_ARBOL, TECLA_MINIMAPA, EJE_MAXIMO, EntradaMando, EntradaTeclado
+from src.core import eventos_sonido
+from src.core.entrada import (
+    TECLA_ARBOL, TECLA_MINIMAPA, TECLA_SILENCIO, TECLAS_VOLUMEN, EJE_MAXIMO, EntradaMando, EntradaTeclado,
+)
 from src.core.preferencias import cargar as cargar_preferencias
 from src.core.preferencias import guardar as guardar_preferencias
 from src.core.equipo import jugadores_en_combate, registrar_kill_equipo, revivir_caidos, todos_caidos
@@ -61,7 +64,7 @@ from src.dungeon.arena_jefe import ArenaJefe
 from src.dungeon.cuarto import FASE_DECISION, FASE_RESUELTO
 from src.core.balance import (
     ALCANCE_AVISO_SELLADA, BLOQUEO_POST_SABOTAJE, COOLDOWN_POST_SABOTAJE, COOLDOWN_REUNION, DURACION_TERMINAL_HISTORIA,
-    MAX_LARGO_MENSAJE_REUNION,
+    MAX_LARGO_MENSAJE_REUNION, PASO_VOLUMEN_LOBBY,
 )
 from src.dungeon import ciudad_mapa
 from src.dungeon.grafo_ciudad import EDIFICIOS, ZONA_FINAL, ZONA_INICIO
@@ -95,7 +98,7 @@ from src.ui.pantalla_victoria import dibujar_victoria
 from src.ui.pantalla_modo import dibujar_modo
 from src.ui.particulas import SistemaParticulas
 from src.ui.seleccion import DOS_JUGADORES, UN_JUGADOR, ONLINE, SeleccionRoles, SelectorModo
-from src.ui.seleccion_rol import dibujar_seleccion
+from src.ui.seleccion_rol import VistaSeleccion, tarjeta_en
 from src.ui.terminal_decision import CONFIRMAR, DERECHA, DETONACION, IZQUIERDA, PURIFICACION_EXITOSA
 from src.ui.terminal_decision_render import dibujar_terminal
 
@@ -205,6 +208,7 @@ def main():
     reloj = crear_reloj()
     preferencias = cargar_preferencias()
     audio = Audio(preferencias)
+    audio.precargar_musica()
     filtro = FiltroColor()
 
     def presentar():
@@ -236,7 +240,7 @@ def main():
             # 7777 queda libre para volver a crear una sala).
             cerrar_red_de_sesion(sesion)
             # 1 o 2 jugadores, y luego cada uno elige su rol.
-            eleccion = _menu_inicio(pantalla, reloj, mando, presentar)
+            eleccion = _menu_inicio(pantalla, reloj, mando, presentar, audio, preferencias)
             if eleccion is None:
                 break
             if eleccion == VOLVER:
@@ -335,6 +339,7 @@ def _jugar(pantalla, reloj, sesion, preferencias, presentar):
     tiempo = 0.0  # reloj de animaciones de la ciudad (auras, cintillo)
 
     escena = Escena.CIUDAD
+    escena_previa = escena  # para el sonido del titular al volver a la ciudad
     mazmorra = None  # MazmorraJugable de la zona que se está recorriendo
     arena = None
     mostrar_minimapa = True
@@ -384,6 +389,7 @@ def _jugar(pantalla, reloj, sesion, preferencias, presentar):
         campania.establecer_rol(_j_rol.rol, _i_j)
         campania.rep(_i_j)
     audio = getattr(sesion, "audio", None)
+    eventos_sonido.drenar()  # lo pedido en menús o antes de empezar ya no aplica
 
     def sonar(nombre):
         if audio is not None and nombre:
@@ -940,6 +946,10 @@ def _jugar(pantalla, reloj, sesion, preferencias, presentar):
                 continue
             if evento.type != pygame.KEYDOWN:
                 continue
+            if evento.key == TECLA_SILENCIO:
+                if audio is not None:
+                    audio.alternar_silencio()
+                continue
             if indicador_rep is not None:
                 # El indicador de reputación se lleva Enter hasta cerrarse.
                 if evento.key in TECLAS_DIALOGO_AVANZAR:
@@ -995,6 +1005,7 @@ def _jugar(pantalla, reloj, sesion, preferencias, presentar):
                     selector.mover(DERECHA)
                 elif evento.key == TECLA_RUTA and not mostrar_mapa_mundo:
                     mostrar_ruta = not mostrar_ruta
+                    sonar("ruta")
                 elif evento.key == TECLA_ENTRAR and not mostrar_mapa_mundo:
                     zona = ciudad_mapa.entrada_cercana(_posicion(jugador))
                     if zona is None or (zona == ZONA_FINAL and not partida.alcaldia_desbloqueada()):
@@ -1225,6 +1236,13 @@ def _jugar(pantalla, reloj, sesion, preferencias, presentar):
             toasts[0][1] -= dt
             if toasts[0][1] <= 0:
                 toasts.pop(0)
+        if audio is not None:
+            audio.procesar_eventos()
+        else:
+            eventos_sonido.drenar()
+        if escena == Escena.CIUDAD and escena_previa != Escena.CIUDAD and tiempo_mensaje_mapa > 0:
+            sonar("noticia")  # vuelve a la ciudad con un titular nuevo
+        escena_previa = escena
         toma_actual = dialogo.actual if isinstance(dialogo, Cinematica) else None
         musica(_pista_para(escena, toma_actual is not None, crisis_en_curso is not None,
                            campania.mision_de(indice_local) is not None or (toma_actual is not None and toma_actual.id.startswith("redencion")),
@@ -1778,6 +1796,9 @@ def _menu_principal(pantalla, reloj, vista, hay_partida, preferencias, audio, pr
             mando = _actualizar_mando(evento, mando)
             if evento.type == pygame.QUIT:
                 return SALIR, mando
+            if evento.type == pygame.KEYDOWN and evento.key == TECLA_SILENCIO:
+                audio.alternar_silencio()
+                continue
             accion = _accion_menu(evento, sticks)
             sonido = menu.accion(accion) if accion is not None else vista.manejar_mouse(evento, menu)
             audio.reproducir(sonido)
@@ -1809,12 +1830,12 @@ def _accion_menu(evento, sticks):
     return None
 
 
-def _menu_inicio(pantalla, reloj, mando, presentar):
+def _menu_inicio(pantalla, reloj, mando, presentar, audio=None, preferencias=None):
     """Pantalla de modo y luego la de roles (Esc en roles vuelve al modo).
     Retorna (clases de rol en orden J1, J2..., control o None, entrada_extra), VOLVER
     con Esc en la pantalla de modo, o None si se cierra la ventana."""
     while True:
-        modo = _elegir_modo(pantalla, reloj, mando, presentar)
+        modo = _elegir_modo(pantalla, reloj, mando, presentar, audio, preferencias)
         if modo is None or modo == VOLVER:
             return modo
         modo, mando = modo
@@ -1835,24 +1856,27 @@ def _menu_inicio(pantalla, reloj, mando, presentar):
                 return clases, mando, entradas_red
             else:
                 return clases, mando, None
-        clases = _elegir_roles(pantalla, reloj, modo, mando, presentar)
+        clases = _elegir_roles(pantalla, reloj, modo, mando, presentar, audio, preferencias)
         if clases is None:
             return None
         if clases != VOLVER:
             return clases, mando, None
 
 
-def _elegir_modo(pantalla, reloj, mando, presentar):
+def _elegir_modo(pantalla, reloj, mando, presentar, audio=None, preferencias=None):
     """1 o 2 jugadores, con teclado o con el control. Dos jugadores exige
     un control: si no hay, se avisa y se espera a que se conecte uno.
     Retorna (modo, control), VOLVER con Esc u ○, o None si se cierra."""
     selector = SelectorModo()
     stick = _StickMenu()
     aviso = 0.0  # segundos que le quedan al aviso "Conecta un control"
+    if audio is not None:
+        audio.musica("lobby")
     while True:
         dt = reloj.tick(FPS) / 1000
         aviso = max(0.0, aviso - dt)
         confirmar = False
+        modo_antes = selector.seleccionado
         for evento in pygame.event.get():
             mando = _actualizar_mando(evento, mando)
             if evento.type == pygame.QUIT:
@@ -1860,6 +1884,8 @@ def _elegir_modo(pantalla, reloj, mando, presentar):
             if evento.type == pygame.KEYDOWN:
                 if evento.key == TECLA_SALIR:
                     return VOLVER
+                if _tecla_de_audio(evento.key, audio, preferencias):
+                    continue
                 if evento.key in TECLAS_MENU_J1:
                     selector.mover(TECLAS_MENU_J1[evento.key])
                 elif evento.key in TECLAS_MODO:
@@ -1876,10 +1902,16 @@ def _elegir_modo(pantalla, reloj, mando, presentar):
                     return VOLVER
             elif (direccion := stick.paso(evento)) is not None:
                 selector.mover(direccion)
+        if audio is not None and selector.seleccionado != modo_antes:
+            audio.reproducir(navegacion.SONIDO_NAVEGAR)
         if confirmar:
             if selector.seleccionado == DOS_JUGADORES and mando is None:
                 aviso = assets.DURACION_AVISO_MODO
+                if audio is not None:
+                    audio.reproducir("error_decision")
             else:
+                if audio is not None:
+                    audio.reproducir(navegacion.SONIDO_CONFIRMAR)
                 return selector.seleccionado, mando
 
         dibujar_modo(pantalla, selector, mando.name if mando is not None else None, aviso > 0)
@@ -1887,25 +1919,42 @@ def _elegir_modo(pantalla, reloj, mando, presentar):
         presentar()
 
 
-def _elegir_roles(pantalla, reloj, modo, mando, presentar):
-    """Cada jugador mueve su cursor sobre las tarjetas y confirma; la
-    partida empieza cuando todos confirmaron. J1: flechas o A/D, Enter
-    o Espacio, 1-4 directo, Retroceso para cambiar. J2: cruceta o stick,
-    ✕ confirma, ○ para cambiar. Retorna la lista de clases elegidas,
-    VOLVER con Esc, o None si se cierra la ventana."""
+def _elegir_roles(pantalla, reloj, modo, mando, presentar, audio=None, preferencias=None):
+    """Lobby: cada jugador mueve su cursor sobre las tarjetas y confirma; la
+    partida empieza cuando todos confirmaron (tras un fundido corto). J1:
+    flechas o A/D, Enter o Espacio, 1-4 directo, Retroceso para cambiar, o
+    el ratón (señalar y clic). J2: cruceta o stick, ✕ confirma, ○ para
+    cambiar. N silencia y - / + cambian el volumen general. Retorna la
+    lista de clases elegidas, VOLVER con Esc, o None si se cierra."""
     cantidad = 1 if modo == UN_JUGADOR else 2
     seleccion = SeleccionRoles(cantidad, len(CLASES_ROL))
+    vista = VistaSeleccion(len(CLASES_ROL))
     j1 = seleccion.cursores[0]
     j2 = seleccion.cursores[1] if cantidad > 1 else None
     stick = _StickMenu()
+    pygame.mouse.set_visible(True)
+
+    def sonar(nombre):
+        if audio is not None:
+            audio.reproducir(nombre)
+
+    if audio is not None:
+        audio.musica("lobby")
     while True:
+        dt = reloj.tick(FPS) / 1000
+        antes = [(cursor.indice, cursor.confirmado) for cursor in seleccion.cursores]
         for evento in pygame.event.get():
             mando = _actualizar_mando(evento, mando)
             if evento.type == pygame.QUIT:
                 return None
+            if vista.salida is not None:
+                continue  # ya eligieron todos: solo queda el fundido
             if evento.type == pygame.KEYDOWN:
                 if evento.key == TECLA_SALIR:
+                    sonar(navegacion.SONIDO_VOLVER)
                     return VOLVER
+                if _tecla_de_audio(evento.key, audio, preferencias):
+                    continue
                 if evento.key in TECLAS_MENU_J1:
                     j1.mover(TECLAS_MENU_J1[evento.key])
                 elif evento.key in TECLAS_ROL:
@@ -1914,6 +1963,14 @@ def _elegir_roles(pantalla, reloj, modo, mando, presentar):
                     j1.confirmar()
                 elif evento.key == TECLA_CANCELAR:
                     j1.cancelar()
+            elif evento.type == pygame.MOUSEMOTION and not j1.confirmado:
+                indice = tarjeta_en(evento.pos, len(CLASES_ROL))
+                if indice is not None:
+                    j1.indice = indice
+            elif evento.type == pygame.MOUSEBUTTONDOWN and evento.button == 1:
+                indice = tarjeta_en(evento.pos, len(CLASES_ROL))
+                if indice is not None:
+                    j1.elegir(indice)
             elif j2 is not None and evento.type == pygame.CONTROLLERBUTTONDOWN:
                 if evento.button in BOTONES_MENU_J2:
                     j2.mover(BOTONES_MENU_J2[evento.button])
@@ -1923,13 +1980,44 @@ def _elegir_roles(pantalla, reloj, modo, mando, presentar):
                     j2.cancelar()
             elif j2 is not None and (direccion := stick.paso(evento)) is not None:
                 j2.mover(direccion)
+        # Un sonido por cambio real: confirmar, arrepentirse o moverse.
+        for (indice_antes, confirmado_antes), cursor in zip(antes, seleccion.cursores):
+            if cursor.confirmado and not confirmado_antes:
+                sonar(navegacion.SONIDO_CONFIRMAR)
+            elif confirmado_antes and not cursor.confirmado:
+                sonar(navegacion.SONIDO_VOLVER)
+            elif cursor.indice != indice_antes:
+                sonar(navegacion.SONIDO_NAVEGAR)
+        if seleccion.lista:
+            vista.empezar_salida()
 
-        dibujar_seleccion(pantalla, CLASES_ROL, seleccion)
+        vista.actualizar(dt, seleccion)
+        volumen = preferencias.volumen_musica if preferencias is not None else 100
+        silenciado = audio.silenciado if audio is not None else False
+        reducir = preferencias.reducir_movimiento if preferencias is not None else False
+        vista.dibujar(pantalla, CLASES_ROL, seleccion, volumen, silenciado, reducir)
         hud.dibujar_barra_controles(pantalla, hud.CONTROLES_SELECCION_DOS if j2 else hud.CONTROLES_SELECCION)
         presentar()
-        if seleccion.lista:
+        if vista.salida_terminada:
             return [CLASES_ROL[indice] for indice in seleccion.indices()]
-        reloj.tick(FPS)
+
+
+def _tecla_de_audio(tecla, audio, preferencias):
+    """N silencia; - y + suben o bajan música y efectos juntos. True si la
+    tecla era de audio (y ya se atendió)."""
+    if audio is None:
+        return False
+    if tecla == TECLA_SILENCIO:
+        audio.alternar_silencio()
+        return True
+    if tecla in TECLAS_VOLUMEN and preferencias is not None:
+        paso = TECLAS_VOLUMEN[tecla] * PASO_VOLUMEN_LOBBY
+        preferencias.volumen_musica = max(0, min(100, preferencias.volumen_musica + paso))
+        preferencias.volumen_efectos = max(0, min(100, preferencias.volumen_efectos + paso))
+        audio.aplicar(preferencias)
+        audio.reproducir(navegacion.SONIDO_NAVEGAR)
+        return True
+    return False
 
 
 class _StickMenu:

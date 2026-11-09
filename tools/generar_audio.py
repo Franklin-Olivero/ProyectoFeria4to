@@ -1,6 +1,6 @@
 """Compone la música y los efectos del juego (síntesis propia, sin muestras ajenas).
 
-    python tools/generar_audio.py            # escribe assets/musica y assets/sonidos
+    python tools/generar_audio.py            # reescribe su audio dentro de assets/audio/
     python tools/generar_audio.py --revisar  # además, informa nivel y continuidad del bucle
 
 Solo se ejecuta para regenerar el audio: el juego carga los archivos resultantes
@@ -11,6 +11,7 @@ por lo que el bucle no tiene costura.
 """
 
 import array
+import glob
 import math
 import os
 import random
@@ -414,18 +415,32 @@ def revisar(nombre, muestras):
     print(f"{nombre:18s} {len(muestras) / TASA:5.1f} s  pico {pico:.2f}  RMS {20 * math.log10(max(rms, 1e-6)):6.1f} dBFS  costura {salto:.3f}")
 
 
+def destino(nombre, es_musica):
+    """Dónde vive hoy cada archivo propio (assets/audio/, ver assets.SONIDOS):
+    la pista o el efecto que el juego usa, o su copia en sin_conectar/ si un
+    sonido del pack Bitcade lo reemplazó para ese evento."""
+    audio = os.path.join(RAIZ, "assets", "audio")
+    if es_musica:
+        candidatos = [os.path.join(audio, "musica", f"{nombre}.wav")]
+        respaldo = os.path.join(audio, "sin_conectar", f"musica_{nombre}.wav")
+    else:
+        candidatos = sorted(glob.glob(os.path.join(audio, "sfx", "*", f"{nombre}.wav")))
+        respaldo = os.path.join(audio, "sin_conectar", f"sfx_{nombre}.wav")
+    return next((ruta for ruta in candidatos if os.path.exists(ruta)), respaldo)
+
+
 def main():
     random.seed(404)
     ver = "--revisar" in sys.argv
     for nombre, componer in PISTAS.items():
         pista = componer()
         pista.normalizar()
-        escribir(os.path.join(RAIZ, "assets", "musica", f"{nombre}.wav"), pista.b)
+        escribir(destino(nombre, es_musica=True), pista.b)
         if ver:
             revisar(nombre, pista.b)
     for nombre, crear in EFECTOS.items():
         muestras = crear()
-        escribir(os.path.join(RAIZ, "assets", "sonidos", f"{nombre}.wav"), muestras)
+        escribir(destino(nombre, es_musica=False), muestras)
         if ver:
             revisar(nombre, muestras)
 

@@ -7,16 +7,15 @@ sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")
 
 
 from src.core.balance import (  # noqa: E402
+    CRUCE_ESTE,
     CRUCE_NORTE,
-    CRUCE_OESTE,
-    CRUCE_SUR,
-    PESOS_INICIALES_CIUDAD,
     ZONA_COLEGIO,
     ZONA_EMPRESA_MEDIOS,
     ZONA_PLAZA,
 )
 from src.core.escenas import Escena, escena_tras_colapso  # noqa: E402
 from src.dungeon import ciudad_mapa  # noqa: E402
+from src.dungeon.grafo_ciudad import PESOS_INICIALES_CIUDAD  # noqa: E402
 from src.dungeon.partida import Partida  # noqa: E402
 from src.ui.mapa_ciudad import SelectorZona  # noqa: E402
 from src.ui.terminal_decision import (  # noqa: E402
@@ -53,7 +52,7 @@ def test_ruta_sugerida_desde_la_posicion_del_jugador():
     partida = Partida()
     posicion = ciudad_mapa.centro_casilla(*ciudad_mapa.SPAWN)
     nodos, costo = partida.ruta_sugerida(posicion, ZONA_COLEGIO)
-    assert nodos == [ZONA_PLAZA, CRUCE_OESTE, ZONA_COLEGIO] and costo == 4
+    assert nodos == [ZONA_PLAZA, CRUCE_NORTE, ZONA_COLEGIO] and costo == 6
 
 
 def test_decision_aplica_colapso_progreso_y_pesos_de_la_zona():
@@ -65,10 +64,10 @@ def test_decision_aplica_colapso_progreso_y_pesos_de_la_zona():
 
     partida.registrar_decision(ZONA_EMPRESA_MEDIOS, DETONACION)
     assert partida.progreso.mazmorras_completadas == 1
-    assert partida.ciudad.grafo.peso(CRUCE_SUR, ZONA_EMPRESA_MEDIOS) == 8
-    assert partida.ciudad.esta_bloqueada(CRUCE_SUR, ZONA_EMPRESA_MEDIOS)
+    assert partida.ciudad.grafo.peso(ZONA_EMPRESA_MEDIOS, CRUCE_ESTE) == 8
+    assert partida.ciudad.esta_bloqueada(ZONA_EMPRESA_MEDIOS, CRUCE_ESTE)
     # La barricada es física: sus casillas son sólidas para el jugador.
-    seccion = ciudad_mapa.tramo(CRUCE_SUR, ZONA_EMPRESA_MEDIOS).seccion
+    seccion = ciudad_mapa.tramo(ZONA_EMPRESA_MEDIOS, CRUCE_ESTE).seccion
     assert all(partida.es_solida(*casilla) for casilla in seccion)
 
 

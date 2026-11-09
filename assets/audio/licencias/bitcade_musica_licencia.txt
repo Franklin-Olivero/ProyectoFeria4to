@@ -1,0 +1,12 @@
+Bitcade Free Music Pack - Vol. 1
+(c) 2026 Bitcade Audio
+
+Licensed under the Creative Commons Attribution 4.0 International License (CC BY 4.0).
+Full legal text: https://creativecommons.org/licenses/by/4.0/legalcode
+
+You may copy, share and adapt the music, also commercially (for example in games, videos
+and streams), as long as you give appropriate credit, for example:
+
+    Music: Bitcade Audio - https://schniersky.itch.io/bitcade (CC BY 4.0)
+
+This license covers the music files in this pack (WAV and MIDI) only, not the Bitcade software.

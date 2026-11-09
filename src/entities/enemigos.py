@@ -47,7 +47,7 @@ from src.ai.nodos_combate import (
     direccion,
     punto_detras,
 )
-from src.core import assets
+from src.core import assets, eventos_sonido
 from src.core.balance import (
     CADENCIA_TIRADOR_S,
     COOLDOWN_CONTACTO_PERSEGUIDOR,
@@ -256,6 +256,7 @@ class Tirador(EnemigoTipado):
                     velocidad=stats.velocidad_proyectil, danio=stats.danio,
                     color=color, tamanio=stats.tamanio_proyectil,
                 ))
+        eventos_sonido.emitir("disparo_tirador")
         self.nodo_activo = ("Selector", "Sequence", "Disparo apuntado")
 
 
@@ -332,6 +333,7 @@ class Curandero(EnemigoTipado):
         return EXITO
 
     def al_curar(self, aliado):
+        eventos_sonido.emitir("curacion")
         self.efecto_cura = aliado
         self.tiempo_efecto_cura = DURACION_EFECTO_CURA_S
         if self.variante is not None:

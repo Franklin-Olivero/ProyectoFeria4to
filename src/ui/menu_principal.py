@@ -57,7 +57,9 @@ LINEAS_CREDITOS = (
     ("", "Universidad del Norte"),
     ("Evento", "VI Feria Gamer · 26 de noviembre de 2026"),
     ("Tipografía", "JetBrains Mono · SIL Open Font License"),
-    ("Arte y sonido", "Sprites y efectos generados en código (provisionales)"),
+    # La música de Bitcade es CC BY 4.0: este crédito es obligatorio.
+    ("Música", "Bitcade Audio (CC BY 4.0) · schniersky.itch.io/bitcade"),
+    ("Efectos y arte", "Bitcade SFX (CC0) · packs Modern Urban y School"),
     ("Equipo", "Pendiente: nombres de los integrantes"),
 )
 

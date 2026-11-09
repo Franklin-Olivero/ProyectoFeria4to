@@ -23,6 +23,7 @@ import random
 import pygame
 
 from src.core import assets
+from src.ui import arte_colegio
 
 P = 3  # px de pantalla por píxel del cuadro
 ALTO_CARA_MURO = 12  # en píxeles del cuadro (36 px en pantalla)
@@ -171,6 +172,11 @@ def _huella_nova(c):
 
 
 def _pintar_colegio(c):
+    """Con el pack del Colegio (src/ui/arte_colegio.py) el piso queda en un
+    gris neutro sobre el que se multiplican los tablones reales, y la
+    pizarra, el tablero y los pupitres los pone el pack; sin él, todo se
+    pinta aquí como siempre."""
+    arte = arte_colegio.disponible()
     piso_a, piso_b, linea = (72, 56, 56), (80, 62, 60), (56, 42, 46)
     # Exterior: pasillo con casilleros.
     c.s.fill((30, 26, 52))
@@ -184,8 +190,8 @@ def _pintar_colegio(c):
     _exterior_oscuro(c, (18, 14, 40))
     _muros(c, (24, 22, 52), (72, 62, 82))
     # Piso: tablones de madera oscura.
-    pygame.draw.rect(c.s, piso_a, c.piso)
-    for fila, y in enumerate(range(c.piso.top, c.piso.bottom, 8)):
+    pygame.draw.rect(c.s, assets.COLOR_BASE_PISO_COLEGIO if arte else piso_a, c.piso)
+    for fila, y in enumerate(range(c.piso.top, c.piso.bottom, 8) if not arte else ()):
         pygame.draw.line(c.s, linea, (c.piso.left, y), (c.piso.right - 1, y))
         for x in range(c.piso.left + (fila * 13) % 34, c.piso.right, 34):
             pygame.draw.line(c.s, linea, (x, y), (x, y + 7))
@@ -198,6 +204,9 @@ def _pintar_colegio(c):
     pygame.draw.rect(c.s, (46, 86, 82), (c.cara.left, c.cara.bottom - 4, c.cara.width, 4))
     pygame.draw.line(c.s, (66, 112, 104), (c.cara.left, c.cara.bottom - 5), (c.cara.right - 1, c.cara.bottom - 5))
     # Pizarra con tiza y tablero de avisos.
+    if arte:
+        _cierre_colegio(c)
+        return
     x = c.x + 26
     _caja(c.s, (84, 62, 44), x - 1, c.y + 1, 72, 9)
     _caja(c.s, (28, 62, 54), x, c.y + 2, 70, 7)
@@ -231,10 +240,14 @@ def _pintar_colegio(c):
         rect = c.colocar(4, 3)
         if rect:
             pygame.draw.rect(c.s, c.rng.choice(((190, 186, 172), (150, 170, 196), (214, 170, 170))), rect)
+    _cierre_colegio(c)
+
+
+def _cierre_colegio(c):
+    """Puertas, sombra, grietas de NOVA y la luz cálida de las ventanas."""
     _hueco_puertas(c, (24, 20, 40), (84, 62, 44))
     _sombra_cara(c)
     _huella_nova(c)
-    # Luz cálida que entra por las ventanas de un costado.
     _luz(c, c.x + 90, c.y + 70, 80, (255, 216, 150), 46, 0.7)
     _luz(c, c.x + c.w // 2, c.y + c.h // 2, 120, (255, 224, 180), 26)
     _vineta(c)
@@ -472,6 +485,9 @@ def fondo(rect, tema, semilla, direcciones=(), toxicidad=0):
         cuadro = _Cuadro(rect, direcciones, random.Random(f"{tema}-{semilla}"), toxicidad)
         _PINTORES[tema](cuadro)
         final = pygame.transform.scale(cuadro.s, (cuadro.ancho * P, cuadro.alto * P))
+        if tema == "colegio" and arte_colegio.disponible():
+            libres = [pygame.Rect(r.x * P, r.y * P, r.w * P, r.h * P) for r in cuadro.libres]
+            arte_colegio.vestir_aula(final, rect, cuadro.origen_y, semilla, libres)
         _cache[clave] = final.convert() if pygame.display.get_surface() is not None else final
     return _cache[clave]
 

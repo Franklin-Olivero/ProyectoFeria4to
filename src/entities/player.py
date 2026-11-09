@@ -48,7 +48,7 @@ from collections import deque
 
 import pygame
 
-from src.core import assets
+from src.core import assets, eventos_sonido
 from src.core.apuntado import calcular_direccion_apuntado
 from src.core.balance import (
     ACELERACION_MOVIMIENTO,
@@ -213,7 +213,10 @@ class JugadorBase:
         direccion = self.direccion_movimiento
         if direccion.length_squared() == 0:
             direccion = self.direccion_mirada
-        return self.dash.iniciar((direccion.x, direccion.y))
+        arranco = self.dash.iniciar((direccion.x, direccion.y))
+        if arranco:
+            eventos_sonido.emitir("dash")
+        return arranco
 
     def actualizar_dash(self, dt):
         self.dash.actualizar(dt)
@@ -282,6 +285,7 @@ class JugadorBase:
         if disparando:
             while self.tiempo_para_disparo <= 0:
                 nuevos.extend(self.ataque_basico())
+                eventos_sonido.emitir(f"disparo_{self.rol}")
                 self.tiempo_para_disparo += self.intervalo_disparo()
                 self._retroceso_hasta = pygame.time.get_ticks() / 1000.0 + assets.DURACION_RETROCESO_DISPARO
         else:
@@ -317,7 +321,10 @@ class JugadorBase:
         durante el dash no se puede; si no, usar_habilidad() decide por la carga."""
         if not self.dash.puede_disparar:
             return False
-        return self.usar_habilidad(enemigos, proyectiles_salida)
+        usada = self.usar_habilidad(enemigos, proyectiles_salida)
+        if usada:
+            eventos_sonido.emitir(f"habilidad_{self.rol}")
+        return usada
 
     # ------------------------------------------------------------------
     # Carga de habilidad por kills
@@ -330,7 +337,10 @@ class JugadorBase:
 
     def sumar_carga(self, cantidad):
         """Suma `cantidad` de kills (puede ser fracción) sin pasar del máximo."""
+        estaba_cargada = self.habilidad_cargada()
         self.carga_habilidad = min(self.carga_habilidad + cantidad, self.carga_maxima)
+        if self.habilidad_cargada() and not estaba_cargada:
+            eventos_sonido.emitir("habilidad_lista")
 
     def habilidad_cargada(self):
         """La barra está llena (aunque las armas estén bloqueadas)."""
@@ -355,9 +365,12 @@ class JugadorBase:
         ventana; si ya estaba abierta, sigue corriendo igual."""
         if self.dash.invulnerable or self.expulsado:
             return
+        vida_antes = self.vida
         self.vida = self.invulnerabilidad.aplicar_golpe(
             self.vida, danio, inicia=inicia_invulnerabilidad
         )
+        if self.vida < vida_antes and inicia_invulnerabilidad:
+            eventos_sonido.emitir("jugador_herido")
 
     def actualizar_invulnerabilidad(self, dt):
         self.invulnerabilidad.actualizar(dt)

@@ -91,7 +91,11 @@ ESTADISTICAS_VISIBLES = [
     ("Cadencia", "cadencia"),
     ("Daño", "danio_mult"),
     ("Vida", "vida_mult"),
+    ("Carga", "carga_maxima"),
 ]
+# En estas, menos es mejor (menos kills para llenar la habilidad): su
+# barra es el mínimo entre los roles dividido por el valor del rol.
+ESTADISTICAS_INVERSAS = ("carga_maxima",)
 
 
 def intervalo_disparo(cadencia, buff_activo=False):
@@ -116,15 +120,14 @@ def stats_normalizadas():
     """{rol: {atributo: fracción 0..1}}, cada estadística visible
     dividida por el máximo de esa estadística entre los 4 roles.
     Es lo que dibujan las barras de la pantalla de selección."""
-    maximos = {
-        atributo: max(getattr(stats, atributo) for stats in STATS_POR_ROL.values())
-        for _, atributo in ESTADISTICAS_VISIBLES
-    }
+    def fraccion(stats, atributo):
+        valores = [getattr(otro, atributo) for otro in STATS_POR_ROL.values()]
+        if atributo in ESTADISTICAS_INVERSAS:
+            return min(valores) / getattr(stats, atributo)
+        return getattr(stats, atributo) / max(valores)
+
     return {
-        rol: {
-            atributo: getattr(stats, atributo) / maximos[atributo]
-            for _, atributo in ESTADISTICAS_VISIBLES
-        }
+        rol: {atributo: fraccion(stats, atributo) for _, atributo in ESTADISTICAS_VISIBLES}
         for rol, stats in STATS_POR_ROL.items()
     }
 
@@ -232,26 +235,18 @@ CRUCE_SUR = "Cruce Sur"
 CRUCE_OESTE = "Cruce Oeste"
 CRUCE_ESTE = "Cruce Este"
 
-# Tramos de calle (nodo, nodo, saturación inicial). El trazado es una
-# rueda: la Plaza al centro unida a 4 cruces y un anillo exterior que
-# pasa frente a los 4 edificios. Ninguna arista es puente y cada
-# edificio tiene dos rutas (una por cada lado del anillo).
-# Ejemplo de Dijkstra: Plaza -> Empresa de Medios por el Cruce Este
-# cuesta 4 + 2 = 6; por el Cruce Sur, 3 + 5 = 8.
-PESOS_INICIALES_CIUDAD = [
-    (ZONA_PLAZA, CRUCE_NORTE, 2),
-    (ZONA_PLAZA, CRUCE_SUR, 3),
-    (ZONA_PLAZA, CRUCE_OESTE, 2),
-    (ZONA_PLAZA, CRUCE_ESTE, 4),
-    (CRUCE_NORTE, ZONA_COLEGIO, 3),
-    (ZONA_COLEGIO, CRUCE_OESTE, 2),
-    (CRUCE_OESTE, ZONA_HOSPITAL, 3),
-    (ZONA_HOSPITAL, CRUCE_SUR, 2),
-    (CRUCE_SUR, ZONA_EMPRESA_MEDIOS, 5),
-    (ZONA_EMPRESA_MEDIOS, CRUCE_ESTE, 2),
-    (CRUCE_ESTE, ZONA_ALCALDIA, 3),
-    (ZONA_ALCALDIA, CRUCE_NORTE, 4),
-]
+# Peso base de cada calle = su largo real. Las calles son los tramos de
+# src/dungeon/ciudad_mapa.py (la rueda: la Plaza al centro unida a 4
+# cruces y un anillo exterior frente a los 4 edificios; ninguna arista es
+# puente y cada edificio tiene dos rutas). Cada casilla mide
+# METROS_POR_CASILLA y cada METROS_POR_PUNTO_DE_PESO metros suman 1 de
+# peso, redondeando al entero más cercano: una calle de 12 casillas
+# (60 m) pesa 3 y una de 23 casillas (115 m) pesa 6. Sobre ese peso base
+# actúan la saturación (+3 / -2) y las barricadas (8 / 6).
+# Ejemplo de Dijkstra: Plaza -> Colegio por el Cruce Norte cuesta 3 + 3 = 6;
+# por el Cruce Oeste, 6 + 6 = 12 (es el doble de largo).
+METROS_POR_CASILLA = 5
+METROS_POR_PUNTO_DE_PESO = 20
 PESO_MINIMO_CIUDAD = 1
 PESO_MAXIMO_CIUDAD = 10
 # Pesos dinámicos al resolver una mazmorra, en las calles de su entrada.
@@ -582,3 +577,98 @@ REPUTACION_POR_TIPO_CUENTA = {"origen": 15, "amplificador": 0, "error": -10, "vi
 # Jefe derrotado / derrotas en la arena (efectos narrativos, una vez)
 EFECTOS_JEFE_DERROTADO = {"desinformacion": -10, "confianza": 6, "bienestar_digital": 6}
 PUNTOS_JEFE_DERROTADO = 200
+
+# ----------------------------------------------------------------------
+# Mezcla de audio (src/core/audio.py). Volumen final de un sonido =
+# preferencia del jugador (música o efectos) * VOLUMEN_CATEGORIA *
+# GANANCIA_SONIDO[id] (o GANANCIA_MUSICA[id]). Las ganancias igualan
+# el volumen percibido sin editar los archivos: se calcularon para dejar
+# cada efecto cerca de -19 dB RMS y cada pista cerca de -18 dB RMS (el
+# pack Bitcade viene normalizado a -1 dBFS y suena ~6 dB más fuerte que
+# el audio propio). Nunca pasan de 1.0: nada se amplifica ni satura.
+# Los sonidos que se repiten mucho (disparos e impactos) van 40 % más
+# bajos para no tapar la música.
+# ----------------------------------------------------------------------
+VOLUMEN_CATEGORIA = {"musica": 0.85, "sfx": 1.0, "ui": 0.8}
+GANANCIA_SONIDO = {
+    "disparo_ciudadano": 0.45,
+    "disparo_influencer": 0.26,
+    "disparo_periodista": 0.29,
+    "disparo_candidato": 0.23,
+    "habilidad_ciudadano": 0.59,
+    "habilidad_influencer": 0.67,
+    "habilidad_periodista": 0.44,
+    "habilidad_candidato": 0.28,
+    "habilidad_lista": 0.50,
+    "dash": 0.43,
+    "jugador_herido": 0.46,
+    "impacto_enemigo": 0.27,
+    "muerte_perseguidor": 0.40,
+    "muerte_tirador": 0.59,
+    "muerte_curandero": 0.40,
+    "disparo_tirador": 0.49,
+    "curacion": 0.67,
+    "jefe_rafaga": 0.50,
+    "jefe_fase": 0.63,
+    "jefe_escudo_roto": 0.58,
+    "jefe_derrotado": 0.63,
+    "puerta": 0.37,
+    "puerta_sellada": 0.32,
+    "cuarto_liberado": 0.53,
+    "cuarto_final_desbloqueado": 0.42,
+    "gracia_entrada": 0.48,
+    "transicion": 0.79,
+    "barricada": 0.37,
+    "ruta": 0.48,
+    "noticia": 1.00,
+    "tick": 0.27,
+    "decision_buena": 0.54,
+    "decision_mala": 0.63,
+    "error_decision": 0.32,
+    "navegar": 0.27,
+    "confirmar": 0.48,
+    "volver": 0.26,
+    "notificacion": 1.00,
+    "evidencia": 0.50,
+    "mision": 0.53,
+    "reputacion_sube": 0.64,
+    "reputacion_baja": 0.81,
+    "victoria": 0.54,
+    "derrota": 0.35,
+    "crisis": 0.71,
+    "redencion": 0.86,
+    "glitch": 0.70,
+    "viral": 0.84,
+}
+GANANCIA_MUSICA = {
+    "menu": 0.68,
+    "lobby": 0.62,
+    "ciudad": 1.00,
+    "combate": 0.88,
+    "jefe": 1.00,
+    "misterio": 0.75,
+    "decision": 0.61,
+    "crisis": 0.92,
+    "redencion": 0.76,
+    "victoria": 0.91,
+    "derrota": 0.89,
+}
+# Anti-spam: un mismo sonido suena a lo sumo MAX_SIMULTANEOS_SONIDO
+# veces a la vez y nunca dos veces en menos de INTERVALO_MINIMO_SONIDO s
+# (p. ej. los 3 proyectiles del abanico del Ciudadano o 5 enemigos que
+# mueren en el mismo frame suenan una vez).
+MAX_SIMULTANEOS_SONIDO = 3
+INTERVALO_MINIMO_SONIDO = 0.05
+# Duración máxima esperada de un efecto (tests/test_audio.py). Los IDs
+# de LARGOS_PERMITIDOS (habilidades, jefe, jingles, transiciones de la
+# historia) pueden durar más; ningún efecto pasa de DURACION_MAXIMA_LARGO.
+DURACION_MAXIMA_SFX = 1.5
+DURACION_MAXIMA_LARGO = 3.2
+LARGOS_PERMITIDOS = (
+    "habilidad_ciudadano", "habilidad_influencer", "jefe_fase", "jefe_derrotado", "cuarto_liberado",
+    "decision_buena", "decision_mala", "victoria", "derrota", "crisis", "redencion",
+)
+# Últimos segundos de la terminal de decisión en que suena el tic de reloj.
+SEGUNDOS_TIC_TERMINAL = 5
+# Paso de las teclas - / + para el volumen general en el lobby (porcentaje).
+PASO_VOLUMEN_LOBBY = 10

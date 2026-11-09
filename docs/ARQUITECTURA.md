@@ -141,7 +141,7 @@ de habilidades).
   constantes del jefe, charcos y mazmorra final. De Ciudad Nova:
   `TAM_CASILLA` (16 × `ESCALA_PIXEL` = 48), `ENTRADA_ALCANCE`,
   `ALCANCE_AVISO_SELLADA`, los nombres de zonas y cruces,
-  `PESOS_INICIALES_CIUDAD`, `AJUSTE_DETONACION` (+3),
+  `METROS_POR_CASILLA` / `METROS_POR_PUNTO_DE_PESO` (peso base = largo real), `AJUSTE_DETONACION` (+3),
   `AJUSTE_PURIFICACION` (-2), `BLOQUEO_PESO` (8), `DESBLOQUEO_PESO` (6)
   y `COLAPSO_TITULAR_ALTO`.
 - `intervalo_disparo(cadencia, buff_activo)`, `dps_nominal(stats)`,
@@ -194,14 +194,12 @@ corrupto → predeterminados) y `guardar(ruta)` (escribe a un temporal y lo
 renombra). El archivo es `preferencias.json`, ignorado por git.
 *Depende de:* nada.
 
-**`audio.py`** — **`Audio`**: único punto que toca `pygame.mixer`.
-`aplicar(preferencias)` pone el volumen de `pygame.mixer.music` y de cada
-efecto (`a_volumen_mixer`: 0% silencia, 100% = 1.0, nunca más);
-`reproducir(nombre)`. Carga los archivos de `assets.RUTAS_SONIDOS` /
-`RUTA_MUSICA_MENU` si existen; hoy no hay archivos de audio, así que los
-efectos de interfaz se sintetizan en código (onda cuadrada) y la música
-queda en silencio. Sin salida de audio, `disponible = False` y no suena nada.
-*Depende de:* `pygame`, `assets`.
+**`audio.py`** — **`Audio`**: único punto que toca `pygame.mixer` (gestor de audio por ID).
+`reproducir(id)`, `musica(id, bucle, fade_ms)`, `detener_musica`, `alternar_silencio` (N) y
+`procesar_eventos()` (vacía `eventos_sonido`, la cola pura donde la lógica pide sonidos). Rutas en
+`assets.SONIDOS` / `assets.MUSICA` (`assets/audio/`), mezcla y anti-spam puros en `mezcla_audio.py`
+(números en `balance.py`), carga perezosa con caché y fallback silencioso: sin archivo o sin salida
+de audio no suena nada y el juego sigue. *Depende de:* `pygame`, `assets`, `mezcla_audio`, `eventos_sonido`.
 
 **`apariencia.py`** — puro. **`Apariencia`** (dataclass inmutable:
 `piel` = índice en `assets.TONOS_PIEL`, `cabeza` y `traje` = rol de
@@ -904,7 +902,7 @@ tentativa cuesta O(log V) en vez de O(V) recorriendo todos los nodos.
 
 Ciudad Nova tiene dos grafos: la **red de calles** (`GrafoCiudad`: 9
 nodos — Plaza, 4 cruces y la entrada de cada edificio — y 12 calles con
-peso = saturación) y el **grafo de casillas** (`grafo_casillas`: una
+peso = largo real del tramo + saturación) y el **grafo de casillas** (`grafo_casillas`: una
 arista entre cada par de casillas transitables vecinas). El trazado de
 calles es una rueda (Plaza al centro, anillo exterior): ninguna arista
 es puente y cada edificio tiene dos rutas, una por cada lado del anillo.

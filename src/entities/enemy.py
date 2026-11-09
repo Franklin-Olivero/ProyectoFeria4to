@@ -35,7 +35,7 @@ y reutiliza vida, empuje, escudo, agro, la rama de congelado y la
 import pygame
 
 from src.ai.behavior_tree import EXITO, FALLO, Action, Selector, Sequence
-from src.core import assets
+from src.core import assets, eventos_sonido
 from src.entities.projectile import Proyectil
 
 
@@ -234,7 +234,12 @@ class Enemigo:
     def recibir_dano(self, danio):
         if self.escudo_anonimato:
             return
+        vivo_antes = self.vivo
         self.vida -= danio
+        eventos_sonido.emitir("impacto_enemigo")
+        if vivo_antes and not self.vivo:
+            tipo = self.tipo.value if self.tipo is not None else "perseguidor"
+            eventos_sonido.emitir(f"muerte_{tipo}")
 
     def empujar(self, impulso):
         """Desplaza al enemigo `impulso` (Vector2, en píxeles) de golpe."""

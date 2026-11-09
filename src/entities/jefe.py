@@ -45,7 +45,7 @@ import random
 from dataclasses import dataclass, field
 
 from src.ai.behavior_tree import EXITO, FALLO, Action, Selector, Sequence
-from src.core import assets
+from src.core import assets, eventos_sonido
 from src.core.balance import (
     CHARCO_DISTANCIA_MIN_JUGADOR,
     CHARCO_INTERVALO,
@@ -258,6 +258,7 @@ class Jefe:
         if not self.vivo:
             return
         self.tiempo_destello = DURACION_DESTELLO_DANIO
+        eventos_sonido.emitir("impacto_enemigo")
         if self.escudo_anonimato:
             self._vida_escudo -= 1
             if self._vida_escudo == 0:
@@ -421,6 +422,7 @@ class Jefe:
                 self._disparar(i * PASO_RADIAL, RAFAGA_VELOCIDAD)
         self.ultimo_hueco = self._centro_hueco(inicio)
         self._tiempo_desde_rafaga = 0.0
+        eventos_sonido.emitir("jefe_rafaga")
         return True
 
     def _rafaga_radial(self):

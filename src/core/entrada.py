@@ -31,6 +31,10 @@ TECLAS_DASH = (pygame.K_LSHIFT, pygame.K_RSHIFT)
 # guía de controles de los ajustes lea las mismas que el juego).
 TECLA_MINIMAPA = pygame.K_m
 TECLA_ARBOL = pygame.K_TAB
+# Audio (en todas las pantallas): N silencia / vuelve a sonar; - y +
+# bajan y suben el volumen general en el lobby.
+TECLA_SILENCIO = pygame.K_n
+TECLAS_VOLUMEN = {pygame.K_MINUS: -1, pygame.K_KP_MINUS: -1, pygame.K_PLUS: 1, pygame.K_EQUALS: 1, pygame.K_KP_PLUS: 1}
 
 # Botones del control (nombres de SDL, ver docstring del módulo).
 BOTON_DASH = pygame.CONTROLLER_BUTTON_A  # Cruz

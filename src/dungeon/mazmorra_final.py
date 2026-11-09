@@ -20,7 +20,7 @@ en src/dungeon/arena_jefe.py.
 
 import random
 
-from src.core import assets
+from src.core import assets, eventos_sonido
 from src.core.balance import (
     COLAPSO_DESBLOQUEO,
     MAZMORRAS_PARA_DESBLOQUEO,
@@ -29,7 +29,10 @@ from src.core.balance import (
 )
 from src.core.equipo import jugador_mas_cercano, jugadores_en_combate, todos_caidos
 from src.dungeon.clasificador_toxicidad import nivel_a_dificultad
-from src.entities.jefe import Jefe, SalidaJefe
+from src.entities.jefe import EVENTO_CAMBIO_FASE, EVENTO_ESCUDO_ROTO, Jefe, SalidaJefe
+
+# Sonido de cada evento del jefe (IDs de assets.SONIDOS).
+SONIDO_EVENTO_JEFE = {EVENTO_CAMBIO_FASE: "jefe_fase", EVENTO_ESCUDO_ROTO: "jefe_escudo_roto"}
 
 EN_COMBATE = "combate"
 VICTORIA = "victoria"
@@ -90,12 +93,15 @@ class MazmorraFinal:
         if self.jefe.eventos:
             # Cambio de fase o escudo roto: sacudida corta de pantalla.
             self.tiempo_sacudida = assets.SHAKE_DURACION
+            for evento in self.jefe.eventos:
+                eventos_sonido.emitir(SONIDO_EVENTO_JEFE.get(evento))
             self.jefe.eventos.clear()
 
         self._actualizar_charcos(dt, jugadores)
 
         if not self.jefe.vivo:
             self.estado = VICTORIA
+            eventos_sonido.emitir("jefe_derrotado")
             self.colapso.restar_exito()
         elif self.tiempo_restante <= 0 or todos_caidos(jugadores):
             self._derrota()

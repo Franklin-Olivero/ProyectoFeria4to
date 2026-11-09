@@ -15,7 +15,7 @@ import pygame
 from src.core import assets
 from src.core.balance import TAM_CASILLA
 from src.dungeon import ciudad_mapa
-from src.ui import casillas_ciudad, dibujo, sprites
+from src.ui import arte_colegio, cargador_assets, casillas_ciudad, dibujo, sprites
 from src.ui.fuentes import fuente
 from src.ui.mapa_render import color_toxicidad
 
@@ -44,7 +44,9 @@ def _imagen_casilla(col, fila, letra):
     if letra == ciudad_mapa.ARBOL:
         return casillas_ciudad.casilla_arbol()
     if letra == ciudad_mapa.FAROLA:
-        return casillas_ciudad.casilla_farola()
+        if cargador_assets.prop_urbano("farola") is None:
+            return casillas_ciudad.casilla_farola()
+        letra = ciudad_mapa.ACERA  # la farola del pack se dibuja encima (ver _dibujar_props)
     if letra == ciudad_mapa.CASA:
         con_techo = ciudad_mapa.casilla(col, fila - 1) != ciudad_mapa.CASA
         return casillas_ciudad.casilla_casa(con_techo, col * 31 + fila * 17)
@@ -68,10 +70,35 @@ def mundo_base():
             center=ciudad_mapa.centro_casilla(*ciudad_mapa.NODOS_CALLE[ciudad_mapa.ZONA_PLAZA])))
         for zona, (col, fila, ancho, alto) in ciudad_mapa.EDIFICIOS.items():
             puerta = ciudad_mapa.ENTRADAS[zona][0] - col
-            superficie.blit(casillas_ciudad.fachada(zona, ancho, alto, puerta),
-                            (col * TAM_CASILLA, fila * TAM_CASILLA))
+            fachada = casillas_ciudad.fachada(zona, ancho, alto, puerta)
+            if zona == ciudad_mapa.ZONA_COLEGIO and arte_colegio.disponible():
+                x, y, w, h = casillas_ciudad.placa_rotulo(ancho, alto, puerta)
+                placa = pygame.Rect(x * assets.ESCALA_PIXEL, y * assets.ESCALA_PIXEL,
+                                    w * assets.ESCALA_PIXEL, h * assets.ESCALA_PIXEL)
+                fachada = arte_colegio.vestir_fachada(fachada, ancho, alto, puerta, placa)
+            superficie.blit(fachada, (col * TAM_CASILLA, fila * TAM_CASILLA))
+        _dibujar_props(superficie)
         _cache["mundo"] = superficie
     return _cache["mundo"]
+
+
+def _dibujar_props(superficie):
+    """Farolas y mobiliario urbano del pack, de arriba hacia abajo (lo de
+    más abajo tapa a lo de arriba), apoyados en el borde inferior de su
+    casilla. Sin el pack, las farolas ya salieron como casilla y los props
+    se ven como un bolardo."""
+    lugares = [((col, fila), "farola") for fila, linea in enumerate(ciudad_mapa.MAPA)
+               for col, letra in enumerate(linea) if letra == ciudad_mapa.FAROLA]
+    lugares += list(ciudad_mapa.PROPS.items())
+    for (col, fila), nombre in sorted(lugares, key=lambda lugar: (lugar[0][1], lugar[0][0])):
+        imagen = cargador_assets.prop_urbano(nombre)
+        base = (round((col + 0.5) * TAM_CASILLA), (fila + 1) * TAM_CASILLA - 4)
+        if imagen is not None:
+            superficie.blit(imagen, imagen.get_rect(midbottom=base))
+        elif nombre != "farola":
+            caja = pygame.Rect(0, 0, TAM_CASILLA // 3, TAM_CASILLA // 2)
+            caja.midbottom = base
+            pygame.draw.rect(superficie, assets.COLOR_COLUMNA, caja, border_radius=4)
 
 
 def _farolas():
@@ -182,11 +209,11 @@ def _dibujar_rotulos(pantalla, rect_vista, dx, dy):
 
 
 def _dibujar_barricadas(pantalla, partida, rect_vista, dx, dy):
-    imagen = casillas_ciudad.casilla_barricada()
+    imagen = cargador_assets.prop_urbano("barricada") or casillas_ciudad.casilla_barricada()
     for col, fila in partida.barricadas_activas():
-        destino = (col * TAM_CASILLA + dx, fila * TAM_CASILLA + dy)
-        if rect_vista.colliderect(pygame.Rect(destino, (TAM_CASILLA, TAM_CASILLA))):
-            pantalla.blit(imagen, destino)
+        casilla = pygame.Rect(col * TAM_CASILLA + dx, fila * TAM_CASILLA + dy, TAM_CASILLA, TAM_CASILLA)
+        if rect_vista.colliderect(casilla):
+            pantalla.blit(imagen, imagen.get_rect(midbottom=(casilla.centerx, casilla.bottom - 2)))
 
 
 def _dibujar_ruta(pantalla, ruta, dx, dy, tiempo):
