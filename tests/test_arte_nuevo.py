@@ -13,7 +13,10 @@ os.environ.setdefault("SDL_VIDEODRIVER", "dummy")
 import pygame  # noqa: E402
 
 from src.core import assets  # noqa: E402
-from src.dungeon import ciudad_mapa  # noqa: E402
+from src.dungeon import ciudad_mapa, zonas_ciudad  # noqa: E402
+from src.ui import rutas_backrooms  # noqa: E402
+
+_ATLAS_CIUDAD = rutas_backrooms.leer_atlas(assets.GRADE_CIUDAD)
 
 
 def _tamanio_png(ruta):
@@ -31,6 +34,8 @@ def test_cada_prop_tiene_arte():
     for prop in ciudad_mapa.DECORACION:
         if prop.tipo == "arbol":
             assert os.path.exists(os.path.join(assets.RUTA_ARBOLES, f"arbol_{prop.variante:02d}.png")), prop
+        elif prop.tipo in zonas_ciudad.PROPS_BACKROOMS:
+            assert rutas_backrooms.rect_prop(_ATLAS_CIUDAD, zonas_ciudad.PROPS_BACKROOMS[prop.tipo]), prop
         else:
             assert prop.tipo in assets.PROPS_URBANOS, prop
         assert ciudad_mapa.es_solida(*prop.casilla) == prop.solido or not prop.solido

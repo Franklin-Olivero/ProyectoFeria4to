@@ -20,8 +20,12 @@ Reglas:
       agrupados al azar (semilla fija) sin pisar el sendero ni tocarse.
     - Hileras en avenidas: árboles cada ESPACIADO_ARBOLES_AVENIDA casillas
       sobre los setos ('T') que dan a una acera (ya eran sólidos).
-    - Jardines decorativos (fila libre del norte, patio del Colegio y
-      jardín entre edificios): árboles y mobiliario por posiciones fijas.
+    - Zonas (src/dungeon/zonas_ciudad.py): cada farola toma el modelo de
+      su zona y cada árbol una especie de su zona; los hitos de cada zona
+      (fuente, bancas de la plaza cívica, autos, antenas...) van en sus
+      casillas, con su huella de varias casillas si la tienen.
+    - Arboledas: ARBOLEDAS (rect, cantidad, separación) con la semilla
+      fija, sin tocarse entre sí.
 
 Nunca se coloca un prop sobre: calles, el eje de un tramo, la sección de
 una barricada, un nodo, una puerta, la casilla frente a una puerta (y sus
@@ -33,6 +37,7 @@ junto a calles que siguen libres.
 import random
 from dataclasses import dataclass
 
+from src.dungeon import zonas_ciudad
 from src.core.balance import (
     ARBOLES_PARQUE,
     ESPACIADO_ARBOLES_AVENIDA,
@@ -48,6 +53,10 @@ CAPA_OBJETO = "objeto"
 CAPA_ARBOL = "arbol"
 
 NORTE, SUR, ESTE, OESTE = "N", "S", "E", "O"
+# Letras del mapa donde puede ir un prop: pasto, acera/plaza y seto (los
+# árboles de hilera); nunca calle, edificio, casa, agua ni puerta.
+LIBRES = (".", ":", "T")
+FAROLAS = ("farola", "farola_ornamental", "farola_baja", "farola_curva", "farola_jardin", "farola_farol")
 
 # Variantes de árbol (número del pack Trees_Vol2; arte en assets.RUTA_ARBOLES).
 ARBOLES_AVENIDA = (57, 62, 67)
@@ -65,39 +74,64 @@ class Prop:
     capa: str = CAPA_OBJETO
     solido: bool = True
     variante: int = 0  # árboles: número del pack
+    ancho: int = 1  # huella en casillas desde `casilla` (esquina superior izquierda)
+    alto: int = 1
+
+    @property
+    def casillas(self):
+        col, fila = self.casilla
+        return tuple((col + dc, fila + df) for df in range(self.alto) for dc in range(self.ancho))
+
+    @property
+    def base(self):
+        """(col, fila) de la casilla inferior central de la huella: donde se apoya."""
+        return (self.casilla[0] + self.ancho // 2, self.casilla[1] + self.alto - 1)
 
 
-def generar(mapa, calles, tramos, nodos, entradas, spawn, plaza, parque, senderos, jardines, edificios=(),
-            semilla=SEMILLA_DECORACION):
+def generar(mapa, calles, tramos, nodos, entradas, spawn, plaza, parque, senderos, edificios=(), arboledas=(),
+            semilla=SEMILLA_DECORACION, zonas=None):
     """Tupla de Prop de toda la ciudad.
 
     mapa: lista de cadenas (ciudad_mapa.MAPA); calles: letras de calle;
     tramos: [(puntos, seccion)] de cada arista; nodos y entradas: casillas;
     plaza y parque: rects (col, fila, ancho, alto); senderos: casillas del
-    sendero del parque; jardines: [(tipo, casilla, variante)] fijos;
-    edificios: rects de sus huellas (ningún árbol de hilera a menos de 2
-    casillas: su copa taparía la fachada)."""
+    sendero del parque; edificios: rects de sus huellas (ningún árbol de
+    hilera a menos de 2 casillas: su copa taparía la fachada); arboledas:
+    [(rect, cantidad, separación)]; zonas: {id: Zona} (por defecto las de
+    zonas_ciudad)."""
     rng = random.Random(semilla)
+    zonas = zonas_ciudad.ZONAS if zonas is None else zonas
     reservadas = _reservadas(mapa, calles, tramos, nodos, entradas, spawn, senderos)
-    props = {}  # casilla -> Prop (una sola cosa por casilla)
+    ocupadas = {}  # casilla -> Prop (una sola cosa por casilla)
 
     def poner(prop):
-        col, fila = prop.casilla
-        if prop.casilla in props or prop.casilla in reservadas:
+        celdas = prop.casillas
+        if any(c in ocupadas or c in reservadas for c in celdas):
             return False
-        if not (0 <= fila < len(mapa) and 0 <= col < len(mapa[0])):
+        if not all(0 <= f < len(mapa) and 0 <= c < len(mapa[0]) and mapa[f][c] in LIBRES for c, f in celdas):
             return False
-        props[prop.casilla] = prop
+        if prop.tipo != "arbol" and any(mapa[f][c] == "T" for c, f in celdas):
+            return False  # en los setos solo van árboles
+        for celda in celdas:
+            ocupadas[celda] = prop
         return True
 
+    for id_zona in zonas_ciudad.ORDEN_ZONAS:  # primero los hitos: son la identidad de cada zona
+        for hito in zonas[id_zona].hitos:
+            capa = CAPA_ARBOL if hito.tipo == "arbol" else CAPA_OBJETO
+            poner(Prop(hito.tipo, hito.casilla, hito.orientacion, capa, True, hito.variante, hito.ancho, hito.alto))
     _plaza(poner, plaza)
-    _parque(poner, mapa, parque, senderos, rng)
+    def arbol_cerca(casilla, separacion):
+        return any(p.tipo == "arbol" and max(abs(casilla[0] - c[0]), abs(casilla[1] - c[1])) < separacion
+                   for c, p in ocupadas.items())
+
+    _parque(poner, mapa, parque, senderos, rng, arbol_cerca)
     _aceras(poner, mapa, tramos, plaza)
     _hileras_de_avenida(poner, mapa, rng, edificios)
-    for tipo, casilla, variante in jardines:
-        capa = CAPA_ARBOL if tipo == "arbol" else CAPA_OBJETO
-        poner(Prop(tipo, casilla, SUR, capa, True, variante))
-    return tuple(sorted(props.values(), key=lambda p: (p.casilla[1], p.casilla[0])))
+    for rect, cantidad, separacion in arboledas:
+        _arboleda(poner, mapa, rect, cantidad, separacion, rng, arbol_cerca)
+    unicos = {id(p): p for p in ocupadas.values()}.values()
+    return tuple(sorted(unicos, key=lambda p: (p.casilla[1], p.casilla[0])))
 
 
 # ----------------------------------------------------------------------
@@ -155,7 +189,7 @@ def _aceras(poner, mapa, tramos, plaza):
                         continue
                     desplazamiento = paso - desde - MARGEN_FAROLAS_CRUCE
                     if desplazamiento % ESPACIADO_FAROLAS == 0:
-                        poner(Prop("farola", casilla, SUR if lado < 0 else NORTE))
+                        poner(Prop(zonas_ciudad.farola_de(*casilla), casilla, SUR if lado < 0 else NORTE))
                     elif desplazamiento % ESPACIADO_MOBILIARIO_ACERA == ESPACIADO_FAROLAS // 2:
                         if poner(Prop(MOBILIARIO_ACERA[turno % len(MOBILIARIO_ACERA)], casilla)):
                             turno += 1
@@ -170,19 +204,20 @@ def _plaza(poner, plaza):
             mira = SUR if dy < 0 else NORTE  # hacia el centro
             poner(Prop("banca", (cx + dx, cy + dy), mira))
             poner(Prop("jardinera", (cx + dx + (2 if dx > 0 else -2), cy + dy)))
-            poner(Prop("farola", (cx + (6 if dx > 0 else -6), cy + (3 if dy > 0 else -3))))
+            casilla = (cx + (6 if dx > 0 else -6), cy + (3 if dy > 0 else -3))
+            poner(Prop(zonas_ciudad.farola_de(*casilla), casilla))
     for dx in (-7, 7):
         poner(Prop("arbol", (cx + dx, cy + 5), SUR, CAPA_ARBOL, True, ARBOLES_NEON[0 if dx < 0 else 2]))
 
 
-def _parque(poner, mapa, parque, senderos, rng):
+def _parque(poner, mapa, parque, senderos, rng, arbol_cerca=lambda casilla, separacion: False):
     """Bancas enfrentadas a ambos lados del sendero, farolas a lo largo de
     él y árboles agrupados (semilla fija) en el pasto."""
     col, fila, ancho, alto = parque
     horizontales = sorted(c for c in senderos if _letra(mapa, (c[0], c[1] - 1)) == "." and _letra(mapa, (c[0], c[1] + 1)) == ".")
     for indice, (c, f) in enumerate(horizontales):
         if indice % ESPACIADO_FAROLAS == 1:
-            poner(Prop("farola", (c, f - 1), SUR))
+            poner(Prop(zonas_ciudad.farola_de(c, f - 1), (c, f - 1), SUR))
         elif indice % ESPACIADO_FAROLAS == 4:
             poner(Prop("banca", (c, f - 1), SUR))  # par simétrico: una mira al sur...
             poner(Prop("banca", (c, f + 1), NORTE))  # ...y la otra al norte, al sendero
@@ -193,9 +228,9 @@ def _parque(poner, mapa, parque, senderos, rng):
     for casilla in libres:
         if len(puestos) >= ARBOLES_PARQUE:
             break
-        if any(max(abs(casilla[0] - p[0]), abs(casilla[1] - p[1])) < SEPARACION_ARBOLES_PARQUE for p in puestos):
+        if arbol_cerca(casilla, SEPARACION_ARBOLES_PARQUE):
             continue
-        variante = rng.choice(ARBOLES_PARQUE_VARIANTES)
+        variante = rng.choice(zonas_ciudad.arboles_de(*casilla, ARBOLES_PARQUE_VARIANTES))
         if poner(Prop("arbol", casilla, SUR, CAPA_ARBOL, True, variante)):
             puestos.append(casilla)
 
@@ -209,7 +244,25 @@ def _hileras_de_avenida(poner, mapa, rng, edificios):
                 if any(_distancia_a_rect(casilla, rect) <= 2 for rect in edificios):
                     continue
                 if i % ESPACIADO_ARBOLES_AVENIDA == 1:
-                    poner(Prop("arbol", casilla, SUR, CAPA_ARBOL, True, rng.choice(ARBOLES_AVENIDA)))
+                    especie = rng.choice(ARBOLES_AVENIDA)
+                    poner(Prop("arbol", casilla, SUR, CAPA_ARBOL, True, especie))
+
+
+def _arboleda(poner, mapa, rect, cantidad, separacion, rng, arbol_cerca=lambda casilla, separacion: False):
+    """`cantidad` árboles de la especie de su zona en el pasto de `rect`,
+    al azar con la semilla fija y a `separacion` casillas o más entre sí."""
+    col, fila, ancho, alto = rect
+    libres = [(c, f) for f in range(fila, fila + alto) for c in range(col, col + ancho) if _letra(mapa, (c, f)) == "."]
+    rng.shuffle(libres)
+    puestos = []
+    for casilla in libres:
+        if len(puestos) >= cantidad:
+            break
+        if arbol_cerca(casilla, separacion):
+            continue
+        especie = rng.choice(zonas_ciudad.arboles_de(*casilla, ARBOLES_PARQUE_VARIANTES))
+        if poner(Prop("arbol", casilla, SUR, CAPA_ARBOL, True, especie)):
+            puestos.append(casilla)
 
 
 def _corridas_de_seto(mapa, horizontal, minimo=4):

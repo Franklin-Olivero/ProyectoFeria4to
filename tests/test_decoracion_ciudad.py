@@ -28,11 +28,11 @@ PROPS = cm.DECORACION
 
 
 def _generar_de_nuevo(semilla=None):
-    argumentos = dict(edificios=cm.EDIFICIOS.values())
+    argumentos = dict(edificios=cm.EDIFICIOS.values(), arboledas=cm.ARBOLEDAS)
     if semilla is not None:
         argumentos["semilla"] = semilla
     return ld.generar(cm.MAPA, cm.CALLES, [(t.puntos, t.seccion) for t in cm.TRAMOS], cm.NODOS_CALLE.values(),
-                      cm.ENTRADAS.values(), cm.SPAWN, cm.PLAZA, cm.PARQUE, cm.SENDEROS_PARQUE, cm.JARDINES,
+                      cm.ENTRADAS.values(), cm.SPAWN, cm.PLAZA, cm.PARQUE, cm.SENDEROS_PARQUE,
                       **argumentos)
 
 
@@ -47,10 +47,11 @@ def test_modulos_no_importan_pygame():
 
 
 def test_hay_de_todo_y_ningun_prop_se_superpone():
-    casillas = [p.casilla for p in PROPS]
+    casillas = [c for p in PROPS for c in p.casillas]
     assert len(casillas) == len(set(casillas))
     tipos = Counter(p.tipo for p in PROPS)
-    for tipo in ("farola", "banca", "arbol", "jardinera", "basurero", "buzon", "hidrante"):
+    assert sum(tipos[f] for f in ld.FAROLAS) > 0
+    for tipo in ("banca", "arbol", "jardinera", "basurero", "buzon", "hidrante"):
         assert tipos[tipo] > 0, tipo
 
 
@@ -63,18 +64,20 @@ def test_ningun_prop_sobre_un_camino_una_puerta_o_una_barricada():
             for df in (0, 1, 2):
                 prohibidas.add((col + dc, fila + df))  # la puerta y el paso frente a ella
     for prop in PROPS:
-        assert prop.casilla not in prohibidas, prop
-        assert cm.casilla(*prop.casilla) not in cm.CALLES, prop
-        assert cm.casilla(*prop.casilla) not in (cm.EDIFICIO, cm.ENTRADA, cm.CASA), prop
+        for casilla in prop.casillas:
+            assert casilla not in prohibidas, prop
+            assert cm.casilla(*casilla) not in cm.CALLES, prop
+            assert cm.casilla(*casilla) not in (cm.EDIFICIO, cm.ENTRADA, cm.CASA, cm.FUENTE, cm.AGUA), prop
 
 
 def test_props_sobre_casillas_validas():
     for prop in PROPS:
-        letra = cm.casilla(*prop.casilla)
-        if prop.tipo == "arbol":
-            assert letra in (cm.PASTO, cm.ARBOL, cm.ACERA), prop  # pasto, seto o rincón de la Plaza
-        else:
-            assert letra in (cm.PASTO, cm.ACERA), prop
+        for casilla in prop.casillas:
+            letra = cm.casilla(*casilla)
+            if prop.tipo == "arbol":
+                assert letra in (cm.PASTO, cm.ARBOL, cm.ACERA), prop  # pasto, seto o rincón de la Plaza
+            else:
+                assert letra in (cm.PASTO, cm.ACERA), prop
 
 
 def test_farolas_a_intervalos_regulares_en_cada_acera():
@@ -86,7 +89,7 @@ def test_farolas_a_intervalos_regulares_en_cada_acera():
             for lado in (-2, 2):
                 linea = sorted(
                     p.casilla[0] if horizontal else p.casilla[1]
-                    for p in PROPS if p.tipo == "farola" and not ld._dentro(cm.PLAZA, p.casilla)
+                    for p in PROPS if p.tipo in ld.FAROLAS and not ld._dentro(cm.PLAZA, p.casilla)
                     and (p.casilla[1] == f0 + lado if horizontal else p.casilla[0] == c0 + lado)
                     and (min(c0, c1) <= p.casilla[0] <= max(c0, c1) if horizontal else min(f0, f1) <= p.casilla[1] <= max(f0, f1))
                 )
@@ -100,7 +103,7 @@ def test_las_avenidas_tienen_farolas_en_ambas_aceras():
         if abs(c1 - c0) + abs(f1 - f0) < 2 * ESPACIADO_FAROLAS:
             continue
         for lado in (-2, 2):
-            hay = [p for p in PROPS if p.tipo == "farola"
+            hay = [p for p in PROPS if p.tipo in ld.FAROLAS
                    and (p.casilla[1] == f0 + lado if f0 == f1 else p.casilla[0] == c0 + lado)]
             assert hay, (t.a, t.b, lado)
 

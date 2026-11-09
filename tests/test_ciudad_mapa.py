@@ -27,7 +27,7 @@ def test_mapa_rectangular_de_64x47_y_casillas_de_48px():
     assert TAM_CASILLA == 48
     assert cm.FILAS == 47
     assert all(len(fila) == cm.COLUMNAS == 64 for fila in cm.MAPA)
-    letras_validas = set(".:c=|#HTEX")
+    letras_validas = set(".:c=|#HTEXF~")
     assert all(set(fila) <= letras_validas for fila in cm.MAPA)
 
 

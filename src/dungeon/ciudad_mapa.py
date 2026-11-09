@@ -5,16 +5,20 @@ más grande que la ventana: la cámara sigue al jugador. Cada carácter de
 MAPA es una casilla:
 
     .  pasto (transitable)            #  edificio de zona (sólido)
-    :  acera / plaza / sendero        H  casa decorativa (sólida)
+    :  acera / plaza / sendero        H  casa (sólida; una de CASAS)
     c  calle (transitable)            T  seto de árboles (sólido)
     =  calle con carril horizontal    E  entrada de edificio (transitable)
-    |  calle con carril vertical
+    |  calle con carril vertical      F  fuente de la plaza cívica (sólida)
+    ~  estanque del parque (sólido)
     X  barricada de la Alcaldía (sólida solo mientras está sellada)
 
-Manzanas: arriba, tres filas libres y el jardín entre el Colegio y la
-Alcaldía (así ningún edificio toca el borde del mundo); al noroeste, el
-parque, con un sendero y una sola entrada desde la Plaza (un callejón sin
-salida: no permite rodear ninguna barricada).
+Manzanas por zona (src/dungeon/zonas_ciudad.py): arriba, la zona escolar
+y la cívica, con la plaza de la Alcaldía (fuente al centro) abierta a la
+acera norte; al noroeste, el parque con su estanque y una sola entrada
+desde la Plaza; al noreste, el barrio residencial; abajo, las zonas
+hospitalaria y de medios; bajo el Cruce Sur, el lote vacío reservado para
+el Distrito Liminal. Cada bolsillo transitable tiene una sola entrada (un
+callejón sin salida): ninguno permite rodear una barricada.
 
 Las calles forman un grafo (src/dungeon/grafo_ciudad.py): NODOS_CALLE
 dice en qué casilla está cada nodo y TRAMOS, por qué casillas pasa cada
@@ -60,30 +64,32 @@ CASA = "H"
 ARBOL = "T"
 ENTRADA = "E"
 BARRICADA = "X"
+FUENTE = "F"
+AGUA = "~"
 
 CALLES = (CALLE, CALLE_HORIZONTAL, CALLE_VERTICAL)
-SOLIDAS = (EDIFICIO, CASA, ARBOL)
+SOLIDAS = (EDIFICIO, CASA, ARBOL, FUENTE, AGUA)
 
 MAPA = [
     "TTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTT",
     "T..............................................................T",
     "T..............................................................T",
-    "T..............................................................T",
-    "T.............###########.............#############............T",
-    "THHHHH........###########.............#############.......HHHHHT",
-    "THHHHH........###########.............#############.......HHHHHT",
-    "THHHHH........###########.............#############.......HHHHHT",
-    "THHHHH........###########.............#############.......HHHHHT",
-    "THHHHHTTTTTTTT#####E#####TTTTTTTTTTTTT######E######TTTTTTTHHHHHT",
+    "T........................TTTTTTTTTTTTT.........................T",
+    "T.............###########:::FFFFFFF:::#############............T",
+    "THHHHH........###########:::FFFFFFF:::#############.......HHHHHT",
+    "THHHHH........###########:::FFFFFFF:::#############.......HHHHHT",
+    "THHHHH........###########:::FFFFFFF:::#############.......HHHHHT",
+    "THHHHH........###########:::::::::::::#############.......HHHHHT",
+    "THHHHHTTTTTTTT#####E#####T:::::::::::T######E######TTTTTTTHHHHHT",
     "T.....T::::::::::::::::::::::::::::::::::::XXX:::::::::::T.....T",
     "T.....T:cccccccccccccccccccccccccccccccccccccccccccccccc:T.....T",
     "T.....T:ccc====================ccc===================ccc:T.....T",
     "T.....T:cccccccccccccccccccccccccccccccccccccccccccccccc:T.....T",
     "T.....T:c|c::::::::::::::::::::ccc:::::::::::::::::::c|c:T.....T",
     "T.....T:c|c:TTTTTTTTTTTTTTTTTT:c|c:TTTTTTTTTTTTTTTTT:c|c:T.....T",
-    "THHHHHT:c|c:T.....:..........T:c|c:THHHHHHH..HHHHHHT:c|c:THHHHHT",
-    "THHHHHT:c|c:T.....:..........T:c|c:THHHHHHH..HHHHHHT:c|c:THHHHHT",
-    "THHHHHT:c|c:T.....:..........T:c|c:THHHHHHH..HHHHHHT:c|c:THHHHHT",
+    "THHHHHT:c|c:T.....:...~~~~~~.T:c|c:THHHHHHH..HHHHHHT:c|c:THHHHHT",
+    "THHHHHT:c|c:T.....:..~~~~~~~.T:c|c:THHHHHHH..HHHHHHT:c|c:THHHHHT",
+    "THHHHHT:c|c:T.....:..~~~~~~..T:c|c:THHHHHHH..HHHHHHT:c|c:THHHHHT",
     "THHHHHT:c|c:T.....:.....TTTTTT:c|c:TTTTTT....HHHHHHT:c|c:THHHHHT",
     "THHHHHT:c|c:T:::::::::::::::::::::::::::T....HHHHHHT:c|c:THHHHHT",
     "THHHHHT:c|c:T...........T:::::::::::::::T....HHHHHHT:c|c:THHHHHT",
@@ -105,12 +111,12 @@ MAPA = [
     "T.....T:ccc====================ccc===================ccc:T.....T",
     "T.....T:cccccccccccccccccccccccccccccccccccccccccccccccc:T.....T",
     "T.....T::::::::::::::::::::::::::::::::::::::::::::::::::T.....T",
-    "T.....TTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTT.....T",
-    "T............HHHHHH..HHHHHHH........HHHHHHH..HHHHHHH...........T",
-    "T............HHHHHH..HHHHHHH........HHHHHHH..HHHHHHH...........T",
-    "T............HHHHHH..HHHHHHH........HHHHHHH..HHHHHHH...........T",
-    "T............HHHHHH..HHHHHHH........HHHHHHH..HHHHHHH...........T",
-    "T............HHHHHH..HHHHHHH........HHHHHHH..HHHHHHH...........T",
+    "T.....TTTTTTTTTTTTTTTTTTTTTTTTT:::TTTTTTTTTTTTTTTTTTTTTTTT.....T",
+    "T............HHHHHH..HHHHHHT::::::::THHHHHH..HHHHHHH...........T",
+    "T............HHHHHH..HHHHHHT::::::::THHHHHH..HHHHHHH...........T",
+    "T............HHHHHH..HHHHHHT::::::::THHHHHH..HHHHHHH...........T",
+    "T............HHHHHH..HHHHHHT::::::::THHHHHH..HHHHHHH...........T",
+    "T............HHHHHH..HHHHHHT::::::::THHHHHH..HHHHHHH...........T",
     "TTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTT",
 ]
 
@@ -142,19 +148,38 @@ BARRICADAS_ALCALDIA = frozenset(
 # lógica; solo cambia su dibujo (losas y mosaico).
 PLAZA = (25, 20, 15, 11)
 
-# Parque (manzana noroeste): pasto con un sendero en T; su única entrada
-# es (24, 20), desde la Plaza.
+# Plaza de la Alcaldía (zona cívica): losas como la Plaza central, con la
+# fuente al centro; se entra desde la acera norte.
+PLAZA_CIVICA = (25, 4, 13, 6)
+
+# Parque (manzana noroeste): pasto con un sendero en T y el estanque; su
+# única entrada es (24, 20), desde la Plaza.
 PARQUE = (13, 16, 16, 6)
 SENDEROS_PARQUE = frozenset([(col, 20) for col in range(13, 25)] + [(18, fila) for fila in range(16, 20)])
-# Jardines decorativos que no se ven desde la calle por reglas: la fila
-# libre del norte (coníferas), el patio del Colegio y el jardín entre el
-# Colegio y la Alcaldía. (tipo, casilla, variante de árbol).
-JARDINES = (
-    [("arbol", (col, 2), (1, 3)[i % 2]) for i, col in enumerate(range(3, 62, 5))]
-    + [("bicicletero", (7, 6), 0), ("bicicleta", (8, 6), 0), ("bicicleta", (9, 6), 0), ("cartelera", (11, 5), 0),
-       ("arbol", (12, 7), 36), ("arbol", (7, 8), 38)]
-    + [("arbol", (27, 6), 75), ("arbol", (35, 6), 75), ("arbol", (31, 5), 38),
-       ("jardinera", (29, 7), 0), ("jardinera", (33, 7), 0)]
+
+# Casas: cada una es un edificio con su huella (col, fila, ancho, alto) y
+# su plantilla (assets.ESTILOS_CASA). Juntas cubren exactamente las 'H'
+# del mapa; dos vecinas nunca comparten plantilla.
+CASAS = (
+    ((1, 5, 5, 5), "ladrillo"), ((58, 5, 5, 5), "pizarra"),
+    ((1, 16, 5, 3), "estuco"), ((1, 19, 5, 3), "salvia"),
+    ((58, 16, 5, 3), "terracota"), ((58, 19, 5, 3), "violeta"),
+    ((36, 16, 4, 3), "madera"), ((40, 16, 3, 3), "hormigon"),
+    ((45, 16, 6, 3), "ladrillo"), ((45, 19, 6, 3), "pizarra"),
+    ((1, 28, 5, 3), "hormigon"), ((1, 31, 5, 3), "terracota"),
+    ((58, 28, 5, 3), "estuco"), ((58, 31, 5, 3), "madera"),
+    ((13, 41, 6, 5), "salvia"), ((21, 41, 6, 5), "violeta"),
+    ((37, 41, 6, 5), "pizarra"), ((45, 41, 4, 5), "terracota"), ((49, 41, 3, 5), "hormigon"),
+)
+
+# Arboledas por zona: (rect, cantidad, separación mínima en casillas). Las
+# especies salen de la zona de cada casilla (zonas_ciudad.arboles_de).
+ARBOLEDAS = (
+    ((1, 1, 24, 3), 7, 3),  # fila libre del norte, lado escolar: frutales
+    ((38, 1, 25, 3), 7, 3),  # lado cívico: coníferas
+    # La copa sube ~3 casillas: cada rect deja aire sobre la casa o el auto de arriba.
+    ((1, 12, 5, 3), 2, 3), ((58, 12, 5, 3), 2, 3),
+    ((1, 42, 12, 3), 4, 3), ((53, 41, 10, 5), 3, 3),
 )
 
 # Aparición inicial: en la Plaza, junto a su nodo.
@@ -433,7 +458,7 @@ def grafo_casillas(es_solida_fn):
 
 DECORACION = layout_decoracion.generar(
     MAPA, CALLES, [(t.puntos, t.seccion) for t in TRAMOS], NODOS_CALLE.values(), ENTRADAS.values(), SPAWN,
-    PLAZA, PARQUE, SENDEROS_PARQUE, JARDINES, EDIFICIOS.values(),
+    PLAZA, PARQUE, SENDEROS_PARQUE, EDIFICIOS.values(), ARBOLEDAS,
 )
 # Casillas que la decoración vuelve sólidas (las suma es_solida).
-PROPS_SOLIDOS = frozenset(prop.casilla for prop in DECORACION if prop.solido)
+PROPS_SOLIDOS = frozenset(casilla for prop in DECORACION if prop.solido for casilla in prop.casillas)

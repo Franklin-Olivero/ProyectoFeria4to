@@ -1,11 +1,14 @@
 """Dibujo de Ciudad Nova (escena CIUDAD, solo presentación).
 
-El suelo estático (casillas, casas y fachadas) se pinta una sola vez en
-una Surface del tamaño del mundo y cada frame se copia solo la parte
-que ve la cámara. Encima van las capas que cambian: halos de las
+El fondo estático (casillas, plazas, borde de la fuente, casas y
+fachadas) se pinta por chunks de LADO_CHUNK_CIUDAD px la primera vez que
+la cámara los ve y queda cacheado; cada frame se copian solo los chunks
+visibles. Encima van las capas que cambian: el agua animada (fuente y
+estanque), las ventanas que parpadean, las hojas que caen, halos de las
 farolas, auras de toxicidad, rótulos neón, barricadas activas, la ruta
-sugerida y el jugador. También dibuja el cintillo de noticias y los
-avisos. No modifica el estado del juego.
+sugerida y el jugador junto a la decoración ordenada por Y. También
+dibuja el cintillo de noticias y los avisos. No modifica el estado del
+juego.
 """
 
 import math
@@ -14,8 +17,10 @@ import pygame
 
 from src.core import assets
 from src.core.balance import ADELANTO_CAMARA_CIUDAD, TAM_CASILLA
-from src.dungeon import ciudad_mapa
-from src.ui import cargador_assets, casillas_ciudad, decoracion_ciudad, dibujo, edificios_ciudad, sprites
+from src.dungeon import agua_ciudad, ciudad_mapa, zonas_ciudad
+from src.ui import cargador_assets, cargador_backrooms, casas_render, casillas_ciudad, decoracion_ciudad, dibujo
+from src.ui import edificios_ciudad, sprites
+from src.ui.rutas_backrooms import cuadro_por_tiempo
 from src.ui.fuentes import fuente
 from src.ui.mapa_render import color_toxicidad
 
@@ -46,31 +51,119 @@ def _imagen_casilla(col, fila, letra):
         return casillas_ciudad.casilla_calle(marca)
     if letra == ciudad_mapa.ARBOL:
         return casillas_ciudad.casilla_arbol()
-    if letra == ciudad_mapa.CASA:
-        con_techo = ciudad_mapa.casilla(col, fila - 1) != ciudad_mapa.CASA
-        return casillas_ciudad.casilla_casa(con_techo, col * 31 + fila * 17)
-    plaza_col, plaza_fila, plaza_ancho, plaza_alto = ciudad_mapa.PLAZA
-    if plaza_col <= col < plaza_col + plaza_ancho and plaza_fila <= fila < plaza_fila + plaza_alto:
-        return casillas_ciudad.casilla_plaza()
+    if letra == ciudad_mapa.AGUA:
+        return casillas_ciudad.casilla_pasto()  # el estanque se dibuja encima, animado
+    for plaza in (ciudad_mapa.PLAZA, ciudad_mapa.PLAZA_CIVICA):
+        plaza_col, plaza_fila, plaza_ancho, plaza_alto = plaza
+        if plaza_col <= col < plaza_col + plaza_ancho and plaza_fila <= fila < plaza_fila + plaza_alto:
+            return casillas_ciudad.casilla_plaza()
     # Acera, barricada de la Alcaldía y el suelo bajo los edificios.
     return casillas_ciudad.casilla_acera()
 
 
-def mundo_base():
-    """Surface con todo lo que no cambia: casillas y fachadas."""
-    if "mundo" not in _cache:
+def _agua():
+    """(capas de agua, terrenos) o (None, None) si falta el arte Backrooms."""
+    if "agua" not in _cache:
+        terrenos = agua_ciudad.cargar_terrenos()
+        if terrenos is None or not cargador_backrooms.disponible(assets.GRADE_CIUDAD):
+            _cache["agua"] = (None, None)
+        else:
+            _cache["agua"] = (agua_ciudad.capas(ciudad_mapa.MAPA, terrenos), terrenos)
+    return _cache["agua"]
+
+
+def _tile_agua(id_tile, terrenos, tiempo):
+    cuadros = agua_ciudad.animacion(terrenos, id_tile)
+    if cuadros:
+        id_tile = cuadros[cuadro_por_tiempo([ms for _, ms in cuadros], tiempo)][0]
+    return cargador_backrooms.tile(assets.GRADE_CIUDAD, id_tile, assets.ESCALA_BACKROOMS)
+
+
+def chunk(cx, cy):
+    """Surface (cacheada) del chunk (cx, cy) del fondo estático: casillas,
+    mosaico de la Plaza, borde de la fuente, casas y edificios de zona."""
+    clave = ("chunk", cx, cy)
+    if clave not in _cache:
+        lado = assets.LADO_CHUNK_CIUDAD
+        x0, y0 = cx * lado, cy * lado
         # Sin canal alfa (profundidad 24), como el lienzo de Main.py.
-        superficie = pygame.Surface(ciudad_mapa.TAM_MUNDO, 0, 24)
-        for fila, linea in enumerate(ciudad_mapa.MAPA):
-            for col, letra in enumerate(linea):
-                superficie.blit(_imagen_casilla(col, fila, letra), (col * TAM_CASILLA, fila * TAM_CASILLA))
+        superficie = pygame.Surface((lado, lado), 0, 24)
+        superficie.fill(assets.COLOR_FONDO)
+        for fila in range(y0 // TAM_CASILLA, min(ciudad_mapa.FILAS, (y0 + lado) // TAM_CASILLA + 1)):
+            for col in range(x0 // TAM_CASILLA, min(ciudad_mapa.COLUMNAS, (x0 + lado) // TAM_CASILLA + 1)):
+                letra = ciudad_mapa.MAPA[fila][col]
+                superficie.blit(_imagen_casilla(col, fila, letra), (col * TAM_CASILLA - x0, fila * TAM_CASILLA - y0))
         mosaico = casillas_ciudad.mosaico_plaza()
-        superficie.blit(mosaico, mosaico.get_rect(
-            center=ciudad_mapa.centro_casilla(*ciudad_mapa.NODOS_CALLE[ciudad_mapa.ZONA_PLAZA])))
-        # Cada edificio con su escala entera, del tamaño de su huella (edificios_ciudad).
-        edificios_ciudad.dibujar_todos(superficie)
-        _cache["mundo"] = superficie
-    return _cache["mundo"]
+        centro = ciudad_mapa.centro_casilla(*ciudad_mapa.NODOS_CALLE[ciudad_mapa.ZONA_PLAZA])
+        superficie.blit(mosaico, mosaico.get_rect(center=(centro[0] - x0, centro[1] - y0)))
+        capas, terrenos = _agua()
+        if capas is not None:  # el borde de azulejos de la fuente no se mueve
+            for nombre, filas in capas:
+                if nombre == "borde_fuente":
+                    _pintar_capa(superficie, filas, terrenos, 0.0, (-x0, -y0))
+        # Casas y edificios con su escala entera, del tamaño de su huella.
+        casas_render.dibujar_todas(superficie, (-x0, -y0))
+        edificios_ciudad.dibujar_todos(superficie, (-x0, -y0))
+        _cache[clave] = superficie
+    return _cache[clave]
+
+
+def _pintar_capa(superficie, filas, terrenos, tiempo, desplazamiento, recorte=None):
+    dx, dy = desplazamiento
+    for fila, ids in enumerate(filas):
+        for col, id_tile in enumerate(ids):
+            if id_tile < 0:
+                continue
+            destino = (col * TAM_CASILLA + dx, fila * TAM_CASILLA + dy)
+            if recorte is not None and not recorte.colliderect((*destino, TAM_CASILLA, TAM_CASILLA)):
+                continue
+            superficie.blit(_tile_agua(id_tile, terrenos, tiempo), destino)
+
+
+def dibujar_fondo(pantalla, rect_vista, camara):
+    """Los chunks que ve la cámara, recortados a la vista."""
+    lado = assets.LADO_CHUNK_CIUDAD
+    cx0, cy0 = max(0, camara[0] // lado), max(0, camara[1] // lado)
+    cx1 = (camara[0] + rect_vista.width - 1) // lado
+    cy1 = (camara[1] + rect_vista.height - 1) // lado
+    for cy in range(cy0, cy1 + 1):
+        for cx in range(cx0, cx1 + 1):
+            if cx * lado >= ciudad_mapa.TAM_MUNDO[0] or cy * lado >= ciudad_mapa.TAM_MUNDO[1]:
+                continue
+            pantalla.blit(chunk(cx, cy), (rect_vista.x + cx * lado - camara[0], rect_vista.y + cy * lado - camara[1]))
+
+
+def mundo_base():
+    """El mundo completo en una Surface (para capturas y el mapa): une los chunks."""
+    superficie = pygame.Surface(ciudad_mapa.TAM_MUNDO, 0, 24)
+    lado = assets.LADO_CHUNK_CIUDAD
+    for cy in range((ciudad_mapa.TAM_MUNDO[1] + lado - 1) // lado):
+        for cx in range((ciudad_mapa.TAM_MUNDO[0] + lado - 1) // lado):
+            superficie.blit(chunk(cx, cy), (cx * lado, cy * lado))
+    return superficie
+
+
+def _dibujar_agua(pantalla, rect_vista, dx, dy, tiempo):
+    capas, terrenos = _agua()
+    if capas is None:
+        return
+    for nombre, filas in capas:
+        if nombre != "borde_fuente":
+            _pintar_capa(pantalla, filas, terrenos, tiempo, (dx, dy), rect_vista)
+
+
+def _dibujar_hojas(pantalla, rect_vista, dx, dy, tiempo):
+    """Unas pocas hojas que caen despacio sobre el parque y la zona escolar."""
+    for indice, id_zona in enumerate((zonas_ciudad.PARQUE, zonas_ciudad.ESCOLAR)):
+        col, fila, ancho, alto = zonas_ciudad.ZONAS[id_zona].rects[0]
+        for i in range(assets.CANTIDAD_HOJAS):
+            semilla = i * 37 + indice * 101
+            x = (col + (semilla * 7 % (ancho * 10)) / 10) * TAM_CASILLA + 10 * math.sin(tiempo * 0.9 + semilla)
+            y = (fila + ((semilla * 13 % 97) / 97 * alto + tiempo * (0.25 + (i % 4) * 0.08)) % alto) * TAM_CASILLA
+            punto = (round(x + dx), round(y + dy))
+            if rect_vista.collidepoint(punto):
+                color = assets.COLORES_HOJA[i % len(assets.COLORES_HOJA)]
+                pantalla.fill(color, (*punto, assets.ESCALA_PIXEL, assets.ESCALA_PIXEL - 1))
 
 
 def _farolas():
@@ -107,7 +200,10 @@ def dibujar_ciudad(pantalla, partida, jugador, tiempo, ruta=None):
 
     pantalla.set_clip(rect_vista)
     pantalla.fill(assets.COLOR_FONDO, rect_vista)
-    pantalla.blit(mundo_base(), rect_vista.topleft, pygame.Rect(camara, rect_vista.size))
+    dibujar_fondo(pantalla, rect_vista, camara)
+    vista_mundo = pygame.Rect(camara, rect_vista.size)
+    _dibujar_agua(pantalla, rect_vista, dx, dy, tiempo)
+    casas_render.dibujar_ventanas(pantalla, vista_mundo, dx, dy, tiempo)
     _dibujar_halos(pantalla, rect_vista, dx, dy)
     _dibujar_auras(pantalla, partida, rect_vista, dx, dy, tiempo)
     _dibujar_rotulos(pantalla, rect_vista, dx, dy)
@@ -123,8 +219,8 @@ def dibujar_ciudad(pantalla, partida, jugador, tiempo, ruta=None):
             sprites.dibujar_centrado(pantalla, imagen, (round(posicion[0] + dx), round(posicion[1] + dy - 6)))
 
     # Farolas, árboles, bancas y el jugador, ordenados por su base (Y).
-    vista_mundo = pygame.Rect(camara, rect_vista.size)
     decoracion_ciudad.dibujar_con_jugador(pantalla, vista_mundo, dx, dy, dibujar_jugador, jugador.rect.bottom)
+    _dibujar_hojas(pantalla, rect_vista, dx, dy, tiempo)
     pantalla.set_clip(None)
 
 
@@ -241,3 +337,19 @@ def dibujar_fundido(pantalla, restante):
     velo.fill(assets.COLOR_FUNDIDO)
     velo.set_alpha(round(255 * min(1.0, restante / assets.DURACION_FUNDIDO)))
     pantalla.blit(velo, (0, 0))
+
+
+def render_panoramico(partida, tiempo=3.0):
+    """La ciudad entera con todas sus capas (sin jugador ni HUD), para
+    capturas y revisión visual."""
+    superficie = mundo_base()
+    rect = superficie.get_rect()
+    _dibujar_agua(superficie, rect, 0, 0, tiempo)
+    casas_render.dibujar_ventanas(superficie, rect, 0, 0, tiempo)
+    _dibujar_halos(superficie, rect, 0, 0)
+    _dibujar_auras(superficie, partida, rect, 0, 0, tiempo)
+    _dibujar_rotulos(superficie, rect, 0, 0)
+    _dibujar_barricadas(superficie, partida, rect, 0, 0)
+    decoracion_ciudad.dibujar_con_jugador(superficie, rect, 0, 0, lambda: None, -1)
+    _dibujar_hojas(superficie, rect, 0, 0, tiempo)
+    return superficie

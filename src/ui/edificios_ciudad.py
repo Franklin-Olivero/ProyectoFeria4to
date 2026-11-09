@@ -62,6 +62,6 @@ def rect(zona):
     return destino
 
 
-def dibujar_todos(superficie):
+def dibujar_todos(superficie, desplazamiento=(0, 0)):
     for zona in ciudad_mapa.EDIFICIOS:
-        superficie.blit(imagen(zona), rect(zona))
+        superficie.blit(imagen(zona), rect(zona).move(desplazamiento))

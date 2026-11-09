@@ -917,6 +917,36 @@ PROPS_URBANOS = {
     "bicicletero": (4, 1),
     "bicicleta": (12, 15),
     "cartelera": (3, 1),
+    # Ciudad por zonas (src/dungeon/zonas_ciudad.py): farolas por zona y mobiliario propio.
+    "farola_ornamental": (3, 0),
+    "farola_baja": (8, 0),
+    "farola_curva": (11, 0),
+    "farola_jardin": (8, 2),
+    "farola_farol": (13, 10),
+    "banca_corta": (6, 1),
+    "banca_parada": (0, 1),
+    "cartel_parada": (6, 15),
+    "bebedero": (13, 1),
+    "bebedero_pajaros": (2, 0),
+    "casita_pajaros": (7, 1),
+    "maceta_planta": (10, 0),
+    "maceta_flores": (8, 1),
+    "aire_acondicionado": (9, 1),
+    "basurero_verde": (4, 2),
+    "buzon_azul": (5, 2),
+    "cerca_madera": (6, 2),
+    "carrito_comida": (7, 2),
+    "letrero_bienvenida": (10, 2),
+    "mesa_cafe": (11, 2),
+    "barril": (12, 2),
+    "parrilla": (2, 2),
+    "mesa_sombrilla": (9, 0),
+    "kiosco_digital": (5, 8),
+    "armario_electrico": (14, 8),
+    "bolardo": (10, 8),
+    "jardinera_flores": (12, 14),
+    "jardinera_larga": (4, 7),
+    "toldo": (13, 3),
 }
 # Árboles (pack Trees_Vol2, reducidos a sprites nativos de 18-48 px de
 # alto; arbol_<número del pack>.png). Se dibujan a ESCALA_PIXEL, como el
@@ -1560,3 +1590,51 @@ ANCHO_NOMBRE_TABLERO = 134
 TOXICIDAD_MEDIA_TABLERO = 34
 TOXICIDAD_ALTA_TABLERO = 67
 COLOR_TOXICIDAD_ALTA_TABLERO = (255, 96, 96)
+
+# ----------------------------------------------------------------------
+# Ciudad Nova por zonas (exteriores). Las casas son edificios con huella y
+# plantilla propias (ciudad_mapa.CASAS): se dibujan en pixel art de código
+# (src/ui/casas_render.py) con la plantilla de ESTILOS_CASA, a ESCALA_PIXEL
+# y del tamaño exacto de su huella, apoyadas en su borde inferior. Dos
+# plantillas cualesquiera difieren en al menos VARIACION_MINIMA_ESTILOS de
+# sus atributos y dos casas vecinas nunca comparten plantilla.
+# ----------------------------------------------------------------------
+GRADE_CIUDAD = GRADE_POR_DEFECTO  # props y agua del pack Backrooms en la ciudad
+VARIACION_MINIMA_ESTILOS = 2
+ATRIBUTOS_ESTILO = ("muro", "techo", "color_techo", "ventanas", "toldo")
+ESTILOS_CASA = {
+    "violeta": {"muro": (42, 38, 80), "junta": (32, 28, 62), "techo": "tejas", "color_techo": (56, 46, 96),
+                "ventanas": "doble", "toldo": False},
+    "ladrillo": {"muro": (96, 46, 44), "junta": (70, 32, 32), "techo": "tejas", "color_techo": (60, 34, 40),
+                 "ventanas": "doble", "toldo": False},
+    "estuco": {"muro": (122, 108, 92), "junta": (96, 84, 72), "techo": "plano", "color_techo": (74, 68, 66),
+               "ventanas": "banda", "toldo": False},
+    "pizarra": {"muro": (44, 62, 92), "junta": (32, 46, 70), "techo": "mansarda", "color_techo": (30, 34, 46),
+                "ventanas": "vertical", "toldo": False},
+    "salvia": {"muro": (62, 90, 74), "junta": (46, 68, 56), "techo": "tejas", "color_techo": (36, 58, 52),
+               "ventanas": "doble", "toldo": True},
+    "hormigon": {"muro": (78, 80, 92), "junta": (60, 62, 72), "techo": "plano", "color_techo": (52, 54, 64),
+                 "ventanas": "cuadricula", "toldo": False},
+    "terracota": {"muro": (140, 82, 56), "junta": (108, 60, 42), "techo": "terraza", "color_techo": (64, 92, 52),
+                  "ventanas": "vertical", "toldo": False},
+    "madera": {"muro": (92, 66, 48), "junta": (70, 50, 36), "techo": "mansarda", "color_techo": (48, 36, 32),
+               "ventanas": "banda", "toldo": True},
+}
+COLOR_MARCO_CASA = (18, 16, 30)
+COLOR_VIDRIO_CASA = (36, 44, 70)
+COLORES_VENTANA_CASA = ((255, 204, 110), (255, 226, 160), (150, 220, 255), (255, 160, 200))
+COLOR_PUERTA_CASA = (34, 26, 30)
+COLOR_ESCALON_CASA = (96, 92, 104)
+FRACCION_VENTANAS_ENCENDIDAS = 0.45
+FRACCION_VENTANAS_PARPADEAN = 0.12  # de las encendidas: se apagan y prenden despacio
+PERIODO_VENTANA = (9.0, 22.0)  # s de un ciclo de parpadeo (cada ventana el suyo)
+# Agua (tiles Backrooms, auto-tiling de src/dungeon/autotile.py): la fuente
+# de la plaza cívica (borde de azulejo + agua de piscina) y el estanque del
+# parque (agua estancada sobre el pasto). Animados con el ms de cada cuadro.
+TERRENO_BORDE_FUENTE = "pool_tile"
+TERRENO_AGUA_FUENTE = "pool_water"
+TERRENO_ESTANQUE = "pool_water"
+# Hojas que caen en el parque y la zona escolar (muy sutiles).
+CANTIDAD_HOJAS = 14
+COLORES_HOJA = ((140, 170, 70), (200, 150, 60), (170, 90, 60))
+LADO_CHUNK_CIUDAD = 512  # px: el fondo estático se cachea en cuadrados de este lado

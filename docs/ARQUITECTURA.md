@@ -542,6 +542,8 @@ tramo de toxicidad máximo) y dibuja jefe, charcos, barra y tiempo.
 
 **Backrooms (nuevo mundo).** `lector_tmx.py` (puro: .tmx/.tsx de Tiled, CSV/base64/zlib, objetos con propiedades) lo usa solo `tools/convertir_tmx.py` para generar `datos/plantillas/*.json` y `datos/terrenos_backrooms.json`; `autotile.py` resuelve el blob de 47 piezas de cada terreno con los wangids de Tiled (reconstruye idénticas las capas de muro de los mapas del pack); `compositor_interior.py` arma una plantilla desde rectángulos de muro/alfombra + objetos; `registro_mazmorras.py` lista las mazmorras con su toxicidad y estado para el tablero del lobby. Arte en `assets/backrooms/<grade>/` vía `src/ui/cargador_backrooms.py` (rutas puras en `rutas_backrooms.py`), empaquetado por `tools/empaquetar_backrooms.py`.
 
+**Ciudad por zonas.** `zonas_ciudad.py` (puro) declara cada zona (rects, especies, farola, identidad, hitos con huella) y `zona_de(col, fila)`; `layout_decoracion.generar` lo usa para el modelo de cada farola y la especie de cada árbol, pone los hitos y las arboledas con semilla fija; `casas_ciudad.py` (puro) da la geometría de las fachadas y el parpadeo determinista de sus ventanas; `agua_ciudad.py` (puro) arma la fuente y el estanque por auto-tiling. El dibujo vive en `src/ui/casas_render.py` y `ciudad_render.py` (chunks cacheados + capas animadas).
+
 ### `src/ui/`
 
 **`terminal_decision.py`** — puro. `construir_arbol_publicacion()` y
