@@ -14,8 +14,8 @@ controles; el foco recorre, de arriba abajo:
                     avance_cinematicas y velocidad_texto (selectores)
     CONTROLES:      esquema_controles (selector) y, solo en la vista MANDO,
                     mostrar_cono (interruptor) y opacidad_cono (slider)
-    PARTIDA:        la única pestaña del menú de pausa: los 4 de audio y
-                    hud_detallado
+    PARTIDA:        la única pestaña del menú de pausa: los 4 de audio,
+                    hud_detallado e instrucciones_mazmorra (selector)
 
 Cada control se llama igual que el campo que modifica.
 El dibujo y el ratón viven en src/ui/ajustes_render.py.
@@ -78,7 +78,7 @@ class ModalAjustes:
         if self.pestana == PESTANA_AUDIO:
             return list(CONTROLES_AUDIO)
         if self.pestana == PESTANA_PARTIDA:
-            return CONTROLES_AUDIO + ["hud_detallado"]
+            return CONTROLES_AUDIO + ["hud_detallado", "instrucciones_mazmorra"]
         if self.pestana == PESTANA_ACCESIBILIDAD:
             return ["subtitulos", "filtro_daltonismo", "reducir_movimiento", "alto_contraste",
                     "avance_cinematicas", "velocidad_texto"]

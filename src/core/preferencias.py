@@ -24,7 +24,8 @@ Quién usa cada preferencia:
     avance_cinematicas               -> manual (el jugador avanza) o automatico
                                         (respeta el tiempo de lectura)
     velocidad_texto                  -> caracteres por segundo de diálogos y cinemáticas
-    hud_detallado                    -> barra de controles y panel de misión en la partida
+    hud_detallado                    -> bloques secundarios del HUD (src/ui/hud_visibilidad.py)
+    instrucciones_mazmorra           -> "siempre" o "primera_vez" (solo si hay un tipo de enemigo nuevo)
 """
 
 import json
@@ -48,6 +49,9 @@ AVANCE_MANUAL = "manual"
 AVANCE_AUTOMATICO = "automatico"
 AVANCES_CINEMATICA = (AVANCE_MANUAL, AVANCE_AUTOMATICO)
 VELOCIDADES_TEXTO = ("lenta", "normal", "rapida")
+INSTRUCCIONES_SIEMPRE = "siempre"
+INSTRUCCIONES_PRIMERA_VEZ = "primera_vez"
+OPCIONES_INSTRUCCIONES = (INSTRUCCIONES_SIEMPRE, INSTRUCCIONES_PRIMERA_VEZ)
 CARACTERES_POR_SEGUNDO = {"lenta": 18.0, "normal": 28.0, "rapida": 45.0}
 
 # Opciones válidas de los campos de texto (los demás se validan por tipo).
@@ -56,6 +60,7 @@ OPCIONES_TEXTO = {
     "esquema_controles": ESQUEMAS_CONTROLES,
     "avance_cinematicas": AVANCES_CINEMATICA,
     "velocidad_texto": VELOCIDADES_TEXTO,
+    "instrucciones_mazmorra": OPCIONES_INSTRUCCIONES,
 }
 # Campos enteros que son un porcentaje 0-100.
 CAMPOS_PORCENTAJE = ("opacidad_cono",)
@@ -77,8 +82,11 @@ class Preferencias:
     mostrar_cono: bool = True
     # 40% de assets.ALFA_MAXIMO_CONO = el cono que el juego tenía antes de este ajuste.
     opacidad_cono: int = 40
-    # Barra de controles y panel de misión durante la partida (menú de pausa).
-    hud_detallado: bool = True
+    # Lo secundario del HUD (título, destino, misión completa, reputación,
+    # controles): apagado por defecto, se enciende en los ajustes de la pausa.
+    hud_detallado: bool = False
+    # Pantalla de instrucciones antes de cada mazmorra (src/ui/instrucciones.py).
+    instrucciones_mazmorra: str = "siempre"
 
 
 def acotar_porcentaje(valor):

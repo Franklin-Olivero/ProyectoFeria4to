@@ -28,6 +28,7 @@ from src.dungeon.mazmorra_final import EN_COMBATE, VICTORIA, MazmorraFinal
 from src.dungeon.mazmorra_jugable import ubicar_en_fila
 from src.entities.enemigos import crear_enemigo
 from src.entities.variantes_enemigo import elegir_variantes
+from src.entities import tipos_enemigo
 from src.entities.tipos_enemigo import TipoEnemigo
 from src.entities.projectile import ProyectilConEstela
 from src.ui import dibujo, sprites, temas_mazmorra
@@ -36,7 +37,7 @@ DISTANCIA_INICIO_JUGADOR = 50  # px desde el borde inferior de la arena
 SEMILLA_FONDO_ARENA = 777
 NOMBRE_JEFE = "Servidor Central"
 # Tipos de los súbditos, en orden de invocación (se repite).
-TIPOS_SUBDITOS = (TipoEnemigo.PERSEGUIDOR, TipoEnemigo.TIRADOR)
+TIPOS_SUBDITOS = tipos_enemigo.TIPOS_SUBDITOS
 
 
 class ArenaJefe:

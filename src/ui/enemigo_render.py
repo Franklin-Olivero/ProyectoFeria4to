@@ -43,13 +43,11 @@ def dibujar_nombre(pantalla, enemigo, arriba):
 
 def dibujar_enemigo(pantalla, enemigo):
     variante = getattr(enemigo, "variante", None)
-    imagen = None
-    if variante is not None:
-        imagen = sprites.sprite_variante(
-            variante.nombre, enemigo.reloj, enemigo.ataque_t, enemigo.mirando_izquierda)
-    con_variante = imagen is not None
-    if imagen is None:
-        imagen = sprites.sprite_enemigo(enemigo.tipo, tiempo=enemigo.reloj)
+    nombre_variante = variante.nombre if variante is not None else None
+    imagen = sprites.sprite_enemigo(enemigo.tipo, tiempo=enemigo.reloj, variante=nombre_variante,
+                                    ataque_t=getattr(enemigo, "ataque_t", None),
+                                    mirando_izquierda=getattr(enemigo, "mirando_izquierda", False))
+    con_variante = nombre_variante is not None and sprites.sprite_variante(nombre_variante) is not None
     if not con_variante and getattr(enemigo, "telegrafia", 0) > 0:
         imagen = imagen.copy()
         imagen.fill(assets.COLOR_TELEGRAFIA_TIRADOR, special_flags=pygame.BLEND_RGB_MAX)

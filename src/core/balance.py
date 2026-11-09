@@ -708,3 +708,9 @@ SEMILLA_DECORACION = 404
 # Cámara de la ciudad: encuadra un poco más arriba del jugador (las
 # fachadas miran al sur: frente a una puerta se ve el edificio entero).
 ADELANTO_CAMARA_CIUDAD = 72  # px
+
+# ----------------------------------------------------------------------
+# Instrucciones antes de cada mazmorra (src/ui/instrucciones.py)
+# ----------------------------------------------------------------------
+RETARDO_INSTRUCCIONES = 0.4  # s antes de aceptar "comenzar" (un Enter de más no la salta)
+TARJETAS_POR_PAGINA_INSTRUCCIONES = 4  # con más, ← → pasan de página

@@ -204,19 +204,20 @@ def _dibujar_ruta(pantalla, ruta, dx, dy, tiempo):
 # ----------------------------------------------------------------------
 
 def dibujar_cintillo(pantalla, titulares, tiempo):
-    """Franja "Breaking News Civitas" con los titulares desplazándose."""
+    """Franja fina "Breaking News Civitas" al pie, semitransparente, con los
+    titulares desplazándose despacio."""
     rect = pygame.Rect(assets.RECT_CINTILLO)
-    dibujo.panel(pantalla, rect, assets.COLOR_FONDO_CINTILLO, None, radio=0)
-    pygame.draw.line(pantalla, assets.COLOR_LINEA_HUD, rect.bottomleft, rect.bottomright, 1)
-    etiqueta = dibujo.chip(pantalla, assets.ETIQUETA_CINTILLO, (rect.left + 10, rect.centery),
+    dibujo.panel_alfa(pantalla, rect, (*assets.COLOR_PANEL_HUD, assets.ALFA_CINTILLO), radio=0)
+    pygame.draw.line(pantalla, assets.COLOR_LINEA_HUD, rect.topleft, rect.topright, 1)
+    etiqueta = dibujo.chip(pantalla, assets.ETIQUETA_CINTILLO, (rect.left + 8, rect.centery),
                            assets.COLOR_FONDO, assets.COLOR_ETIQUETA_CINTILLO, assets.COLOR_ETIQUETA_CINTILLO,
-                           ancla="midleft", alto=rect.height - 8)
+                           assets.TAMANIO_FUENTE_MINI, ancla="midleft", alto=rect.height - 6, margen=6)
     franja = pygame.Rect(etiqueta.right + 12, rect.top, rect.right - etiqueta.right - 12, rect.height)
     cadena = assets.SEPARADOR_CINTILLO.join(titulares) + assets.SEPARADOR_CINTILLO
     # Los titulares cambian poco: se re-renderiza solo si cambió el texto.
     if _cache.get("cintillo_texto") != cadena:
         _cache["cintillo_texto"] = cadena
-        _cache["cintillo"] = fuente(assets.TAMANIO_FUENTE_NORMAL).render(cadena, True, assets.COLOR_TEXTO_CINTILLO)
+        _cache["cintillo"] = fuente(assets.TAMANIO_FUENTE_PEQUENA).render(cadena, True, assets.COLOR_TEXTO_CINTILLO)
     texto = _cache["cintillo"]
     desplazamiento = (tiempo * assets.VELOCIDAD_CINTILLO) % texto.get_width()
     pantalla.set_clip(franja)

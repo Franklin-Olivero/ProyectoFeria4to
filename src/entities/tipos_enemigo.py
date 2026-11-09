@@ -112,3 +112,31 @@ def composicion_cuarto(nivel_dificultad, es_cuarto_final, rng, es_cuarto_inicial
         + [TipoEnemigo.TIRADOR] * tiradores
         + [TipoEnemigo.CURANDERO] * curanderos
     )
+
+
+# Tipos de los súbditos del jefe, en orden de invocación (se repite).
+TIPOS_SUBDITOS = (TipoEnemigo.PERSEGUIDOR, TipoEnemigo.TIRADOR)
+
+
+class _AzarFijo:
+    """`random.Random` de mentira: siempre devuelve el mismo número. Con 0.0
+    toda probabilidad se cumple y con casi 1.0 ninguna."""
+
+    def __init__(self, valor):
+        self.valor = valor
+
+    def random(self):
+        return self.valor
+
+
+def tipos_posibles(nivel_dificultad):
+    """Tipos de enemigo que composicion_cuarto PUEDE generar con este nivel,
+    en el orden de TipoEnemigo. Recorre todas sus ramas: cuarto final o no,
+    inicial o no, y cada sorteo cumplido o no (cada uno es una comparación
+    con un umbral). Lo usa la pantalla de instrucciones."""
+    vistos = set()
+    for es_final in (False, True):
+        for es_inicial in (False, True):
+            for valor in (0.0, 0.999999):
+                vistos.update(composicion_cuarto(nivel_dificultad, es_final, _AzarFijo(valor), es_inicial))
+    return [tipo for tipo in TipoEnemigo if tipo in vistos]

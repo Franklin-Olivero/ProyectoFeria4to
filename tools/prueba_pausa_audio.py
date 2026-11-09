@@ -77,6 +77,11 @@ def guion(c, _opciones):
     yield 6
     yield from cerrar_dialogos()
     assert L()["escena"].name == "MAZMORRA", L()["escena"]
+    yield 40  # instrucciones de mazmorra: pasado el retardo, Enter comienza
+    assert L()["instrucciones"] is not None
+    c.tecla(enter)
+    yield 2
+    assert L()["instrucciones"] is None
     mazmorra = L()["mazmorra"]
     mazmorra.gracia.iniciar()  # una gracia recién empezada: su reloj debe quedar quieto
     yield 1

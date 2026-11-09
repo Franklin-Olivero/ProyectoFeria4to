@@ -198,6 +198,8 @@ renombra). El archivo es `preferencias.json`, en la carpeta de datos de usuario 
 
 **Ajustes y pausa** — `src/audio/ajustes_audio.py` (puro) carga/guarda en la carpeta de datos de usuario los volúmenes y el silencio, y `src/audio/gestor_audio.py` aplica el volumen efectivo en cada `Sound` (música en 2 canales reservados); `src/ui/pausa.py` (puro) es el menú de pausa: con `congelada` el bucle de `Main._jugar` no llama a ningún actualizar.
 
+**HUD e instrucciones de mazmorra** — `src/ui/hud_visibilidad.py` (puro) es la única regla de qué bloques del HUD se ven por escena (esencial / secundario con "HUD detallado"; probado en `tests/test_hud_visibilidad.py`) y `src/ui/hud_partida.py` el coordinador que dibuja una función por bloque; `src/ui/instrucciones.py` (puro) arma las tarjetas de la pantalla previa a cada mazmorra a partir de `tipos_enemigo.tipos_posibles` (lo que `composicion_cuarto` puede generar) y `src/core/textos_enemigos.py`, con retardo anti-salto; `instrucciones_render.py` pide cada imagen a `sprite_enemigo`, la misma del combate.
+
 **`src/audio/gestor_audio.py`** — **`Audio`**: único punto que toca `pygame.mixer` (gestor de audio por ID).
 `reproducir(id)`, `musica(id, bucle, fade_ms)`, `detener_musica`, `alternar_silencio` (N) y
 `procesar_eventos()` (vacía `eventos_sonido`, la cola pura donde la lógica pide sonidos). Rutas en

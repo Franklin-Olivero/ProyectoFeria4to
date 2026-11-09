@@ -200,7 +200,7 @@ def test_silencio_y_hud_detallado_son_interruptores():
     assert modal.accion(CONFIRMAR) == SONIDO_CONFIRMAR and audio.silencio is True
     pausa = ModalAjustes(p, audio, PESTANAS_PAUSA)
     pausa.enfocar("hud_detallado")
-    assert pausa.accion(CONFIRMAR) == SONIDO_CONFIRMAR and p.hud_detallado is False
+    assert pausa.accion(CONFIRMAR) == SONIDO_CONFIRMAR and p.hud_detallado is True  # por defecto apagado
 
 
 def test_pestana_de_la_pausa():
@@ -208,7 +208,8 @@ def test_pestana_de_la_pausa():
 
     modal = ModalAjustes(Preferencias(), AjustesAudio(), PESTANAS_PAUSA)
     assert modal.pestana == "PARTIDA"
-    assert modal.controles() == ["volumen_general", "volumen_musica", "volumen_efectos", "silencio", "hud_detallado"]
+    assert modal.controles() == ["volumen_general", "volumen_musica", "volumen_efectos", "silencio", "hud_detallado",
+                                 "instrucciones_mazmorra"]
     assert not modal.elegir_pestana("AUDIO")  # solo existe PARTIDA
 
 

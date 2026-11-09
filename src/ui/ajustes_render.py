@@ -38,6 +38,7 @@ ETIQUETAS = {
     "volumen_general": "VOLUMEN GENERAL",
     "silencio": "SILENCIO (N)",
     "hud_detallado": "HUD DETALLADO",
+    "instrucciones_mazmorra": "INSTRUCCIONES",
     "volumen_musica": "MÚSICA",
     "volumen_efectos": "EFECTOS DE SONIDO",
     "subtitulos": "SUBTÍTULOS",
@@ -57,6 +58,8 @@ DESCRIPCIONES = {
     "reducir_movimiento": "Detiene parallax, naves, lluvia, glitch del título, transiciones y sacudida de cámara.",
     "alto_contraste": "Realza el contraste de toda la imagen: fondos más oscuros y texto más brillante.",
 }
+# Cómo se lee en pantalla el valor guardado de un selector.
+NOMBRES_OPCION = {"siempre": "Siempre", "primera_vez": "Solo tipos nuevos"}
 NOMBRES_ESQUEMA = {ESQUEMA_TECLADO: "TECLADO / RATÓN", ESQUEMA_MANDO: "MANDO"}
 MUESTRAS_COLOR = (
     ("Jugador", assets.COLOR_TEAL),
@@ -373,7 +376,7 @@ def _selector(pantalla, izquierda, derecha, valor, opciones, enfocado):
         pygame.draw.polygon(pantalla, color, [(cx + 6 * sentido, cy), (cx - 5 * sentido, cy - 8),
                                               (cx - 5 * sentido, cy + 8)])
     centro_x = (izquierda.right + derecha.left) // 2
-    dibujo.texto(pantalla, valor, (centro_x, izquierda.centery - 4), assets.COLOR_TEXTO_HUD,
+    dibujo.texto(pantalla, NOMBRES_OPCION.get(valor, valor), (centro_x, izquierda.centery - 4), assets.COLOR_TEXTO_HUD,
                  assets.TAMANIO_FUENTE_MEDIA, negrita=True, ancla="center")
     indice = opciones.index(valor)
     inicio = centro_x - (len(opciones) - 1) * 6

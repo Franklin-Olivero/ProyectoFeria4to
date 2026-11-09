@@ -76,7 +76,7 @@ class VistaSeleccion:
     def dibujar(self, pantalla, clases_rol, seleccion, volumen, silenciado, reducir_movimiento=False):
         """`volumen`: porcentaje general a mostrar; `silenciado`: tecla N."""
         t = 0.0 if reducir_movimiento else self.tiempo
-        _dibujar_fondo(pantalla, t)
+        dibujar_fondo_neon(pantalla, t)
         dos = len(seleccion.cursores) > 1
         cx, cy = assets.POSICION_TITULO_SELECCION
         _texto_neon(pantalla, TITULO_DOS if dos else TITULO, (cx, cy), assets.TAMANIO_FUENTE_GRANDE)
@@ -108,7 +108,9 @@ def _texto_neon(pantalla, cadena, centro, tamanio):
     dibujo.texto(pantalla, cadena, centro, assets.COLOR_TEXTO_HUD, tamanio, negrita=True, ancla="center")
 
 
-def _dibujar_fondo(pantalla, t):
+def dibujar_fondo_neon(pantalla, t):
+    """Fondo del lobby (portada, árboles, rejilla y partículas): también lo usa
+    la pantalla de instrucciones de mazmorra."""
     fondo = sprites.fondo_historia(assets.FONDO_PROLOGO, pantalla.get_size())
     if fondo is not None:
         pantalla.blit(fondo, (0, 0))

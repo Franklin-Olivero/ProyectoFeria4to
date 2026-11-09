@@ -662,8 +662,14 @@ def retrato_rol(rol, alto):
 _cache_enemigos = {}
 
 
-def sprite_enemigo(tipo, frame=0, tiempo=None):
-    """Única fuente de la imagen de un enemigo: todo el render la pide aquí.
+def sprite_enemigo(tipo, frame=0, tiempo=None, variante=None, ataque_t=None, mirando_izquierda=False):
+    """Única fuente de la imagen de un enemigo: todo el render la pide aquí
+    (el combate y las tarjetas de instrucciones), así lo que se ve en una
+    tarjeta es lo mismo que se ve peleando.
+
+    Con `variante` (nombre de una variante de "enemigos 2.0") devuelve su
+    cuadro de caminar o de ataque (`ataque_t`), volteado si mira a la
+    izquierda; si esa variante no tiene arte, sigue como sin variante.
 
     `tipo` es un TipoEnemigo (o su valor "perseguidor"/"tirador"/
     "curandero"); None = el enemigo genérico original. Con `tiempo`
@@ -677,6 +683,10 @@ def sprite_enemigo(tipo, frame=0, tiempo=None):
     existe o no se puede leer, se usa el pixel art de PIXEL_ART_ENEMIGO.
     No hay que tocar nada más del código.
     """
+    if variante is not None:
+        imagen = sprite_variante(variante, tiempo or 0.0, ataque_t, mirando_izquierda)
+        if imagen is not None:
+            return imagen
     if tipo is None:
         return sprite(ENEMIGO, PALETA_ENEMIGO)
     clave = getattr(tipo, "value", tipo)

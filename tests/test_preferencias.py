@@ -28,7 +28,8 @@ def test_modulo_no_importa_pygame():
 
 def test_valores_predeterminados_explicitos():
     p = Preferencias()
-    assert p.hud_detallado is True
+    assert p.hud_detallado is False  # HUD limpio por defecto
+    assert p.instrucciones_mazmorra == "siempre"
     assert p.subtitulos is False
     assert p.filtro_daltonismo == FILTRO_NINGUNO
     assert p.reducir_movimiento is False

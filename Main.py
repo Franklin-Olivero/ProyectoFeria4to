@@ -104,6 +104,10 @@ from src.ui.seleccion_rol import VistaSeleccion, tarjeta_en
 from src.ui.ajustes import ModalAjustes, PESTANAS_PAUSA
 from src.ui import pausa as menu_pausa
 from src.ui.pausa_render import VistaPausa
+from src.ui import hud_partida, hud_visibilidad
+from src.core.balance import NIVEL_TOXICIDAD_FINAL
+from src.ui.instrucciones import InstruccionesMazmorra, claves_vistas, debe_mostrarse
+from src.ui.instrucciones_render import dibujar_instrucciones
 from src.ui.terminal_decision import CONFIRMAR, DERECHA, DETONACION, IZQUIERDA, PURIFICACION_EXITOSA
 from src.ui.terminal_decision_render import dibujar_terminal
 
@@ -541,6 +545,8 @@ def _jugar(pantalla, reloj, sesion, preferencias, presentar):
     vista_pausa = VistaPausa()
     sticks_pausa = (_StickMenu(pygame.CONTROLLER_AXIS_LEFTY, navegacion.ARRIBA, navegacion.ABAJO),)
     fondo_pausa = None  # último frame antes de congelar: se redibuja tal cual
+    instrucciones = None  # InstruccionesMazmorra abierta (el mundo espera) o None
+    instrucciones_vistas = set()  # tipos de enemigo ya presentados en esta partida
 
     def presentar_frame():
         """Muestra el frame; con la pausa abierta, su menú encima."""
@@ -551,10 +557,18 @@ def _jugar(pantalla, reloj, sesion, preferencias, presentar):
             vista_pausa.dibujar(pantalla, pausa, audio, preferencias.reducir_movimiento)
         presentar_externo()
 
-    def barra_controles(controles):
-        """Barra de controles de la partida; se oculta con HUD detallado apagado."""
-        if preferencias.hud_detallado:
-            hud.dibujar_barra_controles(pantalla, controles)
+    estado_hud = {"controles": assets.DURACION_CONTROLES_AYUDA, "mision": 0.0, "rect_mision": None, "escena": None}
+
+    def mision_abierta():
+        """La misión completa se abre con el mouse sobre su línea o unos
+        segundos tras cambiar de destino con Tab."""
+        rect = estado_hud["rect_mision"]
+        return estado_hud["mision"] > 0 or (rect is not None and rect.collidepoint(pygame.mouse.get_pos()))
+
+    def bloques_hud(escena_actual, mapa_mundo=False):
+        return hud_visibilidad.bloques_visibles(
+            escena_actual, preferencias.hud_detallado, estado_hud["controles"] > 0, mostrar_minimapa,
+            len(jugadores) > 1, mapa_mundo, mision_abierta())
 
     def abrir_pausa():
         if pausa.abrir(escena, len(jugadores), adaptador_red is not None):
@@ -569,7 +583,7 @@ def _jugar(pantalla, reloj, sesion, preferencias, presentar):
         pausa.cerrar()
         fondo_pausa = None
         if audio is not None:
-            audio.atenuar_musica(False)
+            audio.atenuar_musica(instrucciones is not None)  # bajo las instrucciones sigue baja
 
     def entrar_a_zona(zona):
         """Entra (o vuelve a entrar) al edificio `zona` con todo el equipo:
@@ -591,12 +605,74 @@ def _jugar(pantalla, reloj, sesion, preferencias, presentar):
             escena = Escena.MAZMORRA
         fundido = assets.DURACION_FUNDIDO
         al_entrar_a_zona(zona)
+        abrir_instrucciones(zona)
+
+    def abrir_instrucciones(zona):
+        """Antes del primer cuarto (o del jefe): una tarjeta por enemigo que
+        puede aparecer. El mundo queda congelado hasta comenzar. Online no se
+        muestra: el mundo no se congela para un solo jugador."""
+        nonlocal instrucciones
+        instrucciones = None
+        if adaptador_red is not None:
+            return
+        if zona == ZONA_FINAL:
+            nuevas = InstruccionesMazmorra.para_jefe(NIVEL_TOXICIDAD_FINAL)
+        else:
+            nuevas = InstruccionesMazmorra.para_mazmorra(zona, mazmorra.mazmorra.nivel_zona)
+        if debe_mostrarse(preferencias.instrucciones_mazmorra, nuevas.tarjetas, instrucciones_vistas):
+            instrucciones = nuevas
+            if audio is not None:
+                audio.atenuar_musica(True)
+
+    def comenzar_instrucciones():
+        """Cierra las instrucciones: vuelve la música y arranca la gracia del
+        primer cuarto (o de la arena)."""
+        nonlocal instrucciones
+        instrucciones_vistas.update(claves_vistas(instrucciones.tarjetas))
+        instrucciones = None
+        if audio is not None:
+            audio.atenuar_musica(False)
+        combate = arena if escena == Escena.JEFE else mazmorra
+        if combate is not None:
+            combate.gracia.iniciar()
+
+    def atender_instrucciones(dt):
+        """Un frame con las instrucciones abiertas: solo corre su retardo
+        anti-salto; Enter, Espacio o clic comienzan, ← → pasan de página y
+        Esc abre la pausa encima. Retorna SALIR si se cierra la ventana."""
+        instrucciones.actualizar(dt)
+        pygame.mouse.set_visible(True)
+        for evento in pygame.event.get():
+            if evento.type == pygame.QUIT:
+                return SALIR
+            if evento.type == pygame.KEYDOWN and evento.key == TECLA_SILENCIO:
+                if audio is not None:
+                    audio.alternar_silencio()
+                continue
+            if evento.type == pygame.KEYDOWN and evento.key in TECLAS_PAUSA:
+                abrir_pausa()
+                break
+            if evento.type == pygame.MOUSEBUTTONDOWN and evento.button == 1:
+                accion = navegacion.CONFIRMAR
+            else:
+                accion = _accion_menu(evento, sticks_pausa)
+            if accion == navegacion.VOLVER:  # ○ del control: la pausa
+                abrir_pausa()
+                break
+            if accion in (navegacion.CONFIRMAR, navegacion.IZQUIERDA, navegacion.DERECHA):
+                sonar(instrucciones.accion(accion))
+            if instrucciones.comenzada:
+                comenzar_instrucciones()
+                return None
+        dibujar_instrucciones(pantalla, instrucciones, instrucciones.tiempo, preferencias.reducir_movimiento)
+        presentar_frame()
+        return None
 
     def atender_pausa():
         """Un frame con la pausa abierta: solo su menú recibe el teclado, el
         ratón y el control. Los ajustes se aplican y guardan al cambiar.
         Retorna SALIR o MENU si hay que dejar la partida; si no, None."""
-        nonlocal mazmorra, arena, escena, fundido
+        nonlocal mazmorra, arena, escena, fundido, instrucciones
         audio_antes = replace(audio.ajustes) if audio is not None else None
         hud_antes = preferencias.hud_detallado
         for evento in pygame.event.get():
@@ -629,6 +705,7 @@ def _jugar(pantalla, reloj, sesion, preferencias, presentar):
             cerrar_pausa()
             entrar_a_zona(ZONA_FINAL if escena == Escena.JEFE else mazmorra.mazmorra.nombre_zona)
         elif eleccion == menu_pausa.VOLVER_CIUDAD:
+            instrucciones = None
             cerrar_pausa()
             mazmorra = None
             arena = None
@@ -636,6 +713,7 @@ def _jugar(pantalla, reloj, sesion, preferencias, presentar):
             escena = _volver_a_la_ciudad(jugador, partida)
             fundido = assets.DURACION_FUNDIDO
         elif eleccion == menu_pausa.SALIR_MENU:
+            instrucciones = None
             cerrar_pausa()
             return MENU
         return None
@@ -859,14 +937,6 @@ def _jugar(pantalla, reloj, sesion, preferencias, presentar):
         # Capa de paneles (no modales).
         if tarjeta_evidencia is not None and escena in ESCENAS_DE_COMBATE and dialogo is None:
             tarjetas_render.dibujar_tarjeta_evidencia(pantalla, assets.RECT_TARJETA_EVIDENCIA, tarjeta_evidencia[0])
-        if mision is not None and dialogo is None and preferencias.hud_detallado:
-            if escena == Escena.CIUDAD and not mostrar_mapa_mundo and not mostrar_estado and not mostrar_ayuda:
-                mision_render.dibujar_panel_mision(pantalla, mision, assets.RECT_PANEL_MISION_CIUDAD, tiempo_overlay)
-            elif escena in ESCENAS_DE_COMBATE:
-                rect_mision = pygame.Rect(assets.RECT_PANEL_MISION_COMBATE)
-                if len(jugadores) > 1:
-                    rect_mision.x = assets.RECTS_PANEL_JUGADOR[0][0] + assets.RECTS_PANEL_JUGADOR[0][2] + 8
-                mision_render.dibujar_panel_mision(pantalla, mision, rect_mision, tiempo_overlay, compacto=True)
         if pantalla_historia_abierta():
             _dibujar_pantalla_historia()
             _dibujar_capa_reunion("historia")
@@ -1006,8 +1076,18 @@ def _jugar(pantalla, reloj, sesion, preferencias, presentar):
                     pantalla.blit(fondo_pausa, (0, 0))
                 presentar_frame()
                 continue
+        if instrucciones is not None and dialogo is None and indicador_rep is None and not pausa.abierta:
+            # Instrucciones de mazmorra: el mundo espera (ni gracia, ni fundido, ni enemigos).
+            if atender_instrucciones(dt) == SALIR:
+                return SALIR
+            continue
         tiempo += dt
         fundido = max(0.0, fundido - dt)
+        if estado_hud["escena"] != escena:
+            estado_hud["escena"] = escena
+            estado_hud["controles"] = assets.DURACION_CONTROLES_AYUDA  # unos segundos al entrar a cada escena
+        estado_hud["controles"] = max(0.0, estado_hud["controles"] - dt)
+        estado_hud["mision"] = max(0.0, estado_hud["mision"] - dt)
         tiempo_mensaje_mapa = max(0.0, tiempo_mensaje_mapa - dt)
         # Mouse: solo en combate y con un rol que apunta con él (no el
         # Candidato). Ahí se oculta el cursor del sistema y se dibuja la mira.
@@ -1080,6 +1160,8 @@ def _jugar(pantalla, reloj, sesion, preferencias, presentar):
                 if audio is not None:
                     audio.alternar_silencio()
                 continue
+            if evento.key == TECLA_AYUDA:
+                estado_hud["controles"] = assets.DURACION_CONTROLES_AYUDA  # H: los controles, 3 s
             if indicador_rep is not None:
                 # El indicador de reputación se lleva Enter hasta cerrarse.
                 if evento.key in TECLAS_DIALOGO_AVANZAR:
@@ -1136,6 +1218,7 @@ def _jugar(pantalla, reloj, sesion, preferencias, presentar):
                     mostrar_mapa_mundo = not mostrar_mapa_mundo
                 elif evento.key == TECLA_DESTINO:
                     selector.mover(DERECHA)
+                    estado_hud["mision"] = assets.DURACION_MISION_ABIERTA
                 elif evento.key == TECLA_RUTA and not mostrar_mapa_mundo:
                     mostrar_ruta = not mostrar_ruta
                     sonar("ruta")
@@ -1478,8 +1561,13 @@ def _jugar(pantalla, reloj, sesion, preferencias, presentar):
         # --- Dibujo ----------------------------------------------------
         pantalla.fill(assets.COLOR_FONDO)
         if escena in (Escena.CIUDAD, Escena.DERROTA):
-            _dibujar_ciudad(pantalla, partida, jugador, selector.seleccionada, tiempo,
-                            mostrar_ruta, mostrar_mapa_mundo and escena == Escena.CIUDAD, indice_local)
+            mapa_abierto = mostrar_mapa_mundo and escena == Escena.CIUDAD
+            bloques = bloques_hud(Escena.CIUDAD, mapa_abierto) if escena == Escena.CIUDAD and dialogo is None \
+                else hud_visibilidad.bloques_visibles(Escena.CIUDAD, mapa_mundo=mapa_abierto) - {hud_visibilidad.CONTROLES}
+            estado_hud["rect_mision"] = _dibujar_ciudad(
+                pantalla, partida, jugador, selector.seleccionada, tiempo, mostrar_ruta, mapa_abierto, indice_local,
+                bloques=bloques, mision=mision if not (mostrar_estado or mostrar_ayuda) else None,
+                transcurrido_mision=tiempo_overlay)
             if escena == Escena.CIUDAD and not mostrar_mapa_mundo and not en_dialogo:
                 _dibujar_baliza_mision(pantalla, campania, indices_locales, jugador, tiempo)
             if tiempo_mensaje_mapa > 0 and mensaje_mapa is not None and escena == Escena.CIUDAD:
@@ -1487,10 +1575,6 @@ def _jugar(pantalla, reloj, sesion, preferencias, presentar):
             if escena == Escena.DERROTA:
                 dibujar_derrota(pantalla)
                 hud.dibujar_barra_controles(pantalla, hud.CONTROLES_FINAL)
-            elif mostrar_mapa_mundo:
-                hud.dibujar_barra_controles(pantalla, hud.CONTROLES_MAPA_MUNDO)
-            else:
-                barra_controles(hud.CONTROLES_CIUDAD)
             ciudad_render.dibujar_fundido(pantalla, fundido)
             presentar()
             sacudida = (0, 0)
@@ -1615,27 +1699,26 @@ def _jugar(pantalla, reloj, sesion, preferencias, presentar):
         # el lugar, los enemigos y el colapso; cada jugador en su panel lateral.
         coop = len(jugadores) > 1
         jugador_hud, etiqueta_hud = (None, None) if coop else (jugador, "J1")
+        enemigos_cant = len(escenario.enemigos) if escenario is not None else 0
         if escena in (Escena.JEFE, Escena.VICTORIA):
-            enemigos_cant = len(escenario.enemigos) if escenario is not None else 0
-            hud.dibujar_hud_superior(pantalla, jugador_hud, enemigos_cant, None, None, partida.colapso,
-                                     etiqueta_hud)
-            if arena is not None:
-                arena.dibujar_hud(pantalla)
+            ctx = hud_partida.ContextoHud(jugador=jugador_hud, etiqueta_jugador=etiqueta_hud, colapso=partida.colapso,
+                                          enemigos=enemigos_cant, arena=arena, titulo="Alcaldía · mazmorra final",
+                                          controles=hud.CONTROLES_JEFE, tiempo=tiempo)
+            hud_partida.dibujar_hud(pantalla, bloques_hud(Escena.JEFE), ctx)
             if escena == Escena.VICTORIA:
                 hud.dibujar_barra_controles(pantalla, hud.CONTROLES_FINAL)
-            else:
-                barra_controles(hud.CONTROLES_JEFE)
         else:
             titulo, subtitulo = _titulo_mazmorra(mazmorra)
-            enemigos_cant = len(escenario.enemigos) if escenario is not None else 0
-            hud.dibujar_hud_superior(pantalla, jugador_hud, enemigos_cant, titulo, subtitulo,
-                                     partida.colapso, etiqueta_hud)
+            grafo = getattr(mazmorra, "mazmorra", None) if mazmorra is not None else None
+            aviso = None
             if mazmorra is not None and mazmorra.mensaje is not None:
-                _dibujar_mensaje(pantalla, mazmorra.mensaje[0], assets.COLOR_MENSAJE_MAZMORRA,
-                                 assets.POSICION_MENSAJE_MAZMORRA)
-            if mostrar_minimapa and mazmorra is not None and getattr(mazmorra, "mazmorra", None) is not None:
-                dibujar_minimapa(pantalla, mazmorra.mazmorra)
-            barra_controles(hud.CONTROLES_COMBATE)
+                aviso = (mazmorra.mensaje[0], assets.COLOR_MENSAJE_MAZMORRA, assets.POSICION_MENSAJE_MAZMORRA)
+            ctx = hud_partida.ContextoHud(
+                jugador=jugador_hud, etiqueta_jugador=etiqueta_hud, colapso=partida.colapso, enemigos=enemigos_cant,
+                cuartos=grafo.cuartos_limpios() if grafo is not None else None, mazmorra=grafo, titulo=titulo,
+                subtitulo=subtitulo, mision=mision if dialogo is None else None, transcurrido_mision=tiempo_overlay,
+                controles=hud.CONTROLES_COMBATE, aviso=aviso, tiempo=tiempo)
+            hud_partida.dibujar_hud(pantalla, bloques_hud(Escena.MAZMORRA), ctx)
         if coop:
             for numero, j in enumerate(jugadores):
                 if getattr(j, "expulsado", False) and j is not jugador:
@@ -1834,9 +1917,13 @@ def _volver_a_la_ciudad(jugador, partida):
     return Escena.CIUDAD
 
 
-def _dibujar_ciudad(pantalla, partida, jugador, destino, tiempo, mostrar_ruta, mostrar_mapa_mundo, indice_local=0):
-    """Escena CIUDAD completa salvo la barra de controles: el mundo (o el
-    mapa del mundo con M), el HUD, el cintillo y los avisos."""
+def _dibujar_ciudad(pantalla, partida, jugador, destino, tiempo, mostrar_ruta, mostrar_mapa_mundo, indice_local=0,
+                    bloques=None, mision=None, transcurrido_mision=1.0):
+    """Escena CIUDAD completa: el mundo (o el mapa del mundo con M) y el HUD
+    por bloques (src/ui/hud_partida.py; `bloques` de hud_visibilidad, por
+    defecto los esenciales). Retorna el rect de la línea de misión (o None)."""
+    if bloques is None:
+        bloques = hud_visibilidad.bloques_visibles(Escena.CIUDAD, mapa_mundo=mostrar_mapa_mundo)
     posicion = _posicion(jugador)
     ruta = partida.ruta_sugerida(posicion, destino) if mostrar_ruta or mostrar_mapa_mundo else None
     if mostrar_mapa_mundo:
@@ -1858,26 +1945,30 @@ def _dibujar_ciudad(pantalla, partida, jugador, destino, tiempo, mostrar_ruta, m
                                                   apariencia=getattr(_j_otro, "apariencia", None))
                     sprites.dibujar_centrado(pantalla, _img, (round(_j_otro.posicion.x + _dx), round(_j_otro.posicion.y + _dy - 6)))
         titulo = assets.TITULO_CIUDAD
-    subtitulo = f"Destino: {destino}  ·  Calles bloqueadas: {len(partida.ciudad.bloqueadas)}"
-    hud.dibujar_hud_superior(pantalla, jugador, None, titulo, subtitulo, partida.colapso)
-    ciudad_render.dibujar_cintillo(pantalla, partida.titulares(), tiempo)
-    reputacion_render.dibujar_chip_reputacion(pantalla, partida.campania.rep(indice_local).valor)
-    if mostrar_mapa_mundo:
-        return
-    if mostrar_ruta:
-        texto = (assets.TEXTO_RUTA_DESTINO.format(destino=destino, costo=ruta[1]) if ruta
-                 else assets.TEXTO_SIN_RUTA)
-        dibujo.chip(pantalla, texto, assets.POSICION_AVISO_RUTA, assets.COLOR_RUTA_CIUDAD, assets.COLOR_FONDO_PANEL,
-                    assets.COLOR_RUTA_CIUDAD, assets.TAMANIO_FUENTE_NORMAL, ancla="topright", alto=30, margen=12)
+    # La toxicidad de cada lugar se lee cerca de su puerta (y en el mapa del mundo).
+    aviso = None
     zona = ciudad_mapa.entrada_cercana(posicion)
     sellada = not partida.alcaldia_desbloqueada()
-    if zona is not None and not (zona == ZONA_FINAL and sellada):
-        ciudad_render.dibujar_aviso(
-            pantalla, assets.TEXTO_AVISO_ENTRADA.format(zona=zona, nivel=partida.toxicidad(zona)),
-            assets.COLOR_AVISO_ENTRADA,
-        )
+    if mostrar_mapa_mundo:
+        pass
+    elif zona is not None and not (zona == ZONA_FINAL and sellada):
+        aviso = (assets.TEXTO_AVISO_ENTRADA.format(zona=zona, nivel=partida.toxicidad(zona)),
+                 assets.COLOR_AVISO_ENTRADA, assets.POSICION_AVISO_ENTRADA)
     elif sellada and ciudad_mapa.entrada_cercana(posicion, ALCANCE_AVISO_SELLADA) == ZONA_FINAL:
-        ciudad_render.dibujar_aviso(pantalla, assets.TEXTO_ALCALDIA_SELLADA, assets.COLOR_AVISO_SELLADA)
+        aviso = (assets.TEXTO_ALCALDIA_SELLADA, assets.COLOR_AVISO_SELLADA, assets.POSICION_AVISO_ENTRADA)
+    ctx = hud_partida.ContextoHud(
+        jugador=jugador, colapso=partida.colapso, titulo=titulo, destino=destino,
+        calles_bloqueadas=len(partida.ciudad.bloqueadas), mision=mision, transcurrido_mision=transcurrido_mision,
+        titulares=partida.titulares(), tiempo=tiempo, reputacion=partida.campania.rep(indice_local).valor,
+        controles=hud.CONTROLES_MAPA_MUNDO if mostrar_mapa_mundo else hud.CONTROLES_CIUDAD, aviso=aviso)
+    rect_mision = hud_partida.dibujar_hud(pantalla, bloques, ctx)
+    if mostrar_ruta and not mostrar_mapa_mundo:
+        # G es una petición explícita: su chip se ve aunque el HUD esté limpio.
+        texto = (assets.TEXTO_RUTA_DESTINO.format(destino=destino, costo=ruta[1]) if ruta
+                 else assets.TEXTO_SIN_RUTA)
+        dibujo.chip(pantalla, texto, assets.POSICION_AVISO_RUTA, assets.COLOR_RUTA_CIUDAD, assets.COLOR_PANEL_HUD,
+                    assets.COLOR_RUTA_CIUDAD, assets.TAMANIO_FUENTE_PEQUENA, ancla="topright", alto=26, margen=10)
+    return rect_mision
 
 
 def _curar(jugadores):

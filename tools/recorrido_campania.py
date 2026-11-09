@@ -161,6 +161,27 @@ def guion_completo(c, opciones):
         x, y = ciudad_mapa.centro_casilla(col, fila)
         L()["jugador"].colocar_en((x, y + 8))
 
+    def cerrar_instrucciones(capturar=None):
+        """Pantalla de instrucciones de mazmorra: un Enter inmediato no la
+        salta (retardo anti-salto), el mundo no avanza mientras está abierta
+        y, pasado el retardo, Enter comienza."""
+        loc = L()
+        instrucciones = loc["instrucciones"]
+        assert instrucciones is not None, "no se mostraron las instrucciones de mazmorra"
+        combate = loc["arena"] if loc["escena"].name == "JEFE" else loc["mazmorra"]
+        gracia, reloj = combate.gracia.restante, loc["tiempo"]
+        c.tecla(ENTER)  # demasiado pronto
+        yield 2
+        assert L()["instrucciones"] is instrucciones, "el Enter de la puerta saltó las instrucciones"
+        yield 40
+        assert combate.gracia.restante == gracia and L()["tiempo"] == reloj, "el mundo avanzó bajo las instrucciones"
+        if capturar:
+            c.captura(f"{capturar}_instrucciones")
+        c.tecla(ENTER)
+        yield 2
+        assert L()["instrucciones"] is None
+        c.log(f"instrucciones: {[t.clase + ':' + (t.tipo.value if t.tipo else '') for t in instrucciones.tarjetas]}")
+
     def entrar(zona, capturar=None):
         ir_a_puerta(zona)
         yield 3
@@ -168,6 +189,7 @@ def guion_completo(c, opciones):
         yield 6
         yield from cerrar_overlays(capturar)
         assert L()["escena"].name in ("MAZMORRA", "JEFE"), L()["escena"]
+        yield from cerrar_instrucciones(capturar)
 
     def limpiar_cuartos(recoger=3, capturar=None):
         """Limpia todos los cuartos intermedios tocando puertas de verdad y

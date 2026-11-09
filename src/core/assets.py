@@ -236,6 +236,16 @@ CANTIDAD_PARTICULAS_LOBBY = 36
 RECT_PANEL_RESUMEN_LOBBY = (70, 548, 1140, 96)
 # Menú de pausa (src/ui/pausa_render.py): la misma paleta neón del lobby.
 ALFA_VELO_PAUSA = 175
+# Instrucciones de mazmorra (src/ui/instrucciones_render.py).
+ANCHO_TARJETA_INSTRUCCIONES = 280
+ALTO_TARJETA_INSTRUCCIONES = 450
+SEPARACION_TARJETAS_INSTRUCCIONES = 18
+Y_TARJETAS_INSTRUCCIONES = 116
+ALTO_SPRITE_INSTRUCCIONES = 140  # alto máximo del sprite grande (escala entera)
+ALTO_ICONO_VARIANTE = 30
+DURACION_VARIANTE_INSTRUCCIONES = 1.2  # s que se muestra cada aspecto antes de pasar al siguiente
+COLOR_JEFE_INSTRUCCIONES = COLOR_MORADO
+COLOR_REGLAS_INSTRUCCIONES = COLOR_AMARILLO
 RECT_PANEL_PAUSA = (440, 130, 400, 440)
 ALTO_OPCION_PAUSA = 50
 RECT_CONFIRMACION_PAUSA = (360, 270, 560, 180)
@@ -447,11 +457,37 @@ DURACION_MENSAJE_MAPA = 4.0  # s que se muestra el resultado al volver a la ciud
 # Ciudad Nova (escena CIUDAD): casillas en pixel art, edificios, auras,
 # barricadas, ruta sugerida y cintillo de noticias.
 # ----------------------------------------------------------------------
-ALTO_CINTILLO = 28
+ALTO_CINTILLO = 28  # (cintillo anterior; el actual es ALTO_CINTILLO_FINO)
+# ----------------------------------------------------------------------
+# HUD de la partida por bloques (src/ui/hud_partida.py; qué se ve, en
+# src/ui/hud_visibilidad.py). Paneles chicos en las esquinas, mismo
+# margen, misma transparencia y la misma fuente pequeña en todos.
+# ----------------------------------------------------------------------
+MARGEN_HUD = 12
+ALFA_PANEL_HUD = 168
+COLOR_PANEL_HUD = (14, 12, 34)
+RECT_PANEL_VIDA_HUD = (MARGEN_HUD, 10, 300, 50)
+POSICION_J1_HUD = (MARGEN_HUD + 20, 35)  # centro de "J1"
+POSICION_CORAZONES_HUD = (MARGEN_HUD + 42, 15)
+POSICION_HABILIDAD_HUD_COMPACTA = (MARGEN_HUD + 42, 42)
+ANCHO_BARRA_HABILIDAD_HUD = 150
+RECT_PANEL_COLAPSO_HUD = (1280 - MARGEN_HUD - 264, 10, 264, 50)
+ANCHO_BARRA_COLAPSO_HUD = 176
+POSICION_CONTADOR_HUD = (640, 12)  # midtop del chip "Enemigos · Cuartos"
+POSICION_TITULO_HUD_COMPACTO = (640, 52)  # midtop del título (solo con HUD detallado)
+POSICION_LINEA_MISION = (MARGEN_HUD, 68)  # topleft de la misión en una línea
+ALTO_LINEA_MISION = 26
+ANCHO_MAXIMO_LINEA_MISION = 420
+DURACION_CONTROLES_AYUDA = 3.0  # s de barra de controles al entrar a una escena o con H
+DURACION_MISION_ABIERTA = 3.0  # s que la misión se abre tras cambiar de destino con Tab
 # Zona de pantalla donde se ve el mundo: entre el cintillo y la barra de controles.
-RECT_VISTA_CIUDAD = (0, ALTO_HUD + 2 + ALTO_CINTILLO, 1280,
-                     720 - ALTO_HUD - 2 - ALTO_CINTILLO - ALTO_BARRA_CONTROLES)
-RECT_CINTILLO = (0, ALTO_HUD + 2, 1280, ALTO_CINTILLO)
+# La ciudad ocupa toda la pantalla: el HUD (src/ui/hud_partida.py) flota
+# encima en paneles semitransparentes en las esquinas.
+RECT_VISTA_CIUDAD = (0, 0, 1280, 720)
+# Cintillo de noticias: franja fina abajo, que no pisa el HUD ni los edificios.
+ALTO_CINTILLO_FINO = 22
+RECT_CINTILLO = (0, 720 - ALTO_CINTILLO_FINO, 1280, ALTO_CINTILLO_FINO)
+ALFA_CINTILLO = 190
 TITULO_CIUDAD = "Ciudad Nova"
 
 # Casillas (paleta nocturna, misma familia que el piso de los cuartos)
@@ -548,7 +584,7 @@ RADIO_DESTINO_RUTA = 10
 
 # Avisos de la ciudad (chips sobre la parte baja de la vista)
 POSICION_AVISO_ENTRADA = (640, 624)
-POSICION_AVISO_RUTA = (1260, 112)  # topright del chip "Ruta: ..." / "Sin ruta"
+POSICION_AVISO_RUTA = (1280 - 12, 130)  # topright del chip "Ruta: ..." / "Sin ruta" (bajo el colapso y la reputación)
 COLOR_AVISO_ENTRADA = COLOR_TEAL
 COLOR_AVISO_SELLADA = COLOR_MAGENTA
 TEXTO_AVISO_ENTRADA = "E: entrar a {zona} (Toxicidad {nivel:.0f})"
@@ -561,7 +597,7 @@ ETIQUETA_CINTILLO = "BREAKING NEWS CIVITAS"
 COLOR_FONDO_CINTILLO = COLOR_FONDO_PANEL
 COLOR_ETIQUETA_CINTILLO = COLOR_MAGENTA
 COLOR_TEXTO_CINTILLO = COLOR_TEXTO_HUD
-VELOCIDAD_CINTILLO = 80  # px/s hacia la izquierda
+VELOCIDAD_CINTILLO = 45  # px/s hacia la izquierda (lento: se lee de reojo)
 SEPARADOR_CINTILLO = "   ·   "
 
 # Fundido corto al entrar y salir de un edificio
@@ -1206,7 +1242,7 @@ ID_RETRATO_CIVITAS = "civitas"
 ID_RETRATO_NOVA = "nova"
 ID_RETRATO_MENTORA = "rosa"
 RECT_INDICADOR_REPUTACION = (290, 170, 700, 380)
-POSICION_CHIP_REPUTACION = (1096, 112)  # bajo el cintillo, a la derecha
+POSICION_CHIP_REPUTACION = (1096, 82)  # bajo el panel de colapso, a la derecha
 RECT_FEED_CIVITAS = (900, 560, 360, 80)
 RADIO_RECOGER_EVIDENCIA = 46  # px: tocar la prueba del suelo la recoge
 PERIODO_REACCION_CIUDAD = 24.0  # s entre comentarios de ciudadanos
@@ -1355,7 +1391,7 @@ POSICION_RETRATO_CINEMATICA = (260, 330)  # centro
 # ----------------------------------------------------------------------
 # Misiones (src/story/misiones.py, dibujo en src/ui/mision_render.py)
 # ----------------------------------------------------------------------
-RECT_PANEL_MISION_CIUDAD = (20, ALTO_HUD + 2 + 34 + 12, 340, 140)  # bajo el cintillo, a la izquierda
+RECT_PANEL_MISION_CIUDAD = (12, 100, 340, 140)  # bajo la línea de misión, a la izquierda
 RECT_PANEL_MISION_COMBATE = (20, 720 - ALTO_BARRA_CONTROLES - 12 - 116, 340, 116)  # abajo a la izquierda
 COLOR_FONDO_MISION = (14, 12, 34, 215)  # RGBA
 COLOR_BORDE_MISION = COLOR_AMARILLO
