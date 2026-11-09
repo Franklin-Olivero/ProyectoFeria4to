@@ -202,6 +202,8 @@ def test_textos_del_impostor_y_del_tripulante():
     assert textos_revelacion(False, "Influencer") == (
         "Tu rol es", "Influencer", "Completa tus tareas y descubre al impostor")
     assert textos_revelacion(False, "Ingeniero", "Puede usar los ductos")[2] == "Puede usar los ductos"
+    # La habilidad del rol nunca le quita su subtítulo al impostor.
+    assert textos_revelacion(True, "Candidato", "Debate Rebotante")[2] == assets.TEXTO_SUBTITULO_IMPOSTOR
 
 
 def test_colores_pedidos():
@@ -241,8 +243,10 @@ MS_POR_CUADRO = 40  # cuadros simulados largos: la línea de tiempo es la misma 
 
 
 class _RelojFalso:
-    def tick(self, _fps):
+    def tick_busy_loop(self, _fps):
         return MS_POR_CUADRO
+
+    tick = tick_busy_loop
 
 
 def _tecla(tecla):
@@ -432,6 +436,8 @@ class _RelojLobby:
     def tick(self, _fps):
         time.sleep(0.001)
         return 16
+
+    tick_busy_loop = tick
 
 
 class _TeclasSueltas:

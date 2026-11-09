@@ -66,7 +66,8 @@ class Servidor:
     def sortear_impostor(self):
         """Elige al impostor al azar entre los vértices del grafo de sala:
         1 de 2, 1 de 3 o 1 de 4. Solo el host decide y una sola vez por
-        partida; los invitados lo reciben en INICIAR. O(V)."""
+        partida; los invitados lo reciben en INICIAR. O(V log V) por el
+        sorted de sala.jugadores(); random.choice es O(1)."""
         if self.id_impostor is None:
             jugadores = self.sala.jugadores()
             if jugadores:

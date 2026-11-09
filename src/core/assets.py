@@ -883,6 +883,9 @@ AMPLITUD_FLOTACION_REVELACION = 6  # px
 FRECUENCIA_FLOTACION_REVELACION = 3.0  # rad/s
 TAMANIO_OVALO_RESPLANDOR = (980, 600)
 PASOS_OVALO_RESPLANDOR = 48  # elipses concéntricas de la que sale el degradado
+REDUCCION_OVALO_RESPLANDOR = 4  # el óvalo se dibuja a 1/4 y se amplía con suavizado
+CURVA_OVALO_RESPLANDOR = 2  # exponente del degradado: más alto = centro más concentrado
+DT_MAXIMO_REVELACION = 0.25  # s: un cuadro trabado no se come la pantalla
 FRECUENCIA_PULSO_RESPLANDOR = 2.5  # rad/s
 BRILLO_MINIMO_RESPLANDOR = 0.7  # fracción del brillo en lo más bajo del pulso
 # Cada texto: (tamaño de la fuente, ampliación, y del centro).
@@ -890,6 +893,20 @@ TEXTO_ENCABEZADO_REVELACION = (14, 3, 74)
 TEXTO_TITULO_TRIPULANTE_REVELACION = (20, 5, 168)
 TEXTO_TITULO_IMPOSTOR_REVELACION = (24, 6, 142)
 TEXTO_SUBTITULO_REVELACION = (13, 2, 590)
+
+# Sabotaje del impostor en la terminal de decisión (Online/sabotaje_render.py):
+# solo lo ve el impostor, arriba al centro, entre el título y el reloj.
+RECT_INDICADOR_SABOTAJE = (440, 20, 400, 64)
+TEXTO_SABOTAJE_TITULO = "Impostor · sabotaje"
+TEXTO_SABOTAJE_LISTO = "Listo: mueve o confirma una opción"
+TEXTO_SABOTAJE_RECARGA = "Recargando: {segundos} s"
+TEXTO_SABOTAJE_AUN_NO = "Aún no: faltan {segundos} s"
+DURACION_AVISO_SABOTAJE = 0.6  # s que el indicador marca "aún no" tras una tecla sin carga
+COLOR_FONDO_BARRA_SABOTAJE = (60, 14, 22)
+# Online, en combate: el mundo espera a quien siga leyendo una escena en otra PC.
+TEXTO_ESPERA_LECTURA_UNO = "Esperando a que {quien} termine de leer"
+TEXTO_ESPERA_LECTURA_VARIOS = "Esperando a que {quienes} terminen de leer"
+POSICION_AVISO_ESPERA_LECTURA = (640, 116)
 
 # ----------------------------------------------------------------------
 # Tipos de enemigo: todo lo visual de cada tipo, en un solo lugar. Las

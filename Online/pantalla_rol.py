@@ -28,10 +28,11 @@ _cache_resplandor = {}  # tamaño de la pantalla -> Surface con el óvalo rojo
 
 
 def textos_revelacion(es_impostor, nombre_rol, descripcion_rol=None):
-    """(encabezado, título, subtítulo). El impostor no lleva encabezado y
-    `descripcion_rol` (p. ej. la habilidad del rol) reemplaza al subtítulo."""
+    """(encabezado, título, subtítulo). El impostor no lleva encabezado y su
+    subtítulo es siempre el suyo; al tripulante, `descripcion_rol` (p. ej.
+    la habilidad del rol) le reemplaza el subtítulo."""
     if es_impostor:
-        return None, assets.TEXTO_TITULO_IMPOSTOR, descripcion_rol or assets.TEXTO_SUBTITULO_IMPOSTOR
+        return None, assets.TEXTO_TITULO_IMPOSTOR, assets.TEXTO_SUBTITULO_IMPOSTOR
     return assets.TEXTO_ENCABEZADO_TRIPULANTE, nombre_rol, descripcion_rol or assets.TEXTO_SUBTITULO_TRIPULANTE
 
 
@@ -56,13 +57,20 @@ def _texto_pixelado(cadena, tamanio, ampliacion, color):
     return pygame.transform.scale(base, (base.get_width() * ampliacion, base.get_height() * ampliacion))
 
 
-def _bloque_de_texto(cadena, medidas, color):
-    """[(Surface, centro), ...] de `cadena` partida en las líneas que quepan
-    en la zona segura. `medidas` = (tamaño, ampliación, y del centro)."""
+def _bloque_de_texto(cadena, medidas, color, partir=True):
+    """[(Surface, centro), ...] de `cadena` dentro del ancho de la zona
+    segura. `medidas` = (tamaño, ampliación, y del centro). Con `partir` el
+    texto baja a otra línea; sin partir (títulos) queda en una sola y se
+    amplía menos hasta que quepa, así nunca pisa al avatar."""
     tamanio, ampliacion, y_centro = medidas
-    ancho = assets.RECT_ZONA_SEGURA[2] // ampliacion
-    lineas = [_texto_pixelado(linea, tamanio, ampliacion, color)
-              for linea in dibujo.ajustar_texto(cadena, tamanio, ancho, negrita=True)]
+    ancho = assets.RECT_ZONA_SEGURA[2]
+    if partir:
+        textos = dibujo.ajustar_texto(cadena, tamanio, ancho // ampliacion, negrita=True)
+    else:
+        textos = [cadena]
+        while ampliacion > 1 and fuente(tamanio, True).size(cadena)[0] * ampliacion > ancho:
+            ampliacion -= 1
+    lineas = [_texto_pixelado(texto, tamanio, ampliacion, color) for texto in textos]
     y = y_centro - sum(linea.get_height() for linea in lineas) // 2
     bloque = []
     for linea in lineas:
@@ -77,10 +85,10 @@ def _textos_de_pantalla(es_impostor, nombre_rol, descripcion_rol):
     color = assets.COLOR_IMPOSTOR if es_impostor else assets.COLOR_TRIPULANTE
     medidas_titulo = (assets.TEXTO_TITULO_IMPOSTOR_REVELACION if es_impostor
                       else assets.TEXTO_TITULO_TRIPULANTE_REVELACION)
-    textos = _bloque_de_texto(titulo, medidas_titulo, color)
+    textos = _bloque_de_texto(titulo, medidas_titulo, color, partir=False)
     textos += _bloque_de_texto(subtitulo, assets.TEXTO_SUBTITULO_REVELACION, color)
     if encabezado:
-        textos += _bloque_de_texto(encabezado, assets.TEXTO_ENCABEZADO_REVELACION, color)
+        textos += _bloque_de_texto(encabezado, assets.TEXTO_ENCABEZADO_REVELACION, color, partir=False)
     return textos
 
 
@@ -88,13 +96,14 @@ def _resplandor(tamanio):
     """Óvalo rojo difuminado (se calcula una vez): elipses concéntricas cada
     vez más brillantes en baja resolución, ampliadas con suavizado."""
     if tamanio not in _cache_resplandor:
-        base = pygame.Surface((tamanio[0] // 4, tamanio[1] // 4))
+        reduccion = assets.REDUCCION_OVALO_RESPLANDOR
+        base = pygame.Surface((tamanio[0] // reduccion, tamanio[1] // reduccion))
         ancho, alto = assets.TAMANIO_OVALO_RESPLANDOR
         for paso in range(assets.PASOS_OVALO_RESPLANDOR, 0, -1):
             fraccion = paso / assets.PASOS_OVALO_RESPLANDOR  # 1 = borde exterior
-            brillo = (1 - fraccion) ** 2
-            elipse = pygame.Rect(0, 0, round(ancho * fraccion) // 4, round(alto * fraccion) // 4)
-            elipse.center = (assets.CENTRO_REVELACION[0] // 4, assets.CENTRO_REVELACION[1] // 4)
+            brillo = (1 - fraccion) ** assets.CURVA_OVALO_RESPLANDOR
+            elipse = pygame.Rect(0, 0, round(ancho * fraccion) // reduccion, round(alto * fraccion) // reduccion)
+            elipse.center = (assets.CENTRO_REVELACION[0] // reduccion, assets.CENTRO_REVELACION[1] // reduccion)
             pygame.draw.ellipse(base, [round(c * brillo) for c in assets.COLOR_RESPLANDOR_IMPOSTOR], elipse)
         _cache_resplandor[tamanio] = pygame.transform.smoothscale(base, tamanio)
     return _cache_resplandor[tamanio]
@@ -112,10 +121,12 @@ def _dibujar_fondo(pantalla, es_impostor, tiempo, reducir_movimiento):
     pantalla.blit(capa, (0, 0), special_flags=pygame.BLEND_RGB_ADD)
 
 
-def _dibujar_cuadro(pantalla, es_impostor, avatar, textos, velo, tiempo, duracion, reducir_movimiento):
-    _dibujar_fondo(pantalla, es_impostor, tiempo, reducir_movimiento)
+def _dibujar_cuadro(pantalla, es_impostor, avatar, textos, velo, tiempo, animacion, duracion, reducir_movimiento):
+    """`tiempo` lleva los fundidos (omitir lo adelanta); `animacion`, la
+    flotación y el pulso, que siguen continuos aunque se omita."""
+    _dibujar_fondo(pantalla, es_impostor, animacion, reducir_movimiento)
     flotacion = 0 if reducir_movimiento else round(
-        math.sin(tiempo * assets.FRECUENCIA_FLOTACION_REVELACION) * assets.AMPLITUD_FLOTACION_REVELACION)
+        math.sin(animacion * assets.FRECUENCIA_FLOTACION_REVELACION) * assets.AMPLITUD_FLOTACION_REVELACION)
     cx, cy = assets.CENTRO_REVELACION
     pantalla.blit(avatar, avatar.get_rect(center=(cx, cy + flotacion)))
     for superficie, centro in textos:
@@ -140,14 +151,19 @@ def mostrar_pantalla_revelacion_rol(pantalla, reloj, es_impostor, nombre_rol, ap
     textos = _textos_de_pantalla(es_impostor, nombre_rol, descripcion_rol)
     velo = pygame.Surface(pantalla.get_size())
     velo.fill(assets.COLOR_VELO_REVELACION)
-    tiempo = 0.0
+    tiempo = 0.0  # línea de tiempo: fundidos y final
+    animacion = 0.0  # flotación y pulso
     while tiempo < duracion:
-        tiempo += reloj.tick(FPS) / 1000
+        # tick_busy_loop, como Main: en Windows tick() da cuadros irregulares.
+        # Y un cuadro trabado (la ventana arrastrada) no se come la pantalla.
+        dt = min(reloj.tick_busy_loop(FPS) / 1000, assets.DT_MAXIMO_REVELACION)
+        tiempo += dt
+        animacion += dt
         for evento in pygame.event.get():
             if evento.type == pygame.QUIT:
                 return False
             if evento.type == pygame.KEYDOWN and evento.key in TECLAS_OMITIR:
                 tiempo = tiempo_al_omitir(tiempo, duracion)
-        _dibujar_cuadro(pantalla, es_impostor, avatar, textos, velo, tiempo, duracion, reducir_movimiento)
+        _dibujar_cuadro(pantalla, es_impostor, avatar, textos, velo, tiempo, animacion, duracion, reducir_movimiento)
         presentar()
     return True

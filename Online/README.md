@@ -412,10 +412,10 @@ Al iniciar la partida, el host sortea a **1 impostor** entre los jugadores conec
 - El avatar es el mismo sprite vestido de la sala y de la partida (`sprite_jugador(..., apariencia=)`), no una imagen aparte; no se agregó arte. El texto "pixelado" es la fuente del juego sin suavizado, ampliada sin interpolar.
 - Línea de tiempo: 0.5 s de fundido desde negro, jugador fijo y 0.5 s de fundido a negro. **Espacio** o **Enter** saltan al fundido de salida, pero solo pasados 2 s.
 - Respeta el filtro de daltonismo (usa el `presentar` del juego) y **Reducir movimiento** (sin flotar ni pulsar).
-- **Hoy el impostor no cambia la jugabilidad:** no hay tareas, sabotaje ni votación, y su clase de combate sigue siendo el rol que eligió. La partida solo guarda el dato, listo para cuando exista esa mecánica.
+- El impostor **sabotea la terminal de decisión** al final de cada mazmorra (sección 8). Su clase de combate sigue siendo el rol que eligió; no hay tareas ni votación.
 
 ### Flujo por red (host autoritativo)
-1. `Servidor.marcar_iniciado()` llama a `sortear_impostor()`: `random.choice` sobre los vértices del `GrafoSala` (`sala.jugadores()`, O(V)), una sola vez por partida.
+1. `Servidor.marcar_iniciado()` llama a `sortear_impostor()`: `random.choice` sobre los vértices del `GrafoSala` (`sala.jugadores()`: O(V log V) por su `sorted`; `random.choice` es O(1)), una sola vez por partida.
 2. El lobby difunde `msg_iniciar(estado, id_impostor=...)`. Nadie conoce al impostor antes de iniciar.
 3. `Cliente._procesar` guarda `id_impostor` **antes** de poner `iniciado = True`: el lobby lee ese flag desde otro hilo y ahí mismo pregunta quién es.
 4. Cada PC compara con su propio id: `es_impostor = (id_local == id_impostor)`.
@@ -436,3 +436,35 @@ Un invitado que se reconecta recibe `id_impostor` ya en la `BIENVENIDA` (`unido_
 2. El host presiona Enter o el botón START.
 3. Cada PC ve su pantalla con su ropa; exactamente una dice IMPOSTOR.
 4. Después sigue el juego de siempre (la introducción del modo historia y Ciudad Nova).
+
+---
+
+## 8. Sabotaje del impostor en la terminal de decisión
+
+### Qué hace
+Al final de cada mazmorra normal el equipo comparte un cursor sobre el árbol de decisión: cualquiera lo mueve (← →) o confirma (Enter). El impostor también, pero **cada movimiento suyo es un sabotaje** y solo puede hacerlo con la carga lista. La carga tarda **15 s** (`balance.COOLDOWN_SABOTAJE_IMPOSTOR`) en llenarse al abrir la terminal y después de cada uso. Así los demás siempre tienen 15 s para buscar la respuesta correcta antes de que el impostor pueda mover el cursor a una mala o confirmar.
+
+- Solo el impostor ve su indicador, arriba al centro de la terminal: "Recargando: N s", "Listo: mueve o confirma una opción", y "Aún no" si aprieta con la carga vacía. Su barra de controles dice "sabotear".
+- Los demás no ven nada distinto: tienen que descubrir quién mueve el cursor.
+- Fuera de la terminal (por ejemplo, la investigación del capítulo 3) el impostor navega libre.
+
+### Host autoritativo
+- `Online/sabotaje.py` (puro): `Sabotaje` con `seguir_terminal(terminal)` (una terminal nueva empieza con la carga vacía), `actualizar(dt)`, `listo` e `intentar()` (gasta la carga si estaba lista). O(1).
+- `AdaptadorOnlineHost.puede_navegar(indice)`: descarta los `DECISION_NAV` del impostor sin carga, antes de cargarle la decisión (`registrar_actor`). Main usa el mismo método para las teclas del host cuando el impostor es él.
+- El host manda la carga en el ESTADO (`term.sab`) y cada invitado la refleja (`AdaptadorOnlineJoin.puede_navegar` y `restante_sabotaje`) solo para no mandar teclas en vano y dibujar el indicador.
+
+---
+
+## 9. La presentación del capítulo sale en todas las PCs
+
+### El bug
+Al entrar a una mazmorra, la tarjeta del capítulo y su diálogo solo salían en la PC que apretó E (normalmente el host). La presentación se encolaba en el manejador de la tecla E de `Main._jugar`, y los adaptadores llevan a los demás a la mazmorra por otro camino (`AdaptadorOnlineJoin._entrar_mazmorra` en el invitado y `AdaptadorOnlineHost._atender_solicitudes` cuando lo pide un invitado), sin pasar por ahí.
+
+### La corrección
+- `Main._jugar` tiene un solo punto de entrada a una zona, `al_entrar_a_zona(zona)`, que usan la E y también la red: si después de `adaptador_red.actualizar(...)` la escena pasó de CIUDAD a MAZMORRA o JEFE, cada PC presenta el capítulo (una vez por zona, `campania.intros_vistas`). Donde se decide la historia (host o partida local) también corren los matices de entrada (fuente del Periodista, ayuda ciudadana), que antes faltaban si la entrada la pedía un invitado.
+- **El mundo espera a quien lee.** Cada invitado avisa al host cuando abre o cierra una escena de la historia (`HISTORIA` con evento `lectura`). En combate, el host no simula mientras alguien lee (`esperando_lectura()`), así a nadie lo atacan durante la tarjeta del capítulo o la cinemática del jefe. Muestra "Esperando a que J2 termine de leer" y lo manda en el ESTADO (`leen`), para que los demás vean el mismo aviso. Quien se desconecta deja de contar.
+
+### Cómo probarlo
+1. Dos PCs en una partida Online. Cierren la intro.
+2. El host entra al Colegio con E: **las dos** PCs ven la tarjeta "Capítulo 1: El rumor" y su diálogo.
+3. Si una PC sigue leyendo, la otra ve "Esperando a que J… termine de leer" y el cuarto queda quieto hasta que termine.

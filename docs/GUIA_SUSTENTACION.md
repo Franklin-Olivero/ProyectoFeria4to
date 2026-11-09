@@ -60,7 +60,9 @@ Toda la aleatoriedad va por `random.Random(semilla)` inyectable: layout de la
 mazmorra, composición de enemigos, patrones del jefe, propagación social y eventos.
 El azar elige **qué** pasa (qué evento, qué contactos reenvían); **cuánto** pesa
 depende de las decisiones (correcciones publicadas, evidencia reunida). Con la misma
-semilla el resultado es idéntico (tests con semillas fijas).
+semilla el resultado es idéntico (tests con semillas fijas). La excepción es el
+sorteo del impostor en Online (`random.choice` global en el host): no necesita
+reproducirse y los tests lo fijan con monkeypatch.
 
 ## Decisiones, puntuación y finales
 - Un solo punto aplica la decisión: `Partida.cerrar_mazmorra` → `Mazmorra.completar()`
@@ -84,8 +86,9 @@ semilla el resultado es idéntico (tests con semillas fijas).
   En equipo queda sin voz y los demás siguen. El host fija la reputación de todos.
 - **¿Hay un modo impostor?** En la campaña no: el capítulo 3 es un rastreo por DFS de cuentas.
   Lo inspirado en Among Us está en el modo Online: sala, vestidores, listos y, al iniciar, el host
-  sortea un impostor entre los vértices del grafo de sala y cada PC revela su rol. Hoy eso no
-  cambia la jugabilidad: no hay tareas, sabotaje ni votación.
+  sortea un impostor entre los vértices del grafo de sala y cada PC revela su rol. El impostor
+  sabotea la terminal de decisión: cada movimiento suyo gasta una carga que tarda 15 s, así el
+  resto siempre tiene ese tiempo para elegir la respuesta correcta. No hay tareas ni votación.
 - Detalle: `docs/SISTEMA_REPUTACION.md`, `docs/SISTEMA_REDENCION.md`.
 
 ## Cliente-servidor (Online)

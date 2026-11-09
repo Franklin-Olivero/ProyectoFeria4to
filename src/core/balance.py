@@ -508,6 +508,10 @@ REPUTACION_MIN_FINAL_POSITIVO = -19  # "renace" y "arquitecto" exigen no estar c
 # Terminal de decisión: hay que leer la publicación y las pruebas, así que el
 # reloj presiona sin impedir la lectura.
 DURACION_TERMINAL_HISTORIA = 45.0  # s
+# Modo Online: cada movimiento del impostor en la terminal es un sabotaje y
+# gasta su carga, que tarda esto en llenarse (al abrir la terminal y tras
+# cada uso). Mientras tanto el resto busca la respuesta correcta.
+COOLDOWN_SABOTAJE_IMPOSTOR = 15.0  # s
 # Evidencia por zona: con esta fracción de las pruebas reveladas el
 # estado pasa de "sin pruebas" a "parcial"; con todas, a "verificado" o
 # "desmentido" según el veredicto real de la publicación.

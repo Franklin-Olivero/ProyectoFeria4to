@@ -96,6 +96,7 @@ from src.ui.seleccion_rol import dibujar_seleccion
 from src.ui.terminal_decision import CONFIRMAR, DERECHA, DETONACION, IZQUIERDA
 from src.ui.terminal_decision_render import dibujar_terminal
 
+from Online import sabotaje_render
 from Online.lobby import menu_online
 from Online.sesion_red import AdaptadorOnlineHost, EntradaRed
 from Online.sesion_red import compartir_combate_con_sesion, normalizar_escena, proteger_partida_online
@@ -402,6 +403,32 @@ def _jugar(pantalla, reloj, sesion, preferencias, presentar):
         dialogo = cola_historia.pop(0) if cola_historia else None
         tiempo_overlay = 0.0
 
+    def al_entrar_a_zona(zona):
+        """Entrar a un edificio, con la E de esta PC o porque la red trajo al
+        equipo (Online: entró el host o lo pidió un invitado). En cada PC, la
+        presentación del capítulo una vez por zona; donde se decide la
+        historia (host o partida local), además los matices de entrada."""
+        nonlocal mostrar_estado, tarjeta_evidencia, limpios_vistos
+        if zona != ZONA_FINAL and getattr(mazmorra, "mazmorra", None) is not None:
+            campania.evidencias_sueltas.pop(zona, None)
+            limpios_vistos = len(mazmorra.mazmorra.limpiados)
+        mostrar_estado = False
+        tarjeta_evidencia = None
+        campania.evidencias_nuevas.clear()
+        sonar("transicion")
+        # Presentación del capítulo (una vez por zona): tarjeta de título y
+        # luego el diálogo; el mundo espera (en red, a todo el equipo).
+        encolar_historia(*campania.presentacion_zona(zona, jugador.rol, jugador.NOMBRE, indice_local))
+        if not campania.espejo:
+            # Matices de entrada: la fuente del Periodista y la ayuda de
+            # los ciudadanos a quien se ganó su confianza.
+            for _i_j in range(len(jugadores)):
+                campania.al_entrar_zona(zona, _i_j)
+                aporte = campania.aporte_ciudadano(zona, _i_j)
+                if aporte is not None:
+                    toasts.append([campania.contenido["aportes_ciudadanos"].format(nombre=aporte[0]),
+                                   assets.DURACION_TOAST_MISION + 1, "Ayuda ciudadana"])
+
     # Crisis y redención (por jugador de esta pantalla).
     crisis_en_curso = None  # índice del jugador cuya crisis se está presentando
     eleccion_crisis = None  # EleccionCrisis abierta
@@ -468,6 +495,10 @@ def _jugar(pantalla, reloj, sesion, preferencias, presentar):
     mision = None
     toasts = []  # [texto, segundos restantes, título]
     escena_avisos = escena
+    aviso_sabotaje = 0.0  # s que el indicador del impostor marca "aún no" (tecla con la carga vacía)
+    # Online: otros jugadores que siguen leyendo una escena (en combate, el mundo los espera).
+    lectores_red = []
+    espera_equipo = False
     presentar_frame = presentar
 
     def presentar():
@@ -505,6 +536,10 @@ def _jugar(pantalla, reloj, sesion, preferencias, presentar):
             ayuda_render.dibujar_ayuda(pantalla, tiempo_overlay)
         elif modal == "estado":
             indicadores_render.dibujar_panel_estado(pantalla, campania, transcurrido=tiempo_overlay)
+        if espera_equipo and modal is None:
+            dibujo.chip(pantalla, _texto_espera_lectura(lectores_red), assets.POSICION_AVISO_ESPERA_LECTURA,
+                        assets.COLOR_TEXTO_HUD, assets.COLOR_FONDO_PANEL, assets.COLOR_CIVITAS,
+                        assets.TAMANIO_FUENTE_NORMAL, ancla="center", alto=32, margen=14)
         # Avisos encima de todo (solo el más reciente, para no apilar).
         if toasts and modal != "cinematica" and (escena == Escena.CIUDAD or escena in ESCENAS_DE_COMBATE):
             texto_toast, restante_toast, titulo_toast = toasts[0]
@@ -714,28 +749,16 @@ def _jugar(pantalla, reloj, sesion, preferencias, presentar):
                             duracion_terminal=DURACION_TERMINAL_HISTORIA + campania.duracion_extra_terminal(indice_local),
                         )
                         mazmorra.colocar_en_entrada(jugadores)
-                        campania.evidencias_sueltas.pop(zona, None)
-                        limpios_vistos = len(mazmorra.mazmorra.limpiados)
                         escena = Escena.MAZMORRA
                     fundido = assets.DURACION_FUNDIDO
-                    mostrar_estado = False
-                    tarjeta_evidencia = None
-                    campania.evidencias_nuevas.clear()
-                    sonar("transicion")
-                    # Presentación del capítulo (una vez por zona): tarjeta
-                    # de título y luego el diálogo; el mundo espera.
-                    encolar_historia(*campania.presentacion_zona(zona, jugador.rol, jugador.NOMBRE, indice_local))
-                    if not campania.espejo:
-                        # Matices de entrada: la fuente del Periodista y la ayuda de
-                        # los ciudadanos a quien se ganó su confianza.
-                        for _i_j in range(len(jugadores)):
-                            campania.al_entrar_zona(zona, _i_j)
-                            aporte = campania.aporte_ciudadano(zona, _i_j)
-                            if aporte is not None:
-                                toasts.append([campania.contenido["aportes_ciudadanos"].format(nombre=aporte[0]),
-                                               assets.DURACION_TOAST_MISION + 1, "Ayuda ciudadana"])
+                    al_entrar_a_zona(zona)
             elif escena == Escena.DECISION:
                 if evento.key in TECLAS_TERMINAL and campania.puede_decidir(indice_local):
+                    # Online: si esta PC es la del impostor, cada movimiento es un
+                    # sabotaje y solo va con la carga lista (Online/sabotaje.py).
+                    if hasattr(adaptador_red, "puede_navegar") and not adaptador_red.puede_navegar(indice_local):
+                        aviso_sabotaje = assets.DURACION_AVISO_SABOTAJE
+                        continue
                     direccion_terminal = TECLAS_TERMINAL[evento.key]
                     if direccion_terminal == CONFIRMAR:
                         campania.registrar_actor(indice_local)
@@ -822,6 +845,7 @@ def _jugar(pantalla, reloj, sesion, preferencias, presentar):
         particulas.actualizar(dt)
 
         if hasattr(sesion, "adaptador_red") and sesion.adaptador_red is not None:
+            escena_antes_red = escena
             escena, arena, mazmorra, fundido = sesion.adaptador_red.actualizar(
                 escena, arena, mazmorra, fundido, dt, sesion, partida, jugadores, jugador
             )
@@ -833,11 +857,16 @@ def _jugar(pantalla, reloj, sesion, preferencias, presentar):
             # si no, el combate corría sobre el de la ciudad (None) y se cerraba.
             escena = normalizar_escena(escena, arena, mazmorra, resultado, jugador, partida)
             escenario = _escenario_activo(escena, arena, mazmorra)
+            # La red trajo al equipo a un edificio (entró otro jugador): la
+            # misma presentación que con la E propia, también en esta PC.
+            if escena_antes_red == Escena.CIUDAD and escena in ESCENAS_DE_COMBATE:
+                al_entrar_a_zona(partida.ubicacion)
 
         # Con un diálogo o cinemática abiertos el mundo queda quieto (ni
         # caminar ni combate) y la tarjeta de evidencia espera a que termine.
         tiempo_overlay += dt
         tiempo_historia += dt
+        aviso_sabotaje = max(0.0, aviso_sabotaje - dt)
         if escena != escena_avisos:
             # Un aviso de la mazmorra no debe aparecer ya de vuelta en la ciudad.
             escena_avisos = escena
@@ -859,6 +888,11 @@ def _jugar(pantalla, reloj, sesion, preferencias, presentar):
             crisis_en_curso = etapa_abierta = eleccion_crisis = None
         sesion.historia_ocupada = dialogo is not None or pantalla_historia_abierta() or indicador_rep is not None
         en_dialogo = sesion.historia_ocupada
+        # Online, en combate: el mundo también espera a quien siga leyendo en
+        # otra PC (la tarjeta del capítulo, la cinemática del jefe...), así a
+        # nadie lo atacan mientras lee.
+        lectores_red = adaptador_red.esperando_lectura() if hasattr(adaptador_red, "esperando_lectura") else []
+        espera_equipo = escena in ESCENAS_DE_COMBATE and bool(lectores_red) and not en_dialogo
         # Cada cambio de reputación se presenta en una pausa segura (nunca en combate).
         if indicador_rep is None and dialogo is None and not pantalla_historia_abierta() \
                 and escena in (Escena.CIUDAD, Escena.RESULTADO):
@@ -918,7 +952,7 @@ def _jugar(pantalla, reloj, sesion, preferencias, presentar):
             jugador.caminar_en_ciudad(pygame.key.get_pressed(), dt, partida.es_solida)
             if hasattr(sesion, "adaptador_red") and sesion.adaptador_red is not None:
                 sesion.adaptador_red.actualizar_ciudad(dt, partida, jugadores, jugador)
-        elif escena in ESCENAS_DE_COMBATE and not en_dialogo:
+        elif escena in ESCENAS_DE_COMBATE and not en_dialogo and not espera_equipo:
             _frame_de_combate(
                 dt, jugadores, entradas, escenario, proyectiles_por_jugador, proyectiles_enemigos,
                 textos, particulas, sacudida,
@@ -1058,7 +1092,13 @@ def _jugar(pantalla, reloj, sesion, preferencias, presentar):
                     tiempo=tiempo,
                     nota_decisor="" if campania.puede_decidir(indice_local) else "Sin voz: tu equipo decide por ti",
                 )
-                hud.dibujar_barra_controles(pantalla, hud.CONTROLES_TERMINAL)
+                # Online: solo el impostor ve su sabotaje (Online/sabotaje_render.py).
+                restante_sabotaje = adaptador_red.restante_sabotaje() if hasattr(adaptador_red, "restante_sabotaje") else None
+                if jugador.es_impostor and restante_sabotaje is not None:
+                    sabotaje_render.dibujar_sabotaje(pantalla, restante_sabotaje, aviso_sabotaje)
+                    hud.dibujar_barra_controles(pantalla, sabotaje_render.CONTROLES_IMPOSTOR)
+                else:
+                    hud.dibujar_barra_controles(pantalla, hud.CONTROLES_TERMINAL)
             presentar()
             sacudida = (0, 0)
             continue
@@ -1637,6 +1677,14 @@ def _titulo_mazmorra(mazmorra):
 def _dibujar_mensaje(pantalla, cadena, color, centro):
     dibujo.chip(pantalla, cadena, centro, color, assets.COLOR_FONDO_PANEL, color,
                 assets.TAMANIO_FUENTE_MEDIA, ancla="center", alto=36, margen=16)
+
+
+def _texto_espera_lectura(indices):
+    """'Esperando a que J2 termine de leer' (o 'J2 y J3 terminen')."""
+    nombres = [f"J{indice + 1}" for indice in indices]
+    if len(nombres) == 1:
+        return assets.TEXTO_ESPERA_LECTURA_UNO.format(quien=nombres[0])
+    return assets.TEXTO_ESPERA_LECTURA_VARIOS.format(quienes=", ".join(nombres[:-1]) + " y " + nombres[-1])
 
 
 def _actualizar_proyectiles(proyectiles, dt, limites):
