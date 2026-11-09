@@ -31,6 +31,7 @@ Tabla de `balance.VALORACION_ACCIONES` (sin saber, con indicios, sabiéndolo):
 | Acción | Publicación engañosa | Publicación verdadera |
 |---|---|---|
 | Compartir | -12, -20, **-30** | +4, +8, **+15** |
+| Dar me gusta | -6, -10, -15 | +2, +4, +8 |
 | Publicar lo comprobado | -4, +8, **+20** | -2, +6, +15 |
 | Reportar como falsa | -2, +8, **+25** | -10, -15, **-20** |
 | Denunciar a los atacantes | -6, -8, -10 | -2, +10, +20 |
@@ -43,6 +44,8 @@ Tabla de `balance.VALORACION_ACCIONES` (sin saber, con indicios, sabiéndolo):
 Ejemplos de los matices pedidos:
 
 - Compartir algo verdadero y comprobado suma; compartir algo falso sabiéndolo resta 30.
+- Un me gusta también amplifica (el algoritmo lo muestra a más gente): pesa la mitad que
+  compartir, pero ante algo engañoso resta más que ignorarlo, incluso sin pruebas (-6 contra 0).
 - Reportar algo verdadero daña a una persona inocente.
 - Ignorar sin pruebas no castiga: no amplificar lo que no pudiste comprobar es válido.
 - Equivocarse sin saber (-12) no pesa igual que manipular (-30 o -35).

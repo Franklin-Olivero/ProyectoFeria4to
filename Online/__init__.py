@@ -12,7 +12,9 @@ Módulos:
     personalizacion — vestidor del lobby: pestañas COLOR / HAT / SKIN (puro)
     personalizacion_render — dibujo y ratón del vestidor
     pantalla_rol — revelación de rol al iniciar (impostor o tripulante)
-    sabotaje    — carga del sabotaje del impostor en la terminal (puro)
+    sabotaje    — bloqueo del sabotaje del impostor en la terminal (puro)
     sabotaje_render — indicador del sabotaje que solo ve el impostor
+    reunion     — reunión de emergencia: botón REPORTAR, chat y votación (puro)
+    reunion_render — dibujo y ratón de la reunión y del botón REPORTAR
     sesion_red  — adaptador que conecta el juego existente con la red
 """

@@ -307,6 +307,18 @@
           ]
         },
         {
+          "etiqueta": "Me gusta",
+          "resultado": "detonacion",
+          "texto": "Le diste me gusta a la captura recortada. No la compartiste, pero el algoritmo se la mostró a tus contactos y el miedo siguió creciendo entre las familias.",
+          "efectos": {
+            "desinformacion": 10,
+            "confianza": -5,
+            "bienestar_digital": -4
+          },
+          "puntos": 0,
+          "accion": "me_gusta"
+        },
+        {
           "etiqueta": "Compartir",
           "resultado": "detonacion",
           "texto": "Compartiste el rumor tal cual. Se multiplicó y el pánico llegó a todas las familias.",
@@ -498,6 +510,36 @@
               "puntos": 0
             }
           ]
+        },
+        {
+          "etiqueta": "Me gusta",
+          "accion": "me_gusta",
+          "resultado": "purificacion",
+          "texto": "Le diste me gusta al pedido de Elena sabiendo que el banco de sangre lo confirmaba. Más contactos lo vieron y llegaron algunos donantes, pero un me gusta no muestra la prueba.",
+          "efectos": {
+            "bienestar_digital": 3,
+            "confianza": 2
+          },
+          "puntos": 40,
+          "por_evidencia": {
+            "sin_pruebas": {
+              "resultado": "purificacion",
+              "texto": "Le diste me gusta sin comprobar nada. Esta vez era cierto y el pedido llegó a un poco más de gente; la próxima podría no serlo.",
+              "efectos": {
+                "bienestar_digital": 2
+              },
+              "puntos": 15
+            },
+            "parcial": {
+              "resultado": "purificacion",
+              "texto": "Le diste me gusta con algunas pruebas en la mano. El pedido subió un poco, aunque nadie supo por qué creerle.",
+              "efectos": {
+                "bienestar_digital": 2,
+                "confianza": 1
+              },
+              "puntos": 25
+            }
+          }
         },
         {
           "etiqueta": "Compartir",
@@ -708,6 +750,18 @@
               "accion": "insistir"
             }
           ]
+        },
+        {
+          "etiqueta": "Me gusta",
+          "resultado": "detonacion",
+          "texto": "Le diste me gusta a la encuesta falsa. El algoritmo la puso en los muros de tus contactos y algunos ya repiten 'ya está decidido'.",
+          "efectos": {
+            "desinformacion": 10,
+            "participacion_responsable": -6,
+            "confianza": -3
+          },
+          "puntos": 0,
+          "accion": "me_gusta"
         },
         {
           "etiqueta": "Compartir",
@@ -1227,6 +1281,18 @@
         "sin_saber": "Era cierto, pero no lo comprobaste. Esta vez salió bien: la ciudad no te lo agradece del todo.",
         "indicios": "Compartiste con algunas pruebas en la mano. Tu publicación ayudó y la gente lo notó.",
         "sabia": "Compartiste información verificada de forma responsable. Tu publicación ayudó a quien la necesitaba."
+      }
+    },
+    "me_gusta": {
+      "enganosa": {
+        "sin_saber": "Le diste me gusta sin comprobar y resultó falso. Parece poco, pero tu me gusta empujó el rumor a más gente.",
+        "indicios": "Había señales de que algo no cuadraba y aun así le diste me gusta. El algoritmo se lo mostró a más ciudadanos.",
+        "sabia": "Le diste me gusta a algo que sabías falso. No lo compartiste, pero lo ayudaste a llegar más lejos y la ciudad lo notó."
+      },
+      "veraz": {
+        "sin_saber": "Le diste me gusta a algo cierto sin comprobarlo. Ayudó un poco, pero fue suerte, no criterio.",
+        "indicios": "Apoyaste con un me gusta lo que tus pruebas respaldaban. Sumó, aunque compartirlo con los datos habría ayudado más.",
+        "sabia": "Le diste me gusta a una verdad comprobada. Más gente la vio, aunque con un me gusta no le mostraste a nadie la prueba."
       }
     },
     "publicar_verificado": {

@@ -51,7 +51,10 @@ def _decidir(partida, zona, *pasos, pruebas=3, semilla=0):
     return partida.campania.ultimo_cambio_reputacion
 
 
-COMPARTIR = (DERECHA, CONFIRMAR, CONFIRMAR)
+# Opciones de la raíz: Verificar, Me gusta, Compartir, Reportar, Ignorar.
+ME_GUSTA = (DERECHA, CONFIRMAR, CONFIRMAR)
+COMPARTIR = (DERECHA, DERECHA, CONFIRMAR, CONFIRMAR)
+REPORTAR_SEGUNDA = (DERECHA, DERECHA, DERECHA, CONFIRMAR, DERECHA, CONFIRMAR, CONFIRMAR)
 VERIFICAR_PUBLICAR = (CONFIRMAR, CONFIRMAR, CONFIRMAR)
 
 
@@ -150,20 +153,75 @@ def test_hospital_premia_compartir_lo_verdadero_y_castiga_reportarlo():
     cambio = _decidir(bien, ZONA_HOSPITAL, *COMPARTIR)
     assert cambio.delta >= 15 and bien.campania.ultima_consecuencia.exito
     mal = Partida()
-    cambio = _decidir(mal, ZONA_HOSPITAL, DERECHA, DERECHA, CONFIRMAR, DERECHA, CONFIRMAR, CONFIRMAR)
+    cambio = _decidir(mal, ZONA_HOSPITAL, *REPORTAR_SEGUNDA)  # Reportar -> Reportar el pedido como falso
+    assert mal.campania.ultima_consecuencia.camino == ("Reportar", "Reportar el pedido como falso")
     assert cambio.delta <= -25 and not mal.campania.ultima_consecuencia.exito
     assert "denuncia falsa" in cambio.mensaje
 
 
-def test_ninguna_opcion_es_correcta_en_todas_las_zonas():
-    """El jugador no puede memorizar una respuesta: "Compartir" purifica una
-    publicación verdadera y detona las engañosas."""
+@pytest.mark.parametrize("pasos, opcion", [(COMPARTIR, "Compartir"), (ME_GUSTA, "Me gusta")])
+def test_ninguna_opcion_es_correcta_en_todas_las_zonas(pasos, opcion):
+    """El jugador no puede memorizar una respuesta: "Compartir" y "Me gusta"
+    purifican una publicación verdadera y detonan las engañosas."""
     resultados = {}
     for zona in (ZONA_COLEGIO, ZONA_HOSPITAL, ZONA_EMPRESA_MEDIOS):
         partida = Partida()
-        _decidir(partida, zona, *COMPARTIR)
+        _decidir(partida, zona, *pasos)
+        assert partida.campania.ultima_consecuencia.opcion == opcion
         resultados[zona] = partida.campania.ultima_consecuencia.exito
     assert resultados == {ZONA_COLEGIO: False, ZONA_HOSPITAL: True, ZONA_EMPRESA_MEDIOS: False}
+
+
+# --------------------------------------------------------------- me gusta
+
+
+def test_me_gusta_es_un_compartir_mas_suave():
+    """Un me gusta también amplifica: mismo signo que compartir en cada caso,
+    pero con menos peso. Ante algo engañoso resta más que ignorarlo."""
+    for estado in (SIN_PRUEBAS, PARCIAL, DESMENTIDO):
+        me_gusta = valorar_accion("me_gusta", "falso", estado)
+        assert valorar_accion("compartir", "falso", estado) < me_gusta < valorar_accion("ignorar", "falso", estado)
+        assert valorar_accion("me_gusta", "fuera_de_contexto", estado) == me_gusta
+    for estado in (SIN_PRUEBAS, PARCIAL, VERIFICADO):
+        assert 0 < valorar_accion("me_gusta", "cierto", estado) < valorar_accion("compartir", "cierto", estado)
+    # Saber que era falso pesa más que equivocarse sin pruebas; la gravedad solo escala el daño.
+    assert valorar_accion("me_gusta", "falso", DESMENTIDO) < valorar_accion("me_gusta", "falso", SIN_PRUEBAS) < 0
+    assert valorar_accion("me_gusta", "falso", DESMENTIDO, "alta") < valorar_accion("me_gusta", "falso", DESMENTIDO)
+    assert valorar_accion("me_gusta", "cierto", VERIFICADO, "alta") == valorar_accion("me_gusta", "cierto", VERIFICADO)
+
+
+def test_cada_accion_del_contenido_tiene_valoracion_y_mensajes():
+    from src.core.balance import VALORACION_ACCIONES
+    from src.story import contenido
+
+    assert set(VALORACION_ACCIONES) == set(contenido.ACCIONES)
+    mensajes = contenido.cargar()["mensajes_reputacion"]
+    for accion in contenido.ACCIONES:
+        assert mensajes[accion].get("enganosa") and mensajes[accion].get("veraz"), accion
+    assert all(mensajes["me_gusta"][clase].get(saber) for clase in ("enganosa", "veraz")
+               for saber in ("sin_saber", "indicios", "sabia"))
+
+
+def test_me_gusta_en_el_juego_resta_y_suma_menos_que_compartir():
+    def cambio(zona, pasos, pruebas=3):
+        partida = Partida()
+        partida.campania.semilla = 4
+        partida.campania.reiniciar()
+        return _decidir(partida, zona, *pasos, pruebas=pruebas), partida.campania.ultima_consecuencia
+
+    # Colegio (engañosa), sabiéndolo: el me gusta resta, pero menos que compartir.
+    me_gusta, consecuencia = cambio(ZONA_COLEGIO, ME_GUSTA)
+    compartir, _ = cambio(ZONA_COLEGIO, COMPARTIR)
+    assert compartir.delta < me_gusta.delta < 0 and not consecuencia.exito
+    assert consecuencia.accion == "me_gusta" and "me gusta" in me_gusta.mensaje.lower()
+    # Sin pruebas también resta (ignorar sin pruebas no castigaría).
+    sin_pruebas, _ = cambio(ZONA_COLEGIO, ME_GUSTA, pruebas=0)
+    assert me_gusta.delta < sin_pruebas.delta < 0
+    # Hospital (verdadera), con todas las pruebas: suma, pero menos que compartir.
+    me_gusta, consecuencia = cambio(ZONA_HOSPITAL, ME_GUSTA)
+    compartir, _ = cambio(ZONA_HOSPITAL, COMPARTIR)
+    assert 0 < me_gusta.delta < compartir.delta and consecuencia.exito
+    assert "me gusta" in me_gusta.mensaje.lower()
 
 
 def test_el_mensaje_siempre_existe_y_nombra_la_consecuencia():

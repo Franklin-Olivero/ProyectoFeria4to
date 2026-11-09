@@ -18,6 +18,7 @@ from src.core.balance import ZONA_COLEGIO, ZONA_EMPRESA_MEDIOS, ZONA_HOSPITAL  #
 from src.story import contenido  # noqa: E402
 from src.story.escenarios import (  # noqa: E402
     DESMENTIDO,
+    ESTADOS_EVIDENCIA,
     PARCIAL,
     SIN_PRUEBAS,
     VERIFICADO,
@@ -33,6 +34,8 @@ from src.ui.terminal_decision import (  # noqa: E402
 )
 
 ZONAS = (ZONA_COLEGIO, ZONA_HOSPITAL, ZONA_EMPRESA_MEDIOS)
+# Verificar va primero: es la opción segura que queda bajo el cursor.
+OPCIONES_RAIZ = ["Verificar", "Me gusta", "Compartir", "Reportar", "Ignorar"]
 
 
 @pytest.fixture(scope="module")
@@ -64,6 +67,7 @@ def test_contenido_valido_y_con_las_tres_zonas(datos):
     lambda d: d["finales"].pop("confianza_perdida"),
     lambda d: d["red_social"]["conexiones"].append(["ana", "ana"]),
     lambda d: d["escenarios"][ZONA_HOSPITAL].pop("tiempo_agotado"),
+    lambda d: d["mensajes_reputacion"].pop("me_gusta"),
 ])
 def test_contenido_roto_lanza_error_claro(datos, romper):
     copia = copy.deepcopy(datos)
@@ -85,20 +89,25 @@ def test_estado_de_evidencia():
 def test_arbol_de_cada_zona_tiene_dos_niveles_y_hojas_validas(datos, zona):
     escenario = EscenarioDecision(datos["escenarios"][zona], DESMENTIDO)
     raiz = escenario.arbol.raiz
-    assert [h.etiqueta for h in raiz.hijos] == ["Verificar", "Compartir", "Reportar", "Ignorar"]
-    assert len(raiz.hijos[0].hijos) == 2 and len(raiz.hijos[2].hijos) == 2  # nivel intermedio
+    assert [h.etiqueta for h in raiz.hijos] == OPCIONES_RAIZ
+    por_etiqueta = {h.etiqueta: h for h in raiz.hijos}
+    assert len(por_etiqueta["Verificar"].hijos) == 2 and len(por_etiqueta["Reportar"].hijos) == 2  # nivel intermedio
     hojas = [h for h in escenario.arbol.preorden() if h in (PURIFICACION_EXITOSA, DETONACION)]
-    assert len(hojas) == len(escenario.hojas) == 6
+    assert len(hojas) == len(escenario.hojas) == 7
     assert PURIFICACION_EXITOSA in hojas and DETONACION in hojas
     # Todos los ids son únicos (insertar lo exige) y por niveles arranca en la raíz.
     assert escenario.arbol.por_niveles()[0] == escenario.titulo
 
 
-def test_la_forma_del_arbol_no_depende_de_la_evidencia(datos):
-    escenarios = [EscenarioDecision(datos["escenarios"][ZONA_COLEGIO], e) for e in (SIN_PRUEBAS, PARCIAL, DESMENTIDO)]
+@pytest.mark.parametrize("zona", ZONAS)
+def test_la_forma_del_arbol_no_depende_de_la_evidencia(datos, zona):
+    """Host e invitado (Online) comparten ids aunque tengan otra evidencia."""
+    escenarios = [EscenarioDecision(datos["escenarios"][zona], e) for e in ESTADOS_EVIDENCIA]
     ids = [sorted(e.hojas) for e in escenarios]
-    assert ids[0] == ids[1] == ids[2]
-    assert all(e.arbol.por_niveles()[:5] == escenarios[0].arbol.por_niveles()[:5] for e in escenarios)
+    assert all(i == ids[0] for i in ids)
+    opciones = 1 + len(OPCIONES_RAIZ)
+    assert all(e.arbol.por_niveles()[:opciones] == escenarios[0].arbol.por_niveles()[:opciones] for e in escenarios)
+    assert [h.id for h in escenarios[0].arbol.raiz.hijos] == [h.id for h in escenarios[-1].arbol.raiz.hijos]
 
 
 def _navegar(escenario, *pasos):
@@ -126,9 +135,75 @@ def test_terminal_sobre_el_escenario_llega_a_la_consecuencia_de_la_hoja(datos):
     assert consecuencia.exito and consecuencia.opcion == "Verificar"
     assert consecuencia.efectos["desinformacion"] < 0
 
-    terminal = _navegar(escenario, DERECHA, CONFIRMAR, CONFIRMAR)  # Compartir -> hoja
+    terminal = _navegar(escenario, DERECHA, DERECHA, CONFIRMAR, CONFIRMAR)  # Compartir -> hoja
     assert terminal.resultado == DETONACION
-    assert escenario.consecuencia_para(terminal).efectos["desinformacion"] > 0
+    consecuencia = escenario.consecuencia_para(terminal)
+    assert consecuencia.opcion == "Compartir" and consecuencia.efectos["desinformacion"] > 0
+
+    terminal = _navegar(escenario, DERECHA, CONFIRMAR, CONFIRMAR)  # Me gusta -> hoja
+    assert terminal.resultado == DETONACION
+    consecuencia = escenario.consecuencia_para(terminal)
+    assert consecuencia.opcion == "Me gusta" and consecuencia.accion == "me_gusta"
+
+
+# ----------------------------------------------------------------- Me gusta
+
+
+@pytest.mark.parametrize("zona", ZONAS)
+def test_me_gusta_es_la_segunda_opcion_y_es_una_hoja(datos, zona):
+    opcion = datos["escenarios"][zona]["opciones"][1]
+    assert opcion["etiqueta"] == "Me gusta" and opcion["accion"] == "me_gusta" and "hijos" not in opcion
+    escenario = EscenarioDecision(datos["escenarios"][zona], SIN_PRUEBAS)
+    me_gusta = escenario.arbol.raiz.hijos[1]
+    assert me_gusta.etiqueta == "Me gusta" and len(me_gusta.hijos) == 1 and not me_gusta.hijos[0].hijos
+    assert escenario.hojas[me_gusta.hijos[0].id].accion == "me_gusta"
+
+
+def _estados_de(datos, zona):
+    final = VERIFICADO if datos["escenarios"][zona]["veredicto"] == "cierto" else DESMENTIDO
+    return (SIN_PRUEBAS, PARCIAL, final)
+
+
+def _magnitud(efectos):
+    return sum(abs(delta) for delta in efectos.values())
+
+
+@pytest.mark.parametrize("zona, esperado", [
+    (ZONA_COLEGIO, DETONACION),  # captura recortada: el me gusta la amplifica
+    (ZONA_HOSPITAL, PURIFICACION_EXITOSA),  # pedido verdadero: el me gusta ayuda, poco
+    (ZONA_EMPRESA_MEDIOS, DETONACION),  # encuesta falsa
+])
+def test_me_gusta_depende_de_lo_que_dice_la_publicacion_y_pesa_menos_que_compartir(datos, zona, esperado):
+    """Un me gusta amplifica como un compartir más suave: mismo desenlace que
+    Compartir con cualquier evidencia, pero cada efecto (y los puntos) pesa menos."""
+    for estado in _estados_de(datos, zona):
+        escenario = EscenarioDecision(datos["escenarios"][zona], estado)
+        me_gusta = escenario.consecuencia_por_camino("Me gusta")
+        compartir = escenario.consecuencia_por_camino("Compartir")
+        assert me_gusta.resultado == compartir.resultado == esperado, estado
+        assert me_gusta.accion == "me_gusta" and me_gusta.texto and me_gusta.texto != compartir.texto
+        for indicador, delta in me_gusta.efectos.items():
+            referencia = compartir.efectos.get(indicador, 0)
+            assert delta * referencia > 0 and abs(delta) < abs(referencia), (estado, indicador)
+        assert 0 < _magnitud(me_gusta.efectos) < _magnitud(compartir.efectos)
+        assert me_gusta.puntos <= compartir.puntos
+        if esperado == PURIFICACION_EXITOSA:
+            assert me_gusta.puntos < compartir.puntos
+
+
+def test_me_gusta_en_hospital_ayuda_mucho_menos_que_compartir_los_datos(datos):
+    """Con todas las pruebas, compartir el pedido con los datos comprobados es lo
+    que llena el banco de sangre; un me gusta no muestra la prueba."""
+    escenario = EscenarioDecision(datos["escenarios"][ZONA_HOSPITAL], VERIFICADO)
+    me_gusta = escenario.consecuencia_por_camino("Me gusta")
+    con_datos = escenario.consecuencia_por_camino("Verificar", "Compartir el pedido con los datos comprobados")
+    assert me_gusta.exito and con_datos.exito
+    assert me_gusta.puntos * 2 < con_datos.puntos
+    assert _magnitud(me_gusta.efectos) * 2 < _magnitud(con_datos.efectos)
+    # Más pruebas, mejor me gusta: el desenlace no cambia, la fuerza sí.
+    puntos = [EscenarioDecision(datos["escenarios"][ZONA_HOSPITAL], e).consecuencia_por_camino("Me gusta").puntos
+              for e in (SIN_PRUEBAS, PARCIAL, VERIFICADO)]
+    assert puntos == sorted(puntos) and len(set(puntos)) == 3
 
 
 def test_tiempo_agotado_a_mitad_del_arbol_es_consecuencia_de_tiempo(datos):
@@ -163,12 +238,13 @@ def test_crud_y_recorridos_del_arbol_sobre_un_escenario(datos):
     with pytest.raises(ValueError):
         arbol.insertar(0, 1, "id repetido")
     # Eliminación: quitar "Compartir" se lleva su hoja (subárbol completo).
-    id_compartir = arbol.raiz.hijos[1].id
+    id_compartir = next(h.id for h in arbol.raiz.hijos if h.etiqueta == "Compartir")
     assert arbol.eliminar(id_compartir)
-    assert [h.etiqueta for h in arbol.raiz.hijos] == ["Verificar", "Reportar", "Ignorar", "Pedir contexto"]
+    quedan = ["Verificar", "Me gusta", "Reportar", "Ignorar", "Pedir contexto"]
+    assert [h.etiqueta for h in arbol.raiz.hijos] == quedan
     assert len(arbol.preorden()) == total + 1 - 2
     assert not arbol.eliminar(id_compartir)
     # Recorridos: preorden empieza por la raíz, postorden termina en ella,
     # por niveles lista primero las opciones de primer nivel.
     assert arbol.preorden()[0] == escenario.titulo and arbol.postorden()[-1] == escenario.titulo
-    assert arbol.por_niveles()[1:5] == ["Verificar", "Reportar", "Ignorar", "Pedir contexto"]
+    assert arbol.por_niveles()[1:1 + len(quedan)] == quedan

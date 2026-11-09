@@ -40,7 +40,7 @@ automático dura unos 100 s.
 | Ciudad Nova | Caminar, ruta sugerida, mapa, **I** estado de la ciudad, **H** ayuda. Cintillo con eventos. | WASD · E · G · TAB · M · I · H |
 | Entrar a una zona | **Intro del capítulo** (una vez por zona). El Periodista recibe una prueba al entrar. | Enter / Esc |
 | Mazmorra | Combate de siempre, en un escenario propio del lugar. **Cada cuarto limpio deja una prueba en el suelo: hay que recogerla.** La 3.ª de cada zona es una **pista de NOVA_404**. | combate normal |
-| Cuarto final | **Terminal de decisión** (45 s): publicación, fuente, pruebas reunidas y Verificar / Compartir / Reportar / Ignorar, con 2.º nivel en Verificar y Reportar. Nada delata la respuesta. | ← → · Enter |
+| Cuarto final | **Terminal de decisión** (45 s): publicación, fuente, pruebas reunidas y Verificar / Me gusta / Compartir / Reportar / Ignorar, con 2.º nivel en Verificar y Reportar. Nada delata la respuesta. | ← → · Enter |
 | Resultado | **Indicador de reputación** animado, consecuencia, pruebas con las que decidiste, puntos y cómo cambió Ciudad Nova. | Enter |
 | Las 3 zonas | Pantalla **«Así viajó la publicación»**: BFS animado sobre el grafo social, saltos, cadena de contagio, rastreo DFS y alcance de la corrección. | Enter |
 | Empresa de Medios | **El origen de la señal**: rastreo por DFS en un grafo de cuentas, con pila y regreso, hasta señalar el origen. | ← → · Enter |
@@ -59,6 +59,10 @@ colapso alto, el juego no bloquea: el diálogo y el epílogo son los parciales.
   Verificar y Reportar tienen un nivel intermedio («Publicar aclaración con el
   comunicado» / «Creer el recorte viral»; «Reportar con evidencia» / «Reportar en
   masa»); cada hoja es `Purificación Exitosa` o `Detonación`.
+- «Me gusta» (2.ª opción, hoja directa, acción `me_gusta`) amplifica como un
+  compartir más suave: detona en Colegio y Empresa de Medios (publicaciones
+  engañosas) y purifica en Hospital (verdadera), siempre con menos efecto y menos
+  puntos que «Compartir». Verificar sigue primera: es la opción segura bajo el cursor.
 - La **forma** del árbol no depende de la evidencia (host e invitado comparten ids);
   lo que cambia es **a qué resultado lleva cada hoja**: con `sin_pruebas` o
   `parcial`, «Publicar aclaración» detona («nadie te creyó»). El estado de evidencia

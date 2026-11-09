@@ -8,6 +8,7 @@ forma:
     Publicación (raíz, id 0)
     ├── Verificar ── Publicar aclaración...  -> hoja
     │             └─ Creer el rumor          -> hoja
+    ├── Me gusta                             -> hoja
     ├── Compartir                            -> hoja
     ├── Reportar ─── Reportar con evidencia  -> hoja
     │             └─ Reportar en masa        -> hoja
@@ -18,6 +19,8 @@ comparten ids); lo que cambia con el estado_de_evidencia es a qué
 RESULTADO lleva cada hoja y su consecuencia. Una hoja con
 `por_evidencia` define alternativas para "sin_pruebas" y "parcial":
 publicar una aclaración sin tener el comunicado no purifica nada.
+"Me gusta" amplifica como un compartir más suave: detona o purifica
+según la veracidad real, igual que "Compartir", pero con menos efecto.
 
 Las hojas llevan como etiqueta el texto del resultado (Purificación
 Exitosa / Detonación), igual que el árbol original: TerminalDecision y

@@ -40,8 +40,8 @@ CLAVES_POST = ("usuario", "hace", "texto", "etiqueta")
 CLAVES_EVIDENCIA = ("id", "titulo", "fuente", "fragmento")
 CLAVES_FINALES = ("renace", "dividida", "arquitecto", "confianza_perdida")
 TIPOS_CUENTA = ("origen", "amplificador", "error", "victima")
-ACCIONES = ("compartir", "publicar_verificado", "reportar", "denunciar_ataque", "linchar", "afirmar_sin_matiz",
-            "insistir", "ignorar", "no_decidir")
+ACCIONES = ("compartir", "me_gusta", "publicar_verificado", "reportar", "denunciar_ataque", "linchar",
+            "afirmar_sin_matiz", "insistir", "ignorar", "no_decidir")
 NIVELES = ("referente", "confiable", "neutral", "cuestionada", "crisis")
 
 

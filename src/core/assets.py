@@ -898,15 +898,45 @@ TEXTO_SUBTITULO_REVELACION = (13, 2, 590)
 # solo lo ve el impostor, arriba al centro, entre el título y el reloj.
 RECT_INDICADOR_SABOTAJE = (440, 20, 400, 64)
 TEXTO_SABOTAJE_TITULO = "Impostor · sabotaje"
-TEXTO_SABOTAJE_LISTO = "Listo: mueve o confirma una opción"
-TEXTO_SABOTAJE_RECARGA = "Recargando: {segundos} s"
+TEXTO_SABOTAJE_LISTO = "Listo: ya puedes mover y confirmar"
+TEXTO_SABOTAJE_BLOQUEO = "Se habilita en {segundos} s"
 TEXTO_SABOTAJE_AUN_NO = "Aún no: faltan {segundos} s"
-DURACION_AVISO_SABOTAJE = 0.6  # s que el indicador marca "aún no" tras una tecla sin carga
+DURACION_AVISO_SABOTAJE = 0.6  # s que el indicador marca "aún no" tras una tecla durante el bloqueo
 COLOR_FONDO_BARRA_SABOTAJE = (60, 14, 22)
 # Online, en combate: el mundo espera a quien siga leyendo una escena en otra PC.
 TEXTO_ESPERA_LECTURA_UNO = "Esperando a que {quien} termine de leer"
 TEXTO_ESPERA_LECTURA_VARIOS = "Esperando a que {quienes} terminen de leer"
 POSICION_AVISO_ESPERA_LECTURA = (640, 116)
+
+# Reunión de emergencia (Online/reunion_render.py). Botón REPORTAR abajo a la
+# derecha (sobre la barra de controles, fuera de la mazmorra); la reunión es
+# un modal encima de todo: tarjetas para votar a la izquierda, chat a la derecha.
+RECT_BOTON_REPORTAR = (1160, 556, 108, 92)
+TEXTO_BOTON_REPORTAR = "REPORTAR"
+COLOR_REPORTAR = (236, 52, 64)  # rojo de alarma (el botón listo)
+COLOR_REPORTAR_APAGADO = (70, 66, 104)  # mientras recarga
+ALFA_VELO_REUNION = 215
+RECT_PANEL_REUNION = (40, 28, 1200, 620)
+RECT_CANDIDATOS_REUNION = (64, 132, 680, 380)  # rejilla de tarjetas (2 columnas)
+SEPARACION_CANDIDATOS_REUNION = 16
+RECT_SALTAR_REUNION = (64, 530, 680, 52)
+RECT_CHAT_REUNION = (768, 132, 448, 450)
+ALTO_ENTRADA_CHAT_REUNION = 44
+ESCALA_AVATAR_REUNION = 5
+ESCALA_AVATAR_RESULTADO_REUNION = 6
+TEXTO_TITULO_REUNION = "Reunión de emergencia"
+TEXTO_PISTA_CHAT_REUNION = "Escribe y presiona Enter para enviar"
+TEXTO_SALTAR_REUNION = "Saltar votación"
+TEXTO_EXPULSADO_PROPIO = "Fuiste expulsado: solo puedes mirar"
+TEXTOS_MOTIVO_REUNION = {
+    "empate": "Nadie fue expulsado: hubo empate",
+    "saltada": "Nadie fue expulsado: la mayoría saltó",
+    "sin_votos": "Nadie fue expulsado: nadie votó",
+}
+TEXTO_ERA_IMPOSTOR = "Era el impostor"
+TEXTO_NO_ERA_IMPOSTOR = "No era el impostor"
+TEXTO_IMPOSTOR_DESCUBIERTO = "Impostor descubierto"
+CONTROLES_REUNION = [("← →", "elegir"), ("Enter", "votar (dos veces)"), ("Esc", "cancelar"), ("Teclado", "chat")]
 
 # ----------------------------------------------------------------------
 # Tipos de enemigo: todo lo visual de cada tipo, en un solo lugar. Las
@@ -1269,3 +1299,68 @@ ACORDES_MUSICA = {
 }
 SEGUNDOS_POR_ACORDE = 4.0
 AMPLITUD_MUSICA_SINTETIZADA = 0.07
+
+# ----------------------------------------------------------------------
+# Terminal de decisión como celular (src/ui/terminal_decision_render.py;
+# piezas del celular en src/ui/celular_render.py). Dos capturas de la app
+# Civitas: a la izquierda el perfil de quien publicó, con las pruebas
+# reunidas como capturas; a la derecha la publicación en el feed, con las
+# opciones del árbol como botones de la app. Al centro, la consola: título,
+# reloj y el árbol N-ario. Nada importante cae bajo RECT_INDICADOR_SABOTAJE
+# (x 440-840, y 20-84) ni bajo la barra de controles (ALTO_BARRA_CONTROLES).
+# ----------------------------------------------------------------------
+RECT_CELULAR_PERFIL = (40, 14, 364, 638)
+RECT_CELULAR_FEED = (876, 14, 364, 638)
+RECT_CONSOLA_TERMINAL = (428, 96, 424, 552)  # columna central, debajo del indicador del impostor
+RADIO_CELULAR = 34  # esquinas del cuerpo
+GROSOR_MARCO_CELULAR = 4  # canto entre el borde del cuerpo y la pantalla
+SALIENTE_BOTON_CELULAR = 3  # px que asoman los botones laterales
+ALTO_BARRA_ESTADO_CELULAR = 28
+ALTO_BARRA_APP_CELULAR = 38
+ANCHO_ISLA_CELULAR = 66  # la "isla" negra de la cámara
+ALTO_HISTORIAS_CELULAR = 70
+DIAMETRO_HISTORIA_CELULAR = 42
+ALTO_FOTO_POST = (150, 206)  # alto mínimo y máximo de la foto de la publicación
+ALTO_FILA_ACCIONES = 66
+ANCHO_MAXIMO_BOTON_ACCION = 88  # con 2 o 3 opciones los botones no se estiran
+ALTO_NAV_CELULAR = 42
+TAMANIO_ICONO_ACCION = 24
+TAMANIO_FUENTE_CELULAR = 12
+TAMANIO_FUENTE_CELULAR_MINIMA = 10
+COLOR_MARCO_CELULAR_ARRIBA = (128, 94, 216)  # canto con degradado violeta (la marca Civitas)
+COLOR_MARCO_CELULAR_ABAJO = (50, 42, 108)
+COLOR_BOTON_LATERAL_CELULAR = (70, 58, 140)
+COLOR_PANTALLA_CELULAR = (12, 13, 30)
+COLOR_SEPARADOR_CELULAR = (38, 40, 76)
+COLOR_ISLA_CELULAR = (0, 0, 0)
+COLOR_HOJA_CELULAR = (26, 26, 58)  # hoja inferior del 2.º nivel del árbol
+COLOR_FONDO_AVATAR_POST = (42, 36, 90)
+COLOR_BARRA_CAPTURA = (226, 220, 204)  # franja de arriba de cada captura de prueba
+COLOR_LINEA_DOCUMENTO = (176, 170, 192)
+COLOR_MEMBRETE_DOCUMENTO = (64, 54, 124)
+COLOR_LEYENDA_FOTO = (6, 6, 16, 205)  # RGBA: franjas de texto sobre la foto
+COLOR_PANEL_GRAFICO = (10, 12, 32, 220)  # RGBA: tarjeta del gráfico sobre la foto
+HORA_CELULAR = "22:14"
+HORA_FOTO_POST = "HOY 21:38"  # marca de la cámara en la foto "con hora"
+SEGUNDOS_RELOJ_ALERTA = 12  # el reloj se vuelve ámbar
+SEGUNDOS_RELOJ_GRAVE = 5  # y rojo
+# Foto de la publicación: la ilustración del capítulo de la zona (FONDO_POR_ZONA)
+# recortada; el árbol fijo y las zonas sin ilustración usan FONDO_POST_GENERICO.
+FONDO_POST_GENERICO = "elecciones"
+RECORTE_FOTO_POST = {  # (x, y, ancho, alto) dentro de la ilustración de 1280x720
+    "capitulo_colegio": (300, 330, 660, 370),
+    "capitulo_hospital": (60, 40, 760, 426),
+    "capitulo_medios": (180, 180, 540, 304),
+    "elecciones": (420, 300, 760, 426),
+}
+# Fila de historias del feed: (retrato de assets/sprites/retratos, nombre,
+# recorte de la cara = (centro x en fracción del ancho, centro y y lado en
+# fracción del alto)).
+HISTORIAS_CELULAR = (
+    ("civitas", "civitas", (0.50, 0.48, 0.66)),
+    ("rosa", "rosa.beltran", (0.50, 0.15, 0.24)),
+    ("periodista", "periodista", (0.45, 0.17, 0.30)),
+    ("ciudadano", "ciudadano", (0.30, 0.18, 0.30)),
+    ("influencer", "influencer", (0.32, 0.17, 0.30)),
+    ("candidato", "candidato", (0.47, 0.16, 0.30)),
+)

@@ -127,6 +127,11 @@ def _mazmorra_lista(zona, semilla=0):
     return m
 
 
+# Opciones de la raíz: Verificar, Me gusta, Compartir, Reportar, Ignorar.
+ME_GUSTA = (DERECHA, CONFIRMAR, CONFIRMAR)
+COMPARTIR = (DERECHA, DERECHA, CONFIRMAR, CONFIRMAR)
+
+
 def _resolver(partida, zona, *pasos):
     m = _mazmorra_lista(zona)
     terminal = TerminalDecision(partida.fabrica_arbol(zona)(), 15.0)
@@ -142,7 +147,7 @@ def test_detonacion_en_medios_propaga_y_pesa_segun_alcance():
     campania = partida.campania
     campania.semilla = 5
     campania.reiniciar()
-    terminal = _resolver(partida, ZONA_EMPRESA_MEDIOS, DERECHA, CONFIRMAR, CONFIRMAR)  # Compartir
+    terminal = _resolver(partida, ZONA_EMPRESA_MEDIOS, *COMPARTIR)
     assert terminal.resultado == DETONACION
     propagacion = campania.ultima_propagacion
     assert propagacion is not None and propagacion.tipo == RUMOR and propagacion.origen == "fabio"
@@ -185,9 +190,35 @@ def test_ocultar_una_publicacion_verdadera_propaga_la_version_de_que_era_mentira
     campania.semilla = 5
     campania.reiniciar()
     # Reportar -> Reportar el pedido como falso.
-    _resolver(partida, ZONA_HOSPITAL, DERECHA, DERECHA, CONFIRMAR, DERECHA, CONFIRMAR, CONFIRMAR)
+    _resolver(partida, ZONA_HOSPITAL, DERECHA, DERECHA, DERECHA, CONFIRMAR, DERECHA, CONFIRMAR, CONFIRMAR)
     assert campania.ultima_consecuencia.camino[-1] == "Reportar el pedido como falso"
     assert campania.ultima_propagacion.tipo == RUMOR and campania.resumen()["expuestos"] > 0
+
+
+def test_un_me_gusta_tambien_viaja_por_la_red():
+    """Un me gusta amplifica: la propagación lo trata como cualquier desenlace.
+    A lo engañoso lo hace viajar como rumor; a lo verdadero, como información."""
+    partida = Partida()
+    campania = partida.campania
+    campania.semilla = 5
+    campania.reiniciar()
+    terminal = _resolver(partida, ZONA_EMPRESA_MEDIOS, *ME_GUSTA)
+    assert terminal.resultado == DETONACION and campania.ultima_consecuencia.accion == "me_gusta"
+    propagacion = campania.ultima_propagacion
+    assert propagacion.tipo == RUMOR and propagacion.origen == "fabio"
+    base = campania.ultima_consecuencia.efectos["desinformacion"]
+    assert campania.ultimos_deltas["desinformacion"] == base + propagacion.total
+    assert campania.resumen()["expuestos"] == propagacion.total > 0
+
+    verdad = Partida()
+    verdad.campania.semilla = 5
+    verdad.campania.reiniciar()
+    for _ in range(3):
+        verdad.campania.revelar_evidencia(ZONA_HOSPITAL)
+    _resolver(verdad, ZONA_HOSPITAL, *ME_GUSTA)
+    assert verdad.campania.ultima_consecuencia.exito
+    assert verdad.campania.ultima_propagacion.tipo == CORRECCION and verdad.campania.ultima_propagacion.origen == "elena"
+    assert verdad.campania.resumen()["expuestos"] == 0 and verdad.campania.resumen()["corregidos"] > 0
 
 
 def test_la_reputacion_decide_hasta_donde_llega_la_correccion():
@@ -214,12 +245,12 @@ def test_matices_por_rol():
     normal = Partida()
     normal.campania.semilla = 3
     normal.campania.reiniciar()
-    _resolver(normal, ZONA_COLEGIO, DERECHA, CONFIRMAR, CONFIRMAR)  # Compartir
+    _resolver(normal, ZONA_COLEGIO, *COMPARTIR)
     c = Partida()
     c.campania.semilla = 3
     c.campania.reiniciar()
     c.campania.establecer_rol("candidato")
-    _resolver(c, ZONA_COLEGIO, DERECHA, CONFIRMAR, CONFIRMAR)
+    _resolver(c, ZONA_COLEGIO, *COMPARTIR)
     assert c.campania.reputacion < normal.campania.reputacion < REPUTACION_INICIAL
     # Ciudadano: confianza extra en cada éxito.
     for rol, esperado in (("ciudadano", 8 + 2), ("influencer", 8)):
@@ -234,7 +265,7 @@ def test_matices_por_rol():
     i.campania.establecer_rol("influencer")
     i.campania.semilla = 1
     i.campania.reiniciar()
-    _resolver(i, ZONA_EMPRESA_MEDIOS, DERECHA, CONFIRMAR, CONFIRMAR)
+    _resolver(i, ZONA_EMPRESA_MEDIOS, *COMPARTIR)
     assert i.campania.ultima_propagacion.probabilidad_extra > 0
 
 

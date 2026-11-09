@@ -51,9 +51,10 @@ import pygame
 
 from Online import registro_errores
 from Online.sabotaje import Sabotaje
+from Online.reunion import CONVOCAR, ESCRIBIR, SALTAR, VOTAR, ControlReuniones, VistaReunion, limpiar_mensaje, vista_de_dict
 from Online.protocolo import (
     INPUT, ESTADO, DESCONEXION, ENTRAR_MAZMORRA, CAMBIO_ESCENA, CAMBIO_CUARTO,
-    DECISION_NAV, HISTORIA, crear_mensaje, serializar, deserializar_buffer, msg_estado, msg_input,
+    DECISION_NAV, HISTORIA, REUNION, crear_mensaje, serializar, deserializar_buffer, msg_estado, msg_input,
     msg_cambio_escena, msg_cambio_cuarto, msg_entrar_mazmorra, ROLES,
 )
 from src.core import assets
@@ -93,6 +94,9 @@ RESULTADOS_DECISION = (PURIFICACION_EXITOSA, DETONACION)
 # de la historia (tarjeta, diálogo, cinemática): en combate el mundo lo espera.
 LECTURA = "lectura"
 MENU = "menu"  # mismo valor que Main.MENU: volver al menú principal
+# Dónde se puede apretar REPORTAR: con el mundo en marcha (no en el resultado
+# de una mazmorra ni en los finales).
+ESCENAS_REUNION = (Escena.CIUDAD, Escena.MAZMORRA, Escena.DECISION, Escena.JEFE)
 
 
 # =========================================================================
@@ -701,6 +705,18 @@ class _AdaptadorBase:
         """Índice en `jugadores` del impostor de la partida, o None."""
         return next((i for i, j in enumerate(self._jugadores or ()) if getattr(j, "es_impostor", False)), None)
 
+    def _es_impostor(self, indice):
+        jugadores = self._jugadores or ()
+        return 0 <= indice < len(jugadores) and bool(getattr(jugadores[indice], "es_impostor", False))
+
+    def reunion_en_curso(self):
+        """Reunión de emergencia o su resultado en pantalla: el mundo espera."""
+        return self.estado_reunion().en_curso
+
+    def expulsado(self, indice):
+        """Lo expulsó una votación: ya no mueve la terminal, no vota ni convoca."""
+        return indice in self.estado_reunion().expulsados
+
     def _preparar_frame(self, sesion, partida, jugadores):
         self._sesion = sesion
         self._jugadores = jugadores
@@ -789,8 +805,10 @@ class AdaptadorOnlineHost(_AdaptadorBase):
         self._fin = None  # {"zona", "sem", "res"}: la última decisión ya resuelta
         self._solicitudes_decision = []  # direcciones de navegación enviadas por invitados
         self.ultimo_actor = 0  # índice del último invitado que confirmó
-        self.sabotaje = Sabotaje()  # carga del impostor en la terminal de decisión: la lleva el host
+        self.sabotaje = Sabotaje()  # bloqueo del impostor en la terminal de decisión: lo lleva el host
         self._leyendo = set()  # índices de invitados con una escena de la historia abierta
+        self.reuniones = ControlReuniones()  # botón REPORTAR, votación y expulsados: los lleva el host
+        self._escena = None  # la escena del último frame (dónde se puede convocar)
 
     # --- Mensajes ---------------------------------------------------------
 
@@ -813,7 +831,7 @@ class AdaptadorOnlineHost(_AdaptadorBase):
                 campania = getattr(self._partida, "campania", None)
                 if campania is not None and indice is not None and not campania.puede_decidir(indice):
                     continue
-                # El impostor solo mueve o confirma con el sabotaje cargado.
+                # El impostor no mueve ni confirma hasta que termine su bloqueo.
                 if indice is not None and not self.puede_navegar(indice):
                     continue
                 if campania is not None and indice is not None and msg["dir"] == CONFIRMAR:
@@ -822,6 +840,8 @@ class AdaptadorOnlineHost(_AdaptadorBase):
                 self._solicitudes_decision.append(msg["dir"])
             elif tipo == HISTORIA and indice is not None:
                 self._aplicar_historia(indice, msg)
+            elif tipo == REUNION and indice is not None:
+                self._aplicar_reunion(indice, msg)
             elif tipo == ENTRAR_MAZMORRA and isinstance(msg.get("zona"), str):
                 self._solicitudes.append(msg["zona"])
             elif tipo == DESCONEXION and indice is not None:
@@ -866,21 +886,63 @@ class AdaptadorOnlineHost(_AdaptadorBase):
         self._solicitudes_decision.clear()
         return pendientes
 
-    def puede_navegar(self, indice):
-        """Terminal de decisión: el impostor solo mueve o confirma con el
-        sabotaje cargado, y al hacerlo lo gasta. Los demás navegan libres, y
-        fuera de la terminal (p. ej. la investigación) nadie tiene límite."""
+    def puede_navegar(self, indice, terminal=None):
+        """Terminal de decisión: el impostor no mueve ni confirma mientras dura
+        su bloqueo (sorteado entre 10 y 15 s al abrirse); después elige
+        normal, sin límite. Los demás navegan libres, y fuera de la terminal
+        (p. ej. la investigación) nadie tiene límite. `terminal`: la que Main
+        tiene abierta; con ella el bloqueo corre desde el primer frame en que
+        se ve, aunque el adaptador todavía no la haya seguido."""
+        if self.reuniones.en_curso or indice in self.reuniones.expulsados:
+            return False  # en la reunión nadie decide; el expulsado ya no decide
+        if terminal is not None:
+            self.sabotaje.seguir_terminal(terminal)
         if not self.sabotaje.activo or indice != self._indice_impostor():
             return True
-        return self.sabotaje.intentar()
+        return self.sabotaje.listo
 
     def restante_sabotaje(self):
-        """Segundos que le faltan al sabotaje del impostor, o None sin terminal."""
+        """Segundos que le faltan al bloqueo del impostor, o None sin terminal."""
         return self.sabotaje.restante if self.sabotaje.activo else None
+
+    def espera_sabotaje(self):
+        """Bloqueo total sorteado para la terminal abierta, o None sin terminal."""
+        return self.sabotaje.espera if self.sabotaje.activo else None
 
     def esperando_lectura(self):
         """Índices de los invitados que siguen leyendo una escena de la historia."""
         return sorted(self._leyendo)
+
+    # --- Reunión de emergencia (Online/reunion.py) -------------------------
+
+    def convocar_reunion(self, indice):
+        """REPORTAR de `indice`: empieza la reunión si hay impostor en juego,
+        el botón está listo y el mundo está en marcha. True si empezó."""
+        if self._indice_impostor() is None or self._escena not in ESCENAS_REUNION:
+            return False
+        activos = [i for i in range(len(self._jugadores or ())) if i not in self._desconectados]
+        return self.reuniones.convocar(indice, activos)
+
+    def votar_reunion(self, indice, objetivo):
+        return self.reuniones.votar(indice, objetivo)
+
+    def escribir_reunion(self, indice, texto):
+        return self.reuniones.escribir(indice, texto)
+
+    def estado_reunion(self):
+        return vista_de_dict(self.reuniones.a_dict())
+
+    def _aplicar_reunion(self, indice, msg):
+        """Pedido de un invitado; las reglas (quién vota, cuándo) las pone ControlReuniones."""
+        evento = msg.get("evento")
+        if evento == CONVOCAR:
+            self.convocar_reunion(indice)
+        elif evento == VOTAR:
+            objetivo = msg.get("objetivo")
+            if objetivo == SALTAR or (isinstance(objetivo, int) and not isinstance(objetivo, bool)):
+                self.votar_reunion(indice, objetivo)
+        elif evento == ESCRIBIR:
+            self.escribir_reunion(indice, msg.get("texto"))
 
     def _lectores(self):
         """Quiénes leen, para el ESTADO: los invitados y el host (índice 0)."""
@@ -888,7 +950,7 @@ class AdaptadorOnlineHost(_AdaptadorBase):
         return sorted(set(host) | self._leyendo)
 
     def _seguir_sabotaje(self, escena, mazmorra, dt):
-        """La carga del impostor corre solo con la terminal de decisión abierta."""
+        """El bloqueo del impostor corre solo con la terminal de decisión abierta."""
         cuarto = getattr(mazmorra, "cuarto", None)
         terminal = getattr(cuarto, "terminal", None) if escena == Escena.DECISION else None
         self.sabotaje.seguir_terminal(terminal)
@@ -900,6 +962,7 @@ class AdaptadorOnlineHost(_AdaptadorBase):
         self._reporte_nuevo.discard(indice)
         self._pulsos.olvidar(indice)
         self._leyendo.discard(indice)  # se fue: el mundo ya no lo espera
+        self.reuniones.olvidar(indice)  # ni la votación espera su voto
 
     def recibir_input(self, id_jugador=1):
         """Retorna el último _InputRed de un jugador remoto (compatibilidad)."""
@@ -924,7 +987,10 @@ class AdaptadorOnlineHost(_AdaptadorBase):
     def actualizar(self, escena, arena, mazmorra, fundido, dt, sesion, partida, jugadores, jugador):
         """Ejecuta la sincronización autoritativa del Host en cada frame."""
         try:
-            self._seguir_sabotaje(escena, mazmorra, dt)
+            self._escena = escena
+            self.reuniones.actualizar(dt, self._es_impostor)
+            # En la reunión el bloqueo del impostor no corre (la terminal tampoco).
+            self._seguir_sabotaje(escena, mazmorra, 0.0 if self.reuniones.en_curso else dt)
             return self._actualizar(escena, arena, mazmorra, fundido, sesion, partida, jugadores)
         except Exception:
             registro_errores.registrar("AdaptadorOnlineHost.actualizar")
@@ -1170,6 +1236,7 @@ class AdaptadorOnlineHost(_AdaptadorBase):
             "res_info": self._fin,
             "cam": partida.campania.resumen_red(),  # reputación e indicadores: el host manda
             "leen": self._lectores(),
+            "reu": self.reuniones.a_dict(),  # botón REPORTAR, votación en curso y expulsados
         })
         investigacion = getattr(self._sesion, "investigacion_activa", None)
         if escena == Escena.RESULTADO and investigacion is not None:
@@ -1184,6 +1251,7 @@ class AdaptadorOnlineHost(_AdaptadorBase):
         if escena == Escena.DECISION and mazmorra is not None and mazmorra.cuarto.terminal is not None:
             estado["term"] = _datos_terminal(mazmorra.cuarto.terminal)
             estado["term"]["sab"] = round(self.sabotaje.restante, 2)
+            estado["term"]["sabt"] = round(self.sabotaje.espera, 2)
         return estado
 
     def _pedidos(self, jugadores):
@@ -1234,22 +1302,54 @@ class AdaptadorOnlineJoin(_AdaptadorBase):
         self._e_antes = False
         self._ultimo_pedido = (None, 0.0)
         self.resultado_remoto = None
-        self.sabotaje_restante = None  # carga del impostor según el host (con la terminal abierta)
+        self.sabotaje_restante = None  # bloqueo del impostor según el host (con la terminal abierta)
+        self.sabotaje_espera = None  # el bloqueo total que sorteó el host para esa terminal
+        self.reunion = VistaReunion()  # reunión de emergencia según el host
         self.lectores = []  # índices que, según el host, leen una escena de la historia
         self._lectura_avisada = False  # lo último que este invitado le avisó al host
 
     def _conectado(self):
         return bool(getattr(self.cliente, "conectado", False))
 
-    def puede_navegar(self, indice):
+    def puede_navegar(self, indice, terminal=None):
         """Solo para no mandar en vano: el impostor no navega mientras el host
-        dice que su sabotaje recarga. Quien decide de verdad es el host."""
+        dice que sigue bloqueado, ni nadie en una reunión o ya expulsado.
+        Quien decide de verdad es el host."""
+        if self.reunion.en_curso or indice in self.reunion.expulsados:
+            return False
         if indice != self._indice_impostor() or self.sabotaje_restante is None:
             return True
         return self.sabotaje_restante <= 0.0
 
     def restante_sabotaje(self):
         return self.sabotaje_restante
+
+    def espera_sabotaje(self):
+        return self.sabotaje_espera
+
+    # --- Reunión de emergencia: se le pide al host (Online/reunion.py) ----
+
+    def convocar_reunion(self, indice):
+        if not self._conectado() or self.reunion.en_curso:
+            return False
+        self.cliente.enviar_reunion(CONVOCAR)
+        return True
+
+    def votar_reunion(self, indice, objetivo):
+        if not self._conectado() or not self.reunion.activa or indice in self.reunion.votaron:
+            return False
+        self.cliente.enviar_reunion(VOTAR, objetivo=objetivo)
+        return True
+
+    def escribir_reunion(self, indice, texto):
+        texto = limpiar_mensaje(texto)
+        if not texto or not self._conectado() or not self.reunion.activa:
+            return False
+        self.cliente.enviar_reunion(ESCRIBIR, texto=texto)
+        return True
+
+    def estado_reunion(self):
+        return self.reunion
 
     def esperando_lectura(self):
         """Índices de los OTROS jugadores que siguen leyendo, según el host."""
@@ -1561,6 +1661,8 @@ class AdaptadorOnlineJoin(_AdaptadorBase):
         self.lectores = [i for i in lectores if _entero(i) is not None] if isinstance(lectores, list) else []
         terminal = estado.get("term")
         self.sabotaje_restante = _numero(terminal.get("sab"), 0.0, 1e4) if isinstance(terminal, dict) else None
+        self.sabotaje_espera = _numero(terminal.get("sabt"), 0.0, 1e4) if isinstance(terminal, dict) else None
+        self.reunion = vista_de_dict(estado.get("reu"))
         colapso = _numero(estado.get("colapso"), 0.0, COLAPSO_MAXIMO)
         if colapso is not None:
             partida.colapso.valor = colapso

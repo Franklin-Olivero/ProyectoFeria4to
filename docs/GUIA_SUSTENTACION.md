@@ -62,7 +62,9 @@ El azar elige **qué** pasa (qué evento, qué contactos reenvían); **cuánto**
 depende de las decisiones (correcciones publicadas, evidencia reunida). Con la misma
 semilla el resultado es idéntico (tests con semillas fijas). La excepción es el
 sorteo del impostor en Online (`random.choice` global en el host): no necesita
-reproducirse y los tests lo fijan con monkeypatch.
+reproducirse y los tests lo fijan con monkeypatch. El bloqueo del sabotaje (10 a
+15 s por terminal) sí usa un `random.Random` inyectable en `Sabotaje`: en la
+partida va sin semilla y los tests le pasan una.
 
 ## Decisiones, puntuación y finales
 - Un solo punto aplica la decisión: `Partida.cerrar_mazmorra` → `Mazmorra.completar()`
@@ -77,6 +79,7 @@ reproducirse y los tests lo fijan con monkeypatch.
 - **¿Cómo se decide si una acción es responsable?** Se cruza la acción con la veracidad real
   y con lo que el jugador podía saber: `valorar_accion`, tabla en `balance.py`. Compartir algo
   verdadero y comprobado suma; reportarlo daña a una inocente. Ignorar sin pruebas no castiga.
+  Un «Me gusta» es un compartir más suave: pesa la mitad, pero a lo engañoso igual lo amplifica.
 - **¿No es un número decorativo?** No: decide cuántos saltos alcanza tu corrección en el BFS,
   si las pruebas parciales te bastan, diálogos, reacciones, votos y finales.
 - **¿Cómo se evitan dobles recompensas?** Con claves: `aplicar(..., clave="decision:Colegio")`.
@@ -87,8 +90,9 @@ reproducirse y los tests lo fijan con monkeypatch.
 - **¿Hay un modo impostor?** En la campaña no: el capítulo 3 es un rastreo por DFS de cuentas.
   Lo inspirado en Among Us está en el modo Online: sala, vestidores, listos y, al iniciar, el host
   sortea un impostor entre los vértices del grafo de sala y cada PC revela su rol. El impostor
-  sabotea la terminal de decisión: cada movimiento suyo gasta una carga que tarda 15 s, así el
-  resto siempre tiene ese tiempo para elegir la respuesta correcta. No hay tareas ni votación.
+  sabotea la terminal de decisión: al abrirse queda bloqueado entre 10 y 15 s (lo sortea el
+  host), así el resto tiene ese tiempo para elegir la respuesta correcta; después elige normal.
+  No hay tareas ni votación.
 - Detalle: `docs/SISTEMA_REPUTACION.md`, `docs/SISTEMA_REDENCION.md`.
 
 ## Cliente-servidor (Online)

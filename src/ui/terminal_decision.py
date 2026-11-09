@@ -6,6 +6,7 @@ llegar a una hoja final. El árbol fijo de este módulo es:
 
     Publicación Viral
     ├── Verificar  -> Purificación Exitosa
+    ├── Me gusta   -> Detonación
     ├── Compartir  -> Detonación
     ├── Reportar   -> Purificación Exitosa
     └── Ignorar    -> Detonación
@@ -31,9 +32,12 @@ DERECHA = "derecha"
 CONFIRMAR = "confirmar"
 
 # (opción, hoja final a la que lleva). Verificar y Reportar purifican;
-# Compartir e Ignorar detonan.
+# Me gusta, Compartir e Ignorar detonan: darle me gusta a una publicación
+# viral sin verificar también la amplifica. Verificar va primero porque
+# es la opción segura que queda bajo el cursor al abrir la terminal.
 OPCIONES_PUBLICACION = [
     ("Verificar", PURIFICACION_EXITOSA),
+    ("Me gusta", DETONACION),
     ("Compartir", DETONACION),
     ("Reportar", PURIFICACION_EXITOSA),
     ("Ignorar", DETONACION),
@@ -43,12 +47,12 @@ OPCIONES_PUBLICACION = [
 def construir_arbol_publicacion():
     """Arma el árbol fijo de la situación "Publicación Viral".
 
-    Ids: raíz = 0, opciones = 1..4, hojas = 11..14 (opción * 10 + 1),
+    Ids: raíz = 0, opciones = 1..5, hojas = 11, 21, ..., 51 (opción * 10 + 1),
     para que dos hojas con la misma etiqueta no compartan id.
 
-    Complejidad: O(k^2) con k = 4 opciones, porque cada insertar() busca
+    Complejidad: O(k^2) con k = 5 opciones, porque cada insertar() busca
     al padre y verifica el id con DFS sobre el árbol en construcción.
-    Con un árbol de 9 nodos es despreciable.
+    Con un árbol de 11 nodos es despreciable.
     """
     arbol = ArbolDecision(0, "Publicación Viral")
     for numero, (opcion, hoja) in enumerate(OPCIONES_PUBLICACION, start=1):

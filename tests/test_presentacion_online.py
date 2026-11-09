@@ -1,7 +1,7 @@
 """Online, en el loop real de Main._jugar: lo que pasa cuando la red cambia
 de escena. La presentación del capítulo sale en TODAS las PCs (antes solo en
 la que apretó E), el mundo espera a quien sigue leyendo en otra PC y el
-impostor solo mueve la terminal con su sabotaje cargado.
+impostor no mueve la terminal durante su bloqueo y después elige normal.
 
 Una "red" falsa hace de adaptador: lleva a esta PC a una mazmorra igual que
 cuando entra el host o lo pide un invitado. Se corta el loop desde
@@ -66,6 +66,7 @@ class _Red:
         self.lectores = []
         self.permitir = True
         self.restante = None
+        self.espera = None
         self.navegaciones = []
         self.mazmorra = None
         if espejo:
@@ -93,11 +94,14 @@ class _Red:
     def esperando_lectura(self):
         return list(self.lectores)
 
-    def puede_navegar(self, indice):
+    def puede_navegar(self, indice, terminal=None):
         return self.permitir
 
     def restante_sabotaje(self):
         return self.restante
+
+    def espera_sabotaje(self):
+        return self.espera
 
 
 @pytest.fixture
@@ -136,6 +140,10 @@ def correr(monkeypatch):
 
 def _tecla(tecla):
     pygame.event.post(pygame.event.Event(pygame.KEYDOWN, key=tecla, mod=0, unicode=""))
+
+
+def _boton(boton):
+    pygame.event.post(pygame.event.Event(pygame.CONTROLLERBUTTONDOWN, button=boton, instance_id=0))
 
 
 # ----------------------------------------------------------------------
@@ -251,22 +259,25 @@ def test_el_aviso_dice_a_quien_se_espera():
 # ----------------------------------------------------------------------
 
 @pytest.mark.parametrize("espejo", [True, False], ids=["invitado impostor", "host impostor"])
-def test_sin_carga_el_impostor_no_mueve_la_terminal(correr, espejo):
+def test_el_impostor_no_mueve_la_terminal_hasta_que_termine_su_bloqueo(correr, espejo):
     red = _Red(cuando=3, espejo=espejo, en_decision=True)
-    red.permitir, red.restante = False, 9.0
+    red.permitir, red.restante, red.espera = False, 9.0, 18.0
     vistos = {}
 
     def guion(n, loc):
         if n == 5:
             _tecla(pygame.K_RIGHT)
         if n == 7:
-            vistos["sin_carga"] = (red.mazmorra.cuarto.terminal.indice_seleccionado, list(red.navegaciones),
+            vistos["bloqueado"] = (red.mazmorra.cuarto.terminal.indice_seleccionado, list(red.navegaciones),
                                    loc["aviso_sabotaje"] > 0)
             vistos["indicador"] = pygame.display.get_surface().copy()
             red.permitir, red.restante = True, 0.0
             _tecla(pygame.K_RIGHT)
         if n == 9:
-            vistos["con_carga"] = (red.mazmorra.cuarto.terminal.indice_seleccionado, list(red.navegaciones))
+            vistos["habilitado"] = (red.mazmorra.cuarto.terminal.indice_seleccionado, list(red.navegaciones))
+            _tecla(pygame.K_LEFT)  # habilitado: sigue eligiendo normal
+        if n == 11:
+            vistos["otra_vez"] = (red.mazmorra.cuarto.terminal.indice_seleccionado, list(red.navegaciones))
             return True
         return False
 
@@ -274,17 +285,56 @@ def test_sin_carga_el_impostor_no_mueve_la_terminal(correr, espejo):
         sesion.jugadores[sesion.id_local].es_impostor = True
 
     correr(red, guion, id_local=1 if espejo else 0, preparar=impostor_local)
-    assert vistos["sin_carga"] == (0, [], True)
-    assert vistos["con_carga"][0] == 1
+    assert vistos["bloqueado"] == (0, [], True)
+    assert vistos["habilitado"][0] == 1
+    assert vistos["otra_vez"][0] == 0
     if espejo:
-        assert vistos["con_carga"][1] == ["derecha"]  # al host le llega el sabotaje
+        assert vistos["habilitado"][1] == ["derecha"]  # al host le llega el sabotaje
+        assert vistos["otra_vez"][1] == ["derecha", "izquierda"]
     rect = pygame.Rect(assets.RECT_INDICADOR_SABOTAJE)
     rojos = sum(vistos["indicador"].get_at((x, y))[:3] == assets.COLOR_IMPOSTOR
                 for x in range(rect.left, rect.right, 2) for y in range(rect.top, rect.bottom, 2))
     assert rojos > 20  # el indicador se ve
+    # La barra se llena sobre el bloqueo que sorteó el host: 9 de 18 s = la mitad.
+    barra = [vistos["indicador"].get_at((x, rect.bottom - 10))[:3] == assets.COLOR_IMPOSTOR
+             for x in range(rect.left + 16, rect.right - 16)]
+    assert sum(barra) / len(barra) == pytest.approx(0.5, abs=0.05)
 
 
-def test_un_tripulante_no_ve_el_indicador_aunque_haya_carga(correr):
+@pytest.mark.parametrize("espejo", [True, False], ids=["invitado impostor", "host impostor"])
+def test_el_control_pasa_por_el_mismo_bloqueo_que_el_teclado(correr, espejo):
+    """Antes el control movía la terminal sin preguntar por el bloqueo (y en
+    el invitado no le llegaba nada al host)."""
+    red = _Red(cuando=3, espejo=espejo, en_decision=True)
+    red.permitir, red.restante = False, 9.0
+    vistos = {}
+
+    def guion(n, loc):
+        if n == 5:
+            _boton(pygame.CONTROLLER_BUTTON_DPAD_RIGHT)
+            _boton(pygame.CONTROLLER_BUTTON_A)
+        if n == 7:
+            terminal = red.mazmorra.cuarto.terminal
+            vistos["bloqueado"] = (terminal.indice_seleccionado, terminal.nodo_actual is terminal.arbol.raiz,
+                                   list(red.navegaciones), loc["aviso_sabotaje"] > 0)
+            red.permitir, red.restante = True, 0.0
+            _boton(pygame.CONTROLLER_BUTTON_DPAD_RIGHT)
+        if n == 9:
+            vistos["habilitado"] = (red.mazmorra.cuarto.terminal.indice_seleccionado, list(red.navegaciones))
+            return True
+        return False
+
+    def impostor_local(sesion):
+        sesion.jugadores[sesion.id_local].es_impostor = True
+
+    correr(red, guion, id_local=1 if espejo else 0, preparar=impostor_local)
+    assert vistos["bloqueado"] == (0, True, [], True)
+    assert vistos["habilitado"][0] == 1
+    if espejo:
+        assert vistos["habilitado"][1] == ["derecha"]  # ahora el control del invitado llega al host
+
+
+def test_un_tripulante_no_ve_el_indicador_del_bloqueo(correr):
     red = _Red(cuando=3, en_decision=True)
     red.restante = 9.0
     vistos = {}

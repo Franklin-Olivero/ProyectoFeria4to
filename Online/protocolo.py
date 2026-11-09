@@ -59,6 +59,7 @@ CAMBIO_ESCENA = "CAMBIO_ESCENA"
 CAMBIO_CUARTO = "CAMBIO_CUARTO"
 DECISION_NAV = "DECISION_NAV"
 HISTORIA = "HISTORIA"  # un invitado decide en su crisis: el host fija la reputación
+REUNION = "REUNION"  # reunión de emergencia: convocar, votar o escribir en el chat (Online/reunion.py)
 
 # --- Roles (mismos nombres que las clases del juego) ---------------------
 
@@ -286,5 +287,9 @@ def msg_decision_nav(direccion, id_jugador=None):
 
 def msg_historia(evento, id_jugador=None, **datos):
     return serializar(crear_mensaje(HISTORIA, evento=evento, id=id_jugador, **datos))
+
+
+def msg_reunion(evento, id_jugador=None, **datos):
+    return serializar(crear_mensaje(REUNION, evento=evento, id=id_jugador, **datos))
 
 

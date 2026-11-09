@@ -470,6 +470,10 @@ SALTOS_CORRECCION_CRISIS = 1
 VALORACION_ACCIONES = {
     # Compartir la publicación tal cual.
     "compartir": {"enganosa": (-12, -20, -30), "veraz": (4, 8, 15)},
+    # Dar "me gusta": el algoritmo la muestra a más gente, como un compartir más
+    # suave (la mitad de su peso, en los dos sentidos). Ante una engañosa resta
+    # más que ignorarla: aunque no la reenvíes, la amplificas.
+    "me_gusta": {"enganosa": (-6, -10, -15), "veraz": (2, 4, 8)},
     # Publicar información comprobada (aclaración o dato verificado).
     "publicar_verificado": {"enganosa": (-4, 8, 20), "veraz": (-2, 6, 15)},
     # Reportar la publicación como falsa o engañosa.
@@ -508,10 +512,21 @@ REPUTACION_MIN_FINAL_POSITIVO = -19  # "renace" y "arquitecto" exigen no estar c
 # Terminal de decisión: hay que leer la publicación y las pruebas, así que el
 # reloj presiona sin impedir la lectura.
 DURACION_TERMINAL_HISTORIA = 45.0  # s
-# Modo Online: cada movimiento del impostor en la terminal es un sabotaje y
-# gasta su carga, que tarda esto en llenarse (al abrir la terminal y tras
-# cada uso). Mientras tanto el resto busca la respuesta correcta.
-COOLDOWN_SABOTAJE_IMPOSTOR = 15.0  # s
+# Modo Online: al abrirse la terminal, el impostor queda bloqueado un tiempo
+# que el host sortea entre estos dos valores (cada terminal el suyo). Mientras
+# tanto el resto busca la respuesta correcta; después el impostor elige
+# normal, sin límite de movimientos. Con los dos iguales, el bloqueo es fijo.
+COOLDOWN_SABOTAJE_MIN = 10.0  # s
+COOLDOWN_SABOTAJE_MAX = 15.0  # s
+# Modo Online: reunión de emergencia (Online/reunion.py). El botón REPORTAR
+# se puede usar cada COOLDOWN_REUNION segundos (cuenta desde que arranca la
+# partida y desde que termina cada reunión). En la reunión el equipo tiene
+# DURACION_REUNION segundos para hablar y votar; solo cuentan los votos emitidos.
+COOLDOWN_REUNION = 60.0  # s
+DURACION_REUNION = 60.0  # s
+DURACION_RESULTADO_REUNION = 6.0  # s que todos ven a quién expulsaron
+MAX_MENSAJES_REUNION = 14  # mensajes del chat que guarda el host (y manda en el ESTADO)
+MAX_LARGO_MENSAJE_REUNION = 80  # caracteres por mensaje
 # Evidencia por zona: con esta fracción de las pruebas reveladas el
 # estado pasa de "sin pruebas" a "parcial"; con todas, a "verificado" o
 # "desmentido" según el veredicto real de la publicación.

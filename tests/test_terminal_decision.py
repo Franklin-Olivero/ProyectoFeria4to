@@ -4,6 +4,7 @@
 
     Publicación Viral
     ├── Verificar  -> Purificación Exitosa
+    ├── Me gusta   -> Detonación
     ├── Compartir  -> Detonación
     ├── Reportar   -> Purificación Exitosa
     └── Ignorar    -> Detonación
@@ -51,12 +52,16 @@ def test_arbol_publicacion_tiene_la_forma_esperada():
     assert arbol.raiz.etiqueta == "Publicación Viral"
     assert [h.etiqueta for h in arbol.raiz.hijos] == [
         "Verificar",
+        "Me gusta",
         "Compartir",
         "Reportar",
         "Ignorar",
     ]
     hojas = [h.hijos[0].etiqueta for h in arbol.raiz.hijos]
-    assert hojas == [PURIFICACION_EXITOSA, DETONACION, PURIFICACION_EXITOSA, DETONACION]
+    assert hojas == [PURIFICACION_EXITOSA, DETONACION, DETONACION, PURIFICACION_EXITOSA, DETONACION]
+    # Ids fijos (el invitado Online arma el mismo árbol y sigue al host por id).
+    assert [h.id for h in arbol.raiz.hijos] == [1, 2, 3, 4, 5]
+    assert [h.hijos[0].id for h in arbol.raiz.hijos] == [11, 21, 31, 41, 51]
 
 
 def test_iniciar_pone_cursor_en_raiz_y_reloj_lleno(terminal):
@@ -67,6 +72,8 @@ def test_iniciar_pone_cursor_en_raiz_y_reloj_lleno(terminal):
 
 
 def test_derecha_e_izquierda_mueven_entre_hijos(terminal):
+    terminal.navegar(DERECHA)
+    assert terminal.hijo_seleccionado.etiqueta == "Me gusta"
     terminal.navegar(DERECHA)
     assert terminal.hijo_seleccionado.etiqueta == "Compartir"
     terminal.navegar(DERECHA)
@@ -97,9 +104,19 @@ def test_verificar_lleva_a_purificacion_exitosa(terminal):
 
 def test_compartir_lleva_a_detonacion(terminal):
     terminal.navegar(DERECHA)
+    terminal.navegar(DERECHA)
     terminal.navegar(CONFIRMAR)
     terminal.navegar(CONFIRMAR)
     assert terminal.resultado == DETONACION
+    assert terminal.opcion_elegida == "Compartir"
+
+
+def test_me_gusta_a_una_publicacion_viral_sin_verificar_detona(terminal):
+    terminal.navegar(DERECHA)
+    terminal.navegar(CONFIRMAR)
+    terminal.navegar(CONFIRMAR)
+    assert terminal.resultado == DETONACION
+    assert terminal.opcion_elegida == "Me gusta"
 
 
 def test_timeout_sin_llegar_a_hoja_es_detonacion(terminal):

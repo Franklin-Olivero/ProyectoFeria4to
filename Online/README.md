@@ -442,16 +442,17 @@ Un invitado que se reconecta recibe `id_impostor` ya en la `BIENVENIDA` (`unido_
 ## 8. Sabotaje del impostor en la terminal de decisión
 
 ### Qué hace
-Al final de cada mazmorra normal el equipo comparte un cursor sobre el árbol de decisión: cualquiera lo mueve (← →) o confirma (Enter). El impostor también, pero **cada movimiento suyo es un sabotaje** y solo puede hacerlo con la carga lista. La carga tarda **15 s** (`balance.COOLDOWN_SABOTAJE_IMPOSTOR`) en llenarse al abrir la terminal y después de cada uso. Así los demás siempre tienen 15 s para buscar la respuesta correcta antes de que el impostor pueda mover el cursor a una mala o confirmar.
+Al final de cada mazmorra normal el equipo comparte un cursor sobre el árbol de decisión: cualquiera lo mueve (← →) o confirma (Enter). El impostor también, pero **al abrirse la terminal queda bloqueado** un tiempo que el host sortea entre **10 y 15 s** (`balance.COOLDOWN_SABOTAJE_MIN` y `COOLDOWN_SABOTAJE_MAX`; cada terminal sortea el suyo). Mientras tanto los demás buscan la respuesta correcta. Después **elige normal**: mueve y confirma todas las veces que quiera, y así sabotea (lleva el cursor a una respuesta mala o la confirma antes que los demás).
 
-- Solo el impostor ve su indicador, arriba al centro de la terminal: "Recargando: N s", "Listo: mueve o confirma una opción", y "Aún no" si aprieta con la carga vacía. Su barra de controles dice "sabotear".
-- Los demás no ven nada distinto: tienen que descubrir quién mueve el cursor.
+- Solo el impostor ve su indicador, arriba al centro de la terminal: "Se habilita en N s" con una barra que se llena, "Listo: ya puedes mover y confirmar" cuando termina, y "Aún no" si aprieta durante el bloqueo. Su barra de controles dice "sabotear".
+- Los demás no ven nada distinto: tienen que descubrir quién mueve el cursor. Como el bloqueo cambia entre 10 y 15 s, tampoco saben el segundo exacto en que el impostor puede empezar.
+- Para un bloqueo fijo, basta poner los dos valores iguales en `balance.py`.
 - Fuera de la terminal (por ejemplo, la investigación del capítulo 3) el impostor navega libre.
 
 ### Host autoritativo
-- `Online/sabotaje.py` (puro): `Sabotaje` con `seguir_terminal(terminal)` (una terminal nueva empieza con la carga vacía), `actualizar(dt)`, `listo` e `intentar()` (gasta la carga si estaba lista). O(1).
-- `AdaptadorOnlineHost.puede_navegar(indice)`: descarta los `DECISION_NAV` del impostor sin carga, antes de cargarle la decisión (`registrar_actor`). Main usa el mismo método para las teclas del host cuando el impostor es él.
-- El host manda la carga en el ESTADO (`term.sab`) y cada invitado la refleja (`AdaptadorOnlineJoin.puede_navegar` y `restante_sabotaje`) solo para no mandar teclas en vano y dibujar el indicador.
+- `Online/sabotaje.py` (puro): `Sabotaje` con `seguir_terminal(terminal)` (una terminal nueva sortea su bloqueo con un `random.Random` inyectable; la misma sigue su cuenta), `actualizar(dt)` y `listo` (terminó el bloqueo; elegir no gasta nada). O(1).
+- `AdaptadorOnlineHost.puede_navegar(indice, terminal)`: descarta los `DECISION_NAV` del impostor durante su bloqueo, antes de cargarle la decisión (`registrar_actor`). En Main, teclado y control pasan por un solo camino (`navegar_terminal`), que consulta este método con la terminal que se ve, así el bloqueo corre desde el primer frame aunque el impostor sea el host o juegue con control.
+- El host manda en el ESTADO lo que falta (`term.sab`) y el total sorteado (`term.sabt`); cada invitado los refleja (`AdaptadorOnlineJoin.puede_navegar`, `restante_sabotaje` y `espera_sabotaje`) solo para no mandar teclas en vano y dibujar el indicador.
 
 ---
 
@@ -468,3 +469,30 @@ Al entrar a una mazmorra, la tarjeta del capítulo y su diálogo solo salían en
 1. Dos PCs en una partida Online. Cierren la intro.
 2. El host entra al Colegio con E: **las dos** PCs ven la tarjeta "Capítulo 1: El rumor" y su diálogo.
 3. Si una PC sigue leyendo, la otra ve "Esperando a que J… termine de leer" y el cuarto queda quieto hasta que termine.
+
+---
+
+## 10. Reunión de emergencia (botón REPORTAR)
+
+### Qué hace
+Como en Among Us, cualquier jugador puede llamar a una reunión para debatir quién es el impostor.
+- **Botón REPORTAR** abajo a la derecha (o la tecla **R**, o un clic). Se puede usar **cada 60 s** (`balance.COOLDOWN_REUNION`): el tiempo cuenta desde que arranca la partida y desde que termina cada reunión. Mientras recarga se ve apagado con los segundos que faltan.
+- Al apretarlo, el juego **se detiene en todas las PCs** (combate, caminar por la ciudad, el reloj de la terminal y el bloqueo del impostor) y se abre la reunión: **60 s** (`balance.DURACION_REUNION`) para hablar por el **chat** y **votar**.
+- **Votar:** flechas para elegir y **Enter dos veces** (o dos clics) sobre un jugador o sobre **Saltar votación**. El voto no se cambia. Durante la votación solo se ve quién ya votó; a quién, recién en el resultado.
+- **Chat:** se escribe con el teclado y se envía con Enter (80 caracteres por mensaje; se ven los últimos 14).
+- **Conteo:** se acaba el minuto (o ya votaron todos) y **solo cuentan los votos emitidos**: quien no votó no le suma a nadie. Si alguien tiene más votos que cualquier otro y que los saltos, queda **expulsado** y todos ven si **era el impostor**. Empate, mayoría de saltos o nadie votó: no se expulsa a nadie. El resultado se ve 6 s.
+- **Expulsado:** ya no mueve la terminal de decisión ni la investigación del capítulo 3, no vota, no escribe y no convoca. Sigue peleando con el equipo. Si expulsaron al impostor, su sabotaje terminó y el botón desaparece ("Impostor descubierto").
+- Solo hay botón en una partida Online con impostor, en la ciudad, las mazmorras, la terminal y el jefe (no en las pantallas de resultado ni en los finales).
+
+### Host autoritativo
+- `Online/reunion.py` (puro): `contar_votos`, `Reunion` (reloj, un voto por jugador, chat) y `ControlReuniones` (el botón, la reunión, el resultado y los expulsados). `a_dict()` viaja en el ESTADO (`reu`) y `vista_de_dict()` lo lee en el invitado sin confiar en sus tipos.
+- Mensaje nuevo `REUNION` (invitado → host) con `evento` = `convocar`, `votar` (`objetivo`: índice o `"saltar"`) o `chat` (`texto`). El servidor le pone el id de la conexión: nadie vota por otro.
+- `AdaptadorOnlineHost`: `convocar_reunion`, `votar_reunion`, `escribir_reunion`, `estado_reunion`, `reunion_en_curso` y `expulsado`. El invitado tiene los mismos métodos, pero se los pide al host. `puede_navegar` responde False durante la reunión y para los expulsados, así el host descarta sus `DECISION_NAV`.
+- `Main._jugar`: la reunión se lleva todos los eventos (teclado, texto, ratón y control) mientras está abierta. `en_reunion` detiene el combate, la ciudad y el reloj de la terminal. El dibujo está en `Online/reunion_render.py`.
+
+### Cómo probarlo
+1. Dos PCs en una partida Online (hay impostor). Esperen 60 s o, en los tests, usen `ControlReuniones(recarga=0)`.
+2. Una PC aprieta **R**: las dos ven la reunión y el mundo queda quieto.
+3. Escriban en el chat, voten (Enter dos veces) o salten. Al terminar, todos ven el resultado y el botón vuelve a recargar 60 s.
+
+Tests: `tests/test_reunion_online.py` (conteo, reglas, host, invitado, red real, loop real de Main y dibujo).
