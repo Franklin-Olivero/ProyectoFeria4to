@@ -97,6 +97,10 @@ Montado sobre los sistemas existentes, sin reemplazarlos. Lógica pura en `src/s
 * Epílogo: victoria → cinemática de caída → panel → elecciones con escrutinio animado (`DURACION_CONTEO_ELECCIONES`) → Enter → cinemática del final → elecciones con epílogo → Enter vuelve a la ciudad. `registrar_jefe_derrotado` se aplica al ganar (una vez).
 * Validación visual: `docs/capturas/premium/` y `docs/capturas/historia/`. La lógica es siempre 1280×720; la ventana escala con `pygame.SCALED`.
 
+## Nuevo mundo (Backrooms) y lobby del hotel
+
+**Arte Backrooms por grade:** "Backrooms Liminal Interiors" de bubbabba (16 px, 5 grades de luz con el mismo layout: cambiar de ambiente = cambiar de carpeta). `tools/empaquetar_backrooms.py` copia de `_packs/` a `assets/backrooms/<grade>/` solo lo que usan las composiciones y plantillas en uso (`atlas.json` + `tiles/props/animaciones/luces.png`; hoy solo `hum`, los demás grades bajo demanda y sin commitear); `src/ui/cargador_backrooms.py` (`tile/prop/animacion/light_pool(grade, …)`, caché, damero magenta y aviso único si falta; rutas puras en `rutas_backrooms.py`); `tools/convertir_tmx.py` + `src/dungeon/lector_tmx.py` pasan los .tmx a plantillas JSON (`src/dungeon/datos/plantillas/`) y las tablas wang a `terrenos_backrooms.json`; `src/dungeon/autotile.py` (blob 47) y `compositor_interior.py` arman interiores desde rectángulos (`datos/composiciones/`). El lobby es la recepción del hotel (`lobby_hotel.json`, `src/ui/escena_lobby.py` puro + `escena_lobby_render.py`): pre-renderizada en dos capas, luces que fallan, reloj real, polvo, los roles posando sobre tarjetas compactas y la cartelera de `src/dungeon/registro_mazmorras.py`; sin el arte, vuelve al lobby neón.
+
 ## Ciudad decorada, edificios y stats
 
 **Decoración por datos, escala por edificio y stats 1–10:** la decoración de Ciudad Nova (farolas cada `ESPACIADO_FAROLAS`, bancas en pares simétricos, canteros/papeleras/buzones en aceras, hileras de árboles sobre setos y grupos en el parque con `SEMILLA_DECORACION`) sale de reglas en `src/dungeon/layout_decoracion.py` y se dibuja ordenada por Y con el jugador (`src/ui/decoracion_ciudad.py`); cada edificio se dibuja a escala entera del tamaño exacto de su huella (`assets.ARTE_EDIFICIOS`, `src/ui/edificios_ciudad.py`; el Colegio sale del pack escolar a ×2); el mapa mide 64×47 (3 filas libres arriba, parque con una sola entrada desde la Plaza); el lobby muestra cada stat como «7/10» (`src/core/puntajes_roles.py`, rangos en `balance.RANGOS_STATS`) y siluetas de árboles neón al fondo.
@@ -198,7 +202,7 @@ PruebaPythonGame/
 │-- Main.py
 │-- README.md
 │-- requirements.txt
-│-- assets/             # nombres en minúsculas con _ (tests/test_rutas_assets.py: toda ruta de assets.py existe, nada > 5 MB ni zips): audio/{musica,sfx/{jugador,enemigos,jefe,ui,ciudad},licencias,sin_conectar}/, sprites/{jugadores,enemigos(+variantes/<slug>/),jefe,efectos/proyectiles,props(+arboles),retratos,fuentes}/, tiles/interior/ (cuarto, puerta, charco), colegio/, fuentes/ (tipografías), story/, sin_asignar/ (presets de Bitcade)
+│-- assets/             # nombres en minúsculas con _ (tests/test_rutas_assets.py: toda ruta de assets.py existe, nada > 5 MB ni zips): audio/{musica,sfx/{jugador,enemigos,jefe,ui,ciudad},licencias,sin_conectar}/, sprites/{jugadores,enemigos(+variantes/<slug>/),jefe,efectos/proyectiles,props(+arboles),retratos,fuentes}/, tiles/interior/ (cuarto, puerta, charco), backrooms/<grade>/ (recortes del pack Backrooms, ver abajo), colegio/, fuentes/ (tipografías), story/, sin_asignar/ (presets de Bitcade)
 │-- _packs/             # FUERA de git: zips/ y extraidos/<pack>/ (packs completos: ciudad IA, Backrooms, Trees_Vol2, dungeon hospital); al juego se copia solo lo que usa
 │-- content/            # campaign.json (contenido del modo historia)
 │-- docs/               # arquitectura, arte, sustentación, QA, capturas

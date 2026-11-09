@@ -74,7 +74,7 @@ src/
   ui/            # todo el dibujo: menús, HUD, terminal, mapas, cinemáticas
 Online/          # modo en red (lobby, sala, impostor); ver Online/README.md
 content/         # campaign.json: textos y datos de la campaña
-assets/          # audio/, colegio/, fuentes, sprites y cuadros de video
+assets/          # audio/, backrooms/<grade>/, colegio/, fuentes, sprites y cuadros de video
 tools/           # producción de contenido y QA (audio, video, retratos, recorrido)
 tests/           # suite de pytest
 docs/            # arquitectura, dirección de arte, guía de sustentación, QA, capturas
@@ -83,3 +83,11 @@ prompts/         # encargos para el asistente de código
 
 Documentación detallada: `docs/ARQUITECTURA.md` (código), `docs/MODO_HISTORIA.md`
 (campaña), `docs/GUIA_SUSTENTACION.md` (exposición) y `CLAUDE.md` (reglas del proyecto).
+
+## Créditos de arte y audio
+
+- Interiores del nuevo mundo: **Backrooms Liminal Interiors by bubbabba**. El repo
+  solo lleva los recortes que el juego usa (`assets/backrooms/`); el pack completo
+  no se redistribuye (`tools/empaquetar_backrooms.py` lo arma desde `_packs/`).
+- Música Bitcade Audio (CC BY 4.0), efectos Bitcade SFX (CC0), tipografía JetBrains Mono
+  (SIL OFL), packs Modern Urban y Traditional School.

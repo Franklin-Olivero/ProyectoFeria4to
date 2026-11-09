@@ -60,6 +60,7 @@ LINEAS_CREDITOS = (
     # La música de Bitcade es CC BY 4.0: este crédito es obligatorio.
     ("Música", "Bitcade Audio (CC BY 4.0) · schniersky.itch.io/bitcade"),
     ("Efectos y arte", "Bitcade SFX (CC0) · packs Modern Urban y School"),
+    ("Interiores", "Backrooms Liminal Interiors by bubbabba"),
     ("Equipo", "Pendiente: nombres de los integrantes"),
 )
 

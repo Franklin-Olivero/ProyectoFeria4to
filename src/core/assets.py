@@ -1503,3 +1503,60 @@ HISTORIAS_CELULAR = (
     ("influencer", "influencer", (0.32, 0.17, 0.30)),
     ("candidato", "candidato", (0.47, 0.16, 0.30)),
 )
+
+# ----------------------------------------------------------------------
+# Nuevo mundo: "Backrooms Liminal Interiors v1.0" de bubbabba (16x16, vista
+# 3/4). Los packs completos viven en _packs/ (fuera de git: la licencia no
+# deja redistribuirlos); tools/empaquetar_backrooms.py copia a
+# assets/backrooms/<grade>/ solo lo que el juego usa: atlas.json + tiles.png,
+# props.png, animaciones.png y luces.png. Los 5 "grades" (ambientes de luz)
+# tienen los mismos nombres y layout: cambiar de ambiente es cambiar de
+# carpeta. Se piden por src/ui/cargador_backrooms.py (rutas puras en
+# src/ui/rutas_backrooms.py). 16 px * ESCALA_PIXEL = 48 = TAM_CASILLA.
+# ----------------------------------------------------------------------
+RUTA_BACKROOMS = os.path.join("assets", "backrooms")
+GRADES_BACKROOMS = ("hum", "blackout", "emergency", "nightshot", "sodium")
+GRADE_POR_DEFECTO = "hum"  # luz fluorescente amarillenta: el "Backrooms" clásico
+ARCHIVO_ATLAS_BACKROOMS = "atlas.json"
+HOJAS_BACKROOMS = {"tiles": "tiles.png", "props": "props.png", "animaciones": "animaciones.png",
+                   "luces": "luces.png"}
+TAM_TILE_BACKROOMS = 16
+ESCALA_BACKROOMS = ESCALA_PIXEL
+COLOR_FALTANTE_BACKROOMS = (255, 0, 255)  # damero magenta/negro: asset que falta (se ve, no se cae)
+RUTA_COMPOSICIONES = os.path.join("src", "dungeon", "datos", "composiciones")
+RUTA_TERRENOS_BACKROOMS = os.path.join("src", "dungeon", "datos", "terrenos_backrooms.json")
+CREDITO_BACKROOMS = "Backrooms Liminal Interiors by bubbabba"
+
+# Lobby del hotel (src/ui/escena_lobby.py + escena_lobby_render.py): la
+# recepción se dibuja a ESCALA_BACKROOMS, corrida para centrar 27 tiles
+# (1296 px) en 1280. Las tarjetas son más bajas que en el lobby clásico:
+# el sprite de cada rol posa en la escena, sobre su tarjeta.
+COMPOSICION_LOBBY = "lobby_hotel"
+GRADE_LOBBY = GRADE_POR_DEFECTO
+DESPLAZAMIENTO_ESCENA_LOBBY = (-8, 0)  # px de pantalla
+ORIGEN_COLUMNAS_HOTEL = (70, 270)
+ALTO_TARJETA_HOTEL = 258
+RECT_PANEL_RESUMEN_HOTEL = (70, 540, 1140, 96)
+POSICION_TITULO_HOTEL = (640, 40)
+ESCALA_SPRITE_PUESTO = 4  # rol posando en su puesto
+ALFA_TARJETA_HOTEL = 226
+RECT_TABLERO_MAZMORRAS = (966, 10, 306, 150)  # cartelera colgada en la pared del fondo
+COLOR_TABLERO = (34, 24, 20)
+COLOR_MARCO_TABLERO = (150, 112, 62)
+COLOR_TEXTO_TABLERO = (236, 214, 160)
+COLOR_PENDIENTE_TABLERO = (236, 180, 70)
+COLOR_COMPLETADA_TABLERO = (120, 220, 150)
+ALFA_VELO_TITULO_HOTEL = 150  # franja oscura bajo el título para que se lea sobre la pared
+ANCHO_VELO_TITULO_HOTEL = 640
+COLOR_HALO_PUESTO_ALFA = 80
+DURACION_PARPADEO_LOBBY = 0.07  # s de cada "corte" de una luz que falla
+FACTOR_APAGADO_LOBBY = 0.45  # brillo de un prop sin versión apagada cuando su luz falla
+COLOR_POLVO_LOBBY = (255, 238, 190)
+COLOR_MANECILLA_RELOJ = (40, 30, 26)
+ALTO_SOMBRA_TECHO_LOBBY = 96  # px de pantalla
+ALFA_SOMBRA_TECHO_LOBBY = 200
+SEPARACION_FILAS_HOTEL = 23  # filas de estadísticas en la tarjeta compacta
+ANCHO_NOMBRE_TABLERO = 134
+TOXICIDAD_MEDIA_TABLERO = 34
+TOXICIDAD_ALTA_TABLERO = 67
+COLOR_TOXICIDAD_ALTA_TABLERO = (255, 96, 96)

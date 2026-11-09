@@ -1,0 +1,187 @@
+{
+ "animaciones": {},
+ "credito": "Backrooms Liminal Interiors by bubbabba",
+ "grade": "hum",
+ "luces": {
+  "alarm_glow_64": [
+   0,
+   0,
+   64,
+   64
+  ],
+  "crt_glow_32": [
+   65,
+   0,
+   32,
+   32
+  ],
+  "lamp_glow_64": [
+   98,
+   0,
+   64,
+   64
+  ],
+  "troffer_pool_48x32": [
+   163,
+   0,
+   48,
+   32
+  ]
+ },
+ "props": {
+  "hotel_clock_nohands": [
+   399,
+   0,
+   14,
+   14
+  ],
+  "hotel_elevator_call_lit": [
+   388,
+   0,
+   10,
+   16
+  ],
+  "hotel_elevator_doors_lit": [
+   133,
+   0,
+   34,
+   33
+  ],
+  "hotel_front_desk_crt": [
+   64,
+   0,
+   34,
+   40
+  ],
+  "hotel_key_rack": [
+   198,
+   0,
+   34,
+   26
+  ],
+  "hotel_lobby_floor_lamp": [
+   99,
+   0,
+   16,
+   36
+  ],
+  "hotel_lobby_floor_lamp_off": [
+   116,
+   0,
+   16,
+   36
+  ],
+  "hotel_lobby_loveseat": [
+   233,
+   0,
+   28,
+   24
+  ],
+  "hotel_lobby_sofa": [
+   262,
+   0,
+   42,
+   24
+  ],
+  "hotel_lobby_wingback": [
+   305,
+   0,
+   20,
+   24
+  ],
+  "hotel_luggage_trolley_loaded": [
+   31,
+   0,
+   32,
+   42
+  ],
+  "hotel_palm_tall": [
+   0,
+   0,
+   30,
+   44
+  ],
+  "hotel_sconce_lit": [
+   168,
+   0,
+   14,
+   30
+  ],
+  "hotel_sconce_off": [
+   183,
+   0,
+   14,
+   30
+  ],
+  "hotel_umbrella_stand": [
+   326,
+   0,
+   12,
+   20
+  ],
+  "hotel_vacancy_sign_neon": [
+   339,
+   0,
+   48,
+   18
+  ]
+ },
+ "tiles": {
+  "1745": [
+   16,
+   0
+  ],
+  "1748": [
+   32,
+   0
+  ],
+  "1750": [
+   48,
+   0
+  ],
+  "1753": [
+   64,
+   0
+  ],
+  "1757": [
+   80,
+   0
+  ],
+  "1765": [
+   96,
+   0
+  ],
+  "2721": [
+   112,
+   0
+  ],
+  "2722": [
+   128,
+   0
+  ],
+  "2723": [
+   144,
+   0
+  ],
+  "2724": [
+   160,
+   0
+  ],
+  "3148": [
+   176,
+   0
+  ],
+  "3149": [
+   192,
+   0
+  ],
+  "3150": [
+   208,
+   0
+  ],
+  "323": [
+   0,
+   0
+  ]
+ }
+}

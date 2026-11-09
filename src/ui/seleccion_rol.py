@@ -14,6 +14,13 @@ portada con siluetas de árboles neón que se mecen, una rejilla neón y
 partículas que se mueven despacio (se
 quedan quietas con "reducir movimiento").
 
+Con la escena del hotel (src/ui/escena_lobby_render.py, arte Backrooms)
+el fondo es la recepción viva: cada rol posa en su puesto sobre su
+tarjeta (las tarjetas son más bajas y ya no traen el sprite) y una
+cartelera en la pared muestra el tablero de mazmorras
+(src/dungeon/registro_mazmorras.py). Sin ese arte, el lobby es el de
+siempre.
+
 VistaSeleccion guarda solo estado de dibujo (cuánto está levantada cada
 tarjeta, el fundido de entrada y salida); quién eligió qué vive en
 SeleccionRoles (src/ui/seleccion.py).
@@ -26,7 +33,8 @@ import pygame
 from src.core import assets
 from src.core.balance import ESTADISTICAS_VISIBLES, PUNTAJE_MAXIMO
 from src.core.puntajes_roles import puntajes
-from src.ui import cargador_assets, dibujo, kit, lobby, sprites
+from src.dungeon import registro_mazmorras
+from src.ui import cargador_assets, dibujo, kit, layout, lobby, sprites
 
 TITULO = "Elige tu personaje"
 TITULO_DOS = "Elijan sus personajes"
@@ -34,26 +42,41 @@ SUBTITULO = "Civitas · 4 roles, una ciudad al borde del colapso"
 SUBTITULO_DOS = "J1 con teclado y ratón · J2 con el control · pueden repetir rol"
 
 
-def rect_tarjeta(indice):
+def rect_tarjeta(indice, hotel=False):
     """Rect de la tarjeta `indice` en reposo (también para el ratón)."""
-    x, y = assets.ORIGEN_COLUMNAS_SELECCION
-    return pygame.Rect(x + indice * assets.ANCHO_COLUMNA_SELECCION, y,
-                       assets.ANCHO_TARJETA_SELECCION, assets.ALTO_TARJETA_SELECCION)
+    if hotel:
+        x, y = assets.ORIGEN_COLUMNAS_HOTEL
+        alto = assets.ALTO_TARJETA_HOTEL
+    else:
+        x, y = assets.ORIGEN_COLUMNAS_SELECCION
+        alto = assets.ALTO_TARJETA_SELECCION
+    return pygame.Rect(x + indice * assets.ANCHO_COLUMNA_SELECCION, y, assets.ANCHO_TARJETA_SELECCION, alto)
 
 
-def tarjeta_en(posicion, cantidad):
+def tarjeta_en(posicion, cantidad, hotel=False):
     """Índice de la tarjeta bajo `posicion` (px de pantalla), o None."""
     for indice in range(cantidad):
-        if rect_tarjeta(indice).collidepoint(posicion):
+        if rect_tarjeta(indice, hotel).collidepoint(posicion):
             return indice
     return None
 
 
 class VistaSeleccion:
-    def __init__(self, cantidad_roles):
+    def __init__(self, cantidad_roles, escena=None, tablero=()):
+        """`escena`: EscenaLobby del hotel o None (lobby clásico);
+        `tablero`: filas de registro_mazmorras.filas_tablero."""
         self.elevacion = [0.0] * cantidad_roles
         self.tiempo = 0.0
         self.salida = None  # s desde que todos confirmaron (fundido de salida)
+        self.escena = escena
+        self.tablero = list(tablero)
+
+    @property
+    def hotel(self):
+        return self.escena is not None
+
+    def tarjeta_en(self, posicion, cantidad):
+        return tarjeta_en(posicion, cantidad, self.hotel)
 
     def actualizar(self, dt, seleccion):
         self.tiempo += dt
@@ -76,6 +99,9 @@ class VistaSeleccion:
     def dibujar(self, pantalla, clases_rol, seleccion, volumen, silenciado, reducir_movimiento=False):
         """`volumen`: porcentaje general a mostrar; `silenciado`: tecla N."""
         t = 0.0 if reducir_movimiento else self.tiempo
+        if self.hotel:
+            self._dibujar_hotel(pantalla, clases_rol, seleccion, volumen, silenciado, reducir_movimiento)
+            return
         dibujar_fondo_neon(pantalla, t)
         dos = len(seleccion.cursores) > 1
         cx, cy = assets.POSICION_TITULO_SELECCION
@@ -89,6 +115,31 @@ class VistaSeleccion:
 
         roles = [clases_rol[cursor.indice].rol for cursor in seleccion.cursores]
         _dibujar_resumen(pantalla, seleccion, clases_rol, roles, volumen, silenciado)
+        self._dibujar_fundido(pantalla)
+
+    def _dibujar_hotel(self, pantalla, clases_rol, seleccion, volumen, silenciado, reducir_movimiento):
+        t = 0.0 if reducir_movimiento else self.tiempo
+        posan = []
+        for indice, clase in enumerate(clases_rol):
+            encima = [c for c in seleccion.cursores if c.indice == indice]
+            posan.append((clase, bool(encima), any(c.confirmado for c in encima)))
+        self.escena.dibujar(pantalla, posan, self.tiempo, reducir_movimiento)
+
+        dos = len(seleccion.cursores) > 1
+        cx, cy = assets.POSICION_TITULO_HOTEL
+        franja = pygame.Rect(0, 0, assets.ANCHO_VELO_TITULO_HOTEL, 78)
+        franja.center = (cx, cy + 14)
+        dibujo.panel_alfa(pantalla, franja, (0, 0, 0, assets.ALFA_VELO_TITULO_HOTEL), radio=14)
+        _texto_neon(pantalla, TITULO_DOS if dos else TITULO, (cx, cy), assets.TAMANIO_FUENTE_GRANDE)
+        dibujo.texto(pantalla, SUBTITULO_DOS if dos else SUBTITULO, (cx, cy + 32), assets.COLOR_TEXTO_HUD,
+                     assets.TAMANIO_FUENTE_PEQUENA, ancla="center")
+        _dibujar_tablero(pantalla, self.tablero)
+
+        for indice, clase in enumerate(clases_rol):
+            encima = [(n, cursor.confirmado) for n, cursor in enumerate(seleccion.cursores) if cursor.indice == indice]
+            _dibujar_tarjeta_hotel(pantalla, indice, clase, encima, puntajes(clase.rol), self.elevacion[indice], t)
+        roles = [clases_rol[cursor.indice].rol for cursor in seleccion.cursores]
+        _dibujar_resumen(pantalla, seleccion, clases_rol, roles, volumen, silenciado, assets.RECT_PANEL_RESUMEN_HOTEL)
         self._dibujar_fundido(pantalla)
 
     def _dibujar_fundido(self, pantalla):
@@ -221,6 +272,82 @@ def _dibujar_tarjeta(pantalla, indice, clase, encima, puntajes_rol, elevacion, t
         y += assets.SEPARACION_FILAS_SELECCION
 
 
+def _dibujar_tarjeta_hotel(pantalla, indice, clase, encima, puntajes_rol, elevacion, t):
+    """Tarjeta compacta del lobby del hotel: el sprite posa en la escena,
+    sobre la tarjeta."""
+    resaltada = bool(encima)
+    confirmada = any(confirmado for _, confirmado in encima)
+    tarjeta = rect_tarjeta(indice, hotel=True).move(0, -round(elevacion))
+    if resaltada:
+        latido = 0.5 + 0.5 * math.sin(t * 4)
+        pygame.draw.rect(pantalla, clase.COLOR, tarjeta.inflate(round(6 + 4 * latido), round(6 + 4 * latido)), 2,
+                         border_radius=12)
+    kit.panel(pantalla, tarjeta, clase.COLOR if resaltada else assets.COLOR_BORDE_VIDRIO,
+              alfa=assets.ALFA_TARJETA_HOTEL, filo="todo" if resaltada else "arriba")
+    if confirmada:
+        dibujo.panel_alfa(pantalla, tarjeta, (*clase.COLOR, assets.ALFA_TARJETA_CONFIRMADA), radio=10)
+    x = tarjeta.left + 16
+    dibujo.chip(pantalla, str(indice + 1), (x, tarjeta.top + 12), clase.COLOR, assets.COLOR_FONDO, clase.COLOR,
+                assets.TAMANIO_FUENTE_MEDIA, alto=30, margen=11)
+    _dibujar_chips_cursor(pantalla, encima, (tarjeta.right - 12, tarjeta.top + 12), clase.COLOR)
+
+    y = tarjeta.top + 58
+    dibujo.texto(pantalla, clase.NOMBRE, (tarjeta.centerx, y), clase.COLOR, assets.TAMANIO_FUENTE_TITULO,
+                 negrita=True, ancla="center")
+    y += 22
+    layout.texto_en_ancho(pantalla, f"{clase.NOMBRE_HABILIDAD} · {lobby.PAPEL[clase.rol]}", (tarjeta.centerx, y),
+                          tarjeta.width - 24, assets.COLOR_TEXTO_HUD, assets.TAMANIO_FUENTE_PEQUENA, negrita=True,
+                          ancla="midtop")
+    y += 18
+    dibujo.parrafo(pantalla, lobby.DESCRIPCION_HABILIDAD[clase.rol], (tarjeta.centerx, y), tarjeta.width - 28,
+                   assets.COLOR_TEXTO_SECUNDARIO, assets.TAMANIO_FUENTE_PEQUENA, interlineado=2, centrado=True)
+    y = tarjeta.top + 138
+    for etiqueta, atributo in ESTADISTICAS_VISIBLES:
+        dibujo.texto(pantalla, etiqueta, (x, y), assets.COLOR_TEXTO_HUD, assets.TAMANIO_FUENTE_PEQUENA)
+        _barra_segmentada(pantalla, (x + assets.DESPLAZAMIENTO_BARRA_X, y + 3), puntajes_rol[atributo], clase.COLOR)
+        dibujo.texto(pantalla, lobby.valor_estadistica(clase.rol, atributo), (tarjeta.right - 14, y),
+                     assets.COLOR_TEXTO_HUD, assets.TAMANIO_FUENTE_PEQUENA, negrita=True, ancla="topright")
+        y += assets.SEPARACION_FILAS_HOTEL
+
+
+def _dibujar_tablero(pantalla, filas):
+    """Cartelera de la recepción: cada mazmorra del registro con su
+    toxicidad y su estado."""
+    if not filas:
+        return
+    rect = pygame.Rect(assets.RECT_TABLERO_MAZMORRAS)
+    pygame.draw.rect(pantalla, assets.COLOR_MARCO_TABLERO, rect, border_radius=6)
+    interior = rect.inflate(-8, -8)
+    pygame.draw.rect(pantalla, assets.COLOR_TABLERO, interior, border_radius=4)
+    hechas, total = registro_mazmorras.resumen(filas)
+    x, y = interior.left + 10, interior.top + 7
+    dibujo.texto(pantalla, "MAZMORRAS", (x, y), assets.COLOR_TEXTO_TABLERO, assets.TAMANIO_FUENTE_PEQUENA, negrita=True)
+    dibujo.texto(pantalla, f"{hechas}/{total} purificadas", (interior.right - 10, y), assets.COLOR_TEXTO_TABLERO,
+                 assets.TAMANIO_FUENTE_PEQUENA, ancla="topright")
+    y += 21
+    pygame.draw.line(pantalla, assets.COLOR_MARCO_TABLERO, (x, y), (interior.right - 10, y))
+    paso = (interior.bottom - 4 - (y + 6)) / max(1, len(filas))
+    for i, fila in enumerate(filas):
+        fy = round(y + 6 + i * paso)
+        completada = fila.estado == registro_mazmorras.ESTADO_COMPLETADA
+        color_estado = assets.COLOR_COMPLETADA_TABLERO if completada else assets.COLOR_PENDIENTE_TABLERO
+        nombre = fila.nombre + (" · jefe" if fila.tipo == registro_mazmorras.TIPO_FINAL else "")
+        layout.texto_en_ancho(pantalla, nombre, (x, fy), assets.ANCHO_NOMBRE_TABLERO, assets.COLOR_TEXTO_TABLERO,
+                              assets.TAMANIO_FUENTE_PEQUENA, minimo=assets.TAMANIO_FUENTE_MINI)
+        dibujo.texto(pantalla, f"Tox {fila.toxicidad}", (x + assets.ANCHO_NOMBRE_TABLERO + 6, fy),
+                     _color_toxicidad(fila.toxicidad), assets.TAMANIO_FUENTE_PEQUENA, negrita=True)
+        dibujo.texto(pantalla, fila.estado, (interior.right - 10, fy), color_estado, assets.TAMANIO_FUENTE_PEQUENA,
+                     ancla="topright")
+
+
+def _color_toxicidad(nivel):
+    if nivel >= assets.TOXICIDAD_ALTA_TABLERO:
+        return assets.COLOR_TOXICIDAD_ALTA_TABLERO
+    if nivel >= assets.TOXICIDAD_MEDIA_TABLERO:
+        return assets.COLOR_PENDIENTE_TABLERO
+    return assets.COLOR_COMPLETADA_TABLERO
+
+
 def _barra_segmentada(pantalla, origen, puntaje, color):
     """PUNTAJE_MAXIMO casillas; las primeras `puntaje` encendidas."""
     hueco = assets.SEPARACION_SEGMENTOS_BARRA
@@ -231,8 +358,9 @@ def _barra_segmentada(pantalla, origen, puntaje, color):
         pygame.draw.rect(pantalla, relleno, (x + i * (lado + hueco), y, lado, assets.ALTO_BARRA), border_radius=2)
 
 
-def _dibujar_resumen(pantalla, seleccion, clases_rol, roles, volumen, silenciado):
-    panel = kit.panel(pantalla, assets.RECT_PANEL_RESUMEN_LOBBY, assets.COLOR_NEON_LOBBY, alfa=220)
+def _dibujar_resumen(pantalla, seleccion, clases_rol, roles, volumen, silenciado,
+                     rect=assets.RECT_PANEL_RESUMEN_LOBBY):
+    panel = kit.panel(pantalla, rect, assets.COLOR_NEON_LOBBY, alfa=220)
     x, y = panel.left + 18, panel.top + 10
     estrellas, texto = lobby.sinergia(roles)
     dibujo.texto(pantalla, "SINERGIA", (x, y), assets.COLOR_NEON_LOBBY_2, assets.TAMANIO_FUENTE_PEQUENA, negrita=True)

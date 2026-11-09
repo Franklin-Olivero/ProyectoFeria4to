@@ -68,7 +68,7 @@ from src.core.balance import (
     ALCANCE_AVISO_SELLADA, BLOQUEO_POST_SABOTAJE, COOLDOWN_POST_SABOTAJE, COOLDOWN_REUNION, DURACION_TERMINAL_HISTORIA,
     MAX_LARGO_MENSAJE_REUNION, PASO_VOLUMEN_LOBBY,
 )
-from src.dungeon import ciudad_mapa
+from src.dungeon import ciudad_mapa, registro_mazmorras
 from src.dungeon.grafo_ciudad import EDIFICIOS, ZONA_FINAL, ZONA_INICIO
 from src.dungeon.mazmorra import Mazmorra
 from src.dungeon.mazmorra_final import VICTORIA as MAZMORRA_FINAL_GANADA
@@ -80,6 +80,7 @@ from src.entities.periodista import Periodista
 from src.entities.player import ANGULO_ABANICO_GRADOS, Ciudadano
 from src.ui import ciudad_render, combate_render, dialogo_render, dibujo, hud, indicadores_render, navegacion
 from src.ui import ayuda_render, elecciones_render, investigacion_render, red_social_render, tarjetas_render
+from src.ui import escena_lobby_render
 from src.ui import cinematica_render, feed_render, layout, mision_render, redencion_render, reputacion_render
 from src.core.preferencias import CARACTERES_POR_SEGUNDO
 from src.story.cinematica import Cinematica, guion_caida_servidor, guion_derrota_global, guion_final, guion_intro
@@ -100,7 +101,7 @@ from src.ui.pantalla_victoria import dibujar_victoria
 from src.ui.pantalla_modo import dibujar_modo
 from src.ui.particulas import SistemaParticulas
 from src.ui.seleccion import DOS_JUGADORES, UN_JUGADOR, ONLINE, SeleccionRoles, SelectorModo
-from src.ui.seleccion_rol import VistaSeleccion, tarjeta_en
+from src.ui.seleccion_rol import VistaSeleccion
 from src.ui.ajustes import ModalAjustes, PESTANAS_PAUSA
 from src.ui import pausa as menu_pausa
 from src.ui.pausa_render import VistaPausa
@@ -2144,7 +2145,7 @@ def _elegir_roles(pantalla, reloj, modo, mando, presentar, audio=None, preferenc
     lista de clases elegidas, VOLVER con Esc, o None si se cierra."""
     cantidad = 1 if modo == UN_JUGADOR else 2
     seleccion = SeleccionRoles(cantidad, len(CLASES_ROL))
-    vista = VistaSeleccion(len(CLASES_ROL))
+    vista = VistaSeleccion(len(CLASES_ROL), escena_lobby_render.crear(), _tablero_mazmorras())
     j1 = seleccion.cursores[0]
     j2 = seleccion.cursores[1] if cantidad > 1 else None
     stick = _StickMenu()
@@ -2180,11 +2181,11 @@ def _elegir_roles(pantalla, reloj, modo, mando, presentar, audio=None, preferenc
                 elif evento.key == TECLA_CANCELAR:
                     j1.cancelar()
             elif evento.type == pygame.MOUSEMOTION and not j1.confirmado:
-                indice = tarjeta_en(evento.pos, len(CLASES_ROL))
+                indice = vista.tarjeta_en(evento.pos, len(CLASES_ROL))
                 if indice is not None:
                     j1.indice = indice
             elif evento.type == pygame.MOUSEBUTTONDOWN and evento.button == 1:
-                indice = tarjeta_en(evento.pos, len(CLASES_ROL))
+                indice = vista.tarjeta_en(evento.pos, len(CLASES_ROL))
                 if indice is not None:
                     j1.elegir(indice)
             elif j2 is not None and evento.type == pygame.CONTROLLERBUTTONDOWN:
@@ -2216,6 +2217,14 @@ def _elegir_roles(pantalla, reloj, modo, mando, presentar, audio=None, preferenc
         presentar()
         if vista.salida_terminada:
             return [CLASES_ROL[indice] for indice in seleccion.indices()]
+
+
+def _tablero_mazmorras():
+    """Filas del tablero del lobby: cada mazmorra registrada con la
+    toxicidad inicial de su zona. El lobby abre una partida nueva, así que
+    todas empiezan pendientes."""
+    partida = Partida()
+    return registro_mazmorras.filas_tablero(partida.toxicidad, partida.campania.zonas_purificadas())
 
 
 def _tecla_de_audio(tecla, audio, preferencias):

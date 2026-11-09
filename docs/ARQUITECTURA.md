@@ -540,6 +540,8 @@ tramo de toxicidad máximo) y dibuja jefe, charcos, barra y tiempo.
 *Depende de:* `pygame`, `assets`, `balance`, `mazmorra_final`, `enemy`,
 `projectile`.
 
+**Backrooms (nuevo mundo).** `lector_tmx.py` (puro: .tmx/.tsx de Tiled, CSV/base64/zlib, objetos con propiedades) lo usa solo `tools/convertir_tmx.py` para generar `datos/plantillas/*.json` y `datos/terrenos_backrooms.json`; `autotile.py` resuelve el blob de 47 piezas de cada terreno con los wangids de Tiled (reconstruye idénticas las capas de muro de los mapas del pack); `compositor_interior.py` arma una plantilla desde rectángulos de muro/alfombra + objetos; `registro_mazmorras.py` lista las mazmorras con su toxicidad y estado para el tablero del lobby. Arte en `assets/backrooms/<grade>/` vía `src/ui/cargador_backrooms.py` (rutas puras en `rutas_backrooms.py`), empaquetado por `tools/empaquetar_backrooms.py`.
+
 ### `src/ui/`
 
 **`terminal_decision.py`** — puro. `construir_arbol_publicacion()` y
