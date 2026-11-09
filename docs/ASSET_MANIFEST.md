@@ -79,9 +79,9 @@ Retratos: fondo verde quitado con `tools/procesar_retrato.py`.
 
 ## Audio (propio, sin costo ni licencias de terceros)
 
-`tools/generar_audio.py` compone por síntesis matemática 10 pistas en `assets/musica/`
+`tools/generar_audio.py` compone por síntesis matemática 10 pistas en `assets/audio/musica/`
 (menu, ciudad, combate, jefe, misterio, decision, crisis, redencion, victoria, derrota; 15 MB,
-WAV de 22 kHz) y 15 efectos en `assets/sonidos/`. Si faltan, el juego sintetiza colchones y
+WAV de 22 kHz) y 15 efectos en `assets/audio/sfx/`. Si faltan, el juego sintetiza colchones y
 pitidos. **Nadie las ha escuchado aún:** ver `docs/QA_VISUAL.md`.
 
 ## Escenarios (sin Higgsfield)

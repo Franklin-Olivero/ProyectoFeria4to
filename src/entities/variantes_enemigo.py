@@ -1,4 +1,4 @@
-"""Variantes de enemigo: un personaje de assets/sprites/enemigos 2.0 por
+"""Variantes de enemigo: un personaje de assets/sprites/enemigos/variantes por
 cada una (lógica pura, sin Pygame).
 
 Cada variante pertenece a un TipoEnemigo (su comportamiento: perseguidor,

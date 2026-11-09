@@ -1,4 +1,4 @@
-"""Variantes de enemigo (assets/sprites/enemigos 2.0): tabla, reparto por
+"""Variantes de enemigo (assets/sprites/enemigos/variantes): tabla, reparto por
 cuarto y mazmorra, ataques con animación y etiqueta de debug.
 
 La tabla y la elección son puras; los ataques usan las clases reales con
@@ -51,8 +51,9 @@ def correr(enemigo, jugador, segundos, proyectiles=None):
 
 def test_todas_las_carpetas_de_enemigos_2_tienen_variante_salvo_el_jefe():
     carpetas = set(os.listdir(assets.RUTA_SPRITES_ENEMIGOS_V2))
-    assert carpetas - set(VARIANTES) == {assets.JEFE_V2}
-    assert set(VARIANTES) - carpetas == set()
+    variantes = {assets.slug_asset(nombre) for nombre in VARIANTES}
+    assert carpetas - variantes == {assets.slug_asset(assets.JEFE_V2)}
+    assert variantes - carpetas == set()
 
 
 def test_cada_tipo_tiene_variantes_y_la_tabla_de_arte_coincide():

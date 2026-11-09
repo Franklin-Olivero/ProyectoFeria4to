@@ -605,7 +605,7 @@ def _cuadros_jefe_v2(animacion):
     clave = ("jefe", animacion)
     if clave not in _cache_enemigos_v2:
         nombre = assets.JEFE_V2
-        ruta = os.path.join(assets.RUTA_SPRITES_ENEMIGOS_V2, nombre, nombre, f"{nombre}_{animacion}.png")
+        ruta = assets.ruta_tira_variante(nombre, animacion)
         _cache_enemigos_v2[clave] = _leer_tira_v2(ruta, assets.ESCALA_JEFE_V2)
     return _cache_enemigos_v2[clave]
 
@@ -739,9 +739,8 @@ def _leer_variante(nombre):
     arte = assets.ARTE_VARIANTE.get(nombre)
     if arte is None:
         return None
-    base = os.path.join(assets.RUTA_SPRITES_ENEMIGOS_V2, nombre, nombre, f"{nombre}_%s.png")
-    mover = _celdas_tira_v2(base % arte["tira_mov"])
-    ataque = _celdas_tira_v2(base % arte["tira_ataque"])
+    mover = _celdas_tira_v2(assets.ruta_tira_variante(nombre, arte["tira_mov"]))
+    ataque = _celdas_tira_v2(assets.ruta_tira_variante(nombre, arte["tira_ataque"]))
     if mover is None or ataque is None:
         return None
     caja_mov = _caja_comun(mover)

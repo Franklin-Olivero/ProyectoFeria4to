@@ -26,3 +26,8 @@ preferencias.json
 preferencias.json.tmp
 ajustes_audio.json
 ajustes_audio.json.tmp
+
+# Packs de arte/audio completos y sus zips: viven solo en local (licencia
+# del autor y tamaño). Lo que el juego usa se copia recortado a assets/.
+_packs/
+*.zip

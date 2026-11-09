@@ -560,7 +560,7 @@ barra de colapso con el valor anterior marcado y el delta.
 Capa de presentación compartida:
 
 - **`fuentes.py`** — `fuente(tamanio, negrita)`: caché de fuentes
-  (JetBrains Mono desde `assets/fonts/`, con fallback a la de pygame).
+  (JetBrains Mono desde `assets/fuentes/`, con fallback a la de pygame).
 - **`dibujo.py`** — primitivas: `panel`, `panel_alfa`, `texto`, `chip`
   (etiqueta de tecla), `barra`, `linea_punteada`, `poligono_alfa`,
   `corchetes`, `ajustar_texto`, `parrafo`.

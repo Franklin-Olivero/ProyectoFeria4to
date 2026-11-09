@@ -68,8 +68,8 @@ COLOR_TEXTO_APAGADO = (96, 94, 130)
 # Fuentes (JetBrains Mono, licencia OFL, en assets/fonts). Si el archivo
 # falta, src/ui/fuentes.py cae a la fuente por defecto de pygame.
 # ----------------------------------------------------------------------
-RUTA_FUENTE_REGULAR = os.path.join("assets", "fonts", "JetBrainsMono-Regular.ttf")
-RUTA_FUENTE_NEGRITA = os.path.join("assets", "fonts", "JetBrainsMono-Bold.ttf")
+RUTA_FUENTE_REGULAR = os.path.join("assets", "fuentes", "jetbrains_mono_regular.ttf")
+RUTA_FUENTE_NEGRITA = os.path.join("assets", "fuentes", "jetbrains_mono_bold.ttf")
 TAMANIO_FUENTE_PEQUENA = 13
 TAMANIO_FUENTE_NORMAL = 15
 TAMANIO_FUENTE_MEDIA = 18
@@ -900,7 +900,7 @@ ALTO_RETRATO_SELECCION = 92  # alto del retrato en la tarjeta de selección
 ESCALA_ARTE_PACKS = 1
 # Props urbanos ("Modern Urban RPG Pixel Asset Pack"): hoja de 15x16
 # celdas de 64 px. Nombre -> (columna, fila) de su celda.
-RUTA_PROPS_URBANOS = os.path.join("assets", "sprites", "ciudad", "props_urbanos.png")
+RUTA_PROPS_URBANOS = os.path.join("assets", "sprites", "props", "props_urbanos.png")
 CELDA_PROPS_URBANOS = 64
 PROPS_URBANOS = {
     "farola": (11, 1),
@@ -921,7 +921,7 @@ PROPS_URBANOS = {
 # Árboles (pack Trees_Vol2, reducidos a sprites nativos de 18-48 px de
 # alto; arbol_<número del pack>.png). Se dibujan a ESCALA_PIXEL, como el
 # resto del pixel art, apoyados en el borde inferior de su casilla.
-RUTA_ARBOLES = os.path.join("assets", "sprites", "ciudad", "arboles")
+RUTA_ARBOLES = os.path.join("assets", "sprites", "props", "arboles")
 ESCALA_ARBOLES = ESCALA_PIXEL
 # Lobby: siluetas de árboles al fondo (números del pack, escala entera y
 # x relativa al ancho de pantalla). Se tiñen con la paleta neón nocturna.
@@ -972,7 +972,7 @@ FACTOR_FACHADA_COLEGIO = 0.9  # la pared real del Colegio en la ciudad, un poco 
 # Cuarto: piso y muro (cuarto.png, 16x16 por cuadro), puertas (puerta.png,
 # 27x6: abierta / bloqueada / sellada) y charco tóxico (charco.png, 30x30:
 # aviso / activo). Sin el PNG se dibujan con formas, como antes.
-RUTA_SPRITES_CUARTO = os.path.join("assets", "sprites", "cuarto")
+RUTA_SPRITES_CUARTO = os.path.join("assets", "tiles", "interior")
 ID_SPRITE_CUARTO = "cuarto"
 ID_SPRITE_PUERTA = "puerta"
 ID_SPRITE_CHARCO = "charco"
@@ -1148,9 +1148,25 @@ ID_SPRITE_ENEMIGO = {
     "curandero": "curandero",
 }
 # Arte "enemigos 2.0": cada variante (balance.STATS_VARIANTE_ENEMIGO) es un
-# personaje de esta carpeta. Cada tira <carpeta>_<Tira>.png es una fila de
-# cuadros de 100x100 con el personaje mirando a la derecha.
-RUTA_SPRITES_ENEMIGOS_V2 = os.path.join("assets", "sprites", "enemigos 2.0", "Characters(100x100 split)")
+# personaje de esta carpeta, en su subcarpeta <slug> (nombre en minúsculas
+# con guiones bajos: "Black Knight_A" -> black_knight_a). Cada tira
+# <slug>_<tira>.png es una fila de cuadros de 100x100 con el personaje
+# mirando a la derecha; sombra/ guarda las mismas tiras con sombra (sin
+# usar). Los proyectiles del pack están en sprites/efectos/proyectiles/ y
+# los .aseprite en sprites/fuentes/enemigos/.
+RUTA_SPRITES_ENEMIGOS_V2 = os.path.join("assets", "sprites", "enemigos", "variantes")
+
+
+def slug_asset(nombre):
+    """Nombre de archivo/carpeta de un asset: minúsculas, sin espacios ni
+    símbolos ("Black Knight_A" -> "black_knight_a")."""
+    return "_".join("".join(c if c.isalnum() else " " for c in nombre.lower()).split())
+
+
+def ruta_tira_variante(nombre, tira):
+    """Ruta de la tira `tira` ("Walk", "Attack01"...) de la variante `nombre`."""
+    carpeta = slug_asset(nombre)
+    return os.path.join(RUTA_SPRITES_ENEMIGOS_V2, carpeta, f"{carpeta}_{slug_asset(tira)}.png")
 CUADRO_ENEMIGO_V2 = 100  # lado de cada cuadro de la tira
 DURACION_CUADRO_ENEMIGO_V2 = 0.1  # s por cuadro al caminar
 # Arte de cada variante: tira de movimiento ("Walk" o "Flying"), tira de

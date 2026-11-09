@@ -332,7 +332,7 @@ STATS_TIPO_ENEMIGO = {
     "curandero": StatsTipoEnemigo(velocidad_mult=0.7, vida=2),
 }
 
-# Variantes: cada personaje de assets/sprites/enemigos 2.0 es un tipo de
+# Variantes: cada personaje de assets/sprites/enemigos/variantes es un tipo de
 # comportamiento (perseguidor / tirador / curandero) con sus propios
 # números (ver src/entities/variantes_enemigo.py). `alcance` es el
 # margen extra de golpe de los cuerpo a cuerpo y el rango preferido de
