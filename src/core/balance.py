@@ -23,10 +23,31 @@ DANIO_BASE = 1
 # arena). Un golpe dentro de la ventana no resta vida ni la reinicia.
 INVULNERABILIDAD_DURACION = 0.6  # segundos
 
+# Movimiento con inercia: la velocidad real se acerca a la pedida con un
+# suavizado exponencial (independiente del framerate). Con 16/s llega
+# al 95% de la velocidad del rol en ~0.19 s; con 22/s frena en ~0.14 s.
+ACELERACION_MOVIMIENTO = 16.0  # 1/s: qué tan rápido arranca o cambia de dirección
+FRENADO_MOVIMIENTO = 22.0  # 1/s: qué tan rápido se detiene al soltar
+VELOCIDAD_MINIMA_MOVIMIENTO = 4.0  # px/s: por debajo se considera quieto
+
+# Dash (src/entities/dash.py): igual para los 4 roles; la diferencia
+# natural sale de la velocidad de cada rol, que se multiplica.
+DASH_VELOCIDAD_MULT = 4.0  # multiplicador sobre la velocidad del rol
+DASH_DURACION = 0.12  # segundos que dura el desplazamiento
+DASH_COOLDOWN = 5.0  # segundos entre el inicio de un dash y el siguiente
+DASH_INVULNERABLE = True  # durante el dash ningún golpe resta vida
+
 # Controles: apuntado con mouse (src/core/apuntado.py) y gatillos
 ZONA_MUERTA_APUNTADO = 6  # px: con el mouse más cerca se conserva la dirección previa
 MOSTRAR_LINEA_APUNTADO = True  # línea tenue del jugador a la mira
 CLICK_DISPARA = True  # click izquierdo mantenido dispara igual que SPACE
+
+# Control de PS4 del J2 (src/core/entrada.py): sticks y gatillo en -1..1 / 0..1.
+ZONA_MUERTA_STICK = 0.15  # inclinación menor que esto cuenta como stick suelto
+UMBRAL_GATILLO = 0.5  # R2 hundido más que esto = disparando
+
+# Cooperativo: un jugador caído revive al cruzar al siguiente cuarto.
+VIDA_AL_REVIVIR = 1
 
 # Límites de la cadencia efectiva (con o sin buff)
 CADENCIA_MINIMA_INTERVALO = 0.08  # segundos: piso del tiempo entre disparos
@@ -306,6 +327,65 @@ STATS_TIPO_ENEMIGO = {
     "curandero": StatsTipoEnemigo(velocidad_mult=0.7, vida=2),
 }
 
+# Variantes: cada personaje de assets/sprites/enemigos 2.0 es un tipo de
+# comportamiento (perseguidor / tirador / curandero) con sus propios
+# números (ver src/entities/variantes_enemigo.py). `alcance` es el
+# margen extra de golpe de los cuerpo a cuerpo y el rango preferido de
+# los tiradores; `cooldown_s` es el tiempo entre golpes o entre disparos;
+# `cuadros_ataque` son los cuadros de su tira de ataque. El golpe cae a
+# FRACCION_IMPACTO_ATAQUE de la animación (así se ve venir) y el tirador
+# usa ese mismo tiempo como telegrafía.
+DURACION_CUADRO_ATAQUE_S = 0.07
+FRACCION_IMPACTO_ATAQUE = 0.5
+
+
+@dataclass(frozen=True)
+class StatsVariante:
+    tipo: str  # clave de STATS_TIPO_ENEMIGO
+    velocidad_mult: float
+    vida: float
+    cuadros_ataque: int
+    danio: float = 0
+    cooldown_s: float = 0.0
+    alcance: float = 0
+    proyectiles: int = 1  # tiradores: balas por disparo (abanico)
+    apertura_grados: float = 0  # ángulo entre balas del abanico
+    velocidad_proyectil: float = 0
+    tamanio_proyectil: int = 10
+
+
+STATS_VARIANTE_ENEMIGO = {
+    # Cuerpo a cuerpo
+    "Hellhound": StatsVariante("perseguidor", 1.15, 3, 8, danio=1, cooldown_s=0.8, alcance=8),
+    "Minotaur": StatsVariante("perseguidor", 0.8, 5, 8, danio=2, cooldown_s=1.6, alcance=14),
+    "Blood Monster_A": StatsVariante("perseguidor", 1.0, 3, 8, danio=1, cooldown_s=0.9, alcance=8),
+    "Blood Monster_B": StatsVariante("perseguidor", 1.3, 2, 8, danio=1, cooldown_s=0.7, alcance=6),
+    "Hellbat": StatsVariante("perseguidor", 1.35, 2, 6, danio=1, cooldown_s=0.9, alcance=8),
+    "Demon_A": StatsVariante("perseguidor", 1.05, 3, 7, danio=1, cooldown_s=0.9, alcance=10),
+    "Demon_E": StatsVariante("perseguidor", 0.95, 4, 8, danio=1, cooldown_s=1.0, alcance=16),
+    "Black Knight_A": StatsVariante("perseguidor", 0.85, 4, 16, danio=2, cooldown_s=1.8, alcance=12),
+    "Black Knight_C": StatsVariante("perseguidor", 0.75, 6, 8, danio=2, cooldown_s=1.6, alcance=16),
+    "Demoness_A": StatsVariante("perseguidor", 1.0, 3, 9, danio=1, cooldown_s=0.8, alcance=14),
+    # A distancia
+    "Warlock": StatsVariante("tirador", 0.8, 2, 7, danio=1, cooldown_s=1.8, alcance=320,
+                             velocidad_proyectil=260, tamanio_proyectil=12),
+    "Demon_B": StatsVariante("tirador", 0.9, 2, 9, danio=1, cooldown_s=1.5, alcance=340,
+                             velocidad_proyectil=380, tamanio_proyectil=8),
+    "Black Knight_B": StatsVariante("tirador", 0.7, 3, 7, danio=2, cooldown_s=2.6, alcance=300,
+                                    velocidad_proyectil=200, tamanio_proyectil=12),
+    "Eyeball Monster": StatsVariante("tirador", 0.9, 2, 8, danio=1, cooldown_s=1.6, alcance=300,
+                                     velocidad_proyectil=320, tamanio_proyectil=8),
+    "Lava Slime": StatsVariante("tirador", 0.7, 3, 6, danio=1, cooldown_s=2.2, alcance=260,
+                                proyectiles=3, apertura_grados=30, velocidad_proyectil=220),
+    "Demon_C": StatsVariante("tirador", 0.85, 2, 6, danio=1, cooldown_s=2.0, alcance=300,
+                             proyectiles=2, apertura_grados=14, velocidad_proyectil=260),
+    "Demon_D": StatsVariante("tirador", 0.8, 3, 11, danio=1, cooldown_s=2.4, alcance=300,
+                             proyectiles=3, apertura_grados=24, velocidad_proyectil=240),
+    # Apoyo (su "ataque" es el hechizo de cura)
+    "Ghostfire": StatsVariante("curandero", 0.7, 2, 6),
+    "Demoness_B": StatsVariante("curandero", 0.7, 2, 8),
+}
+
 # Perseguidor: golpe por contacto
 DANIO_CONTACTO_PERSEGUIDOR = 1
 COOLDOWN_CONTACTO_PERSEGUIDOR = 0.8  # s entre golpes
@@ -342,3 +422,163 @@ PROB_CURANDERO_EXTRA_ALTA = 0.3  # chance de un segundo curandero
 MAX_CURANDEROS_ALTA = 2
 MIN_CURANDEROS_FINAL_ALTA = 1
 MIN_TIRADORES_FINAL_ALTA = 2
+
+# ----------------------------------------------------------------------
+# Modo historia "Código Nova" (src/story/)
+# ----------------------------------------------------------------------
+# Indicadores de Ciudad Nova (enteros 0-100). Los cuatro primeros y
+# participacion_responsable son "buenos"; desinformacion y conflictos
+# son "malos". El Colapso Electoral sigue siendo la barra de derrota:
+# cada Detonación suma colapso y además mueve estos indicadores según
+# la consecuencia elegida (content/campaign.json); nunca al revés.
+INDICADORES_INICIALES = {
+    "informacion_verificada": 40,
+    "confianza": 50,
+    "convivencia": 55,
+    "bienestar_digital": 50,
+    "participacion_responsable": 45,
+    "desinformacion": 45,
+    "conflictos": 30,
+}
+INDICADOR_MINIMO = 0
+INDICADOR_MAXIMO = 100
+# Reputación individual (src/story/reputacion.py): de -100 a +100, por jugador.
+REPUTACION_INICIAL = 0
+REPUTACION_MINIMA = -100
+REPUTACION_MAXIMA = 100
+# (id, nombre visible, valor mínimo del tramo), de mayor a menor.
+NIVELES_REPUTACION = (
+    ("referente", "Referente de Ciudad Nova", 60),
+    ("confiable", "Ciudadano confiable", 20),
+    ("neutral", "Reputación neutral", -19),
+    ("cuestionada", "Reputación cuestionada", -59),
+    ("crisis", "Crisis de reputación", -100),
+)
+UMBRAL_CRISIS_REPUTACION = -60  # a este valor o menos se activa la crisis
+UMBRAL_DESCONFIANZA = -20  # las pruebas parciales ya no bastan: la ciudad pide más
+UMBRAL_CONFIANZA = 20  # un ciudadano aporta una prueba al entrar a cada zona
+UMBRAL_REFERENTE = 60  # más alcance de las correcciones y más tiempo en la terminal
+TIEMPO_EXTRA_TERMINAL_REFERENTE = 10.0  # s
+# Saltos de una corrección publicada según la reputación de quien la publica
+# (la credibilidad decide hasta dónde llega por el grafo social).
+SALTOS_CORRECCION_REFERENTE = 4
+SALTOS_CORRECCION_CUESTIONADA = 2
+SALTOS_CORRECCION_CRISIS = 1
+# Valoración de cada acción: (sin saber, con indicios, sabiéndolo) según la
+# veracidad REAL de la publicación. Los valores dependen de lo que el
+# jugador podía saber: equivocarse no pesa igual que manipular.
+VALORACION_ACCIONES = {
+    # Compartir la publicación tal cual.
+    "compartir": {"enganosa": (-12, -20, -30), "veraz": (4, 8, 15)},
+    # Dar "me gusta": el algoritmo la muestra a más gente, como un compartir más
+    # suave (la mitad de su peso, en los dos sentidos). Ante una engañosa resta
+    # más que ignorarla: aunque no la reenvíes, la amplificas.
+    "me_gusta": {"enganosa": (-6, -10, -15), "veraz": (2, 4, 8)},
+    # Publicar información comprobada (aclaración o dato verificado).
+    "publicar_verificado": {"enganosa": (-4, 8, 20), "veraz": (-2, 6, 15)},
+    # Reportar la publicación como falsa o engañosa.
+    "reportar": {"enganosa": (-2, 8, 25), "veraz": (-10, -15, -20)},
+    # Denunciar a quienes atacan una publicación verdadera.
+    "denunciar_ataque": {"enganosa": (-6, -8, -10), "veraz": (-2, 10, 20)},
+    # Linchamiento: reportes en masa, bloqueos, acusar sin pruebas.
+    "linchar": {"enganosa": (-10, -12, -15), "veraz": (-15, -20, -25)},
+    # Afirmar de más: "es 100 % falso" o creer sin comprobar.
+    "afirmar_sin_matiz": {"enganosa": (-8, -10, -12), "veraz": (-10, -14, -18)},
+    # Seguir difundiendo después de revisarla.
+    "insistir": {"enganosa": (-15, -22, -35), "veraz": (-2, -2, -2)},
+    # No actuar: no siempre es malo (no amplificar lo que no se pudo comprobar).
+    "ignorar": {"enganosa": (0, -3, -8), "veraz": (-2, -5, -10)},
+    # Se acabó el reloj.
+    "no_decidir": {"enganosa": (-3, -4, -6), "veraz": (-3, -5, -8)},
+}
+# La gravedad del daño posible escala solo las penalizaciones.
+MULTIPLICADOR_GRAVEDAD = {"baja": 0.75, "media": 1.0, "alta": 1.25}
+# El alcance real en el grafo social ajusta el cambio (BFS, no un número fijo).
+PENALIZACION_POR_AFECTADO = 1
+PENALIZACION_MAXIMA_ALCANCE = 5
+AFECTADOS_POR_PUNTO_BONO = 3
+BONO_MAXIMO_ALCANCE = 3
+# Redención (src/story/redencion.py)
+RECUPERACION_REDENCION = 45  # reputación que devuelve la misión completa
+TOPE_REPUTACION_TRAS_REDENCION = 59  # la huella queda: no se vuelve a ser "referente"
+EFECTOS_REDENCION = {"desinformacion": -10, "confianza": 8, "informacion_verificada": 5, "convivencia": 4}
+EFECTOS_RECHAZO_REDENCION = {"confianza": -12, "desinformacion": 8, "conflictos": 6}
+OPORTUNIDADES_REDENCION = 3  # errores permitidos por intento de la misión
+REINTENTOS_REDENCION = 1  # veces que la misión se puede reintentar antes de fallar
+PUBLICACIONES_REDENCION = 2  # correcciones que se pueden publicar en la etapa 2
+COBERTURA_REDENCION = 0.75  # fracción de los expuestos que debe recibir la corrección
+SALTOS_CORRECCION_REDENCION = 2
+REPUTACION_MIN_FINAL_POSITIVO = -19  # "renace" y "arquitecto" exigen no estar cuestionado
+# Terminal de decisión: hay que leer la publicación y las pruebas, así que el
+# reloj presiona sin impedir la lectura.
+DURACION_TERMINAL_HISTORIA = 45.0  # s
+# Modo Online: al abrirse la terminal, el impostor queda bloqueado un tiempo
+# que el host sortea entre estos dos valores (cada terminal el suyo). Mientras
+# tanto el resto busca la respuesta correcta; después el impostor elige
+# normal, sin límite de movimientos. Con los dos iguales, el bloqueo es fijo.
+COOLDOWN_SABOTAJE_MIN = 10.0  # s
+COOLDOWN_SABOTAJE_MAX = 15.0  # s
+# Modo Online: reunión de emergencia (Online/reunion.py). El botón REPORTAR
+# se puede usar cada COOLDOWN_REUNION segundos (cuenta desde que arranca la
+# partida y desde que termina cada reunión). En la reunión el equipo tiene
+# DURACION_REUNION segundos para hablar y votar; solo cuentan los votos emitidos.
+COOLDOWN_REUNION = 60.0  # s
+DURACION_REUNION = 60.0  # s
+DURACION_RESULTADO_REUNION = 6.0  # s que todos ven a quién expulsaron
+MAX_MENSAJES_REUNION = 14  # mensajes del chat que guarda el host (y manda en el ESTADO)
+MAX_LARGO_MENSAJE_REUNION = 80  # caracteres por mensaje
+# Fin de la partida Online por votación: expulsar al impostor la gana la
+# tripulación; con al menos estos jugadores, si expulsan inocentes hasta que
+# quedan solo el impostor y uno más, gana el impostor (con 2 jugadores no).
+JUGADORES_MINIMOS_VICTORIA_IMPOSTOR = 3
+# Modo Online: botón SABOTEAR del impostor (Online/post_sabotaje.py). A todos
+# les salta una publicación falsa y tienen poco tiempo para frenarla
+# (Verificar o Reportar); el impostor puede elegir recién tras su bloqueo.
+COOLDOWN_POST_SABOTAJE = 75.0  # s entre sabotajes (también al empezar la partida)
+DURACION_POST_SABOTAJE = 20.0  # s para elegir
+BLOQUEO_POST_SABOTAJE = 5.0  # s en que el impostor todavía no puede elegir
+DURACION_RESULTADO_POST_SABOTAJE = 4.0  # s que todos ven cómo terminó
+EFECTOS_POST_SABOTAJE_VIRAL = {"desinformacion": 6, "confianza": -3}  # y la barra de colapso, como una incursión fallida
+EFECTOS_POST_SABOTAJE_FRENADO = {"informacion_verificada": 2, "desinformacion": -2}
+# Evidencia por zona: con esta fracción de las pruebas reveladas el
+# estado pasa de "sin pruebas" a "parcial"; con todas, a "verificado" o
+# "desmentido" según el veredicto real de la publicación.
+# Finales (src/story/eleccion.py). Umbrales sobre los indicadores
+# finales; el final "arquitecto" exige además las 3 pistas, haber rastreado
+# el origen de la señal en el capítulo 3 y el jefe derrotado.
+FINAL_RENACE_VERIFICADA_MIN = 55
+FINAL_RENACE_CONFIANZA_MIN = 50
+FINAL_RENACE_DESINFORMACION_MAX = 45
+PISTAS_PARA_FINAL_SECRETO = 3
+# Elecciones simuladas: cuánto pesa cada indicador afín en el apoyo de
+# un candidato (ver content/campaign.json, "afin").
+PESO_INDICADOR_AFIN_ELECCION = 0.5
+PESO_REPUTACION_ELECCION = 0.1  # sobre la reputación colectiva (-100 a +100)
+# Grafo social (src/story/red_social.py)
+SALTOS_MAXIMOS_PROPAGACION = 3
+PROBABILIDAD_REBOTE_BASE = 0.7  # chance de que un contacto reenvíe una publicación
+PROBABILIDAD_REBOTE_CORREGIDA = 0.25  # tras una corrección publicada
+# Matices narrativos por rol (un solo modificador pequeño por rol; el
+# combate no cambia):
+#   influencer: amplifica más al compartir (rebote extra en la propagación);
+#   ciudadano: cada éxito refuerza la confianza vecinal;
+#   periodista: identifica una fuente extra al entrar a una zona;
+#   candidato: mayor cuidado reputacional (las penalizaciones pesan ×1.5).
+REBOTE_EXTRA_INFLUENCER = 0.15
+CONFIANZA_EXTRA_CIUDADANO = 2
+EVIDENCIA_INICIAL_PERIODISTA = 1
+MULTIPLICADOR_PENALIZACION_CANDIDATO = 1.5
+# Efecto del alcance de una publicación sobre los indicadores: cada
+# ciudadano que recibe un rumor sin corrección suma desinformación; cada
+# dos que reciben la corrección suman información verificada.
+DESINFORMACION_POR_ALCANZADO = 1
+BIENESTAR_POR_ALCANZADO = -0.5
+VERIFICADA_POR_CORREGIDO = 0.5
+EVENTOS_RECIENTES_CINTILLO = 2  # titulares de eventos aleatorios que quedan en el cintillo
+# Investigación del origen de la señal, capítulo 3 (src/story/investigacion.py):
+# reputación y puntos según a qué tipo de cuenta se señale.
+PUNTOS_ORIGEN_RASTREADO = 150
+REPUTACION_POR_TIPO_CUENTA = {"origen": 15, "amplificador": 0, "error": -10, "victima": -20}
+# Jefe derrotado / derrotas en la arena (efectos narrativos, una vez)
+EFECTOS_JEFE_DERROTADO = {"desinformacion": -10, "confianza": 6, "bienestar_digital": 6}
+PUNTOS_JEFE_DERROTADO = 200

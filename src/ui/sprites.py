@@ -10,10 +10,21 @@ reemplazar estas funciones por `pygame.image.load`, sin tocar las
 entidades que los usan.
 """
 
+import json
+import os
+
 import pygame
 
-from src.core import assets
-from src.ui.ruta_sprites import ruta_sprite_enemigo
+from src.core import assets, balance
+from src.ui import receta_jugador
+from src.ui.ruta_sprites import (
+    cuadros_de_atlas,
+    cuadros_por_nombre,
+    indice_por_tiempo,
+    ruta_atlas,
+    ruta_sprite,
+    ruta_sprite_enemigo,
+)
 
 # Colores comunes de la leyenda
 _NEGRO = (16, 14, 30)
@@ -165,6 +176,20 @@ CORAZON = [
 PALETA_CORAZON_LLENO = {"c": assets.COLOR_MAGENTA}
 PALETA_CORAZON_VACIO = {"c": (74, 60, 110)}
 
+# Muñeco corriendo (10x10) para el indicador del dash; 'c' = color del rol.
+CORRIENDO = [
+    "......cc..",
+    "......cc..",
+    "...cccc...",
+    "..c.cc.c..",
+    "....cc..c.",
+    "....ccc...",
+    "...c...c..",
+    "..c....c..",
+    ".c......c.",
+    "..........",
+]
+
 # Candado (8x10)
 CANDADO = [
     "..aaaa..",
@@ -266,6 +291,65 @@ DESTELLO = [
 ]
 PALETA_DESTELLO = {"w": (200, 230, 220)}
 
+# --- Menú principal ----------------------------------------------------
+
+# Letras del título (5x7). '#' = color del título; las dos filas de
+# arriba se aclaran en palabra_titulo() para darle un brillo de neón.
+LETRAS_TITULO = {
+    "C": [".###.", "#...#", "#....", "#....", "#....", "#...#", ".###."],
+    "I": ["#####", "..#..", "..#..", "..#..", "..#..", "..#..", "#####"],
+    "V": ["#...#", "#...#", "#...#", "#...#", ".#.#.", ".#.#.", "..#.."],
+    "T": ["#####", "..#..", "..#..", "..#..", "..#..", "..#..", "..#.."],
+    "A": [".###.", "#...#", "#...#", "#####", "#...#", "#...#", "#...#"],
+    "S": [".####", "#....", "#....", ".###.", "....#", "....#", "####."],
+}
+_FILAS_LUZ_TITULO = 2
+
+
+def _componer_palabra(palabra):
+    """Filas de la palabra completa, con una columna vacía entre letras."""
+    filas = []
+    for y in range(7):
+        fila = ".".join(LETRAS_TITULO[letra][y] for letra in palabra)
+        filas.append(fila.replace("#", "l") if y < _FILAS_LUZ_TITULO else fila)
+    return filas
+
+
+TITULO = _componer_palabra("CIVITAS")
+
+
+def palabra_titulo(color, color_luz):
+    """(filas, paleta) del título CIVITAS para sprite()."""
+    return TITULO, {"#": color, "l": color_luz}
+
+
+# Nave (11x5) mirando a la derecha: el fondo del menú la voltea si va a la izquierda.
+NAVE = [
+    "....kkk....",
+    "..kccwwk...",
+    "kcccccccckl",
+    ".kkcccccck.",
+    "...kkkkk...",
+]
+PALETA_NAVE = {"k": _NEGRO, "c": (92, 84, 150), "w": assets.COLOR_CIAN_NEON, "l": assets.COLOR_CIAN_NEON}
+
+# Engranaje del botón de ajustes (12x12); 'c' = color según el estado.
+ENGRANAJE = [
+    ".....cc.....",
+    "..c.cccc.c..",
+    ".cccccccccc.",
+    "..cccccccc..",
+    ".cccc..cccc.",
+    "cccc....cccc",
+    "cccc....cccc",
+    ".cccc..cccc.",
+    "..cccccccc..",
+    ".cccccccccc.",
+    "..c.cccc.c..",
+    ".....cc.....",
+]
+
+
 _cache = {}
 
 
@@ -283,41 +367,416 @@ def sprite(filas, paleta, escala=assets.ESCALA_PIXEL):
     return _cache[clave]
 
 
-def sprite_jugador(color_rol, escala=assets.ESCALA_PIXEL):
-    return sprite(JUGADOR, {**PALETA_JUGADOR, "c": color_rol}, escala)
+# --- Hojas de sprites (arte real) --------------------------------------
+#
+# Una hoja es `<carpeta>/<id>.png` (tira a resolución nativa) más su
+# `<id>.atlas.json` de Pixelbolt. Se carga una vez por escala y queda
+# como {animacion: ([Surface, ...], [duracion_ms, ...])}; el cuadro que
+# toca se elige con ruta_sprites.indice_por_tiempo. Un PNG sin atlas se
+# trata como una imagen suelta de un solo cuadro (sin escalar).
+
+_cache_hojas = {}
+_cache_cuadros = {}  # (ruta, escala) -> {nombre_del_cuadro: Surface}
+
+
+def _cargar_hoja(ruta_png, escala):
+    """Hoja cargada y escalada, o None si no hay PNG legible."""
+    clave = (ruta_png, escala)
+    if clave not in _cache_hojas:
+        _cache_hojas[clave] = _leer_hoja(ruta_png, escala)
+    return _cache_hojas[clave]
+
+
+def _leer_hoja(ruta_png, escala):
+    imagen = _cargar_png(ruta_png)
+    if imagen is None:
+        return None
+    try:
+        with open(ruta_atlas(ruta_png), encoding="utf-8") as archivo:
+            atlas = json.load(archivo)
+        cuadros = cuadros_de_atlas(atlas)
+        por_nombre = cuadros_por_nombre(atlas)
+    except (OSError, ValueError, KeyError):
+        return {"default": ([imagen], [100])}
+
+    escalados = {}
+
+    def escalado(rect):
+        if rect not in escalados:
+            x, y, w, h = rect
+            escalados[rect] = pygame.transform.scale(imagen.subsurface(rect), (w * escala, h * escala))
+        return escalados[rect]
+
+    hoja = {}
+    for nombre, lista in cuadros.items():
+        superficies = [escalado(rect) for rect, _ in lista]
+        duraciones = [duracion for _, duracion in lista]
+        hoja[nombre] = (superficies, duraciones)
+    _cache_cuadros[(ruta_png, escala)] = {nombre: escalado(rect) for nombre, (rect, _) in por_nombre.items()}
+    return hoja
+
+
+def cuadro_por_nombre(ruta_png, nombre, escala=assets.ESCALA_PIXEL):
+    """Surface del cuadro `nombre` de la hoja en `ruta_png`, o None si no
+    hay hoja o no existe ese cuadro (piso, muro, puertas)."""
+    if ruta_png is None or _cargar_hoja(ruta_png, escala) is None:
+        return None
+    return _cache_cuadros.get((ruta_png, escala), {}).get(nombre)
+
+
+def cuadro_de_hoja(hoja, animacion, tiempo):
+    """Surface de `animacion` en el segundo `tiempo` (bucle). Si la hoja
+    no tiene esa animación usa la primera que tenga."""
+    if animacion not in hoja:
+        animacion = next(iter(hoja))
+    superficies, duraciones = hoja[animacion]
+    return superficies[indice_por_tiempo(duraciones, tiempo)]
+
+
+def limpiar_cache_hojas():
+    """Olvida las hojas cargadas (p. ej. tras copiar arte nuevo)."""
+    _cache_hojas.clear()
+    _cache_cuadros.clear()
+    _cache_enemigos.clear()
+    _cache_retratos.clear()
+    _cache_recetas.clear()
+    _cache_vestidos.clear()
+    _cache_partes.clear()
+
+
+# --- Cuarto: piso, muro, puertas y charco ------------------------------
+
+def cuadro_cuarto(nombre):
+    """Baldosa o muro (`assets.CUADROS_PISO`, `CUADRO_MURO`...) a ESCALA_PIXEL,
+    o None sin hoja."""
+    return cuadro_por_nombre(ruta_sprite(assets.ID_SPRITE_CUARTO, assets.RUTA_SPRITES_CUARTO), nombre)
+
+
+def cuadro_puerta(estado):
+    """Puerta horizontal (27x6 por ESCALA_PIXEL) en `estado` = "abierta" /
+    "bloqueada" / "sellada", o None sin hoja."""
+    return cuadro_por_nombre(ruta_sprite(assets.ID_SPRITE_PUERTA, assets.RUTA_SPRITES_CUARTO),
+                             assets.CUADRO_PUERTA[estado])
+
+
+def sprite_charco(activo, tiempo, radio):
+    """Charco tóxico de diámetro ~2*radio (la hoja es de 30 px, se escala
+    al entero más cercano), en "aviso" (solo contorno) o "activo"
+    (burbujeando); None sin hoja."""
+    escala = max(1, round(2 * radio / 30))
+    hoja = _cargar_hoja(ruta_sprite(assets.ID_SPRITE_CHARCO, assets.RUTA_SPRITES_CUARTO), escala)
+    if hoja is None:
+        return None
+    animacion = assets.ANIMACION_CHARCO_ACTIVO if activo else assets.ANIMACION_CHARCO_AVISO
+    return cuadro_de_hoja(hoja, animacion, tiempo)
+
+
+# --- Proyectiles -------------------------------------------------------
+#
+# Plantillas pequeñas que se tiñen con el color de cada proyectil
+# ('c' = color, 'd' = su sombra, 'w' = brillo) y se escalan x2 hasta el
+# tamaño lógico del proyectil (tamanio = lado del rect de colisión).
+
+BALA_4 = [".kk.", "kwck", "kcdk", ".kk."]
+BALA_5 = [".kkk.", "kwcck", "kccck", "kcddk", ".kkk."]
+BALA_6 = ["..kk..", ".kwck.", "kwccck", "kcccdk", ".kcdk.", "..kk.."]
+# Onda de sonido del Influencer (13x13), apuntando a la derecha.
+ONDA_13 = [
+    "......kk.....",
+    "....kkcc.....",
+    "...kcc..kk...",
+    "..kc...kcc...",
+    "..kc..kc..kk.",
+    ".kc...kc..kcc",
+    ".kc...kc..kcc",
+    ".kc...kc..kcc",
+    "..kc..kc..kk.",
+    "..kc...kcc...",
+    "...kcc..kk...",
+    "....kkcc.....",
+    "......kk.....",
+]
+# Punta del rayo del Periodista (5x5).
+RAYO_5 = ["..k..", ".kck.", "kcwck", ".kck.", "..k.."]
+PLANTILLAS_PROYECTIL = {8: BALA_4, 10: BALA_5, 12: BALA_6, 26: ONDA_13}
+ESCALA_PROYECTIL = 2
+
+
+def _sombra(color):
+    return tuple(max(0, int(v * 0.55)) for v in color[:3])
+
+
+def sprite_proyectil(color, tamanio, plantilla=None):
+    """Sprite del proyectil de lado `tamanio` teñido con `color`; None si
+    no hay plantilla para ese tamaño (el que llama dibuja un rect)."""
+    filas = plantilla or PLANTILLAS_PROYECTIL.get(tamanio)
+    if filas is None:
+        return None
+    paleta = {"k": _NEGRO, "c": tuple(color[:3]), "d": _sombra(color), "w": _BLANCO}
+    return sprite(filas, paleta, ESCALA_PROYECTIL)
+
+
+def sprite_jugador(color_rol, escala=assets.ESCALA_PIXEL, rol=None, tiempo=0.0,
+                   caminando=False, dash=False, apariencia=None):
+    """Imagen del jugador. Con `rol` (clave de STATS_POR_ROL) y su hoja en
+    assets/sprites/jugadores/<rol>.png devuelve el cuadro de "caminar"
+    para `tiempo` (quieto = primer cuadro) o el de "dash"; sin hoja, el
+    muñeco dibujado en código teñido con `color_rol`. Con una `apariencia`
+    (src/core/apariencia.py) que cambie algo, los cuadros salen del
+    jugador armado por partes (_hoja_vestida); si faltan sus recetas,
+    la hoja de siempre."""
+    hoja = None
+    if rol and apariencia is not None and not apariencia.es_predeterminada():
+        hoja = _hoja_vestida(rol, apariencia, escala)
+    if hoja is None and rol:
+        hoja = _cargar_hoja(ruta_sprite(rol, assets.RUTA_SPRITES_JUGADORES), escala)
+    if hoja is None:
+        return sprite(JUGADOR, {**PALETA_JUGADOR, "c": color_rol}, escala)
+    if dash and assets.ANIMACION_DASH in hoja:
+        return cuadro_de_hoja(hoja, assets.ANIMACION_DASH, 0.0)
+    return cuadro_de_hoja(hoja, assets.ANIMACION_CAMINAR, tiempo if caminando else 0.0)
+
+
+# --- Jugador vestido (vestidores del lobby online) ----------------------
+#
+# Las recetas de Pixelbolt se leen una vez; cada combinación de rol,
+# apariencia y escala se arma una sola vez (la Apariencia es inmutable y
+# sirve de clave) y queda con la misma forma que una hoja cargada. Probar
+# combinaciones en el vestidor crea hojas nuevas: se guardan a lo sumo
+# MAX_HOJAS_VESTIDAS y al pasarse se olvida la más vieja.
+
+MAX_HOJAS_VESTIDAS = 64
+_cache_recetas = {}  # rol -> receta (o None si falta)
+_cache_vestidos = {}  # (rol, apariencia, escala) -> hoja armada (o None), en orden de creación
+_cache_partes = {}  # (simbolos, rol, piel, escala) -> Surface (o None)
+
+
+def _recetas():
+    """Recetas de los roles que prestan partes, leídas una sola vez."""
+    for rol in assets.ROLES_APARIENCIA:
+        if rol not in _cache_recetas:
+            _cache_recetas[rol] = receta_jugador.leer_receta(rol)
+    return _cache_recetas
+
+
+def _hoja_vestida(rol, apariencia, escala):
+    """Hoja del jugador de rol `rol` con `apariencia`, o None sin recetas."""
+    clave = (rol, apariencia, escala)
+    if clave not in _cache_vestidos:
+        if len(_cache_vestidos) >= MAX_HOJAS_VESTIDAS:
+            del _cache_vestidos[next(iter(_cache_vestidos))]  # los dict guardan el orden de inserción
+        animaciones = receta_jugador.armar_animaciones(_recetas(), rol, apariencia)
+        _cache_vestidos[clave] = None if animaciones is None else {
+            nombre: ([_superficie_pixeles(p, escala) for p in cuadros], duraciones)
+            for nombre, (cuadros, duraciones) in animaciones.items()
+        }
+    return _cache_vestidos[clave]
+
+
+def sprite_parte_jugador(simbolos, rol_fuente, piel=None, escala=assets.ESCALA_PIXEL):
+    """Vista previa de una parte para el vestidor: la cabeza
+    (assets.SIMBOLOS_CABEZA) o el traje (SIMBOLOS_TRAJE) de la receta de
+    `rol_fuente`, con la piel de color `piel` (None = la de su receta).
+    None si no hay receta."""
+    piel = tuple(piel) if piel is not None else None
+    clave = (simbolos, rol_fuente, piel, escala)
+    if clave not in _cache_partes:
+        pixeles = receta_jugador.armar_parte(_recetas(), rol_fuente, simbolos, piel)
+        _cache_partes[clave] = None if pixeles is None else _superficie_pixeles(pixeles, escala)
+    return _cache_partes[clave]
+
+
+def _superficie_pixeles(pixeles, escala):
+    """Cuadro armado (filas de RGB o None) -> Surface escalada."""
+    alto, ancho = len(pixeles), len(pixeles[0])
+    base = pygame.Surface((ancho, alto), pygame.SRCALPHA)
+    for y, fila in enumerate(pixeles):
+        for x, color in enumerate(fila):
+            if color is not None:
+                base.set_at((x, y), color)
+    return pygame.transform.scale(base, (ancho * escala, alto * escala))
+
+
+def _cuadros_jefe_v2(animacion):
+    """Cuadros del jefe con arte "enemigos 2.0" (`animacion` = "Idle" o
+    "Walk"), o None si no está activado o falta el PNG."""
+    if not assets.JEFE_V2:
+        return None
+    clave = ("jefe", animacion)
+    if clave not in _cache_enemigos_v2:
+        nombre = assets.JEFE_V2
+        ruta = os.path.join(assets.RUTA_SPRITES_ENEMIGOS_V2, nombre, nombre, f"{nombre}_{animacion}.png")
+        _cache_enemigos_v2[clave] = _leer_tira_v2(ruta, assets.ESCALA_JEFE_V2)
+    return _cache_enemigos_v2[clave]
+
+
+def sprite_jefe(tiempo=0.0, furia=False, escala=assets.ESCALA_SPRITE_JEFE):
+    """Cuadro del jefe para `tiempo` ("furia" en la última fase); sin hoja,
+    el pixel art JEFE."""
+    cuadros_v2 = _cuadros_jefe_v2("Walk" if furia else "Idle")
+    if cuadros_v2:
+        duracion = assets.DURACION_CUADRO_JEFE_V2_FURIA if furia else assets.DURACION_CUADRO_JEFE_V2
+        return cuadros_v2[int(tiempo / duracion) % len(cuadros_v2)]
+    hoja = _cargar_hoja(ruta_sprite(assets.ID_SPRITE_JEFE, assets.RUTA_SPRITES_JEFE), escala)
+    if hoja is None:
+        return sprite(JEFE, PALETA_JEFE, escala)
+    animacion = assets.ANIMACION_JEFE_FURIA if furia else assets.ANIMACION_JEFE_IDLE
+    return cuadro_de_hoja(hoja, animacion, tiempo)
+
+
+_cache_retratos = {}
+
+
+_cache_sombras = {}
+
+
+def dibujar_sombra(pantalla, centro, ancho):
+    """Sombra elíptica en el suelo: asienta personajes y objetos en el escenario."""
+    if ancho not in _cache_sombras:
+        alto = max(4, ancho // 3)
+        sombra = pygame.Surface((ancho, alto), pygame.SRCALPHA)
+        pygame.draw.ellipse(sombra, assets.COLOR_SOMBRA_ENTIDAD, sombra.get_rect())
+        _cache_sombras[ancho] = sombra
+    pantalla.blit(_cache_sombras[ancho], _cache_sombras[ancho].get_rect(center=centro))
+
+
+def retrato_rol(rol, alto):
+    """Ilustración grande del rol (assets/sprites/retratos/<rol>.png)
+    escalada a `alto` px, o None si no existe: el que llama decide el
+    fallback (normalmente sprite_jugador a escala grande)."""
+    if (rol, alto) not in _cache_retratos:
+        imagen = _cargar_png(ruta_sprite(rol, assets.RUTA_SPRITES_RETRATOS))
+        if imagen is None and "_" in str(rol):
+            # "periodista_preocupado" sin archivo: el retrato base del rol.
+            imagen = _cargar_png(ruta_sprite(str(rol).split("_")[0], assets.RUTA_SPRITES_RETRATOS))
+        if imagen is None and "_" in str(rol):
+            # "periodista_preocupado" sin archivo: el retrato base del rol.
+            imagen = _cargar_png(ruta_sprite(str(rol).split("_")[0], assets.RUTA_SPRITES_RETRATOS))
+        if imagen is not None:
+            ancho = max(1, round(imagen.get_width() * alto / imagen.get_height()))
+            imagen = pygame.transform.smoothscale(imagen, (ancho, alto))
+        _cache_retratos[(rol, alto)] = imagen
+    return _cache_retratos[(rol, alto)]
 
 
 _cache_enemigos = {}
 
 
-def sprite_enemigo(tipo, frame=0):
+def sprite_enemigo(tipo, frame=0, tiempo=None):
     """Única fuente de la imagen de un enemigo: todo el render la pide aquí.
 
     `tipo` es un TipoEnemigo (o su valor "perseguidor"/"tirador"/
-    "curandero"); None = el enemigo genérico original. `frame` queda
-    para animaciones futuras (hoy cada tipo tiene un solo cuadro).
+    "curandero"); None = el enemigo genérico original. Con `tiempo`
+    (segundos, p. ej. enemigo.reloj) devuelve el cuadro de "caminar"
+    que toca; `frame` se conserva por compatibilidad (índice fijo).
 
     Arte real: guardar `assets/sprites/enemigos/<id>.png`, con <id> =
-    assets.ID_SPRITE_ENEMIGO[tipo] (p. ej. perseguidor.png), con fondo
-    transparente y ~42x42 px (el tamaño del placeholder). Si el archivo
-    existe se carga una vez y se cachea; si no existe o no se puede
-    leer, se usa el pixel art de PIXEL_ART_ENEMIGO. No hay que tocar
-    nada más del código.
+    assets.ID_SPRITE_ENEMIGO[tipo] (p. ej. perseguidor.png). Si va con
+    su <id>.atlas.json es una hoja de 16x16 por cuadro que se escala por
+    ESCALA_PIXEL; sin atlas, es una imagen suelta de ~42x42 px. Si no
+    existe o no se puede leer, se usa el pixel art de PIXEL_ART_ENEMIGO.
+    No hay que tocar nada más del código.
     """
     if tipo is None:
         return sprite(ENEMIGO, PALETA_ENEMIGO)
     clave = getattr(tipo, "value", tipo)
-    if (clave, frame) not in _cache_enemigos:
-        imagen = _cargar_png(ruta_sprite_enemigo(assets.ID_SPRITE_ENEMIGO[clave]))
-        if imagen is None:
-            imagen = sprite(PIXEL_ART_ENEMIGO[clave], paleta_enemigo(clave))
-        _cache_enemigos[(clave, frame)] = imagen
-    return _cache_enemigos[(clave, frame)]
+    hoja =_cargar_hoja(ruta_sprite_enemigo(assets.ID_SPRITE_ENEMIGO[clave]), assets.ESCALA_PIXEL)
+    if hoja is not None:
+        superficies, duraciones = hoja.get(assets.ANIMACION_CAMINAR) or next(iter(hoja.values()))
+        if tiempo is None:
+            return superficies[frame % len(superficies)]
+        return superficies[indice_por_tiempo(duraciones, tiempo)]
+    if clave not in _cache_enemigos:
+        _cache_enemigos[clave] = sprite(PIXEL_ART_ENEMIGO[clave], paleta_enemigo(clave))
+    return _cache_enemigos[clave]
+
+
+_cache_enemigos_v2 = {}
+
+
+def _celdas_tira_v2(ruta):
+    """Cuadros de 100x100 de una tira de "enemigos 2.0", o None si falta."""
+    tira = _cargar_png(ruta)
+    if tira is None:
+        return None
+    lado = assets.CUADRO_ENEMIGO_V2
+    return [tira.subsurface((x, 0, lado, tira.get_height())) for x in range(0, tira.get_width(), lado)]
+
+
+def _caja_comun(celdas):
+    caja = celdas[0].get_bounding_rect()
+    for celda in celdas[1:]:
+        caja.union_ip(celda.get_bounding_rect())
+    return caja
+
+
+def _leer_tira_v2(ruta, escala):
+    """Tira recortada a una caja común (así no vibra al animar) y escalada."""
+    celdas = _celdas_tira_v2(ruta)
+    if celdas is None:
+        return None
+    caja = _caja_comun(celdas)
+    return [pygame.transform.scale(c.subsurface(caja), (caja.w * escala, caja.h * escala)) for c in celdas]
+
+
+def _leer_variante(nombre):
+    """{"mover": [...], "ataque": [...]} de la variante, o None sin arte.
+
+    Los cuadros de las dos tiras se recortan con la MISMA caja, centrada en
+    la del movimiento: así el cuerpo no salta al empezar a atacar y, al
+    dibujar centrado en el rect del enemigo, el personaje queda donde
+    estaba al caminar."""
+    arte = assets.ARTE_VARIANTE.get(nombre)
+    if arte is None:
+        return None
+    base = os.path.join(assets.RUTA_SPRITES_ENEMIGOS_V2, nombre, nombre, f"{nombre}_%s.png")
+    mover = _celdas_tira_v2(base % arte["tira_mov"])
+    ataque = _celdas_tira_v2(base % arte["tira_ataque"])
+    if mover is None or ataque is None:
+        return None
+    caja_mov = _caja_comun(mover)
+    caja = caja_mov.union(_caja_comun(ataque))
+    cx, cy = caja_mov.center
+    mitad_x = max(cx - caja.left, caja.right - cx)
+    mitad_y = max(cy - caja.top, caja.bottom - cy)
+    escala = arte["escala"]
+
+    def recortado(celda):
+        lienzo = pygame.Surface((2 * mitad_x, 2 * mitad_y), pygame.SRCALPHA)
+        lienzo.blit(celda, (mitad_x - cx, mitad_y - cy))
+        return pygame.transform.scale(lienzo, (lienzo.get_width() * escala, lienzo.get_height() * escala))
+
+    mover = [recortado(c) for c in mover]
+    ataque = [recortado(c) for c in ataque]
+    return {
+        "mover": mover, "ataque": ataque,
+        "mover_izq": [pygame.transform.flip(c, True, False) for c in mover],
+        "ataque_izq": [pygame.transform.flip(c, True, False) for c in ataque],
+    }
+
+
+def sprite_variante(nombre, tiempo=0.0, ataque_t=None, mirando_izquierda=False):
+    """Cuadro de la variante `nombre`: el de su tira de ataque según
+    `ataque_t` (segundos desde que empezó el ataque; None = no ataca) o el
+    de caminar según `tiempo`. Volteado si mira a la izquierda; None si
+    la variante no tiene arte."""
+    if nombre not in _cache_enemigos_v2:
+        _cache_enemigos_v2[nombre] = _leer_variante(nombre)
+    cuadros = _cache_enemigos_v2[nombre]
+    if cuadros is None:
+        return None
+    sufijo = "_izq" if mirando_izquierda else ""
+    if ataque_t is not None:
+        lista = cuadros["ataque" + sufijo]
+        return lista[min(len(lista) - 1, int(ataque_t / balance.DURACION_CUADRO_ATAQUE_S))]
+    lista = cuadros["mover" + sufijo]
+    return lista[int(tiempo / assets.DURACION_CUADRO_ENEMIGO_V2) % len(lista)]
 
 
 def limpiar_cache_enemigos():
     """Olvida las imágenes cargadas (p. ej. tras copiar arte nuevo)."""
-    _cache_enemigos.clear()
+    _cache_enemigos_v2.clear()
+    limpiar_cache_hojas()
 
 
 def _cargar_png(ruta):
@@ -335,3 +794,19 @@ def _cargar_png(ruta):
 
 def dibujar_centrado(pantalla, superficie, centro):
     pantalla.blit(superficie, superficie.get_rect(center=centro))
+
+
+_cache_fondos = {}
+
+
+def fondo_historia(nombre, tamanio=None):
+    """Ilustración de assets/story/<nombre>.png escalada a `tamanio`
+    (por defecto, tal cual), o None si no existe: quien la pide dibuja
+    su fondo de siempre."""
+    clave = (nombre, tamanio)
+    if clave not in _cache_fondos:
+        imagen = _cargar_png(ruta_sprite(nombre, assets.RUTA_FONDOS_HISTORIA))
+        if imagen is not None and tamanio is not None and imagen.get_size() != tuple(tamanio):
+            imagen = pygame.transform.smoothscale(imagen, tamanio)
+        _cache_fondos[clave] = imagen
+    return _cache_fondos[clave]

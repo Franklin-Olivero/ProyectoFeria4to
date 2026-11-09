@@ -109,7 +109,7 @@ def cruzar_a_un_vecino(mj, jugador):
     jugador.rect.center = mj.cuarto.puertas[direccion].rect.center
     jugador.posicion.update(jugador.rect.center)
     proyectiles = [Proyectil((0, 0), (1, 0), 10, 1, (0, 0, 0))]
-    mj.actualizar(DT, jugador, proyectiles)
+    mj.actualizar(DT, [jugador], proyectiles)
     assert mj.cambio_de_cuarto
     assert proyectiles == []  # los proyectiles hostiles en vuelo se limpian
     return proyectiles
@@ -118,14 +118,14 @@ def cruzar_a_un_vecino(mj, jugador):
 def test_gracia_al_empezar_y_en_cada_cambio_de_cuarto():
     mj = mazmorra_alta()
     jugador = jugador_en(0, 0)
-    mj.colocar_en_entrada(jugador)
+    mj.colocar_en_entrada([jugador])
     assert mj.gracia.activa and mj.gracia.restante == 1.0
     for _ in range(70):
-        mj.actualizar(DT, jugador, [])
+        mj.actualizar(DT, [jugador], [])
     assert not mj.gracia.activa
     cruzar_a_un_vecino(mj, jugador)
     assert mj.gracia.restante == pytest.approx(1.0)
-    mj.actualizar(DT, jugador, [])
+    mj.actualizar(DT, [jugador], [])
     assert mj.cuarto.congelado
     assert mj.cuarto.enemigos and all(e.congelado for e in mj.cuarto.enemigos)
 
@@ -133,7 +133,7 @@ def test_gracia_al_empezar_y_en_cada_cambio_de_cuarto():
 def test_sin_dano_durante_la_gracia_y_con_dano_despues():
     mj = mazmorra_alta()
     jugador = jugador_en(0, 0)
-    mj.colocar_en_entrada(jugador)
+    mj.colocar_en_entrada([jugador])
     cruzar_a_un_vecino(mj, jugador)
     # El peor caso: el jugador pegado a un perseguidor recién aparecido.
     perseguidor = next(e for e in mj.cuarto.enemigos if e.tipo == TipoEnemigo.PERSEGUIDOR)
@@ -141,29 +141,29 @@ def test_sin_dano_durante_la_gracia_y_con_dano_despues():
     jugador.posicion.update(jugador.rect.center)
     proyectiles = []
     for _ in range(55):  # < 1 s
-        mj.actualizar(DT, jugador, proyectiles)
+        mj.actualizar(DT, [jugador], proyectiles)
         jugador.rect.center = perseguidor.rect.center
     assert mj.gracia.activa
     assert jugador.golpes == [] and proyectiles == []
-    for _ in range(20):
-        mj.actualizar(DT, jugador, proyectiles)
+    for _ in range(90):  # el golpe de una variante cae a mitad de su animación (<= 0.6 s)
+        mj.actualizar(DT, [jugador], proyectiles)
         jugador.rect.center = perseguidor.rect.center
     assert not mj.gracia.activa and jugador.golpes
 
 
 def test_gracia_en_la_arena_del_jefe():
     jugador = jugador_en(0, 0)
-    arena = ArenaJefe(ColapsoElectoral(), jugador)
+    arena = ArenaJefe(ColapsoElectoral(), [jugador])
     arena._invocar(2)
     tiempo = arena.mazmorra.tiempo_restante
     proyectiles = []
     for _ in range(55):
-        arena.actualizar(DT, jugador, proyectiles)
+        arena.actualizar(DT, [jugador], proyectiles)
     assert arena.gracia.activa
     assert proyectiles == [] and arena.mazmorra.tiempo_restante == tiempo
     assert all(s.congelado for s in arena.subditos)
     for _ in range(200):
-        arena.actualizar(DT, jugador, proyectiles)
+        arena.actualizar(DT, [jugador], proyectiles)
     assert proyectiles and arena.mazmorra.tiempo_restante < tiempo
 
 
@@ -229,7 +229,7 @@ def test_curandero_cura_a_un_herido_con_limite_por_aliado():
 
 def test_curandero_no_se_cura_a_si_mismo_ni_al_jefe():
     jugador = jugador_en(0, 0)
-    arena = ArenaJefe(ColapsoElectoral(), jugador)
+    arena = ArenaJefe(ColapsoElectoral(), [jugador])
     jefe = arena.jefe
     jefe.vida = 10
     curandero = Curandero(jefe.x + 50, jefe.y)
@@ -283,11 +283,11 @@ def test_cuarto_no_se_libera_con_un_curandero_vivo():
     cuarto._actualizar_estado_puertas()
     jugador = jugador_en(200, 300)
     for _ in range(60):
-        cuarto.actualizar(DT, jugador, [])
+        cuarto.actualizar(DT, [jugador], [])
     assert cuarto.fase == FASE_COMBATE
     assert all(p.bloqueada for p in cuarto.puertas.values())
     cuarto.enemigos[0].vida = 0
-    cuarto.actualizar(DT, jugador, [])
+    cuarto.actualizar(DT, [jugador], [])
     assert cuarto.fase == FASE_LIMPIO
     assert not any(p.bloqueada for p in cuarto.puertas.values())
 

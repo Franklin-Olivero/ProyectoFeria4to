@@ -68,7 +68,9 @@ class Proyectil:
                 rect.center = (round(punto.x), round(punto.y))
                 pygame.draw.rect(capa, (*self.color[:3], alfa), rect)
             pantalla.blit(capa, capa.get_rect(center=self.rect.center))
-        pygame.draw.rect(pantalla, self.color, self.rect)
+        from src.ui import proyectil_render
+
+        proyectil_render.dibujar_cuerpo(pantalla, self)
 
 
 class ProyectilConEstela(Proyectil):
@@ -97,4 +99,6 @@ class ProyectilConEstela(Proyectil):
             superficie = pygame.Surface(self.rect.size, pygame.SRCALPHA)
             pygame.draw.circle(superficie, (*self.color, alfa), (radio, radio), radio)
             pantalla.blit(superficie, superficie.get_rect(center=(round(centro.x), round(centro.y))))
-        pygame.draw.circle(pantalla, self.color, self.rect.center, radio)
+        from src.ui import proyectil_render
+
+        proyectil_render.dibujar_cuerpo(pantalla, self, redondo=True)

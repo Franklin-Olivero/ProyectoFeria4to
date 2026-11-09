@@ -1,0 +1,89 @@
+{
+  "frames": {
+    "abierta": {
+      "frame": {
+        "x": 0,
+        "y": 0,
+        "w": 27,
+        "h": 6
+      },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 27,
+        "h": 6
+      },
+      "sourceSize": {
+        "w": 27,
+        "h": 6
+      },
+      "duration": 100
+    },
+    "bloqueada": {
+      "frame": {
+        "x": 27,
+        "y": 0,
+        "w": 27,
+        "h": 6
+      },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 27,
+        "h": 6
+      },
+      "sourceSize": {
+        "w": 27,
+        "h": 6
+      },
+      "duration": 100
+    },
+    "sellada": {
+      "frame": {
+        "x": 54,
+        "y": 0,
+        "w": 27,
+        "h": 6
+      },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 27,
+        "h": 6
+      },
+      "sourceSize": {
+        "w": 27,
+        "h": 6
+      },
+      "duration": 100
+    }
+  },
+  "animations": {
+    "default": {
+      "frames": [
+        "abierta",
+        "bloqueada",
+        "sellada"
+      ],
+      "loop": true,
+      "duration": 300
+    }
+  },
+  "meta": {
+    "app": "Pixelbolt",
+    "version": "1",
+    "image": "puerta.png",
+    "format": "RGBA8888",
+    "size": {
+      "w": 81,
+      "h": 6
+    },
+    "scale": "1"
+  }
+}

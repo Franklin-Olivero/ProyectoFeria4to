@@ -35,6 +35,7 @@ import random
 import pygame
 
 from src.core import assets
+from src.core.equipo import jugador_mas_cercano
 from src.dungeon.clasificador_toxicidad import (
     calcular_nivel_toxicidad,
     construir_arbol_reportes,
@@ -43,7 +44,8 @@ from src.dungeon.clasificador_toxicidad import (
 from src.dungeon.spawn import posiciones_spawn
 from src.entities.enemigos import crear_enemigo
 from src.entities.tipos_enemigo import composicion_cuarto
-from src.ui import cuarto_render
+from src.entities.variantes_enemigo import elegir_variantes
+from src.ui import cuarto_render, temas_mazmorra
 from src.ui.terminal_decision import TerminalDecision, construir_arbol_publicacion
 
 ANCHO_CUARTO = assets.ANCHO_CUARTO
@@ -141,7 +143,12 @@ class Cuarto:
         punto_entrada=None,
         rng=None,
         es_cuarto_inicial=False,
+        usos_variantes=None,
+        fabrica_arbol=None,
+        semilla_visual=0,
+        duracion_terminal=None,
     ):
+        self.nombre_zona = nombre_zona
         self.rect = pygame.Rect(0, 0, ANCHO_CUARTO, ALTO_CUARTO)
         self.rect.center = assets.CENTRO_CUARTO
 
@@ -153,12 +160,21 @@ class Cuarto:
         # Defensa extra: función sin argumentos que dice si la decisión
         # puede empezar (la mazmorra exige el sello cumplido). None = sí.
         self.permitir_decision = permitir_decision
+        # Quién arma el árbol de la terminal al abrirse (modo historia:
+        # el escenario de la zona con la evidencia reunida). None = el
+        # árbol fijo "Publicación Viral" de siempre.
+        self.fabrica_arbol = fabrica_arbol if fabrica_arbol is not None else construir_arbol_publicacion
+        self.semilla_visual = semilla_visual  # distingue el arte de cada cuarto de la mazmorra
+        self.duracion_terminal = duracion_terminal
 
         self.fase = FASE_COMBATE
         self.terminal = None
         self.congelado = False  # gracia de entrada (ver gracia_entrada.py)
 
         self.puertas = self._crear_puertas(direcciones_puertas)
+        # Veces que cada variante apareció en la mazmorra (la comparte la
+        # mazmorra para que cada cuarto traiga caras distintas).
+        self.usos_variantes = usos_variantes if usos_variantes is not None else {}
         self.enemigos = self._crear_enemigos_iniciales(
             punto_entrada if punto_entrada is not None else self.rect.center,
             rng if rng is not None else random.Random(),
@@ -189,7 +205,9 @@ class Cuarto:
         r = self.rect
         posiciones = posiciones_spawn((r.left, r.top, r.right, r.bottom), punto_entrada, len(tipos), rng)
         velocidad = assets.VELOCIDAD_ENEMIGO * self.dificultad["multiplicador_velocidad"]
-        return [crear_enemigo(tipo, x, y, velocidad) for tipo, (x, y) in zip(tipos, posiciones)]
+        variantes = elegir_variantes(tipos, rng, self.usos_variantes)
+        return [crear_enemigo(tipo, x, y, velocidad, variante=variante)
+                for tipo, variante, (x, y) in zip(tipos, variantes, posiciones)]
 
     def _actualizar_estado_puertas(self):
         bloqueadas = len(self.enemigos) > 0
@@ -207,19 +225,25 @@ class Cuarto:
             if self.permitir_decision is not None and not self.permitir_decision():
                 return  # se reintenta cada frame (ver actualizar)
             self.fase = FASE_DECISION
-            self.terminal = TerminalDecision(construir_arbol_publicacion())
+            if self.duracion_terminal is None:
+                self.terminal = TerminalDecision(self.fabrica_arbol())
+            else:
+                self.terminal = TerminalDecision(self.fabrica_arbol(), self.duracion_terminal, descender_resultados=True)
             self.terminal.iniciar()
 
-    def actualizar(self, dt, jugador, proyectiles_enemigos):
+    def actualizar(self, dt, jugadores, proyectiles_enemigos):
         """Corre un tick de IA para cada enemigo vivo y refresca las puertas.
 
-        `proyectiles_enemigos` es la lista de salida donde los enemigos
-        agregan los proyectiles que disparan (ver Enemigo._disparar_a_objetivo).
+        Cada enemigo apunta al jugador en pie más cercano (en solitario,
+        siempre el único). `proyectiles_enemigos` es la lista de salida
+        donde los enemigos agregan los proyectiles que disparan (ver
+        Enemigo._disparar_a_objetivo).
         """
         for enemigo in self.enemigos:
             enemigo.congelado = self.congelado
             enemigo.aliados = self.enemigos
-            enemigo.actualizar(dt, jugador, proyectiles_enemigos)
+            objetivo = jugador_mas_cercano(enemigo.rect.center, jugadores)
+            enemigo.actualizar(dt, objetivo, proyectiles_enemigos)
             enemigo.mantener_dentro(self.rect)
 
         cantidad_antes = len(self.enemigos)
@@ -245,8 +269,16 @@ class Cuarto:
         # sus manchas al volver a él.
         semilla = round(self.nivel_toxicidad * 100) + len(self.puertas) * 7
         grafitis = 1 + int(self.nivel_toxicidad // 35)
-        fondo = cuarto_render.fondo_cuarto(self.rect, semilla, grafitis)
-        pantalla.blit(fondo, cuarto_render.origen_fondo(self.rect))
+        tema = assets.TEMA_POR_ZONA.get(self.nombre_zona)
+        if tema is not None:
+            # Escenario propio del lugar: cada cuarto se pinta una vez y se reconoce.
+            self.reloj_visual = pygame.time.get_ticks() / 1000.0
+            fondo = temas_mazmorra.fondo(self.rect, tema, self.semilla_visual, tuple(self.puertas), self.nivel_toxicidad)
+            pantalla.blit(fondo, (0, assets.Y_MUNDO_TEMA))
+            temas_mazmorra.dibujar_animado(pantalla, self.rect, tema, self.reloj_visual)
+        else:
+            fondo = cuarto_render.fondo_cuarto(self.rect, semilla, grafitis)
+            pantalla.blit(fondo, cuarto_render.origen_fondo(self.rect))
 
         for puerta in self.puertas.values():
             cuarto_render.dibujar_puerta(pantalla, puerta, self.rect)

@@ -1,0 +1,67 @@
+{
+  "frames": {
+    "quieto": {
+      "frame": {
+        "x": 0,
+        "y": 0,
+        "w": 16,
+        "h": 16
+      },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 16,
+        "h": 16
+      },
+      "sourceSize": {
+        "w": 16,
+        "h": 16
+      },
+      "duration": 180
+    },
+    "flota": {
+      "frame": {
+        "x": 16,
+        "y": 0,
+        "w": 16,
+        "h": 16
+      },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 16,
+        "h": 16
+      },
+      "sourceSize": {
+        "w": 16,
+        "h": 16
+      },
+      "duration": 180
+    }
+  },
+  "animations": {
+    "caminar": {
+      "frames": [
+        "quieto",
+        "flota"
+      ],
+      "loop": true,
+      "duration": 360
+    }
+  },
+  "meta": {
+    "app": "Pixelbolt",
+    "version": "1",
+    "image": "curandero.png",
+    "format": "RGBA8888",
+    "size": {
+      "w": 32,
+      "h": 16
+    },
+    "scale": "1"
+  }
+}

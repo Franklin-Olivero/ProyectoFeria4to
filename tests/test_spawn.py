@@ -83,20 +83,20 @@ def test_al_cruzar_puertas_ningun_enemigo_aparece_cerca_del_jugador():
         mj = MazmorraJugable(Mazmorra(REPORTES_POR_ZONA[ZONA_COLEGIO], ZONA_COLEGIO, semilla=semilla))
         m = mj.mazmorra
         jugador = _jugador()
-        mj.colocar_en_entrada(jugador)
+        mj.colocar_en_entrada([jugador])
         revisados = 0
         for _ in range(40):
             if not m.cuartos_pendientes() and m.actual == m.cuarto_final:
                 break
             while mj.cuarto.enemigos:
                 mj.cuarto.eliminar_un_enemigo()
-            mj.actualizar(0.0, jugador, [])
+            mj.actualizar(0.0, [jugador], [])
             destino = _siguiente(m)
             direccion = next(d for d, v in m.puertas(m.actual).items() if v == destino)
             jugador.rect.center = mj.cuarto.puertas[direccion].rect.center
             jugador.posicion.update(jugador.rect.center)
             nuevo = destino not in mj.cuartos
-            mj.actualizar(0.0, jugador, [])
+            mj.actualizar(0.0, [jugador], [])
             assert m.actual == destino
             if nuevo:
                 revisados += 1
@@ -123,4 +123,4 @@ def _jugador():
     from types import SimpleNamespace
 
     rect = pygame.Rect(0, 0, assets.TAMANIO_JUGADOR, assets.TAMANIO_JUGADOR)
-    return SimpleNamespace(rect=rect, posicion=pygame.Vector2(rect.center), recibir_dano=lambda *a, **k: None)
+    return SimpleNamespace(rect=rect, posicion=pygame.Vector2(rect.center), vivo=True, recibir_dano=lambda *a, **k: None)

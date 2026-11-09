@@ -1,0 +1,205 @@
+{
+  "version": 1,
+  "name": "candidato",
+  "width": 16,
+  "height": 20,
+  "palette": {
+    "k": "#100e1e",
+    "n": "#2a3a7a",
+    "o": "#1a2656",
+    "s": "#f2c8a0",
+    "h": "#8a8a9a",
+    "w": "#f6f6fc",
+    "d": "#1a2656",
+    "y": "#ffd23c",
+    "g": "#504868"
+  },
+  "symbols": {
+    "cabeza": [
+      "....khhhhhk.....",
+      "...khhhhhhhk....",
+      "..khhhhhhhhhk...",
+      "..khsssssshhk...",
+      "..khsssssssk....",
+      "..ksskssskssk...",
+      "..kssssssssk....",
+      "..ksswwwwssk....",
+      "...kssssssk.....",
+      "....ksssk......."
+    ],
+    "mano": [
+      "kssk",
+      "kssk",
+      ".kk."
+    ],
+    "torso": [
+      "...knnwynnk.....",
+      "..knnnwynnnnk...",
+      "..knonwynonyk...",
+      "..knonwynonkk...",
+      "..knnnwynnnnk...",
+      "...knnnnnnnk...."
+    ],
+    "piernas_rest": [
+      "....kddddk......",
+      "....kddkddk.....",
+      "....kddkddk.....",
+      "...kkkkkkkk....."
+    ],
+    "piernas_a": [
+      "....kddddk......",
+      "...kddkkddk.....",
+      "...kdk..kdk.....",
+      "..kkkk..kkkk...."
+    ],
+    "piernas_b": [
+      "....kddddk......",
+      "....kddddk......",
+      "....kdkkdk......",
+      "....kkkkkk......"
+    ],
+    "dash": [
+      "....kddddk......",
+      "..kdddk.kddk....",
+      ".kkkk....kkkk..."
+    ]
+  },
+  "frames": [
+    {
+      "name": "quieto",
+      "duration": 150,
+      "ops": [
+        {
+          "op": "stamp",
+          "symbol": "cabeza",
+          "x": 0,
+          "y": 0
+        },
+        {
+          "op": "stamp",
+          "symbol": "torso",
+          "x": 0,
+          "y": 10
+        },
+        {
+          "op": "stamp",
+          "symbol": "mano",
+          "x": 12,
+          "y": 7
+        },
+        {
+          "op": "stamp",
+          "symbol": "piernas_rest",
+          "x": 0,
+          "y": 16
+        }
+      ]
+    },
+    {
+      "name": "paso_a",
+      "duration": 150,
+      "ops": [
+        {
+          "op": "stamp",
+          "symbol": "cabeza",
+          "x": 0,
+          "y": 0
+        },
+        {
+          "op": "stamp",
+          "symbol": "torso",
+          "x": 0,
+          "y": 10
+        },
+        {
+          "op": "stamp",
+          "symbol": "mano",
+          "x": 12,
+          "y": 7
+        },
+        {
+          "op": "stamp",
+          "symbol": "piernas_a",
+          "x": 0,
+          "y": 16
+        }
+      ]
+    },
+    {
+      "name": "paso_b",
+      "duration": 150,
+      "ops": [
+        {
+          "op": "stamp",
+          "symbol": "cabeza",
+          "x": 0,
+          "y": 1
+        },
+        {
+          "op": "stamp",
+          "symbol": "torso",
+          "x": 0,
+          "y": 11
+        },
+        {
+          "op": "stamp",
+          "symbol": "mano",
+          "x": 12,
+          "y": 8
+        },
+        {
+          "op": "stamp",
+          "symbol": "piernas_b",
+          "x": 0,
+          "y": 16
+        }
+      ]
+    },
+    {
+      "name": "dash",
+      "duration": 120,
+      "ops": [
+        {
+          "op": "stamp",
+          "symbol": "cabeza",
+          "x": 0,
+          "y": 1
+        },
+        {
+          "op": "stamp",
+          "symbol": "torso",
+          "x": 0,
+          "y": 11
+        },
+        {
+          "op": "stamp",
+          "symbol": "mano",
+          "x": 12,
+          "y": 8
+        },
+        {
+          "op": "stamp",
+          "symbol": "dash",
+          "x": 0,
+          "y": 17
+        }
+      ]
+    }
+  ],
+  "animations": {
+    "caminar": {
+      "frames": [
+        "quieto",
+        "paso_a",
+        "quieto",
+        "paso_b"
+      ]
+    },
+    "dash": {
+      "frames": [
+        "dash"
+      ],
+      "loop": false
+    }
+  }
+}

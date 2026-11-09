@@ -2,4 +2,9 @@ venv/
 __pycache__/
 *.pyc
 .vscode/
+# Preferencias de cada jugador (volumen, accesibilidad, controles)
+preferencias.json
+preferencias.json.tmp
 .DS_Store
+*.log
+

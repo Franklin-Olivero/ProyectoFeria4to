@@ -1,0 +1,95 @@
+{
+  "frames": {
+    "aviso": {
+      "frame": {
+        "x": 0,
+        "y": 0,
+        "w": 30,
+        "h": 30
+      },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 30,
+        "h": 30
+      },
+      "sourceSize": {
+        "w": 30,
+        "h": 30
+      },
+      "duration": 100
+    },
+    "activo_a": {
+      "frame": {
+        "x": 30,
+        "y": 0,
+        "w": 30,
+        "h": 30
+      },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 30,
+        "h": 30
+      },
+      "sourceSize": {
+        "w": 30,
+        "h": 30
+      },
+      "duration": 260
+    },
+    "activo_b": {
+      "frame": {
+        "x": 60,
+        "y": 0,
+        "w": 30,
+        "h": 30
+      },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 30,
+        "h": 30
+      },
+      "sourceSize": {
+        "w": 30,
+        "h": 30
+      },
+      "duration": 260
+    }
+  },
+  "animations": {
+    "aviso": {
+      "frames": [
+        "aviso"
+      ],
+      "loop": true,
+      "duration": 100
+    },
+    "activo": {
+      "frames": [
+        "activo_a",
+        "activo_b"
+      ],
+      "loop": true,
+      "duration": 520
+    }
+  },
+  "meta": {
+    "app": "Pixelbolt",
+    "version": "1",
+    "image": "charco.png",
+    "format": "RGBA8888",
+    "size": {
+      "w": 90,
+      "h": 30
+    },
+    "scale": "1"
+  }
+}

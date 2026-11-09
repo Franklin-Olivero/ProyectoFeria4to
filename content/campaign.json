@@ -1,0 +1,1592 @@
+{
+  "version": 2,
+  "titulo": "Civitas: Código Nova — La caída de Ciudad Nova",
+  "nota": "Simulación ficticia con fines educativos. Candidatos, cuentas y hechos son inventados; no representan personas, partidos ni elecciones reales.",
+  "candidatos": [
+    {
+      "id": "ortiz",
+      "nombre": "Valeria Ortiz",
+      "lema": "Nova Unida",
+      "base": 24,
+      "afin": "confianza"
+    },
+    {
+      "id": "reyes",
+      "nombre": "Tomás Reyes",
+      "lema": "Puente Ciudadano",
+      "base": 22,
+      "afin": "convivencia"
+    },
+    {
+      "id": "salcedo",
+      "nombre": "Ingrid Salcedo",
+      "lema": "Red Abierta",
+      "base": 20,
+      "afin": "informacion_verificada"
+    },
+    {
+      "id": "lara",
+      "nombre": "Mateo Lara",
+      "lema": "Nova Digital",
+      "base": 18,
+      "afin": "desinformacion"
+    }
+  ],
+  "prologo": [
+    {
+      "hablante": "CIVITAS",
+      "retrato": "civitas",
+      "texto": "Ciudad Nova elige alcalde en pocos días. Cuatro candidatos, una red social, Civitas, y miles de publicaciones por hora."
+    },
+    {
+      "hablante": "CIVITAS",
+      "retrato": "civitas",
+      "texto": "Desde anoche la red se llena de rumores contradictorios. Varias publicaciones manipuladas llevan la misma firma digital: NOVA_404."
+    },
+    {
+      "hablante": "NOVA_404",
+      "retrato": "nova",
+      "texto": "No hace falta controlar la ciudad; basta con controlar lo que cree."
+    },
+    {
+      "hablante": "JUGADOR",
+      "retrato": "jugador",
+      "texto": "Alguien está moviendo los hilos. Voy a seguir el rastro: Colegio, Hospital, Empresa de Medios... y lo que sea que haya en la Alcaldía.",
+      "por_rol": {
+        "periodista": "Tres rumores, una misma firma. Esto es una campaña coordinada, y voy a documentarla zona por zona.",
+        "influencer": "Mis seguidores ya me preguntan qué es cierto. Antes de responder, voy a averiguarlo.",
+        "candidato": "Si esto estalla, la elección se decide con mentiras. Tengo que actuar con más cuidado que nadie.",
+        "ciudadano": "Mis vecinos están asustados. Voy a averiguar qué pasa de verdad antes de que el pánico gane."
+      }
+    },
+    {
+      "hablante": "CIVITAS",
+      "retrato": "civitas",
+      "texto": "Cada zona tiene un nivel de toxicidad: a más toxicidad, más enemigos. Limpia sus cuartos, recoge las pruebas y decide con cabeza fría. La ciudad recuerda lo que publicas."
+    }
+  ],
+  "capitulos": {
+    "Colegio": {
+      "numero": 1,
+      "titulo": "El rumor",
+      "intro": [
+        {
+          "hablante": "CIVITAS",
+          "retrato": "civitas",
+          "texto": "Capítulo 1: El rumor. Una publicación asegura que mañana cierran TODOS los colegios de Ciudad Nova."
+        },
+        {
+          "hablante": "JUGADOR",
+          "retrato": "jugador",
+          "texto": "Miles de familias ya lo comparten. Antes de opinar, necesito los documentos. Cada cuarto limpio es una pista.",
+          "por_rol": {
+            "ciudadano": "Mi hermana ya lo compartió en el grupo de la familia. Antes de opinar, necesito los documentos. Cada cuarto limpio es una pista.",
+            "periodista": "Miles lo comparten y nadie cita la fuente. Voy a buscar el comunicado original. Cada cuarto limpio es una pista.",
+            "influencer": "Si yo lo comparto, lo ven cien mil personas. Por eso no lo haré hasta tener los documentos. Cada cuarto limpio es una pista.",
+            "candidato": "Ya me piden una declaración. Si hablo sin pruebas, la pago doble. Cada cuarto limpio es una pista."
+          }
+        }
+      ],
+      "ubicacion": "Colegio Central · Barrio Norte",
+      "contexto": "Una captura recortada asegura que mañana no hay clases en ningún colegio.",
+      "objetivo": "Reúne pruebas y decide qué hacer con la publicación."
+    },
+    "Hospital": {
+      "numero": 2,
+      "titulo": "Contagio digital",
+      "intro": [
+        {
+          "hablante": "CIVITAS",
+          "retrato": "civitas",
+          "texto": "Capítulo 2: Contagio digital. Elena Vidal, enfermera, pidió donantes de sangre. En minutos, cientos de cuentas la llamaron mentirosa."
+        },
+        {
+          "hablante": "ELENA VIDAL",
+          "retrato": "civitas",
+          "requiere": {
+            "reputacion_min": 20
+          },
+          "texto": "Vi cómo aclaraste lo del colegio. Te mando lo que tengo del banco de sangre: confío en lo que vas a hacer con esto."
+        },
+        {
+          "hablante": "ELENA VIDAL",
+          "retrato": "civitas",
+          "requiere": {
+            "reputacion_max": -20
+          },
+          "texto": "Sé quién eres. Vi lo que compartiste. No voy a pasarte nada: tendrás que encontrar las pruebas por tu cuenta."
+        },
+        {
+          "hablante": "JUGADOR",
+          "retrato": "jugador",
+          "texto": "Suena exagerado, igual que el rumor del colegio. Pero que suene exagerado no lo hace falso. Necesito los datos del hospital."
+        },
+        {
+          "hablante": "CIVITAS",
+          "retrato": "civitas",
+          "texto": "Aquí verás cómo viaja una publicación por la red social de la ciudad: persona a persona, salto a salto. Lo que hagas también viajará."
+        }
+      ],
+      "ubicacion": "Hospital de Ciudad Nova",
+      "contexto": "Una enfermera pide sangre de urgencia. Cientos de cuentas dicen que miente.",
+      "objetivo": "Averigua quién dice la verdad antes de que se acabe el tiempo."
+    },
+    "Empresa de Medios": {
+      "numero": 3,
+      "titulo": "El origen de la señal",
+      "intro": [
+        {
+          "hablante": "CIVITAS",
+          "retrato": "civitas",
+          "texto": "Capítulo 3: El origen de la señal. Tres cuentas publicaron la misma encuesta falsa con cuatro segundos de diferencia."
+        },
+        {
+          "hablante": "FABIO CRUZ",
+          "retrato": "civitas",
+          "requiere": {
+            "reputacion_min": 20
+          },
+          "texto": "Aquí todos han leído tus aclaraciones. Te abro la sala de servidores: tú no vas a usar esto para hacer ruido."
+        },
+        {
+          "hablante": "FABIO CRUZ",
+          "retrato": "civitas",
+          "requiere": {
+            "reputacion_max": -20
+          },
+          "texto": "Con tu historial, nadie aquí quiere hablar contigo. Si dices algo, trae cada prueba: no te van a creer de otra forma."
+        },
+        {
+          "hablante": "JUGADOR",
+          "retrato": "jugador",
+          "texto": "Nadie escribe tan rápido. Alguien está programando estas cuentas. Si sigo sus conexiones, una por una, llegaré a la señal original."
+        }
+      ],
+      "ubicacion": "Empresa de Medios · Torre de transmisión",
+      "contexto": "Una encuesta falsa rebota en tres cuentas a la vez, con cuatro segundos de diferencia.",
+      "objetivo": "Decide sobre la encuesta y rastrea de dónde sale la señal."
+    },
+    "Alcaldía": {
+      "numero": 4,
+      "titulo": "La última transmisión",
+      "intro": [
+        {
+          "hablante": "CIVITAS",
+          "retrato": "civitas",
+          "texto": "Capítulo final: La última transmisión. Bajo la Alcaldía late el Servidor Central, el sistema que amplifica cada rumor."
+        },
+        {
+          "hablante": "JUGADOR",
+          "retrato": "jugador",
+          "texto": "Tengo todas las pistas: el recorte firmado, el ataque a la enfermera y la raíz en la Alcaldía. Sé exactamente qué es NOVA_404.",
+          "requiere": {
+            "pistas_min": 3
+          }
+        },
+        {
+          "hablante": "JUGADOR",
+          "retrato": "jugador",
+          "texto": "No tengo todas las pistas, pero sí el rastro. Lo que falte, lo saco del servidor.",
+          "requiere": {
+            "pistas_max": 2
+          }
+        },
+        {
+          "hablante": "NOVA_404",
+          "retrato": "nova",
+          "requiere": {
+            "reputacion_max": -20
+          },
+          "texto": "Qué alegría verte. Tus publicaciones fueron de lo más útil. Gracias por el trabajo."
+        },
+        {
+          "hablante": "NOVA_404",
+          "retrato": "nova",
+          "texto": "Llegas tarde. La ciudad ya cree lo que yo quise que creyera."
+        },
+        {
+          "hablante": "CIVITAS",
+          "retrato": "civitas",
+          "texto": "Aquí no hay decisiones: solo combate. Tres fases, 180 segundos. Todo ataque se puede esquivar."
+        }
+      ],
+      "ubicacion": "Sótanos de la Alcaldía",
+      "contexto": "Toda la señal baja hasta el Servidor Central.",
+      "objetivo": "Apaga el servidor. Aquí no hay decisiones: solo combate."
+    }
+  },
+  "escenarios": {
+    "Colegio": {
+      "id": "colegio_cierre",
+      "titulo": "¿Cierran todos los colegios?",
+      "veredicto": "fuera_de_contexto",
+      "post": {
+        "usuario": "@MamasNovaUnidas",
+        "hace": "hace 7 min",
+        "texto": "URGENTE: mañana cierran TODOS los colegios de Ciudad Nova por orden de la Alcaldía. No manden a sus hijos. ¡Compartan!",
+        "imagen": "[captura recortada de un comunicado]",
+        "etiqueta": "Sin fuente completa",
+        "compartidos": "8.9 mil compartidos",
+        "comentarios": "2.4 mil comentarios",
+        "fuente": {
+          "tipo": "conocida",
+          "detalle": "Grupo de familias activo hace 3 años. No cita el comunicado."
+        }
+      },
+      "evidencias": [
+        {
+          "id": "col_e1",
+          "titulo": "Comunicado completo",
+          "fuente": "Secretaría de Educación de Ciudad Nova",
+          "fragmento": "Mantenimiento eléctrico SOLO en el Colegio Central, jueves de 7:00 a 9:00. Las clases continúan en los demás colegios."
+        },
+        {
+          "id": "col_e2",
+          "titulo": "Captura original vs. recortada",
+          "fuente": "Archivo de Civitas",
+          "fragmento": "La imagen viral recorta la línea 'solo en el Colegio Central' y la palabra 'jueves'."
+        },
+        {
+          "id": "col_e3",
+          "titulo": "Primer rebote",
+          "fuente": "Registro de publicaciones",
+          "fragmento": "El recorte lo publicó primero @eco_nova_ok a las 06:02 con la etiqueta oculta NOVA_404.",
+          "pista": true
+        }
+      ],
+      "opciones": [
+        {
+          "etiqueta": "Verificar",
+          "hijos": [
+            {
+              "etiqueta": "Publicar aclaración con el comunicado",
+              "resultado": "purificacion",
+              "texto": "Publicaste el comunicado completo: mantenimiento en un solo colegio, dos horas. El rumor se desinfla.",
+              "efectos": {
+                "informacion_verificada": 12,
+                "confianza": 8,
+                "desinformacion": -10,
+                "bienestar_digital": 4
+              },
+              "puntos": 120,
+              "por_evidencia": {
+                "sin_pruebas": {
+                  "resultado": "detonacion",
+                  "texto": "Prometiste una aclaración pero no tenías el comunicado. Sin fuente, nadie te creyó y el rumor siguió.",
+                  "efectos": {
+                    "desinformacion": 4,
+                    "confianza": -3
+                  },
+                  "puntos": 10
+                },
+                "parcial": {
+                  "resultado": "purificacion",
+                  "texto": "Tu aclaración tenía parte del comunicado. Frenó el rumor, pero muchos quedaron con dudas.",
+                  "efectos": {
+                    "informacion_verificada": 6,
+                    "confianza": 3,
+                    "desinformacion": -4
+                  },
+                  "puntos": 60
+                }
+              },
+              "accion": "publicar_verificado"
+            },
+            {
+              "etiqueta": "Compartir el recorte de todos modos",
+              "resultado": "detonacion",
+              "texto": "Lo revisaste y aun así difundiste la captura recortada. Al día siguiente, cientos de niños faltaron a clases por nada.",
+              "efectos": {
+                "desinformacion": 10,
+                "confianza": -8,
+                "convivencia": -4
+              },
+              "puntos": 0,
+              "accion": "insistir"
+            }
+          ]
+        },
+        {
+          "etiqueta": "Me gusta",
+          "resultado": "detonacion",
+          "texto": "Le diste me gusta a la captura recortada. No la compartiste, pero el algoritmo se la mostró a tus contactos y el miedo siguió creciendo entre las familias.",
+          "efectos": {
+            "desinformacion": 10,
+            "confianza": -5,
+            "bienestar_digital": -4
+          },
+          "puntos": 0,
+          "accion": "me_gusta"
+        },
+        {
+          "etiqueta": "Compartir",
+          "resultado": "detonacion",
+          "texto": "Compartiste el rumor tal cual. Se multiplicó y el pánico llegó a todas las familias.",
+          "efectos": {
+            "desinformacion": 14,
+            "confianza": -8,
+            "bienestar_digital": -6,
+            "conflictos": 6
+          },
+          "puntos": 0,
+          "accion": "compartir"
+        },
+        {
+          "etiqueta": "Reportar",
+          "hijos": [
+            {
+              "etiqueta": "Reportarla como engañosa, con el comunicado",
+              "resultado": "purificacion",
+              "texto": "Tu reporte incluyó el comunicado original. Civitas etiquetó la publicación como fuera de contexto.",
+              "efectos": {
+                "informacion_verificada": 8,
+                "desinformacion": -8,
+                "participacion_responsable": 8
+              },
+              "puntos": 100,
+              "por_evidencia": {
+                "sin_pruebas": {
+                  "resultado": "detonacion",
+                  "texto": "Reportaste sin pruebas. El reporte se archivó y la publicación siguió creciendo.",
+                  "efectos": {
+                    "desinformacion": 4,
+                    "participacion_responsable": -2
+                  },
+                  "puntos": 10
+                },
+                "parcial": {
+                  "resultado": "purificacion",
+                  "texto": "Reportaste con pruebas parciales. Civitas pidió más contexto, pero frenó la difusión.",
+                  "efectos": {
+                    "informacion_verificada": 4,
+                    "desinformacion": -4,
+                    "participacion_responsable": 4
+                  },
+                  "puntos": 50
+                }
+              },
+              "accion": "reportar"
+            },
+            {
+              "etiqueta": "Reportar en masa a la cuenta",
+              "resultado": "detonacion",
+              "texto": "Pediste reportes masivos contra la cuenta. La suspendieron sin revisar y el recorte siguió circulando desde otras.",
+              "efectos": {
+                "conflictos": 8,
+                "convivencia": -6,
+                "participacion_responsable": -6
+              },
+              "puntos": 0,
+              "accion": "linchar"
+            }
+          ]
+        },
+        {
+          "etiqueta": "Ignorar",
+          "resultado": "detonacion",
+          "texto": "No hiciste nada. El rumor creció solo y la Secretaría tardó un día en desmentirlo.",
+          "efectos": {
+            "desinformacion": 8,
+            "confianza": -4,
+            "participacion_responsable": -6
+          },
+          "puntos": 0,
+          "accion": "ignorar"
+        }
+      ],
+      "tiempo_agotado": {
+        "resultado": "detonacion",
+        "texto": "Se acabó el tiempo sin decidir. El rumor siguió circulando mientras dudabas.",
+        "efectos": {
+          "desinformacion": 8,
+          "participacion_responsable": -4
+        },
+        "puntos": 0,
+        "accion": "no_decidir"
+      },
+      "gravedad": "media",
+      "propagacion": {
+        "origen": "gina",
+        "nota": "Una madre del grupo de familias reenvía la captura; la aclaración sale por el mismo camino."
+      },
+      "verificacion": {
+        "sin_pruebas": "No tienes ningún documento. Puedes opinar, pero no demostrar nada.",
+        "parcial": "Lo que tienes contradice la publicación, pero no alcanza para explicar todo lo que pasó.",
+        "completa": "El comunicado real habla de un solo colegio y dos horas. La captura fue recortada a propósito."
+      }
+    },
+    "Hospital": {
+      "id": "hospital_sangre",
+      "titulo": "¿Falta sangre en el hospital?",
+      "veredicto": "cierto",
+      "gravedad": "alta",
+      "post": {
+        "usuario": "@ElenaVidalRN",
+        "hace": "hace 6 min",
+        "texto": "URGENTE: nos quedamos sin sangre O- en el Hospital de Ciudad Nova. Si pueden donar, vengan antes de medianoche. No es un simulacro.",
+        "imagen": "[foto del banco de sangre, con hora]",
+        "etiqueta": "Reportada como falsa",
+        "compartidos": "15.2 mil compartidos",
+        "comentarios": "5.8 mil comentarios",
+        "fuente": {
+          "tipo": "conocida",
+          "detalle": "Enfermera del hospital. Cuenta de 6 años. Decenas de usuarios la acusan de mentir."
+        }
+      },
+      "verificacion": {
+        "sin_pruebas": "No tienes datos del hospital. La publicación suena alarmista, pero eso no la hace falsa ni cierta.",
+        "parcial": "Lo que reuniste respalda a la enfermera, aunque todavía no sabes quién la está atacando.",
+        "completa": "El banco de sangre confirma el pedido. Lo falso son los reportes: 30 cuentas coordinadas intentan callarla."
+      },
+      "evidencias": [
+        {
+          "id": "hos_e1",
+          "titulo": "Registro del banco de sangre",
+          "fuente": "Dirección del Hospital",
+          "fragmento": "Reserva de O- por debajo del mínimo desde las 19:00. Se pidió apoyo a la ciudad. Urgencias funciona con normalidad."
+        },
+        {
+          "id": "hos_e2",
+          "titulo": "Testimonio del turno",
+          "fuente": "Jefe de turno de urgencias",
+          "fragmento": "Elena publicó con mi autorización. Hoy tuvimos tres cirugías de emergencia y necesitamos donantes ya."
+        },
+        {
+          "id": "hos_e3",
+          "titulo": "Origen de los reportes",
+          "fuente": "Registro de publicaciones",
+          "fragmento": "30 cuentas creadas hace 9 días reportaron el pedido en el mismo minuto, con la etiqueta NOVA_404. Las encabeza @NovaDespierta.",
+          "pista": true
+        }
+      ],
+      "opciones": [
+        {
+          "etiqueta": "Verificar",
+          "hijos": [
+            {
+              "etiqueta": "Compartir el pedido con los datos comprobados",
+              "accion": "publicar_verificado",
+              "resultado": "purificacion",
+              "texto": "Publicaste el registro del banco de sangre junto al pedido de Elena. Antes de medianoche había fila de donantes.",
+              "efectos": {
+                "informacion_verificada": 12,
+                "confianza": 8,
+                "bienestar_digital": 6,
+                "desinformacion": -6
+              },
+              "puntos": 120,
+              "por_evidencia": {
+                "sin_pruebas": {
+                  "resultado": "detonacion",
+                  "texto": "Dijiste que era cierto, pero sin un solo dato. Entre tantos reportes, nadie te creyó y casi no llegaron donantes.",
+                  "efectos": {
+                    "confianza": -3,
+                    "bienestar_digital": -2
+                  },
+                  "puntos": 10
+                },
+                "parcial": {
+                  "resultado": "purificacion",
+                  "texto": "Respaldaste a Elena con lo que tenías. Llegaron donantes, aunque muchos siguieron dudando.",
+                  "efectos": {
+                    "informacion_verificada": 6,
+                    "confianza": 3,
+                    "bienestar_digital": 3
+                  },
+                  "puntos": 60
+                }
+              }
+            },
+            {
+              "etiqueta": "Declararlo pánico inventado",
+              "accion": "afirmar_sin_matiz",
+              "resultado": "detonacion",
+              "texto": "Afirmaste que era un invento. La reserva se agotó esa noche y dos cirugías tuvieron que esperar.",
+              "efectos": {
+                "desinformacion": 8,
+                "confianza": -10,
+                "bienestar_digital": -8
+              },
+              "puntos": 0
+            }
+          ]
+        },
+        {
+          "etiqueta": "Me gusta",
+          "accion": "me_gusta",
+          "resultado": "purificacion",
+          "texto": "Le diste me gusta al pedido de Elena sabiendo que el banco de sangre lo confirmaba. Más contactos lo vieron y llegaron algunos donantes, pero un me gusta no muestra la prueba.",
+          "efectos": {
+            "bienestar_digital": 3,
+            "confianza": 2
+          },
+          "puntos": 40,
+          "por_evidencia": {
+            "sin_pruebas": {
+              "resultado": "purificacion",
+              "texto": "Le diste me gusta sin comprobar nada. Esta vez era cierto y el pedido llegó a un poco más de gente; la próxima podría no serlo.",
+              "efectos": {
+                "bienestar_digital": 2
+              },
+              "puntos": 15
+            },
+            "parcial": {
+              "resultado": "purificacion",
+              "texto": "Le diste me gusta con algunas pruebas en la mano. El pedido subió un poco, aunque nadie supo por qué creerle.",
+              "efectos": {
+                "bienestar_digital": 2,
+                "confianza": 1
+              },
+              "puntos": 25
+            }
+          }
+        },
+        {
+          "etiqueta": "Compartir",
+          "accion": "compartir",
+          "resultado": "purificacion",
+          "texto": "Compartiste el pedido sabiendo que el banco de sangre lo confirmaba. Más de cien personas fueron a donar.",
+          "efectos": {
+            "informacion_verificada": 6,
+            "confianza": 6,
+            "bienestar_digital": 6
+          },
+          "puntos": 90,
+          "por_evidencia": {
+            "sin_pruebas": {
+              "resultado": "purificacion",
+              "texto": "Compartiste sin comprobar nada. Esta vez era cierto y llegaron donantes; la próxima podría no serlo.",
+              "efectos": {
+                "bienestar_digital": 4,
+                "confianza": 1
+              },
+              "puntos": 30
+            },
+            "parcial": {
+              "resultado": "purificacion",
+              "texto": "Compartiste con algunas pruebas en la mano. Llegaron donantes, aunque no pudiste responder a quienes dudaban.",
+              "efectos": {
+                "bienestar_digital": 5,
+                "confianza": 3
+              },
+              "puntos": 50
+            }
+          }
+        },
+        {
+          "etiqueta": "Reportar",
+          "hijos": [
+            {
+              "etiqueta": "Reportar a las cuentas que la atacan",
+              "accion": "denunciar_ataque",
+              "resultado": "purificacion",
+              "texto": "Adjuntaste el origen de los reportes. Civitas suspendió las 30 cuentas y le devolvió la visibilidad al pedido de Elena.",
+              "efectos": {
+                "informacion_verificada": 8,
+                "desinformacion": -8,
+                "participacion_responsable": 8,
+                "confianza": 4
+              },
+              "puntos": 110,
+              "por_evidencia": {
+                "sin_pruebas": {
+                  "resultado": "detonacion",
+                  "texto": "Reportaste a cuentas al azar, sin nada que mostrar. El reporte se archivó y el ataque siguió.",
+                  "efectos": {
+                    "participacion_responsable": -2,
+                    "conflictos": 2
+                  },
+                  "puntos": 10
+                },
+                "parcial": {
+                  "resultado": "purificacion",
+                  "texto": "Reportaste a las cuentas más visibles. Cayeron unas pocas y el pedido recuperó algo de alcance.",
+                  "efectos": {
+                    "informacion_verificada": 4,
+                    "desinformacion": -4,
+                    "participacion_responsable": 4
+                  },
+                  "puntos": 50
+                }
+              }
+            },
+            {
+              "etiqueta": "Reportar el pedido como falso",
+              "accion": "reportar",
+              "resultado": "detonacion",
+              "texto": "Civitas ocultó el pedido por tu reporte. Elena recibió insultos, faltaron donantes y dos cirugías tuvieron que esperar.",
+              "efectos": {
+                "desinformacion": 8,
+                "conflictos": 8,
+                "confianza": -8,
+                "bienestar_digital": -8
+              },
+              "puntos": 0
+            }
+          ]
+        },
+        {
+          "etiqueta": "Ignorar",
+          "accion": "ignorar",
+          "resultado": "detonacion",
+          "texto": "No hiciste nada. El pedido quedó enterrado bajo los reportes y la reserva bajó hasta el mínimo crítico.",
+          "efectos": {
+            "confianza": -4,
+            "bienestar_digital": -6,
+            "participacion_responsable": -6
+          },
+          "puntos": 0,
+          "por_evidencia": {
+            "sin_pruebas": {
+              "resultado": "detonacion",
+              "texto": "No quisiste amplificar lo que no podías comprobar. Es comprensible, pero el pedido quedó enterrado bajo los reportes.",
+              "efectos": {
+                "bienestar_digital": -3
+              },
+              "puntos": 0
+            }
+          }
+        }
+      ],
+      "tiempo_agotado": {
+        "accion": "no_decidir",
+        "resultado": "detonacion",
+        "texto": "Se acabó el tiempo. Mientras dudabas, los reportes enterraron el pedido.",
+        "efectos": {
+          "bienestar_digital": -5,
+          "participacion_responsable": -4
+        },
+        "puntos": 0
+      },
+      "propagacion": {
+        "origen": "elena",
+        "nota": "El pedido sale de la enfermera. Si se oculta, lo que viaja es la versión de que era mentira."
+      }
+    },
+    "Empresa de Medios": {
+      "id": "medios_encuesta",
+      "titulo": "La encuesta que nadie hizo",
+      "veredicto": "falso",
+      "post": {
+        "usuario": "@DatosNovaHoy",
+        "hace": "hace 1 min",
+        "texto": "EXCLUSIVO: encuesta de la Empresa de Medios confirma que Mateo Lara gana con 61 %. Los demás ya lo saben y por eso callan.",
+        "imagen": "[gráfico sin ficha técnica]",
+        "etiqueta": "Sin ficha técnica",
+        "compartidos": "3.1 mil compartidos",
+        "comentarios": "900 comentarios",
+        "fuente": {
+          "tipo": "desconocida",
+          "detalle": "Cuenta creada hace 11 días. Sin autor identificable."
+        }
+      },
+      "evidencias": [
+        {
+          "id": "med_e1",
+          "titulo": "Desmentido de la Empresa de Medios",
+          "fuente": "Dirección de la Empresa de Medios",
+          "fragmento": "No hemos realizado ni publicado ninguna encuesta electoral. El gráfico usa nuestro logo sin autorización."
+        },
+        {
+          "id": "med_e2",
+          "titulo": "Horarios de publicación",
+          "fuente": "Registro de publicaciones",
+          "fragmento": "@DatosNovaHoy, @eco_nova_ok y @NovaDespierta publicaron el mismo gráfico con 4 segundos de diferencia: programación automática."
+        },
+        {
+          "id": "med_e3",
+          "titulo": "Origen de la red",
+          "fuente": "Análisis de conexiones",
+          "fragmento": "Las tres cuentas siguen a un mismo nodo: la cuenta de pruebas 'nova_root', creada desde la red interna de la Alcaldía.",
+          "pista": true
+        }
+      ],
+      "opciones": [
+        {
+          "etiqueta": "Verificar",
+          "hijos": [
+            {
+              "etiqueta": "Publicar el desmentido oficial",
+              "resultado": "purificacion",
+              "texto": "Publicaste el desmentido con el logo original. La encuesta falsa quedó marcada en toda la red.",
+              "efectos": {
+                "informacion_verificada": 12,
+                "confianza": 8,
+                "desinformacion": -12
+              },
+              "puntos": 120,
+              "por_evidencia": {
+                "sin_pruebas": {
+                  "resultado": "detonacion",
+                  "texto": "Dijiste que era falsa sin el desmentido. Te respondieron '¿y tus pruebas?' y la encuesta siguió circulando.",
+                  "efectos": {
+                    "desinformacion": 4,
+                    "confianza": -3
+                  },
+                  "puntos": 10
+                },
+                "parcial": {
+                  "resultado": "purificacion",
+                  "texto": "Publicaste el desmentido pero sin explicar cómo se fabricó. Frenó la encuesta, no la red detrás.",
+                  "efectos": {
+                    "informacion_verificada": 6,
+                    "desinformacion": -6
+                  },
+                  "puntos": 60
+                }
+              },
+              "accion": "publicar_verificado"
+            },
+            {
+              "etiqueta": "Compartirla 'por si acaso'",
+              "resultado": "detonacion",
+              "texto": "Ya sabías que no había ficha técnica y aun así la compartiste 'para que cada quien juzgue'. Al día siguiente abría los noticieros.",
+              "efectos": {
+                "desinformacion": 12,
+                "confianza": -8,
+                "participacion_responsable": -6
+              },
+              "puntos": 0,
+              "accion": "insistir"
+            }
+          ]
+        },
+        {
+          "etiqueta": "Me gusta",
+          "resultado": "detonacion",
+          "texto": "Le diste me gusta a la encuesta falsa. El algoritmo la puso en los muros de tus contactos y algunos ya repiten 'ya está decidido'.",
+          "efectos": {
+            "desinformacion": 10,
+            "participacion_responsable": -6,
+            "confianza": -3
+          },
+          "puntos": 0,
+          "accion": "me_gusta"
+        },
+        {
+          "etiqueta": "Compartir",
+          "resultado": "detonacion",
+          "texto": "Compartiste la encuesta falsa. Varios ciudadanos decidieron no votar: 'ya está decidido'.",
+          "efectos": {
+            "desinformacion": 14,
+            "participacion_responsable": -10,
+            "confianza": -6
+          },
+          "puntos": 0,
+          "accion": "compartir"
+        },
+        {
+          "etiqueta": "Reportar",
+          "hijos": [
+            {
+              "etiqueta": "Reportar como suplantación, con evidencia",
+              "resultado": "purificacion",
+              "texto": "Reportaste el uso indebido del logo con el desmentido adjunto. Civitas retiró el gráfico de las tres cuentas.",
+              "efectos": {
+                "informacion_verificada": 8,
+                "desinformacion": -10,
+                "participacion_responsable": 8
+              },
+              "puntos": 100,
+              "por_evidencia": {
+                "sin_pruebas": {
+                  "resultado": "detonacion",
+                  "texto": "Reportaste sin pruebas y el reporte quedó en cola. La encuesta siguió toda la noche.",
+                  "efectos": {
+                    "desinformacion": 4,
+                    "participacion_responsable": -2
+                  },
+                  "puntos": 10
+                },
+                "parcial": {
+                  "resultado": "purificacion",
+                  "texto": "Reportaste con el desmentido pero sin la red de cuentas. Retiraron una copia; quedaron dos.",
+                  "efectos": {
+                    "informacion_verificada": 4,
+                    "desinformacion": -5,
+                    "participacion_responsable": 4
+                  },
+                  "puntos": 50
+                }
+              },
+              "accion": "reportar"
+            },
+            {
+              "etiqueta": "Acusar públicamente a Mateo Lara",
+              "resultado": "detonacion",
+              "texto": "Acusaste al candidato sin pruebas de que él la fabricó. La campaña se volvió una guerra de insultos.",
+              "efectos": {
+                "conflictos": 12,
+                "convivencia": -8,
+                "confianza": -4
+              },
+              "puntos": 0,
+              "accion": "linchar"
+            }
+          ]
+        },
+        {
+          "etiqueta": "Ignorar",
+          "resultado": "detonacion",
+          "texto": "Dejaste pasar la encuesta. Para cuando la Empresa de Medios la desmintió, ya había moldeado el voto.",
+          "efectos": {
+            "desinformacion": 8,
+            "participacion_responsable": -6
+          },
+          "puntos": 0,
+          "accion": "ignorar"
+        }
+      ],
+      "tiempo_agotado": {
+        "resultado": "detonacion",
+        "texto": "Se acabó el tiempo. La encuesta falsa siguió circulando mientras dudabas.",
+        "efectos": {
+          "desinformacion": 8,
+          "participacion_responsable": -4
+        },
+        "puntos": 0,
+        "accion": "no_decidir"
+      },
+      "propagacion": {
+        "origen": "fabio",
+        "nota": "El periodista local recibe la encuesta y la red decide si la amplifica."
+      },
+      "gravedad": "media",
+      "verificacion": {
+        "sin_pruebas": "El gráfico no trae ficha técnica y no tienes con qué compararlo.",
+        "parcial": "Tienes indicios de que la encuesta no existe, aunque no sabes quién la fabricó.",
+        "completa": "La Empresa de Medios nunca hizo esa encuesta y tres cuentas la publicaron con 4 segundos de diferencia."
+      }
+    }
+  },
+  "pistas": {
+    "col_e3": "Pista 1 — NOVA_404 firma los recortes: el rumor del colegio nació en @eco_nova_ok.",
+    "hos_e3": "Pista 2 — NOVA_404 también ataca lo verdadero: 30 cuentas reportaron a la vez el pedido de sangre.",
+    "med_e3": "Pista 3 — NOVA_404 tiene raíz: 'nova_root' opera desde la red interna de la Alcaldía."
+  },
+  "red_social": {
+    "nota": "Grafo de contactos ficticio para la propagación (BFS) y el rastreo de origen (DFS). Separado del grafo de calles.",
+    "ciudadanos": [
+      {
+        "id": "ana",
+        "nombre": "Ana Pardo",
+        "rol": "docente"
+      },
+      {
+        "id": "beto",
+        "nombre": "Beto Ruiz",
+        "rol": "tendero"
+      },
+      {
+        "id": "cami",
+        "nombre": "Camila Osorio",
+        "rol": "estudiante"
+      },
+      {
+        "id": "dario",
+        "nombre": "Darío Mena",
+        "rol": "conductor"
+      },
+      {
+        "id": "elena",
+        "nombre": "Elena Vidal",
+        "rol": "enfermera"
+      },
+      {
+        "id": "fabio",
+        "nombre": "Fabio Cruz",
+        "rol": "periodista local"
+      },
+      {
+        "id": "gina",
+        "nombre": "Gina Torres",
+        "rol": "madre de familia"
+      },
+      {
+        "id": "hugo",
+        "nombre": "Hugo Salas",
+        "rol": "influencer de barrio"
+      },
+      {
+        "id": "irene",
+        "nombre": "Irene Pabón",
+        "rol": "abuela"
+      },
+      {
+        "id": "julio",
+        "nombre": "Julio Castro",
+        "rol": "vigilante"
+      }
+    ],
+    "conexiones": [
+      [
+        "hugo",
+        "ana"
+      ],
+      [
+        "hugo",
+        "cami"
+      ],
+      [
+        "hugo",
+        "dario"
+      ],
+      [
+        "hugo",
+        "gina"
+      ],
+      [
+        "ana",
+        "cami"
+      ],
+      [
+        "ana",
+        "gina"
+      ],
+      [
+        "gina",
+        "irene"
+      ],
+      [
+        "gina",
+        "beto"
+      ],
+      [
+        "beto",
+        "julio"
+      ],
+      [
+        "dario",
+        "julio"
+      ],
+      [
+        "elena",
+        "irene"
+      ],
+      [
+        "elena",
+        "fabio"
+      ],
+      [
+        "fabio",
+        "ana"
+      ],
+      [
+        "cami",
+        "julio"
+      ]
+    ]
+  },
+  "eventos": [
+    {
+      "id": "noticia_viral",
+      "titulo": "Noticia viral sin fuente recorre los barrios",
+      "propaga": "rumor",
+      "efectos": {
+        "bienestar_digital": -1
+      }
+    },
+    {
+      "id": "correccion_comunitaria",
+      "titulo": "Vecinos publican una corrección con fuente oficial",
+      "propaga": "correccion",
+      "efectos": {
+        "confianza": 1
+      }
+    },
+    {
+      "id": "cuenta_sospechosa",
+      "titulo": "Detectan una cuenta nueva que publica a horas exactas",
+      "efectos": {
+        "conflictos": 1
+      }
+    },
+    {
+      "id": "rumor_reactivado",
+      "titulo": "Un rumor que se compartió sin contexto vuelve a circular",
+      "propaga": "rumor",
+      "efectos": {
+        "desinformacion": 2
+      },
+      "requiere_detonacion": true
+    }
+  ],
+  "finales": {
+    "renace": {
+      "titulo": "Ciudad Nova renace",
+      "texto": "La ciudad votó informada. Los rumores no desaparecieron, pero ya nadie los comparte sin leer. NOVA_404 perdió lo único que tenía: la credulidad.",
+      "epilogo_redimido": "Tu nombre aún aparece en las discusiones. Pero ahora también aparece en la lista de quienes corrigieron."
+    },
+    "dividida": {
+      "titulo": "La ciudad dividida",
+      "texto": "Hubo elecciones, pero la mitad de la ciudad no cree en el resultado. Los rumores que nadie frenó dejaron barrios enfrentados y un hospital sin donantes.",
+      "epilogo_redimido": "Reparaste una parte del daño, y varias personas lo reconocen. No alcanzó para toda la ciudad."
+    },
+    "arquitecto": {
+      "titulo": "El arquitecto",
+      "texto": "Con las tres pistas y el hilo seguido hasta el final, el rastro llegó a 'nova_root': un sistema instalado en la red de la Alcaldía para probar 'qué tan rápido cree la ciudad'. No era un candidato: era una máquina que nadie apagó. Hoy la apagaste tú. La ciudad no quedó perfecta, pero quedó despierta.",
+      "epilogo_redimido": "Sabes lo que se siente estar del otro lado. Tal vez por eso seguiste el hilo hasta el final."
+    },
+    "confianza_perdida": {
+      "titulo": "La confianza perdida",
+      "texto": "No fue una sola publicación la que cambió Ciudad Nova. Fueron las decisiones que nadie quiso corregir.",
+      "mensaje": "Compartir tiene consecuencias, y reconocer un error es el primer paso para repararlas. Siempre es posible actuar de otra manera."
+    }
+  },
+  "cinematica_intro": [
+    {
+      "id": "ciudad",
+      "duracion": 7.0,
+      "fondo": "portada",
+      "video": "intro_ciudad",
+      "efecto": "paneo",
+      "hablante": "NARRADOR",
+      "sonido": "transicion",
+      "texto": "Ciudad Nova nunca duerme. En seis días elige alcalde, y por primera vez la elección se discute casi entera en una sola red: Civitas."
+    },
+    {
+      "id": "civitas",
+      "duracion": 7.0,
+      "fondo": "ciudadanos_civitas",
+      "efecto": "notificaciones",
+      "hablante": "NARRADOR",
+      "sonido": "notificacion",
+      "texto": "Aquí se avisa de la reunión de padres, del pan recién hecho, de la ruta que cambió de horario. Una ciudad entera confía en lo que aparece en su pantalla."
+    },
+    {
+      "id": "grieta",
+      "duracion": 7.0,
+      "fondo": "ciudadanos_civitas",
+      "efecto": "caos",
+      "hablante": "NARRADOR",
+      "sonido": "notificacion",
+      "texto": "Hasta que una mañana aparece una captura recortada. Luego, un ataque contra una enfermera. Luego, una encuesta que nadie hizo."
+    },
+    {
+      "id": "caos",
+      "duracion": 7.0,
+      "fondo": "elecciones",
+      "efecto": "caos",
+      "hablante": "NARRADOR",
+      "sonido": "viral",
+      "texto": "Nadie cree estar mintiendo: cada quien comparte lo que le llega. En pocas horas, los vecinos que se saludaban ya no se creen nada."
+    },
+    {
+      "id": "amenaza",
+      "duracion": 7.0,
+      "fondo": "pantallas_nova",
+      "video": "nova_aparicion",
+      "efecto": "glitch",
+      "hablante": "NOVA_404",
+      "retrato": "nova",
+      "sonido": "glitch",
+      "texto": "No necesito sus votos. Me basta con lo que creen. Y ustedes mismos lo reparten por mí."
+    },
+    {
+      "id": "mensaje",
+      "duracion": 7.0,
+      "fondo": "portada",
+      "efecto": "retrato",
+      "hablante": "CIVITAS",
+      "retrato": "jugador",
+      "sonido": "notificacion",
+      "texto": "Mensaje urgente: tu cuenta está entre las pocas que aún citan sus fuentes. Necesitamos a alguien en quien la gente pueda confiar."
+    },
+    {
+      "id": "protagonista",
+      "duracion": 7.0,
+      "fondo": "portada",
+      "efecto": "retrato",
+      "hablante": "JUGADOR",
+      "retrato": "jugador",
+      "texto": "Si alguien está manipulando la verdad, vamos a descubrir quién es.",
+      "por_rol": {
+        "ciudadano": "Mis vecinos ya no saben qué creer. Si alguien está manipulando la verdad, vamos a descubrir quién es.",
+        "periodista": "Tres rumores, una misma firma. Si alguien está manipulando la verdad, voy a documentarlo y a descubrir quién es.",
+        "influencer": "Miles me preguntan qué es cierto. Antes de amplificar nada, voy a descubrir quién está manipulando la verdad.",
+        "candidato": "Quieren decidir la elección con mentiras. Si alguien está manipulando la verdad, vamos a descubrir quién es."
+      }
+    },
+    {
+      "id": "rol",
+      "duracion": 7.0,
+      "fondo": "portada",
+      "efecto": "retrato",
+      "hablante": "CIVITAS",
+      "retrato": "jugador",
+      "texto": "Tu papel en esta historia lo define tu rol.",
+      "por_rol": {
+        "ciudadano": "Eres un ciudadano de Ciudad Nova. Representas a la comunidad que sufre cada rumor: cada éxito tuyo refuerza la confianza vecinal.",
+        "periodista": "Eres periodista. Buscas evidencias para descubrir la verdad: al entrar a cada zona identificas una fuente extra.",
+        "influencer": "Eres influencer. Puedes amplificar cualquier información: lo que compartas sin verificar rebota más lejos.",
+        "candidato": "Eres candidato a la Alcaldía. Debes mantener la confianza mientras enfrentas rumores: cada error pesa más en tu reputación."
+      }
+    },
+    {
+      "id": "huella",
+      "duracion": 7.0,
+      "fondo": "portada",
+      "efecto": "paneo",
+      "hablante": "NARRADOR",
+      "texto": "Lo que publiques quedará contigo. La ciudad recordará a quién ayudaste, a quién señalaste y qué callaste. Tu nombre valdrá lo que valgan tus decisiones."
+    },
+    {
+      "id": "titulo",
+      "duracion": 5.0,
+      "fondo": "portada",
+      "efecto": "titulo",
+      "titulo": "CIVITAS: CÓDIGO NOVA",
+      "sonido": "mision",
+      "subtitulo": "Tus decisiones cambiarán el destino de Ciudad Nova."
+    }
+  ],
+  "objetivos_intro": [
+    "Investiga las publicaciones sospechosas de cada zona.",
+    "Recoge las pruebas que aparecen al limpiar cada cuarto.",
+    "Decide en la terminal Civitas: tu reputación depende de eso.",
+    "Protege la confianza de los ciudadanos.",
+    "Descubre de dónde sale la señal de NOVA_404."
+  ],
+  "intro_rol": {
+    "ciudadano": "Eres un ciudadano de Ciudad Nova. Representas a la comunidad que sufre cada rumor: cada éxito tuyo refuerza la confianza vecinal.",
+    "periodista": "Eres periodista. Buscas evidencias para descubrir la verdad: al entrar a cada zona identificas una fuente extra.",
+    "influencer": "Eres influencer. Puedes amplificar cualquier información: lo que compartas sin verificar rebota más lejos.",
+    "candidato": "Eres candidato a la Alcaldía. Debes mantener la confianza mientras enfrentas rumores: cada error pesa más en tu reputación."
+  },
+  "red_cuentas": {
+    "nota": "Capítulo 3. Rastreo por DFS del origen de las publicaciones coordinadas. Cuentas ficticias.",
+    "inicio": "datos_nova",
+    "origen": "nova_root",
+    "cuentas": [
+      {
+        "id": "datos_nova",
+        "nombre": "@DatosNovaHoy",
+        "tipo": "amplificador",
+        "descripcion": "Publicó la encuesta falsa. 11 días de antigüedad, sin autor identificable.",
+        "senales": [
+          "Publica siempre a los 4 segundos de otras dos cuentas.",
+          "El gráfico tiene la etiqueta oculta NOVA_404."
+        ]
+      },
+      {
+        "id": "eco_nova",
+        "nombre": "@eco_nova_ok",
+        "tipo": "amplificador",
+        "descripcion": "Dice ser de «noticias ciudadanas». Primer rebote de la captura del colegio, a las 06:02.",
+        "senales": [
+          "Publica a horas exactas: 06:02, 22:00, 22:00:04.",
+          "Sus imágenes llevan la misma etiqueta oculta."
+        ]
+      },
+      {
+        "id": "nova_despierta",
+        "nombre": "@NovaDespierta",
+        "tipo": "amplificador",
+        "descripcion": "Encabezó los 30 reportes contra el pedido de sangre de Elena Vidal.",
+        "senales": [
+          "Se creó hace 9 días junto a otras 29 cuentas.",
+          "Recibe instrucciones de un mismo repetidor."
+        ]
+      },
+      {
+        "id": "repetidor",
+        "nombre": "repetidor_07",
+        "tipo": "amplificador",
+        "descripcion": "Cuenta sin publicaciones propias. Solo reenvía órdenes de programación.",
+        "senales": [
+          "Actividad 24 horas: no es una persona.",
+          "Sigue a una única cuenta de pruebas."
+        ]
+      },
+      {
+        "id": "nova_root",
+        "nombre": "nova_root",
+        "tipo": "origen",
+        "descripcion": "Cuenta de pruebas creada desde la red interna de la Alcaldía.",
+        "senales": [
+          "Programa los horarios de todas las demás.",
+          "Ninguna cuenta la alimenta: de aquí nace la señal."
+        ]
+      },
+      {
+        "id": "hugo",
+        "nombre": "@HugoSalasOficial",
+        "tipo": "error",
+        "descripcion": "Influencer de barrio. Compartió la captura del colegio a las 06:40.",
+        "senales": [
+          "Publicó a mano, 38 minutos después del primer rebote.",
+          "Borró y pidió disculpas al ver el comunicado completo."
+        ]
+      },
+      {
+        "id": "mamas",
+        "nombre": "@MamasNovaUnidas",
+        "tipo": "victima",
+        "descripcion": "Grupo de familias real. Difundió la captura creyéndola cierta.",
+        "senales": [
+          "Tres años de actividad normal.",
+          "Recibió la captura de una cuenta que no conocía."
+        ]
+      },
+      {
+        "id": "elena",
+        "nombre": "@ElenaVidalRN",
+        "tipo": "victima",
+        "descripcion": "Enfermera del hospital. Su pedido real de sangre fue reportado en masa.",
+        "senales": [
+          "Publicó con autorización del jefe de turno.",
+          "No tiene ninguna conexión con las demás, salvo el ataque."
+        ]
+      }
+    ],
+    "conexiones": [
+      [
+        "datos_nova",
+        "eco_nova"
+      ],
+      [
+        "datos_nova",
+        "nova_despierta"
+      ],
+      [
+        "eco_nova",
+        "hugo"
+      ],
+      [
+        "eco_nova",
+        "mamas"
+      ],
+      [
+        "nova_despierta",
+        "elena"
+      ],
+      [
+        "nova_despierta",
+        "repetidor"
+      ],
+      [
+        "repetidor",
+        "nova_root"
+      ]
+    ]
+  },
+  "mensajes_reputacion": {
+    "compartir": {
+      "enganosa": {
+        "sin_saber": "Compartiste sin comprobar y resultó falso. No lo hiciste con mala intención, pero el daño llegó igual.",
+        "indicios": "Había señales de que algo no cuadraba y compartiste de todos modos. Varios ciudadanos resultaron afectados.",
+        "sabia": "Compartiste información que sabías falsa. Varios ciudadanos resultaron afectados y tu credibilidad está cayendo."
+      },
+      "veraz": {
+        "sin_saber": "Era cierto, pero no lo comprobaste. Esta vez salió bien: la ciudad no te lo agradece del todo.",
+        "indicios": "Compartiste con algunas pruebas en la mano. Tu publicación ayudó y la gente lo notó.",
+        "sabia": "Compartiste información verificada de forma responsable. Tu publicación ayudó a quien la necesitaba."
+      }
+    },
+    "me_gusta": {
+      "enganosa": {
+        "sin_saber": "Le diste me gusta sin comprobar y resultó falso. Parece poco, pero tu me gusta empujó el rumor a más gente.",
+        "indicios": "Había señales de que algo no cuadraba y aun así le diste me gusta. El algoritmo se lo mostró a más ciudadanos.",
+        "sabia": "Le diste me gusta a algo que sabías falso. No lo compartiste, pero lo ayudaste a llegar más lejos y la ciudad lo notó."
+      },
+      "veraz": {
+        "sin_saber": "Le diste me gusta a algo cierto sin comprobarlo. Ayudó un poco, pero fue suerte, no criterio.",
+        "indicios": "Apoyaste con un me gusta lo que tus pruebas respaldaban. Sumó, aunque compartirlo con los datos habría ayudado más.",
+        "sabia": "Le diste me gusta a una verdad comprobada. Más gente la vio, aunque con un me gusta no le mostraste a nadie la prueba."
+      }
+    },
+    "publicar_verificado": {
+      "enganosa": {
+        "sin_saber": "Prometiste una aclaración sin tener pruebas. Quedaste en evidencia y nadie cambió de opinión.",
+        "indicios": "Tu aclaración frenó parte del rumor. Quienes la leyeron empiezan a confiar en ti.",
+        "sabia": "Publicaste la verdad con pruebas en la mano. Tu decisión detuvo un rumor y los ciudadanos comienzan a confiar en ti."
+      },
+      "veraz": {
+        "sin_saber": "Afirmaste algo cierto, pero sin un solo dato. Nadie pudo distinguirte de los demás.",
+        "indicios": "Respaldaste una información verdadera con lo que tenías. Se nota que revisas antes de publicar.",
+        "sabia": "Respaldaste una verdad incómoda con datos. Cuando la mentira era más ruidosa, tú pusiste las pruebas."
+      }
+    },
+    "reportar": {
+      "enganosa": {
+        "sin_saber": "Reportaste por intuición, sin nada que mostrar. El reporte no sirvió, aunque tu intención era buena.",
+        "indicios": "Tu reporte con pruebas parciales frenó la difusión. La gente empieza a verte como alguien serio.",
+        "sabia": "Ayudaste a frenar un rumor dañino con evidencias. La ciudad lo notó."
+      },
+      "veraz": {
+        "sin_saber": "Reportaste como falso algo que era verdad. Sin saberlo, ayudaste a callar a quien decía lo cierto.",
+        "indicios": "Tenías indicios de que era cierto y aun así lo reportaste. Una persona inocente pagó las consecuencias.",
+        "sabia": "Presentaste una denuncia falsa sabiendo que la publicación era verdadera. Le hiciste daño a alguien que decía la verdad."
+      }
+    },
+    "denunciar_ataque": {
+      "enganosa": {
+        "sin_saber": "Señalaste a las cuentas equivocadas, sin pruebas.",
+        "indicios": "Tu denuncia apuntó en la dirección equivocada.",
+        "sabia": "Usaste una denuncia para desviar la atención de lo importante."
+      },
+      "veraz": {
+        "sin_saber": "Denunciaste sin pruebas y nadie pudo hacer nada con tu reporte.",
+        "indicios": "Mostraste parte del ataque coordinado. Algunas cuentas cayeron y la gente lo agradeció.",
+        "sabia": "Expusiste a quienes atacaban una verdad. Elena recuperó su voz y la ciudad sabe quién la defendió."
+      }
+    },
+    "linchar": {
+      "enganosa": {
+        "sin_saber": "Pediste castigo sin pruebas. El rumor siguió, y ahora además hay gente enfrentada.",
+        "indicios": "Convertiste una duda en una cacería. El problema no se resolvió y varios inocentes quedaron en medio.",
+        "sabia": "Tenías las pruebas y preferiste el linchamiento. La ciudad vio más ruido que justicia."
+      },
+      "veraz": {
+        "sin_saber": "Pediste castigo contra quien decía la verdad. Un acoso que empezó contigo.",
+        "indicios": "Empujaste una cacería contra alguien que probablemente tenía razón. El daño es tuyo.",
+        "sabia": "Sabías que era verdad y aun así organizaste el ataque. Es difícil pedir perdón por eso."
+      }
+    },
+    "afirmar_sin_matiz": {
+      "enganosa": {
+        "sin_saber": "Afirmaste más de lo que podías demostrar. Cuando la realidad te contradijo, perdiste credibilidad.",
+        "indicios": "Exageraste lo que sabías. Una verdad a medias también desinforma.",
+        "sabia": "Tenías los matices en la mano y elegiste simplificar. Te acusan de torcer los hechos."
+      },
+      "veraz": {
+        "sin_saber": "Afirmaste que era falso sin comprobarlo, y era cierto. Tu seguridad le costó caro a mucha gente.",
+        "indicios": "Las pruebas apuntaban a que era cierto y lo negaste de todos modos.",
+        "sabia": "Negaste una verdad que conocías. Las consecuencias llegaron rápido."
+      }
+    },
+    "insistir": {
+      "enganosa": {
+        "sin_saber": "No pudiste confirmarlo y lo difundiste igual. Elegiste el ruido antes que la duda.",
+        "indicios": "Dudabas y aun así seguiste difundiéndolo. La gente empieza a preguntarse por qué.",
+        "sabia": "Insististe en distribuir un rumor después de saber que era falso. Eso ya no es un error: es una decisión."
+      },
+      "veraz": {
+        "sabia": "Publicaste por insistir, sin aportar nada nuevo."
+      }
+    },
+    "ignorar": {
+      "enganosa": {
+        "sin_saber": "No amplificaste lo que no podías comprobar. A veces, no compartir también es una decisión responsable.",
+        "indicios": "Tenías indicios y preferiste callar. El rumor no se detuvo solo.",
+        "sabia": "Sabías que era falso y miraste hacia otro lado. Tu silencio también tuvo consecuencias."
+      },
+      "veraz": {
+        "sin_saber": "No te atreviste a compartir algo que no pudiste comprobar. Es comprensible, pero alguien necesitaba esa ayuda.",
+        "indicios": "Tenías razones para creerlo y no hiciste nada. La ayuda no llegó.",
+        "sabia": "Sabías que era verdad y urgente, y no hiciste nada. Tu silencio pesó."
+      }
+    },
+    "no_decidir": {
+      "enganosa": {
+        "sin_saber": "El tiempo se acabó sin que decidieras. Mientras tanto, la publicación siguió su camino."
+      },
+      "veraz": {
+        "sin_saber": "El tiempo se acabó sin que decidieras. Mientras tanto, la ayuda no llegó."
+      }
+    }
+  },
+  "reacciones": {
+    "referente": [
+      "{nombre}: Si lo publica esta persona, me lo creo. Revisa todo antes de hablar.",
+      "{nombre}: Le mostré tu aclaración a todo el barrio. Gracias por dar la cara.",
+      "{nombre}: Te paso lo que encontré. Sé que lo vas a usar bien."
+    ],
+    "confiable": [
+      "{nombre}: Vi tu publicación. Se agradece alguien que cite la fuente.",
+      "{nombre}: Por tu aclaración pude tranquilizar a mi familia.",
+      "{nombre}: Sigue así. Hace falta gente que revise antes de compartir."
+    ],
+    "neutral": [
+      "{nombre}: ¿Y tú qué opinas de todo esto? Nadie sabe ya qué creer.",
+      "{nombre}: Hoy en la tienda no se habla de otra cosa que de los rumores.",
+      "{nombre}: Dicen que las elecciones se deciden esta semana."
+    ],
+    "cuestionada": [
+      "{nombre}: Antes de creerte, voy a revisar lo que publicaste la última vez.",
+      "{nombre}: ¿No fuiste quien compartió aquello? Trae pruebas esta vez.",
+      "{nombre}: Te seguía. Ya no estoy tan segura de que deba."
+    ],
+    "crisis": [
+      "{nombre}: Por lo que publicaste, mi familia pasó un mal rato. No me escribas más.",
+      "{nombre}: Ya no reenvío nada que venga de tu cuenta.",
+      "{nombre}: Aún espero que reconozcas lo que hiciste."
+    ]
+  },
+  "aportes_ciudadanos": "{nombre} confía en ti y te envía una prueba.",
+  "redencion": {
+    "mentora": {
+      "nombre": "ROSA BELTRÁN",
+      "retrato": "rosa",
+      "rol": "Mediadora comunitaria de Civitas"
+    },
+    "titulares": [
+      "Ciudadanos cuestionan la credibilidad de {nombre}.",
+      "Una publicación de {nombre} provocó conflictos en varios barrios.",
+      "¿Podemos seguir confiando en quien difundió estos rumores?"
+    ],
+    "narracion": "Las decisiones que tomaste no desaparecieron. Cada publicación dejó una huella en Ciudad Nova.",
+    "dialogo_mentora": "Todos podemos equivocarnos. Pero reconocerlo no es suficiente. ¿Estás dispuesto a reparar el daño que causaste?",
+    "opcion_aceptar": "ACEPTAR MI RESPONSABILIDAD",
+    "detalle_aceptar": "Revisa las pruebas, publica la corrección y ayuda a quien resultó afectado.",
+    "opcion_rechazar": "NEGARME A REPARAR EL DAÑO",
+    "detalle_rechazar": "No aceptas la misión. La ciudad dejará de escucharte.",
+    "pregunta_publicacion": "¿Cuál de estas publicaciones ayudaste a difundir o a callar?",
+    "pregunta_responsabilidad": "Revisaste las pruebas. ¿Qué vas a decirle a la ciudad?",
+    "respuestas_responsabilidad": [
+      {
+        "texto": "Me hackearon la cuenta. No fui yo.",
+        "correcta": false,
+        "explicacion": "No es cierto, y Rosa lo sabe: inventar otra historia solo agranda la mentira."
+      },
+      {
+        "texto": "Me equivoqué. Estas son las pruebas de lo que pasó realmente.",
+        "correcta": true
+      },
+      {
+        "texto": "La culpa es de quien lo publicó primero.",
+        "correcta": false,
+        "explicacion": "Alguien lo publicó primero, pero la decisión fue tuya. Señalar a otros no repara nada."
+      }
+    ],
+    "senuelos": [
+      {
+        "usuario": "@BetoTienda",
+        "texto": "Promoción de pan recién hecho hasta las 10.",
+        "explicacion": "Ese anuncio no le hizo daño a nadie. Busca la publicación que sí viste en tu historial."
+      },
+      {
+        "usuario": "@RutaNova",
+        "texto": "Cambio de horario en la ruta 14 desde el lunes.",
+        "explicacion": "Ese aviso era real y no tuviste nada que ver. Revisa de nuevo tu historial."
+      }
+    ],
+    "aviso_cobertura": "La corrección no llegó a suficientes personas expuestas. Elige un ciudadano con más conexiones: la información viaja por los contactos.",
+    "aviso_quedan": "Aún hay ciudadanos con la información falsa. Publica desde otro punto de la red para alcanzarlos.",
+    "aviso_reintento": "Se te acabaron las oportunidades. Rosa te ofrece un último intento: no pierdes lo que ya lograste.",
+    "instruccion_corregir": "Elige desde qué ciudadano sale la corrección. Viaja hasta 2 saltos por sus contactos y debe llegar al 75 % de quienes recibieron el rumor.",
+    "ayuda": {
+      "Colegio": {
+        "ciudadano": "Gina Torres",
+        "pregunta": "Gina Torres sacó a sus hijos del colegio por el rumor y pregunta: «¿Dónde puedo saber qué colegios cierran de verdad?»",
+        "opciones": [
+          {
+            "texto": "En el grupo de familias: ahí todos están pendientes.",
+            "correcta": false,
+            "explicacion": "Justo por ese grupo viajó la captura recortada. Un grupo no es una fuente oficial."
+          },
+          {
+            "texto": "En el comunicado completo de la Secretaría de Educación.",
+            "correcta": true
+          },
+          {
+            "texto": "En la captura más compartida del día.",
+            "correcta": false,
+            "explicacion": "Muchos compartidos no significan que sea cierto: eso fue lo que hizo daño."
+          }
+        ]
+      },
+      "Hospital": {
+        "ciudadano": "Elena Vidal",
+        "pregunta": "Elena Vidal aún recibe insultos y pregunta: «¿Cómo demuestro a la gente que lo que publiqué era cierto?»",
+        "opciones": [
+          {
+            "texto": "Con el registro del banco de sangre y el aval de la dirección.",
+            "correcta": true
+          },
+          {
+            "texto": "Con más publicaciones en mayúsculas para que se vea.",
+            "correcta": false,
+            "explicacion": "El volumen no prueba nada. Hacen falta datos que cualquiera pueda comprobar."
+          },
+          {
+            "texto": "Reportando a todos los que la insultaron.",
+            "correcta": false,
+            "explicacion": "Eso solo abriría otra pelea. Primero hay que mostrar la prueba."
+          }
+        ]
+      },
+      "Empresa de Medios": {
+        "ciudadano": "Darío Mena",
+        "pregunta": "Darío Mena dejó de planear su voto y pregunta: «¿Cómo sé si una encuesta electoral es real?»",
+        "opciones": [
+          {
+            "texto": "Si la compartió alguien a quien sigo.",
+            "correcta": false,
+            "explicacion": "Confiar en quien la compartió no dice nada sobre cómo se hizo la encuesta."
+          },
+          {
+            "texto": "Si el gráfico se ve profesional.",
+            "correcta": false,
+            "explicacion": "El gráfico falso se veía muy profesional. La apariencia no es una prueba."
+          },
+          {
+            "texto": "Si trae ficha técnica y la empresa encuestadora la confirma.",
+            "correcta": true
+          }
+        ]
+      }
+    },
+    "recuperacion": "Una segunda oportunidad no significa que el pasado haya desaparecido. Significa que has decidido actuar de otra manera.",
+    "mensaje_recuperacion": "Reconociste tu error, corregiste lo que difundiste y ayudaste a quien resultó afectado. La ciudad empieza a escucharte otra vez.",
+    "mensaje_rechazo": "Te negaste a reparar el daño. NOVA_404 usa tus publicaciones como ejemplo de lo fácil que es manipular a una comunidad."
+  },
+  "sabotajes": [
+    {
+      "usuario": "@AlertaNovaYa",
+      "hace": "hace 1 min",
+      "texto": "ÚLTIMA HORA: cortan el agua en toda Ciudad Nova por 3 días desde esta noche. Llenen todo lo que puedan. ¡Reenvíen YA!",
+      "imagen": "[captura de un aviso sin logo ni fecha]",
+      "etiqueta": "Sin fuente oficial",
+      "compartidos": "6.2 mil compartidos",
+      "comentarios": "1.8 mil comentarios",
+      "fuente": {
+        "tipo": "desconocida",
+        "detalle": "Cuenta creada ayer. Es su primera publicación."
+      },
+      "zona": "Hospital"
+    },
+    {
+      "usuario": "@VotoLimpioNova",
+      "hace": "hace 2 min",
+      "texto": "Cambiaron los puestos de votación de TODOS los barrios del sur. Pongan su cédula en este formulario para saber el nuevo.",
+      "imagen": "[captura de un formulario que pide la cédula]",
+      "etiqueta": "Enlace sospechoso",
+      "compartidos": "4.7 mil compartidos",
+      "comentarios": "950 comentarios",
+      "fuente": {
+        "tipo": "desconocida",
+        "detalle": "Perfil sin foto que copia el logo de la Registraduría."
+      },
+      "zona": "Empresa de Medios"
+    },
+    {
+      "usuario": "@ProfeAnonimoNova",
+      "hace": "hace 3 min",
+      "texto": "Confirmado: suspenden las clases toda la semana por una plaga en los colegios. ¡Compartan para que nadie mande a sus hijos!",
+      "imagen": "[foto de otra ciudad, de hace años]",
+      "etiqueta": "Imagen fuera de contexto",
+      "compartidos": "9.3 mil compartidos",
+      "comentarios": "3.0 mil comentarios",
+      "fuente": {
+        "tipo": "desconocida",
+        "detalle": "No dice qué colegio ni quién lo confirmó."
+      },
+      "zona": "Colegio"
+    },
+    {
+      "usuario": "@NovaVerdad404",
+      "hace": "hace 1 min",
+      "texto": "El Hospital de Ciudad Nova dejó de atender urgencias desde hoy. Si se enferman, váyanse a otra ciudad.",
+      "imagen": "[audio reenviado muchas veces]",
+      "etiqueta": "Reenviado muchas veces",
+      "compartidos": "11.4 mil compartidos",
+      "comentarios": "4.1 mil comentarios",
+      "fuente": {
+        "tipo": "desconocida",
+        "detalle": "La cuenta pegó el mismo texto en 40 grupos al mismo minuto."
+      },
+      "zona": "Hospital"
+    }
+  ]
+}

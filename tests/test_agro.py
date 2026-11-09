@@ -56,7 +56,7 @@ def test_subditos_del_jefe_actuan_desde_lejos():
     """Los súbditos alternan Perseguidor y Tirador (agro_permanente):
     ambos se acercan desde lejos y el tirador dispara tras su telegrafía."""
     jugador = jugador_en(0, 0)
-    arena = ArenaJefe(ColapsoElectoral(), jugador)
+    arena = ArenaJefe(ColapsoElectoral(), [jugador])
     # Jugador en la esquina inferior izquierda, lejos del jefe (arriba al centro).
     jugador.rect.center = (arena.rect.left + 30, arena.rect.bottom - 30)
     jugador.posicion.update(jugador.rect.center)
@@ -72,4 +72,4 @@ def test_subditos_del_jefe_actuan_desde_lejos():
             subdito.actualizar(1 / 60, jugador, proyectiles)
     for subdito, antes in zip(arena.subditos, distancias):
         assert subdito.posicion.distance_to(jugador.rect.center) < antes
-    assert len(proyectiles) == 1  # solo el tirador dispara
+    assert len(proyectiles) >= 1  # solo el tirador dispara (su variante puede lanzar un abanico)

@@ -33,23 +33,37 @@ puede moverse pero no dispara ni usa la habilidad.
 
 Apuntado: los ataques salen siempre de `direccion_mirada`. Si el rol
 tiene `apunta_con_mouse = True` (Ciudadano, Influencer, Periodista),
-solo apuntar_a() la cambia, hacia el mouse; si es False (Candidato),
-la cambia manejar_movimiento() con la dirección de caminata.
+solo apuntar_a() la cambia, hacia el mouse o el stick derecho; si es
+False (Candidato), la cambia mover() con la dirección de caminata.
+
+Input: manejar_input() aplica un InputJugador (src/core/entrada.py), así
+el mismo código sirve para el teclado+mouse del J1 y el control del J2.
+
+Dash (src/entities/dash.py): desplazamiento corto en la dirección de
+movimiento (o de mirada si está quieto), invulnerable, sin disparar.
 """
+
+import math
+from collections import deque
 
 import pygame
 
 from src.core import assets
 from src.core.apuntado import calcular_direccion_apuntado
 from src.core.balance import (
+    ACELERACION_MOVIMIENTO,
     BUFF_KILL_DURACION,
     DANIO_BASE,
+    FRENADO_MOVIMIENTO,
+    VELOCIDAD_MINIMA_MOVIMIENTO,
     STATS_POR_ROL,
     VELOCIDAD_BASE,
     VIDA_BASE,
     intervalo_disparo,
 )
+from src.core.entrada import DISTANCIA_PUNTO_STICK, direccion_teclado
 from src.dungeon.ciudad_mapa import mover_con_colision
+from src.entities.dash import Dash
 from src.entities.invulnerabilidad import Invulnerabilidad
 from src.entities.projectile import Proyectil
 
@@ -86,6 +100,21 @@ class JugadorBase:
         # ataques y la habilidad. La actualiza apuntar_a() (mouse) o
         # manejar_movimiento() según `apunta_con_mouse`.
         self.direccion_mirada = pygame.Vector2(0, -1)
+        # Dirección de caminata del último frame ((0, 0) quieto): el dash sale hacia acá.
+        self.direccion_movimiento = pygame.Vector2(0, 0)
+        # Velocidad real (px/s): sigue a la pedida con inercia (ver mover).
+        self.velocidad_actual = pygame.Vector2(0, 0)
+        # Si caminó en Ciudad Nova este frame (solo para animar el sprite).
+        self.caminando_en_ciudad = False
+        # Cosmética de los vestidores del lobby online (src/core/apariencia.py):
+        # piel, cabeza y traje. None = la hoja de su rol, como en partida local.
+        self.apariencia = None
+        # Lo sorteó el host al iniciar (modo Online); en partida local no hay.
+        self.es_impostor = False
+        # Lo expulsó una reunión de emergencia (modo Online, Online/reunion.py):
+        # queda como fantasma. Camina, pero no pelea, no recibe daño, los
+        # enemigos no lo ven y los demás jugadores tampoco (src/core/equipo.py).
+        self.expulsado = False
 
         # Puede tener fracciones por la carga compartida del equipo.
         self.carga_habilidad = 0.0
@@ -96,43 +125,109 @@ class JugadorBase:
         # Gracia de entrada al cuarto: sin disparo ni habilidad.
         self.armas_bloqueadas = False
 
+        self.dash = Dash()
+        # Posiciones recientes durante el dash: ahí se dibujan las imágenes fantasma.
+        self.rastro_dash = deque(maxlen=assets.DASH_AFTERIMAGES)
+
     @property
     def vivo(self):
         return self.vida > 0
 
-    def _direccion_teclas(self, teclas):
-        """Vector unitario según WASD/flechas (cero si no se pulsa nada).
-        El Candidato, que apunta al caminar, actualiza aquí su mirada."""
-        direccion = pygame.Vector2(0, 0)
-        if teclas[pygame.K_w] or teclas[pygame.K_UP]:
-            direccion.y -= 1
-        if teclas[pygame.K_s] or teclas[pygame.K_DOWN]:
-            direccion.y += 1
-        if teclas[pygame.K_a] or teclas[pygame.K_LEFT]:
-            direccion.x -= 1
-        if teclas[pygame.K_d] or teclas[pygame.K_RIGHT]:
-            direccion.x += 1
-        if direccion.length_squared() > 0:
-            direccion = direccion.normalize()
-            if not self.apunta_con_mouse:
-                self.direccion_mirada = direccion
-        return direccion
+    def manejar_input(self, entrada, dt, limites):
+        """Aplica un InputJugador: mueve, apunta y arranca el dash.
+
+        Disparo y habilidad no van aquí porque producen proyectiles (ver
+        actualizar_disparo e intentar_habilidad)."""
+        self.mover(entrada.movimiento, dt, limites)
+        if entrada.punto_apuntado is not None:
+            self.apuntar_a(entrada.punto_apuntado)
+        elif entrada.direccion_apuntado is not None:
+            # El stick da una dirección: se apunta a un punto lejano en ella.
+            dx, dy = entrada.direccion_apuntado
+            self.apuntar_a((self.rect.centerx + dx * DISTANCIA_PUNTO_STICK,
+                            self.rect.centery + dy * DISTANCIA_PUNTO_STICK))
+        if entrada.dash:
+            self.iniciar_dash()
 
     def manejar_movimiento(self, teclas, dt, limites):
-        """Mueve al jugador según WASD/flechas y lo mantiene dentro de `limites`."""
-        direccion = self._direccion_teclas(teclas)
+        """Mueve al jugador según WASD/flechas (ver mover)."""
+        self.mover(direccion_teclado(teclas), dt, limites)
+
+    def mover(self, direccion, dt, limites):
+        """Un frame de movimiento hacia `direccion` (x, y) y clamp a `limites`.
+
+        Inercia: la velocidad real no salta a la pedida, se le acerca
+        exponencialmente, v(t) = pedida + (v0 - pedida) * e^(-k*t), con
+        k = ACELERACION_MOVIMIENTO al caminar y FRENADO_MOVIMIENTO al
+        soltar. El avance del frame es la integral exacta de v(t) en dt,
+        así el recorrido es el mismo a 30 o a 144 FPS. O(1).
+
+        Durante el dash se ignora el input: se avanza en la dirección
+        fijada al iniciarlo, DASH_VELOCIDAD_MULT veces más rápido (y sin
+        atravesar muros, por el mismo clamp). Al terminar, esa velocidad
+        se va frenando con la misma inercia, en vez de cortarse en seco.
+        """
+        direccion = pygame.Vector2(direccion)
         if direccion.length_squared() > 0:
-            self.posicion += direccion * self.velocidad * dt
-            self.rect.center = (round(self.posicion.x), round(self.posicion.y))
-            self.rect.clamp_ip(limites)
+            direccion = direccion.normalize()
+        self.direccion_movimiento = pygame.Vector2(direccion)
+
+        if self.dash.activo:
+            self.rastro_dash.append(self.rect.center)
+            self.velocidad_actual = (pygame.Vector2(self.dash.direccion)
+                                     * self.velocidad * self.dash.velocidad_multiplicador)
+            desplazamiento = self.velocidad_actual * dt
+        else:
+            if direccion.length_squared() > 0 and not self.apunta_con_mouse:
+                self.direccion_mirada = direccion
+            pedida = direccion * self.velocidad
+            tasa = ACELERACION_MOVIMIENTO if direccion.length_squared() > 0 else FRENADO_MOVIMIENTO
+            restante = math.exp(-tasa * dt)  # fracción de la diferencia que queda tras dt
+            diferencia = self.velocidad_actual - pedida
+            # Integral de v(t) entre 0 y dt: pedida*dt + diferencia*(1 - e^(-k*dt))/k.
+            desplazamiento = pedida * dt + diferencia * ((1 - restante) / tasa)
+            self.velocidad_actual = pedida + diferencia * restante
+            if pedida.length_squared() == 0 and self.velocidad_actual.length() < VELOCIDAD_MINIMA_MOVIMIENTO:
+                self.velocidad_actual.update(0, 0)
+
+        if desplazamiento.length_squared() == 0:
+            return
+        self.posicion += desplazamiento
+        self.rect.center = (round(self.posicion.x), round(self.posicion.y))
+        antes = self.rect.center
+        self.rect.clamp_ip(limites)
+        # Contra un muro se pierde la velocidad en ese eje (no queda "empujando").
+        if self.rect.centerx != antes[0]:
+            self.velocidad_actual.x = 0
+        if self.rect.centery != antes[1]:
+            self.velocidad_actual.y = 0
+        if self.rect.center != antes:
             self.posicion.update(self.rect.center)
+
+    def detener(self):
+        """Sin inercia pendiente (al aparecer en un cuarto o al curarse)."""
+        self.velocidad_actual.update(0, 0)
+
+    def iniciar_dash(self):
+        """Dash hacia donde camina; quieto, hacia donde mira. True si arrancó."""
+        direccion = self.direccion_movimiento
+        if direccion.length_squared() == 0:
+            direccion = self.direccion_mirada
+        return self.dash.iniciar((direccion.x, direccion.y))
+
+    def actualizar_dash(self, dt):
+        self.dash.actualizar(dt)
+        if not self.dash.activo:
+            self.rastro_dash.clear()
 
     def caminar_en_ciudad(self, teclas, dt, es_solida):
         """Movimiento en Ciudad Nova: misma velocidad del rol, pero contra
         las casillas sólidas del mapa (mover_con_colision, por ejes
         separados) en vez de contra los muros de un cuarto."""
-        direccion = self._direccion_teclas(teclas)
-        if direccion.length_squared() == 0:
+        direccion = pygame.Vector2(direccion_teclado(teclas))
+        # Solo para el dibujo (animación de caminar en la ciudad).
+        self.caminando_en_ciudad = direccion.length_squared() > 0
+        if not self.caminando_en_ciudad:
             return
         delta = direccion * self.velocidad * dt
         x, y = mover_con_colision(
@@ -141,9 +236,10 @@ class JugadorBase:
         self.colocar_en((x, y))
 
     def colocar_en(self, posicion):
-        """Pone el centro del jugador en `posicion` (px)."""
+        """Pone el centro del jugador en `posicion` (px), sin inercia pendiente."""
         self.posicion.update(posicion)
         self.rect.center = (round(self.posicion.x), round(self.posicion.y))
+        self.detener()
 
     def apuntar_a(self, punto_mouse):
         """Orienta `direccion_mirada` hacia `punto_mouse` (coordenadas del
@@ -174,8 +270,11 @@ class JugadorBase:
         intervalo por cada volley, así que la cadencia real es la misma
         a 30 o a 144 FPS (en un frame largo pueden salir 2 volleys).
         Sin disparar no se "ahorran" volleys: el acumulador no baja de 0.
+        Durante el dash no se dispara y el acumulador queda en pausa.
         """
         self.tiempo_buff_kill = max(0.0, self.tiempo_buff_kill - dt)
+        if not self.dash.puede_disparar:
+            return []
         self.tiempo_para_disparo -= dt
         if self.armas_bloqueadas:
             disparando = False
@@ -184,6 +283,7 @@ class JugadorBase:
             while self.tiempo_para_disparo <= 0:
                 nuevos.extend(self.ataque_basico())
                 self.tiempo_para_disparo += self.intervalo_disparo()
+                self._retroceso_hasta = pygame.time.get_ticks() / 1000.0 + assets.DURACION_RETROCESO_DISPARO
         else:
             self.tiempo_para_disparo = max(self.tiempo_para_disparo, 0.0)
         return nuevos
@@ -211,6 +311,13 @@ class JugadorBase:
 
     def actualizar_habilidad(self, dt):
         """Avanza los efectos con duración de la habilidad (si los hay)."""
+
+    def intentar_habilidad(self, enemigos=(), proyectiles_salida=None):
+        """Lo que llama el loop al apretar la tecla/botón de habilidad:
+        durante el dash no se puede; si no, usar_habilidad() decide por la carga."""
+        if not self.dash.puede_disparar:
+            return False
+        return self.usar_habilidad(enemigos, proyectiles_salida)
 
     # ------------------------------------------------------------------
     # Carga de habilidad por kills
@@ -243,7 +350,11 @@ class JugadorBase:
     def recibir_dano(self, danio, inicia_invulnerabilidad=True):
         """Resta vida salvo durante la invulnerabilidad (ver
         src/entities/invulnerabilidad.py). Los charcos pasan
-        inicia_invulnerabilidad=False: respetan la ventana pero no la abren."""
+        inicia_invulnerabilidad=False: respetan la ventana pero no la abren.
+        Durante el dash (DASH_INVULNERABLE) ningún golpe entra ni abre la
+        ventana; si ya estaba abierta, sigue corriendo igual."""
+        if self.dash.invulnerable or self.expulsado:
+            return
         self.vida = self.invulnerabilidad.aplicar_golpe(
             self.vida, danio, inicia=inicia_invulnerabilidad
         )
@@ -255,11 +366,38 @@ class JugadorBase:
         # Parpadeo durante la invulnerabilidad. El sprite (pixel art, ver
         # src/ui/sprites.py) se apoya en el borde inferior del rect de
         # colisión y sobresale un poco por arriba, como en un top-down.
-        if self.invulnerabilidad.visible:
-            from src.ui import sprites
+        from src.ui import sprites
 
-            imagen = sprites.sprite_jugador(self.COLOR)
-            pantalla.blit(imagen, imagen.get_rect(midbottom=(self.rect.centerx, self.rect.bottom + 4)))
+        ahora = pygame.time.get_ticks() / 1000.0
+        caminando = self.velocidad_actual.length_squared() > 0
+        imagen = sprites.sprite_jugador(
+            self.COLOR, rol=self.rol, tiempo=ahora,
+            caminando=caminando, dash=self.dash.activo,
+            apariencia=self.apariencia,
+        )
+        # Vida del personaje, solo visual: rebote al caminar, retroceso al
+        # disparar y destello blanco al recibir un golpe. La posición de
+        # colisión no cambia.
+        vida_antes = getattr(self, "_vida_dibujada", self.vida)
+        if self.vida < vida_antes:
+            self._destello_hasta = ahora + assets.DURACION_DESTELLO_DANIO
+        self._vida_dibujada = self.vida
+        rebote = round(abs(math.sin(ahora * assets.FRECUENCIA_PASO)) * assets.AMPLITUD_PASO) if caminando and not self.dash.activo else 0
+        dx, dy = 0, 0
+        if ahora < getattr(self, "_retroceso_hasta", 0.0):
+            dx = round(-self.direccion_mirada.x * assets.DISTANCIA_RETROCESO_DISPARO)
+            dy = round(-self.direccion_mirada.y * assets.DISTANCIA_RETROCESO_DISPARO)
+        if ahora < getattr(self, "_destello_hasta", 0.0):
+            imagen = imagen.copy()
+            imagen.fill((200, 200, 200, 0), special_flags=pygame.BLEND_RGBA_ADD)
+        sprites.dibujar_sombra(pantalla, (self.rect.centerx, self.rect.bottom + 2), self.rect.width + 4)
+        # Imágenes fantasma del dash: la más nueva (última del rastro) es la más opaca.
+        for alfa, centro in zip(assets.DASH_AFTERIMAGE_ALFA, reversed(self.rastro_dash)):
+            fantasma = imagen.copy()
+            fantasma.set_alpha(alfa)
+            pantalla.blit(fantasma, fantasma.get_rect(midbottom=(centro[0], centro[1] + self.rect.height // 2 + 4)))
+        if self.invulnerabilidad.visible:
+            pantalla.blit(imagen, imagen.get_rect(midbottom=(self.rect.centerx + dx, self.rect.bottom + 4 - rebote + dy)))
 
 
 class Ciudadano(JugadorBase):

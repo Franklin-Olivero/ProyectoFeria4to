@@ -32,6 +32,8 @@ cada tipo hace lo suyo a cualquier distancia. Los números salen de
 balance.py y los colores/tamaños de assets.py.
 """
 
+import math
+
 import pygame
 
 from src.ai.behavior_tree import EXITO, FALLO, Action, Selector, Sequence
@@ -74,16 +76,64 @@ LLEGADA_ESCONDITE = 8
 
 
 class EnemigoTipado(Enemigo):
-    """Base común: stats del tipo (vida, velocidad, tamaño) y helpers del árbol."""
+    """Base común: stats del tipo (vida, velocidad, tamaño) y helpers del árbol.
 
-    def __init__(self, x, y, velocidad_base=assets.VELOCIDAD_ENEMIGO, agro_permanente=True):
-        stats = CONFIG_TIPO[self.tipo]
+    Con `variante` (VarianteEnemigo de variantes_enemigo.py) usa los números
+    y el arte de ese personaje en vez de los del tipo, y su ataque trae
+    animación: `ataque_t` cuenta los segundos desde que empezó (None =
+    no ataca) y el render elige el cuadro de la tira de ataque.
+    """
+
+    def __init__(self, x, y, velocidad_base=assets.VELOCIDAD_ENEMIGO, agro_permanente=True, variante=None):
+        self.variante = variante
+        self.ataque_t = None
+        self.impacto_pendiente = False  # el golpe o disparo de este ataque aún no cae
+        self.mirando_izquierda = False
         # Velocidad "normal" del tramo (sin el multiplicador del tipo).
         self.velocidad_base = velocidad_base
+        if variante is None:
+            stats = CONFIG_TIPO[self.tipo]
+            tamanio = assets.TAMANIO_ENEMIGO_TIPO[self.tipo.value]
+        else:
+            stats = variante.stats
+            tamanio = assets.ARTE_VARIANTE[variante.nombre]["tamanio"]
         super().__init__(
             x, y, velocidad_base * stats.velocidad_mult, agro_permanente,
-            vida=stats.vida, tamanio=assets.TAMANIO_ENEMIGO_TIPO[self.tipo.value],
+            vida=stats.vida, tamanio=tamanio,
         )
+
+    @property
+    def nombre(self):
+        """Nombre exacto de la variante (None sin variante)."""
+        return self.variante.nombre if self.variante else None
+
+    @property
+    def atacando(self):
+        return self.ataque_t is not None
+
+    def iniciar_ataque(self):
+        """Arranca la animación de ataque; el impacto cae a tiempo_impacto."""
+        self.ataque_t = 0.0
+        self.impacto_pendiente = True
+
+    def actualizar(self, dt, jugador, proyectiles_enemigos):
+        if self.ataque_t is not None:
+            self.ataque_t += dt
+            if self.ataque_t >= self.variante.duracion_ataque:
+                self.ataque_t = None
+                self.impacto_pendiente = False
+        super().actualizar(dt, jugador, proyectiles_enemigos)
+        if self.variante is not None:
+            dx = self.objetivo_xy[0] - self.posicion.x
+            if abs(dx) > 4:  # histéresis: no parpadea al quedar alineado
+                self.mirando_izquierda = dx < 0
+
+    def _impacto_listo(self):
+        """True una sola vez por ataque, al llegar a tiempo_impacto."""
+        if self.impacto_pendiente and self.ataque_t is not None and self.ataque_t >= self.variante.tiempo_impacto:
+            self.impacto_pendiente = False
+            return True
+        return False
 
     def _activo(self):
         """Selector "¿aggro forzado? o ¿jugador detectado?"."""
@@ -100,16 +150,45 @@ class EnemigoTipado(Enemigo):
 class Perseguidor(EnemigoTipado):
     tipo = TipoEnemigo.PERSEGUIDOR
 
-    def __init__(self, x, y, velocidad_base=assets.VELOCIDAD_ENEMIGO, agro_permanente=True):
+    def __init__(self, x, y, velocidad_base=assets.VELOCIDAD_ENEMIGO, agro_permanente=True, variante=None):
         self.cooldown_contacto = 0.0
-        super().__init__(x, y, velocidad_base, agro_permanente)
+        super().__init__(x, y, velocidad_base, agro_permanente, variante)
 
     def _construir_arbol(self):
+        if self.variante is not None:
+            return Selector([
+                self._rama_congelado(),
+                Sequence([self._activo(), Action(self._perseguir_si_no_ataca), Action(self._golpear_con_animacion)]),
+                Action(self._quedarse_quieto),
+            ])
         return Selector([
             self._rama_congelado(),
             Sequence([self._activo(), Action(self._perseguir_objetivo), Action(self._golpear_por_contacto)]),
             Action(self._quedarse_quieto),
         ])
+
+    def _perseguir_si_no_ataca(self):
+        """Mientras balancea el arma se queda plantado: el golpe se esquiva."""
+        if self.atacando:
+            return EXITO
+        return self._perseguir_objetivo()
+
+    def _golpear_con_animacion(self):
+        """Dentro de su alcance y sin cooldown arranca la animación de
+        ataque; el daño cae a mitad de ella solo si el objetivo sigue al
+        alcance (si se aleja, esquivó). Siempre EXITO."""
+        stats = self.variante.stats
+        self.cooldown_contacto = max(0.0, self.cooldown_contacto - self._dt)
+        objetivo = self._objetivo()
+        alcance = self.rect.inflate(2 * stats.alcance, 2 * stats.alcance)
+        if not self.atacando and self.cooldown_contacto == 0 and alcance.colliderect(objetivo.rect):
+            self.iniciar_ataque()
+        if self._impacto_listo():
+            self.cooldown_contacto = stats.cooldown_s
+            if alcance.colliderect(objetivo.rect):
+                objetivo.recibir_dano(stats.danio)
+            self.nodo_activo = ("Selector", "Sequence", "Golpe con animación")
+        return EXITO
 
     def _golpear_por_contacto(self):
         """Si toca a su objetivo y no está en cooldown, le resta vida (la
@@ -126,45 +205,70 @@ class Perseguidor(EnemigoTipado):
 class Tirador(EnemigoTipado):
     tipo = TipoEnemigo.TIRADOR
 
-    def __init__(self, x, y, velocidad_base=assets.VELOCIDAD_ENEMIGO, agro_permanente=True):
+    def __init__(self, x, y, velocidad_base=assets.VELOCIDAD_ENEMIGO, agro_permanente=True, variante=None):
         self.recarga_disparo = 0.0  # s hasta empezar la próxima telegrafía
         self.telegrafia = 0.0  # s que faltan para disparar (> 0: resaltado)
-        super().__init__(x, y, velocidad_base, agro_permanente)
+        super().__init__(x, y, velocidad_base, agro_permanente, variante)
 
     def _construir_arbol(self):
+        rango, cadencia, telegrafia = RANGO_PREFERIDO_TIRADOR, CADENCIA_TIRADOR_S, TELEGRAFIA_TIRADOR_S
+        if self.variante is not None:
+            # La telegrafía es la primera mitad de la animación de ataque:
+            # el disparo sale justo en el cuadro del impacto.
+            rango, cadencia = self.variante.stats.alcance, self.variante.stats.cooldown_s
+            telegrafia = self.variante.tiempo_impacto
         return Selector([
             self._rama_congelado(),
             Sequence([
                 self._activo(),
                 self._marcar("Selector", "Sequence", "Mantener distancia"),
-                MantenerDistancia(self, RANGO_PREFERIDO_TIRADOR, TOLERANCIA_RANGO_TIRADOR, FACTOR_ORBITA_TIRADOR),
-                DispararApuntado(self, CADENCIA_TIRADOR_S, TELEGRAFIA_TIRADOR_S),
+                MantenerDistancia(self, rango, TOLERANCIA_RANGO_TIRADOR, FACTOR_ORBITA_TIRADOR),
+                DispararApuntado(self, cadencia, telegrafia),
             ]),
             Action(self._quedarse_quieto),
         ])
+
+    def actualizar(self, dt, jugador, proyectiles_enemigos):
+        super().actualizar(dt, jugador, proyectiles_enemigos)
+        if self.variante is not None and self.telegrafia > 0 and not self.atacando:
+            self.iniciar_ataque()  # la animación arranca con la telegrafía
 
     def disparar_hacia_objetivo(self):
         dx, dy = direccion(self.xy, self.objetivo_xy)
         if (dx, dy) == (0.0, 0.0):
             return
-        self._proyectiles_salida.append(Proyectil(
-            posicion=self.rect.center, direccion=pygame.Vector2(dx, dy),
-            velocidad=VELOCIDAD_PROYECTIL_TIRADOR, danio=DANIO_PROYECTIL_TIRADOR,
-            color=assets.COLOR_PROYECTIL_TIRADOR, tamanio=assets.TAMANIO_PROYECTIL_TIRADOR,
-        ))
+        if self.variante is None:
+            self._proyectiles_salida.append(Proyectil(
+                posicion=self.rect.center, direccion=pygame.Vector2(dx, dy),
+                velocidad=VELOCIDAD_PROYECTIL_TIRADOR, danio=DANIO_PROYECTIL_TIRADOR,
+                color=assets.COLOR_PROYECTIL_TIRADOR, tamanio=assets.TAMANIO_PROYECTIL_TIRADOR,
+            ))
+        else:
+            stats = self.variante.stats
+            color = assets.ARTE_VARIANTE[self.variante.nombre]["color"]
+            # Abanico centrado en la dirección al objetivo.
+            for i in range(stats.proyectiles):
+                giro = math.radians((i - (stats.proyectiles - 1) / 2) * stats.apertura_grados)
+                vx = dx * math.cos(giro) - dy * math.sin(giro)
+                vy = dx * math.sin(giro) + dy * math.cos(giro)
+                self._proyectiles_salida.append(Proyectil(
+                    posicion=self.rect.center, direccion=pygame.Vector2(vx, vy),
+                    velocidad=stats.velocidad_proyectil, danio=stats.danio,
+                    color=color, tamanio=stats.tamanio_proyectil,
+                ))
         self.nodo_activo = ("Selector", "Sequence", "Disparo apuntado")
 
 
 class Curandero(EnemigoTipado):
     tipo = TipoEnemigo.CURANDERO
 
-    def __init__(self, x, y, velocidad_base=assets.VELOCIDAD_ENEMIGO, agro_permanente=True):
+    def __init__(self, x, y, velocidad_base=assets.VELOCIDAD_ENEMIGO, agro_permanente=True, variante=None):
         self.cooldown_cura = INTERVALO_CURA_S
         self.efecto_cura = None  # aliado curado hace poco (rayo verde)
         self.tiempo_efecto_cura = 0.0
         self.tiempo_solo = 0.0  # s seguidos siendo el único enemigo vivo
         self.en_panico = False
-        super().__init__(x, y, velocidad_base, agro_permanente)
+        super().__init__(x, y, velocidad_base, agro_permanente, variante)
 
     def _construir_arbol(self):
         return Selector([
@@ -230,6 +334,8 @@ class Curandero(EnemigoTipado):
     def al_curar(self, aliado):
         self.efecto_cura = aliado
         self.tiempo_efecto_cura = DURACION_EFECTO_CURA_S
+        if self.variante is not None:
+            self.iniciar_ataque()  # su "ataque" es el hechizo de cura
 
 
 CLASE_POR_TIPO = {
@@ -239,7 +345,8 @@ CLASE_POR_TIPO = {
 }
 
 
-def crear_enemigo(tipo, x, y, velocidad_base=assets.VELOCIDAD_ENEMIGO, agro_permanente=True):
-    """Fábrica: el enemigo del `tipo` dado en (x, y)."""
-    return CLASE_POR_TIPO[tipo](x, y, velocidad_base, agro_permanente)
+def crear_enemigo(tipo, x, y, velocidad_base=assets.VELOCIDAD_ENEMIGO, agro_permanente=True, variante=None):
+    """Fábrica: el enemigo del `tipo` dado en (x, y); con `variante` usa
+    el personaje y los números de esa VarianteEnemigo."""
+    return CLASE_POR_TIPO[tipo](x, y, velocidad_base, agro_permanente, variante)
 

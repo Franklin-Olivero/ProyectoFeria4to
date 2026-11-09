@@ -26,9 +26,13 @@ PruebaPythonGame/
 │   │   ├── assets.py               # TODAS las constantes visuales (colores, tamaños, posiciones del HUD).
 │   │   ├── balance.py              # Números de balance: stats por rol, jefe, charcos, i-frames. Puro.
 │   │   ├── colapso.py              # ColapsoElectoral: porcentaje 0-100 que sube/baja. Puro.
-│   │   ├── equipo.py               # Carga compartida de habilidad entre aliados. Puro.
+│   │   ├── equipo.py               # Carga compartida y reglas del cooperativo (objetivo, caídos). Puro.
+│   │   ├── entrada.py              # InputJugador + lectores de teclado/mouse (J1) y control PS4 (J2).
 │   │   ├── escenas.py              # Enum Escena + transición a DERROTA por colapso. Puro.
-│   │   └── apuntado.py             # Dirección unitaria hacia el mouse con zona muerta. Puro (solo math).
+│   │   ├── apuntado.py             # Dirección unitaria hacia el mouse con zona muerta. Puro (solo math).
+│   │   ├── preferencias.py         # Ajustes del jugador (audio, accesibilidad, controles) + JSON validado. Puro.
+│   │   ├── apariencia.py           # Apariencia del vestidor online (piel, cabeza, traje) + dict validado. Puro.
+│   │   └── audio.py                # pygame.mixer: volúmenes de música/efectos y sonidos de interfaz.
 │   ├── structures/
 │   │   ├── tree.py                 # Árbol N-ario manual (CRUD + 4 recorridos). Puro.
 │   │   ├── min_heap.py             # Montículo binario de mínimos manual (cola de prioridad). Puro.
@@ -40,6 +44,7 @@ PruebaPythonGame/
 │   │   ├── periodista.py           # Rol Periodista + RayoPerforante.
 │   │   ├── candidato.py            # Rol Candidato + OndaExpansiva + ProyectilRebotante.
 │   │   ├── invulnerabilidad.py     # Ventana de i-frames tras un golpe. Puro.
+│   │   ├── dash.py                 # Timers y estado del dash (duración, cooldown). Puro.
 │   │   ├── enemy.py                # Enemigo base con IA de behavior tree (rama de congelado + interfaz de agente).
 │   │   ├── tipos_enemigo.py        # TipoEnemigo, CONFIG_TIPO y composicion_cuarto. Puro.
 │   │   ├── enemigos.py             # Perseguidor, Tirador, Curandero y crear_enemigo.
@@ -61,6 +66,9 @@ PruebaPythonGame/
 │   │   └── arena_jefe.py           # Cuerpo Pygame de la mazmorra final: rects, súbditos, dibujo.
 │   └── ui/
 │       ├── terminal_decision.py    # Minijuego de decisión sobre el árbol N-ario. Puro.
+│       ├── particulas.py           # Rastro visual del dash (emitir, actualizar, dibujar).
+│       ├── seleccion.py            # Menú de inicio: SelectorModo, CursorRol, SeleccionRoles. Puro.
+│       ├── pantalla_modo.py        # Dibujo de la pantalla "1 o 2 jugadores".
 │       ├── terminal_decision_render.py # Dibujo de la terminal.
 │       ├── seleccion_rol.py        # Dibujo de la pantalla de selección con barras de stats.
 │       ├── mapa_ciudad.py          # SelectorZona (destino de la ruta, TAB). Puro.
@@ -70,8 +78,18 @@ PruebaPythonGame/
 │       ├── mapa_render.py          # Minimapa de la mazmorra (tecla M).
 │       ├── enemigo_render.py       # Dibujo de enemigos: sprite_enemigo + gracia, telegrafía, cura, pánico.
 │       ├── ruta_sprites.py         # Qué PNG usar para un sprite (o None = placeholder). Puro.
+│       ├── receta_jugador.py       # Jugador armado por partes desde las recetas de Pixelbolt. Puro.
 │       ├── pantalla_victoria.py    # Dibujo de la pantalla de victoria + panel final reutilizable.
-│       └── pantalla_derrota.py     # Dibujo de la derrota global "Colapso total".
+│       ├── pantalla_derrota.py     # Dibujo de la derrota global "Colapso total".
+│       ├── navegacion.py           # Acciones abstractas de menú (ARRIBA, CONFIRMAR, VOLVER...) y sonidos. Puro.
+│       ├── menu_principal.py       # MenuPrincipal: opciones, foco, EXTRAS/CRÉDITOS, abre el modal. Puro.
+│       ├── ajustes.py              # ModalAjustes: pestañas AUDIO/ACCESIBILIDAD/CONTROLES y valores. Puro.
+│       ├── menu_principal_render.py # Dibujo y ratón del menú (VistaMenu), desenfoque y velo del modal.
+│       ├── ajustes_render.py       # Dibujo y ratón del modal: sliders, interruptores, guía, control PS4.
+│       ├── guia_controles.py       # Asignaciones reales de teclado y control para la guía.
+│       ├── fondo_ciudad.py         # Ciudad nocturna con parallax, naves, letreros y lluvia.
+│       ├── titulo_civitas.py       # Título CIVITAS en pixel art con resplandor y glitch.
+│       └── filtro_color.py         # Filtro de daltonismo sobre toda la pantalla (matriz de color sin numpy).
 └── tests/                          # pytest; la mayoría sin abrir ventana (ver sección 5).
 ```
 
@@ -150,8 +168,51 @@ mouse está a menos de `ZONA_MUERTA_APUNTADO` px. O(1).
 *Depende de:* nada.
 
 **`equipo.py`** — puro. `registrar_kill_equipo(asesino, aliados)`: kill
-completa al asesino y `CARGA_COMPARTIDA` a cada aliado.
+completa al asesino y `CARGA_COMPARTIDA` a cada aliado. Cooperativo:
+`jugadores_en_combate` (los vivos; si no queda ninguno, todos),
+`jugador_mas_cercano(punto, jugadores)` (a quién apunta cada enemigo y
+el jefe), `todos_caidos` y `revivir_caidos` (al cambiar de cuarto),
+todas O(n).
 *Depende de:* `balance`.
+
+**`entrada.py`** — **`InputJugador`** (dataclass: movimiento, punto o
+dirección de apuntado, disparando y los pulsos habilidad/dash),
+`direccion_teclado`, `leer_stick` (zona muerta) y los lectores
+**`EntradaTeclado`** (J1) y **`EntradaMando`** (J2, sobre
+`pygame._sdl2.controller`, que normaliza el mapeo del DualShock 4).
+También las teclas de interfaz de combate (`TECLA_MINIMAPA`,
+`TECLA_ARBOL`), para que la guía de controles lea las mismas que el juego.
+*Depende de:* `pygame`, `balance`.
+
+**`preferencias.py`** — puro. **`Preferencias`** (dataclass con valores
+predeterminados explícitos): `volumen_musica`, `volumen_efectos`,
+`subtitulos`, `filtro_daltonismo`, `reducir_movimiento`,
+`esquema_controles`, `mostrar_cono`, `opacidad_cono`. `desde_dict`
+valida campo por campo (tipo, rango 0-100, opciones válidas; lo inválido
+toma su valor predeterminado), `cargar(ruta)` (archivo ausente o JSON
+corrupto → predeterminados) y `guardar(ruta)` (escribe a un temporal y lo
+renombra). El archivo es `preferencias.json`, ignorado por git.
+*Depende de:* nada.
+
+**`audio.py`** — **`Audio`**: único punto que toca `pygame.mixer`.
+`aplicar(preferencias)` pone el volumen de `pygame.mixer.music` y de cada
+efecto (`a_volumen_mixer`: 0% silencia, 100% = 1.0, nunca más);
+`reproducir(nombre)`. Carga los archivos de `assets.RUTAS_SONIDOS` /
+`RUTA_MUSICA_MENU` si existen; hoy no hay archivos de audio, así que los
+efectos de interfaz se sintetizan en código (onda cuadrada) y la música
+queda en silencio. Sin salida de audio, `disponible = False` y no suena nada.
+*Depende de:* `pygame`, `assets`.
+
+**`apariencia.py`** — puro. **`Apariencia`** (dataclass inmutable:
+`piel` = índice en `assets.TONOS_PIEL`, `cabeza` y `traje` = rol de
+`assets.ROLES_APARIENCIA` del que sale esa parte; `None` = lo del rol)
+y `PREDETERMINADA`. `con(campo, valor)`, `cabeza_para(rol)`,
+`traje_para(rol)`, `a_dict()` y `de_dict()` (valida campo por campo: lo
+inválido queda en `None`). Es lo que se elige en los vestidores del
+lobby online (`Online/personalizacion.py`), viaja en cada nodo del
+`GrafoSala` y la partida la copia en `JugadorBase.apariencia`. Al ser
+inmutable sirve de clave de caché del sprite armado.
+*Depende de:* `assets`.
 
 ### `src/structures/tree.py`
 
@@ -218,6 +279,13 @@ esperan, para no cortar su Sequence.
 `aplicar_golpe(vida, danio, inicia=True)` (no resta durante la ventana
 y no la reinicia), `visible` (parpadeo), `reiniciar()`.
 *Depende de:* `assets`, `balance`.
+
+**`dash.py`** — puro. **`Dash`**: `activo`, `cooldown_restante`,
+`tiempo_restante`, `direccion` (fijada al iniciar); `iniciar(direccion)`,
+`actualizar(dt)`, `reiniciar()`, `velocidad_multiplicador`,
+`puede_disparar`, `invulnerable`. Todo O(1). `JugadorBase` lo usa en
+`mover`, `actualizar_disparo`, `intentar_habilidad` y `recibir_dano`.
+*Depende de:* `balance`.
 
 **`player.py`**
 - **`JugadorBase`** — identidad del rol (`rol`, `COLOR`, `NOMBRE`,
@@ -503,6 +571,19 @@ Capa de presentación compartida:
   curandero redondo con cruz).
 - **`ruta_sprites.py`** — puro: `ruta_sprite_enemigo(id, carpeta,
   existe)` → ruta del PNG o None.
+- **`receta_jugador.py`** — puro: arma al jugador por partes desde las
+  recetas de Pixelbolt (`assets/sprites/fuentes/<rol>.pixel.json`), sin
+  arte nuevo. Repite las estampas de los cuadros del rol, pero la cabeza
+  sale de la receta elegida en HAT y el torso y las piernas de la
+  elegida en SKIN (cada una con su paleta); la letra de la piel se pinta
+  con el tono de COLOR y el accesorio siempre es el del rol.
+  `armar_animaciones(recetas, rol, apariencia)` (mismas animaciones y
+  duraciones que la hoja; con `PREDETERMINADA` reproduce el PNG píxel a
+  píxel), `armar_parte` (vista previa de la cabeza o del traje),
+  `leer_receta`, `piel_original`, `tono_de_piel`. `sprites.sprite_jugador(...,
+  apariencia=)` lo usa (caché acotada a `MAX_HOJAS_VESTIDAS`) y
+  `sprite_parte_jugador` da las vistas previas del vestidor; sin recetas,
+  vuelve a la hoja PNG.
 - **`enemigo_render.py`** — `dibujar_enemigo`: sprite + alfa pulsante
   durante la gracia, iluminado en la telegrafía, marco de escudo,
   contorno de pánico y rayo de cura con partículas.
@@ -555,20 +636,78 @@ funciones de dibujo.
 *Dependen de:* `pygame`, `assets`, `dibujo`/`fuentes`/`sprites` (y
 `balance` en `seleccion_rol`, `mapa_ciudad_render` y `mapa_render`).
 
+**Pantalla de inicio y ajustes.** La lógica es pura y recibe acciones
+abstractas (`navegacion.py`: `ARRIBA`, `ABAJO`, `IZQUIERDA`, `DERECHA`,
+`CONFIRMAR`, `VOLVER`, `PESTANA_ANTERIOR/SIGUIENTE`); cada acción
+devuelve el sonido a reproducir solo si cambió algo, así el audio nunca
+se duplica.
+
+- **`menu_principal.py`** — **`MenuPrincipal`**: opciones JUGAR,
+  CONTINUAR (deshabilitada sin partida en curso), EXTRAS, CRÉDITOS,
+  AJUSTES, SALIR y el engranaje. `accion`, `enfocar` (ratón),
+  `confirmar` (deja la opción "pulsada" `DURACION_PULSADO_MENU` s),
+  `actualizar(dt)` (retorna JUGAR/CONTINUAR/SALIR al terminar el
+  pulsado), vistas `EXTRAS`/`CRÉDITOS` y el modal (`abrir_ajustes` /
+  `cerrar_ajustes`, que devuelve el foco a quien lo abrió).
+- **`ajustes.py`** — **`ModalAjustes`**: edita un `Preferencias`. Foco:
+  barra de pestañas → controles de la pestaña → CERRAR. Sliders ±5 con
+  ← →, interruptores, selectores (dan la vuelta), `fijar` (ratón) con
+  validación. Los ajustes del cono solo aparecen en la vista MANDO.
+- **`menu_principal_render.py`** — **`VistaMenu`**: estado solo visual
+  (realce animado, giro del engranaje, apertura del modal). Layout
+  compartido por dibujo y ratón (`rects_menu`). Opciones con estados
+  normal / seleccionada (`[ J U G A R ]` violeta con resplandor) /
+  pulsada / deshabilitada (con la razón escrita). Modal: fondo
+  difuminado (reducir a 1/4 y ampliar) + velo negro al 60%.
+- **`ajustes_render.py`** — **`VistaAjustes`**: dibujo y ratón del modal
+  (pestañas, slider segmentado con arrastre, interruptor, selector,
+  segmentado TECLADO/MANDO), guía de teclado, dibujo del DualShock 4 con
+  rótulos y vista previa del cono.
+- **`guia_controles.py`** — asignaciones sacadas de las constantes de
+  `entrada.py` y `balance.py` (si cambia una tecla, cambia la guía).
+- **`fondo_ciudad.py`** — **`FondoCiudad`**: cielo, 4 capas de edificios
+  generadas una vez en baja resolución (pixel art) y desplazadas a
+  distinta velocidad (parallax tileable), naves con estela por
+  profundidad, letreros holográficos que parpadean, bruma y lluvia.
+- **`titulo_civitas.py`** — **`TituloCivitas`**: letras pixel art
+  (`sprites.LETRAS_TITULO`), sombra, resplandor difuminado, scanlines
+  grabadas y glitch breve cada 2.5-6 s (separación cromática, franjas
+  desplazadas, destello).
+- **`filtro_color.py`** — **`FiltroColor`**: daltonización
+  `M = I + E·(I − S)` (S de Machado et al. 2009). Sin numpy: lee los bytes
+  de la imagen con otro orden de canales (`frombuffer`, sin copiar) para
+  cruzar canales, multiplica (`BLEND_MULT`) y suma/resta
+  (`BLEND_ADD/SUB`). `descomponer(M)` → pasadas + factor k (calcula M/k
+  para que las sumas no se saturen antes de las restas). Cuesta unos
+  15-20 ms por frame solo cuando hay un filtro elegido.
+
+Reducir movimiento detiene el parallax, las naves, la lluvia, el
+parpadeo de letreros, el glitch del título, las transiciones del menú y
+la sacudida de cámara del jefe.
+
 ### `Main.py`
 
-- `main()` — selección de rol, luego el loop con la máquina de estados
-  (`Escena`, en `core/escenas.py`): el input, la actualización y el
+- `main()` — carga las preferencias, crea `Audio` y `FiltroColor`, y
+  alterna entre el menú principal (`_menu_principal`) y la partida
+  (`_jugar`). JUGAR pasa por modo y roles y crea una `_Sesion` nueva
+  (partida, jugadores, lectores de input); CONTINUAR vuelve a la sesión
+  en curso. Cada frame termina en `presentar()`: filtro de daltonismo y
+  flip.
+- `_jugar(...)` — el loop con la máquina de estados
+  (`Escena`, en `core/escenas.py`); ESC en la ciudad vuelve al menú
+  principal conservando la sesión. El input, la actualización y el
   dibujo dependen de la escena. Flujo: `CIUDAD` → (E en una entrada)
   `MAZMORRA` → `DECISION` → `RESULTADO` → (ENTER) `CIUDAD` frente a esa
   puerta; `CIUDAD` → (E en la Alcaldía abierta) `JEFE` → `VICTORIA` →
   (ENTER) `CIUDAD`; desde cualquier escena (salvo `RESULTADO`, que se
   muestra completa primero), colapso al 100% → `DERROTA` → (ENTER)
-  partida nueva en la Plaza. En `CIUDAD`: WASD camina
-  (`caminar_en_ciudad` con `partida.es_solida`), E entra, G alterna la
-  ruta sugerida, TAB cambia el destino, M abre el mapa del mundo; al
-  entrar y salir de un edificio hay un fundido de `DURACION_FUNDIDO`.
-  En combate M alterna el minimapa y Tab el globo del behavior tree.
+  partida nueva en la Plaza. En `CIUDAD` camina el J1: WASD
+  (`caminar_en_ciudad` con `partida.es_solida`), E entra con todo el
+  equipo, G alterna la ruta sugerida, TAB cambia el destino, M abre el
+  mapa del mundo; al entrar y salir de un edificio hay un fundido de
+  `DURACION_FUNDIDO`. En combate M alterna el minimapa y Tab el globo
+  del behavior tree; durante la gracia de entrada cada jugador tiene
+  `armas_bloqueadas` y un anillo de cuenta regresiva.
 - Dibujo: el mundo (escenario, cono de apuntado, objetivo, jugador,
   proyectiles, números de daño, globo) va a un lienzo que se copia con
   la sacudida; el HUD superior, el minimapa, la barra de controles y la

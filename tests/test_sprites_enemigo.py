@@ -30,8 +30,10 @@ def cache_limpio():
 def test_ruta_con_y_sin_archivo():
     assert ruta_sprite_enemigo("tirador", "x", existe=lambda ruta: True) == os.path.join("x", "tirador.png")
     assert ruta_sprite_enemigo("tirador", "x", existe=lambda ruta: False) is None
-    # Por defecto busca en assets/sprites/enemigos/, que hoy no tiene PNGs.
-    assert ruta_sprite_enemigo("perseguidor") is None
+    # Por defecto busca en assets/sprites/enemigos/: el perseguidor ya
+    # tiene arte real; un id sin PNG cae al placeholder.
+    assert ruta_sprite_enemigo("perseguidor") == os.path.join(assets.RUTA_SPRITES_ENEMIGOS, "perseguidor.png")
+    assert ruta_sprite_enemigo("no_existe") is None
 
 
 def test_cada_tipo_tiene_id_colores_y_tamano():

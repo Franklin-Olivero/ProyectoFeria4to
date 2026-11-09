@@ -16,16 +16,21 @@ dibujar, manejar_evento), así Main.py usa el mismo loop de combate,
 colisiones y carga de habilidad. Nunca hay minijuego de decisión aquí.
 """
 
+import random
+
 import pygame
 
 from src.core import assets
 from src.core.balance import DANIO_PROYECTIL_JEFE, UMBRAL_FASE_2, UMBRAL_FASE_3
+from src.core.equipo import jugador_mas_cercano
 from src.dungeon.gracia_entrada import GraciaEntrada
 from src.dungeon.mazmorra_final import EN_COMBATE, VICTORIA, MazmorraFinal
+from src.dungeon.mazmorra_jugable import ubicar_en_fila
 from src.entities.enemigos import crear_enemigo
+from src.entities.variantes_enemigo import elegir_variantes
 from src.entities.tipos_enemigo import TipoEnemigo
 from src.entities.projectile import ProyectilConEstela
-from src.ui import cuarto_render, dibujo, sprites
+from src.ui import dibujo, sprites, temas_mazmorra
 
 DISTANCIA_INICIO_JUGADOR = 50  # px desde el borde inferior de la arena
 SEMILLA_FONDO_ARENA = 777
@@ -36,18 +41,19 @@ TIPOS_SUBDITOS = (TipoEnemigo.PERSEGUIDOR, TipoEnemigo.TIRADOR)
 
 
 class ArenaJefe:
-    def __init__(self, colapso, jugador):
+    def __init__(self, colapso, jugadores):
         self.rect = pygame.Rect(0, 0, assets.ANCHO_ARENA, assets.ALTO_ARENA)
         self.rect.center = assets.CENTRO_ARENA
         limites = (self.rect.left, self.rect.top, self.rect.right, self.rect.bottom)
         self.mazmorra = MazmorraFinal(colapso, limites)
         self.subditos = []
         self._invocados = 0  # para alternar el tipo de cada súbdito
+        self._usos_variantes = {}  # variantes ya invocadas (reparte caras distintas)
         self._tiempo = 0.0  # reloj visual para el parpadeo
         self.gracia = GraciaEntrada()
         self.gracia.iniciar()
         self._vincular_cuerpo_jefe()
-        self.colocar_jugador(jugador)
+        self.colocar_jugadores(jugadores)
 
     @property
     def jefe(self):
@@ -60,9 +66,9 @@ class ArenaJefe:
             return self.subditos + [self.jefe]
         return list(self.subditos)
 
-    def colocar_jugador(self, jugador):
-        jugador.rect.center = (self.rect.centerx, self.rect.bottom - DISTANCIA_INICIO_JUGADOR)
-        jugador.posicion.update(jugador.rect.center)
+    def colocar_jugadores(self, jugadores):
+        inicio = (self.rect.centerx, self.rect.bottom - DISTANCIA_INICIO_JUGADOR)
+        ubicar_en_fila(jugadores, inicio, (1, 0))
 
     def _vincular_cuerpo_jefe(self):
         # Al reiniciar la pelea la mazmorra crea un Jefe nuevo sin rect.
@@ -73,35 +79,37 @@ class ArenaJefe:
     def manejar_evento(self, evento):
         """La arena no tiene teclas propias (sin debug ni decisión)."""
 
-    def actualizar(self, dt, jugador, proyectiles_enemigos):
+    def actualizar(self, dt, jugadores, proyectiles_enemigos):
         self._tiempo += dt
         self.gracia.actualizar(dt)
         if self.gracia.activa:
             # Gracia: nada hostil se mueve; el jefe ni siquiera se actualiza.
             for subdito in self.subditos:
                 subdito.congelado = True
-                subdito.actualizar(dt, jugador, proyectiles_enemigos)
+                subdito.actualizar(dt, jugador_mas_cercano(subdito.rect.center, jugadores), proyectiles_enemigos)
             return
         if self.mazmorra.estado == EN_COMBATE:
             for subdito in self.subditos:
                 subdito.congelado = False
-                subdito.actualizar(dt, jugador, proyectiles_enemigos)
+                objetivo = jugador_mas_cercano(subdito.rect.center, jugadores)
+                subdito.actualizar(dt, objetivo, proyectiles_enemigos)
                 subdito.mantener_dentro(self.rect)
             self.subditos = [subdito for subdito in self.subditos if subdito.vivo]
 
         # El jefe respeta MAX_PROYECTILES_JEFE: se le pasa cuántas balas
         # suyas siguen vivas (las de los súbditos no cuentan).
         balas_jefe = sum(isinstance(p, ProyectilConEstela) for p in proyectiles_enemigos)
-        self.mazmorra.actualizar(dt, jugador, balas_jefe)
+        self.mazmorra.actualizar(dt, jugadores, balas_jefe)
         self._vincular_cuerpo_jefe()
 
         if self.mazmorra.reinicio_pendiente:
             self.mazmorra.reinicio_pendiente = False
             self.subditos.clear()
             proyectiles_enemigos.clear()
-            jugador.vida = jugador.vida_maxima
-            jugador.invulnerabilidad.reiniciar()
-            self.colocar_jugador(jugador)
+            for jugador in jugadores:
+                jugador.vida = jugador.vida_maxima
+                jugador.invulnerabilidad.reiniciar()
+            self.colocar_jugadores(jugadores)
             self.gracia.iniciar()
             return
 
@@ -138,9 +146,10 @@ class ArenaJefe:
             tipo = TIPOS_SUBDITOS[self._invocados % len(TIPOS_SUBDITOS)]
             self._invocados += 1
             # Agresividad absoluta: cada uno hace lo suyo desde cualquier distancia.
+            variante = elegir_variantes([tipo], random, self._usos_variantes)[0]
             subdito = crear_enemigo(
                 tipo, self.jefe.x + lado * assets.SEPARACION_INVOCACION, self.jefe.y, velocidad,
-                agro_permanente=True,
+                agro_permanente=True, variante=variante,
             )
             subdito.mantener_dentro(self.rect)
             self.subditos.append(subdito)
@@ -150,8 +159,9 @@ class ArenaJefe:
     # ------------------------------------------------------------------
 
     def dibujar(self, pantalla):
-        fondo = cuarto_render.fondo_cuarto(self.rect, SEMILLA_FONDO_ARENA, GRAFITIS_ARENA)
-        pantalla.blit(fondo, cuarto_render.origen_fondo(self.rect))
+        fondo = temas_mazmorra.fondo(self.rect, "servidor", SEMILLA_FONDO_ARENA, (), 100)
+        pantalla.blit(fondo, (0, assets.Y_MUNDO_TEMA))
+        temas_mazmorra.dibujar_animado(pantalla, self.rect, "servidor", self._tiempo)
         for charco in self.mazmorra.charcos:
             self._dibujar_charco(pantalla, charco)
         for subdito in self.subditos:
@@ -161,6 +171,13 @@ class ArenaJefe:
 
     def _dibujar_charco(self, pantalla, charco):
         centro = (round(charco.x), round(charco.y))
+        imagen = sprites.sprite_charco(charco.activo, self._tiempo, charco.radio)
+        if imagen is not None:
+            if charco.activo:
+                imagen = imagen.copy()
+                imagen.set_alpha(assets.ALFA_CHARCO_SPRITE)
+            pantalla.blit(imagen, imagen.get_rect(center=centro))
+            return
         if charco.activo:
             superficie = pygame.Surface((charco.radio * 2, charco.radio * 2), pygame.SRCALPHA)
             pygame.draw.circle(
@@ -181,7 +198,7 @@ class ArenaJefe:
             # Parpadeo al cambiar de fase: visible e invisible alternados.
             if int(self._tiempo / assets.PERIODO_PARPADEO_JEFE) % 2 == 0:
                 return
-        imagen = sprites.sprite(sprites.JEFE, sprites.PALETA_JEFE, escala=4)
+        imagen = sprites.sprite_jefe(self._tiempo, furia=jefe.fase >= 3)
         if jefe.tiempo_destello > 0:
             # Destello blanco al recibir daño: silueta del sprite en blanco.
             imagen = imagen.copy()
