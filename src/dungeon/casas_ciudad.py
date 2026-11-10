@@ -7,7 +7,6 @@ plantilla (assets.ESTILOS_CASA). Aquí, sin Pygame, se decide:
     pisos(alto)                         -> cuántos pisos de ventanas caben bajo el techo
     ventanas(ancho, alto, patron)       -> rects (px nativos, 16 por casilla) de cada ventana
     puerta(ancho, alto)                 -> rect de la puerta (centrada abajo)
-    luces_fachada(ancho, alto, filas)   -> luces de la fachada de una casa armada con los packs
     encendida(semilla, indice, t)       -> si esa ventana está prendida a los t segundos
 
 Las ventanas no usan azar con estado: un hash de (semilla de la casa,
@@ -79,14 +78,6 @@ def puerta(ancho, alto):
     """(x, y, w, h) de la puerta en px nativos, centrada en la planta baja."""
     x = (ancho * LADO) // 2 - 4
     return (x, alto * LADO - 13, 8, 12)
-
-
-def luces_fachada(ancho, alto, filas_fachada):
-    """Luces pequeñas (x, y, w, h en px nativos) a lo largo de la fachada de
-    una casa armada con los packs: dos por casilla, en la franja de arriba
-    de la fachada. Algunas parpadean (parpadea/encendida)."""
-    y = (alto - filas_fachada) * LADO + 3
-    return [(c * LADO + x, y, 3, 2) for c in range(ancho) for x in (3, 10)]
 
 
 def vitrinas(ancho, alto):

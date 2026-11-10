@@ -107,8 +107,9 @@ def test_descriptor_en_el_mapa_real():
     assert norte[0] == sur[0] == at.CALLE
     assert norte[1] == ("N",) and sur[1] == ("S",)  # acera arriba, camellón abajo
     assert norte[3][:2] == ("h", "S") and sur[3][:2] == ("h", "N")
-    # Un puente de la avenida sobre el canal: la acera lleva baranda hacia el agua.
-    for c in (38, 39):
-        assert at.descriptor(cm.MAPA, c, 23)[3][0] == ("N",)
+    # La alberca del parque: canto hacia el césped en sus lados de afuera.
+    col, fila, ancho, alto = cm.ALBERCA
+    assert at.descriptor(cm.MAPA, col, fila)[:2] == (at.AGUA, ("N", "O"))
+    assert at.descriptor(cm.MAPA, col + ancho - 1, fila + alto - 1)[:2] == (at.AGUA, ("E", "S"))
     # Las mismas vecinas dan el mismo descriptor (la caché del dibujo se comparte).
     assert at.descriptor(cm.MAPA, 13, 24)[:3] == at.descriptor(cm.MAPA, 15, 24)[:3]

@@ -14,7 +14,7 @@ from src.core import assets  # noqa: E402
 from src.dungeon import ciudad_mapa  # noqa: E402
 from src.dungeon.partida import Partida  # noqa: E402
 from src.ui import cargador_assets, cargador_backrooms, casas_render, ciudad_render, decoracion_ciudad  # noqa: E402
-from src.ui import edificios_ciudad, tiles_ciudad  # noqa: E402
+from src.ui import arte_ciudad, edificios_ciudad, tiles_ciudad  # noqa: E402
 
 
 def _limpiar():
@@ -27,6 +27,7 @@ def _limpiar():
     decoracion_ciudad._cache.clear()
     edificios_ciudad._cache.clear()
     tiles_ciudad._cache.clear()
+    arte_ciudad.limpiar_cache()
 
 
 def test_sin_ningun_arte_la_ciudad_igual_se_dibuja(monkeypatch):
@@ -49,13 +50,12 @@ def test_sin_ningun_arte_la_ciudad_igual_se_dibuja(monkeypatch):
     assert pantalla is not None
 
 
-def test_con_el_atlas_el_suelo_y_las_casas_salen_de_los_packs():
+def test_con_el_atlas_la_calzada_sale_de_los_packs_y_el_verde_no():
     pygame.init()
     pygame.display.set_mode((1280, 720))
     _limpiar()
     assert tiles_ciudad.disponible()
     assert tiles_ciudad.origen(10, 10) == "nuevo"  # calle
-    assert tiles_ciudad.origen(*ciudad_mapa.PARQUE[:2]) == "antiguo"  # pasto: los packs no traen vegetación
+    assert tiles_ciudad.origen(9, 9) == "nuevo"  # banqueta
+    assert tiles_ciudad.origen(40, 13) == "antiguo"  # césped del parque: los packs no traen vegetación
     assert tiles_ciudad.casilla(10, 10).get_size() == (48, 48)
-    assert all(casas_render.compuesta(i) for i in range(len(ciudad_mapa.CASAS)))
-    assert edificios_ciudad.compuesto("Hospital") and not edificios_ciudad.compuesto("Colegio")

@@ -11,10 +11,9 @@ PIEZAS a escala 1:1 (factor entero 1, igual para toda la ciudad) y el
 juego arma cada casilla de 48 px por auto-tiling compuesto
 (src/dungeon/autotile_ciudad.py + src/ui/tiles_ciudad.py).
 
-RECETA dice, por nombre de pieza, de qué lámina y rect (px) sale y si se
-le quita el fondo (`llave`: flood fill desde el borde con los píxeles
-parecidos al color de fondo de la lámina; así el interior oscuro de un
-prop no se agujerea). Solo los recortes van al repo (assets/ciudad/), nunca
+RECETA dice, por nombre de pieza, de qué lámina y rect (px) sale, si se
+gira (`girar`, grados) y si se le quita el fondo (`llave`: flood fill desde
+el borde con los píxeles parecidos al color de fondo de la lámina). Solo los recortes van al repo (assets/ciudad/), nunca
 las láminas: el script es reproducible desde _packs/extraidos/.
 """
 
@@ -54,73 +53,18 @@ def _receta(nombre, pack, numero, rect, **opciones):
     RECETA[nombre] = (pack, numero, rect, opciones)
 
 
-# --- Suelo: texturas 1:1 (se repiten por casilla) ---------------------------
-_receta("asfalto", EDGES, 1, (560, 808, 96, 96))  # malla oscura fina
-_receta("acera", ROADS, 4, (34, 800, 48, 96))  # losa gris del tramo recto
-_receta("plaza", EDGES, 1, (60, 832, 96, 96))  # losas claras con junta
-_receta("plaza_borde", EDGES, 1, (552, 552, 96, 96))  # rejilla gris con esquinas de peligro
-_receta("pasto_tecno", FLOORS, 3, (244, 644, 96, 96))  # placas verdes (jardines y camellón)
-# --- Marcas viales y bordes (tiras) ------------------------------------------
-_receta("bordillo", ROADS, 3, (40, 236, 96, 12))  # franja de peligro amarilla/negra
-_receta("linea_carril", ROADS, 4, (119, 830, 7, 48))  # línea amarilla del tramo recto
-_receta("cebra", ROADS, 4, (606, 284, 48, 36))  # barras blancas del cruce claro
-_receta("borde_metal", CORNERS, 5, (14, 14, 12, 96))  # canto metálico (canal, camellón)
-# --- Agua neón del canal (LIQUIDS 13: piscina de datos) ----------------------
-_receta("agua", LIQUIDS, 13, (452, 440, 32, 48))
-_receta("agua_b", LIQUIDS, 13, (552, 440, 32, 48))
-# --- Techos y fachadas ---------------------------------------------------------
-# Techos: 11 marcos de CORNERS 5 (el 10 no se usa: muy parecido al 8).
-for i, (x, y) in enumerate(((14, 14), (270, 14), (526, 14), (782, 14), (14, 270), (270, 270), (526, 270),
-                            (782, 270), (14, 526), (270, 526), (526, 526), (782, 526))):
-    if i != 10:
-        _receta(f"techo_{i}", CORNERS, 5, (x, y, 200, 200))
-_receta("fachada_neon", WALLS, 1, (690, 50, 285, 96))
-_receta("fachada_tienda", WALLS, 1, (690, 268, 285, 84))
-_receta("fachada_roja", WALLS, 1, (690, 384, 285, 96))
-_receta("fachada_vidrio", WALLS, 1, (690, 530, 285, 96))
-_receta("fachada_granate", WALLS, 1, (690, 660, 285, 96))
-_receta("fachada_noche", WALLS, 1, (690, 846, 285, 96))
-_receta("fachada_franja", WALLS, 1, (690, 192, 285, 52))  # también la valla neón de los muros
-_receta("puerta_roja", WALLS, 1, (396, 524, 92, 104))
-_receta("puerta_vidrio", WALLS, 1, (52, 524, 168, 104))
-_receta("pilar_morado", WALLS, 1, (526, 48, 134, 304))
-_receta("pilar_cian", WALLS, 1, (528, 528, 120, 444))
-# --- Placas especiales: cruces y monumento -------------------------------------
-_receta("cruce_especial", ROADS, 2, (34, 34, 212, 212))
-_receta("grieta_liminal", LIQUIDS, 9, (412, 652, 96, 96))
-# Emblemas de los cruces: el cuadro central de cuatro placas de PATHS ROADS (2).
-for _i, (_x, _y) in enumerate(((280, 30), (780, 30), (780, 280), (280, 780))):
-    _receta(f"emblema_cruce_{_i}", ROADS, 2, (_x + 62, _y + 62, 96, 96))
-
-# --- Props (DECORATIONS 1 y 4): grilla regular de 6x6 sobre fondo liso ---------
-# Se les quita el fondo y se reducen a la mitad (factor entero): la lámina
-# dibuja cada objeto a ~2x la densidad de píxel del juego (ESCALA_PIXEL 3).
-
-
-def _celda(lamina_n, fila, col):
-    if lamina_n == 1:
-        return (22 + col * 162, 14 + fila * 165, 162, 165)
-    return (14 + col * 166, 14 + fila * 166, 166, 166)
-
-
-PROPS = {
-    # comercial
-    "expendedora": (1, 0, 0), "kiosco_neon": (1, 0, 1), "maquina_snacks": (1, 3, 3), "cajero": (4, 1, 3),
-    # medios
-    "servidor": (1, 0, 2), "baliza_senal": (1, 3, 5), "consola_noticias": (4, 2, 5), "monitor_medios": (4, 0, 5),
-    # hospitalaria
-    "dispensador_medico": (4, 1, 1), "equipo_medico": (4, 1, 4), "botiquin": (4, 4, 2),
-    # escolar
-    "casillero_escolar": (4, 0, 4), "caja_material": (4, 4, 1), "terminal_estudio": (1, 1, 0),
-    # cívica
-    "totem_info": (1, 0, 3), "pedestal_civico": (4, 5, 5), "urna_digital": (1, 4, 4),
-    # residencial
-    "generador": (1, 2, 0), "aire_ac": (1, 1, 4), "contenedor": (1, 4, 3), "medidor": (4, 0, 0),
-    # avenidas y parque
-    "transformador": (1, 5, 3), "caja_electrica": (1, 1, 1), "farol_datos": (1, 4, 5),
-}
-for _nombre, (_lam, _fila, _col) in PROPS.items():
-    _receta(_nombre, DECOS, _lam, _celda(_lam, _fila, _col), llave=True, tolerancia=30, reduccion=2)
+# Solo lo que la ciudad usa (assets.ASSETS_CIUDAD_PERMITIDOS): la calzada
+# completa sale de UNA celda de PATHS ROADS (4), el tramo recto gris de
+# (28, 778), así asfalto, bordillo, banqueta y línea central combinan; la
+# cebra, del cruce claro de la misma lámina; el agua de la alberca, de
+# LIQUIDS 13 (el cargador le baja la saturación). Nada de maquinaria,
+# techos, fachadas ni placas: los edificios son sprites completos.
+_receta("asfalto", ROADS, 4, (128, 790, 12, 192))  # franja lisa entre las líneas amarillas
+_receta("acera", ROADS, 4, (32, 812, 48, 96))  # losas grises de la banqueta (bajo la tapa de registro)
+_receta("bordillo", ROADS, 4, (84, 790, 12, 192), girar=-90)  # borde banqueta-calzada (banqueta arriba)
+_receta("linea_carril", ROADS, 4, (119, 830, 7, 48))  # línea central amarilla
+_receta("cebra", ROADS, 4, (606, 284, 48, 36))  # barras blancas del paso de cebra
+_receta("agua", LIQUIDS, 13, (452, 440, 32, 48))  # agua de la alberca y las fuentes
 
 
 def ruta_lamina(pack, numero):
@@ -179,6 +123,8 @@ def recortar(nombre):
         pieza = quitar_fondo(pieza, color_fondo(imagen), opciones.get("tolerancia", 26))
         caja = pieza.get_bounding_rect()
         pieza = pieza.subsurface(caja).copy()
+    if opciones.get("girar"):
+        pieza = pygame.transform.rotate(pieza, opciones["girar"])
     reduccion = opciones.get("reduccion", 1)
     if reduccion != 1:  # reducción entera: promedio de cada bloque de reduccion x reduccion
         ancho, alto = pieza.get_width() // reduccion, pieza.get_height() // reduccion

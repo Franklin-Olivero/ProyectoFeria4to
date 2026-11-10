@@ -4,9 +4,9 @@
     python tools/capturas_ciudad.py --salida otra/carpeta --sin-despues
 
 Guarda la panorámica (el mapa entero, reducido a la mitad) y un recorte a
-tamaño real de cada zona: plaza central, parque, paseo comercial, zonas
-escolar, hospitalaria, de medios y cívica, la Avenida Nova con sus cruces,
-el canal con sus puentes y el lote del Distrito Liminal. Los recortes son
+tamaño real de cada zona: plaza central, Parque Central, Jardín del
+Colegio, paseo comercial, zonas escolar, hospitalaria, de medios y cívica,
+la Avenida Nova con sus cruces y el lote del Distrito Liminal. Los recortes son
 del tamaño de la vista del juego. La panorámica también se copia a
 docs/capturas/ciudad_despues.png (la de antes del rediseño es
 docs/capturas/ciudad_antes.png).
@@ -27,15 +27,15 @@ import pygame  # noqa: E402
 TAM = 48
 # Esquina superior izquierda (en casillas) de cada recorte de 1280x720.
 RECORTES = {
-    "plaza_central": (17, 17),
-    "parque": (33, 9),
-    "zona_comercial": (20, 28),
-    "zona_escolar": (0, 2),
+    "plaza_central": (17, 15),
+    "parque_central": (31, 9),
+    "jardin_colegio": (4, 8),
+    "zona_comercial": (17, 27),
+    "zona_escolar": (0, 0),
     "zona_civica": (30, 0),
-    "zona_hospitalaria": (2, 28),
-    "zona_medios": (36, 30),
+    "zona_hospitalaria": (0, 27),
+    "zona_medios": (33, 28),
     "avenida_cruces": (0, 18),
-    "canal_puentes": (27, 3),
     "distrito_liminal_reservado": (14, 32),
 }
 DESPUES = os.path.join("docs", "capturas", "ciudad_despues.png")

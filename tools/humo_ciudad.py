@@ -25,8 +25,8 @@ import recorrido_campania as rc  # noqa: E402
 
 # Una casilla transitable de cada zona (la cámara la encuadra al pararse ahí).
 PUNTOS_ZONA = {
-    "plaza": (30, 27), "parque": (46, 17), "comercial": (32, 34), "escolar": (15, 15),
-    "hospitalaria": (21, 33), "civica": (42, 6), "medios": (46, 41), "residencial": (56, 22),
+    "plaza": (30, 27), "parque": (44, 15), "comercial": (32, 34), "escolar": (15, 15),
+    "hospitalaria": (12, 37), "civica": (42, 6), "medios": (46, 41), "residencial": (59, 18),
     "avenida": (12, 24), "liminal": (25, 43),
 }
 resultado = {"ms_ciudad": [], "zonas": [], "edificios": {}}

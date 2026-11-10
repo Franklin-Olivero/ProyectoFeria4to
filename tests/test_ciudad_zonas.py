@@ -1,7 +1,7 @@
 """Ciudad Nova por zonas (sin pygame): props sin solaparse, huellas de
-edificios y casas válidas, casas vecinas distintas, grafo intacto, puertas
+edificios válidas, edificios vecinos distintos, grafo intacto, puertas
 alcanzables desde la Plaza, identidad de cada zona, farolas por zona,
-canal con puentes y el lote reservado del Distrito Liminal."""
+área verde, cero solapes y el lote reservado del Distrito Liminal."""
 
 import os
 import subprocess
@@ -13,8 +13,13 @@ RAIZ = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 sys.path.insert(0, RAIZ)
 
 from src.core import assets  # noqa: E402
-from src.core.balance import METROS_POR_CASILLA, METROS_POR_PUNTO_DE_PESO, PESO_MINIMO_CIUDAD  # noqa: E402
-from src.dungeon import casas_ciudad, layout_decoracion as ld, zonas_ciudad as zc  # noqa: E402
+from src.core.balance import (  # noqa: E402
+    METROS_POR_CASILLA,
+    METROS_POR_PUNTO_DE_PESO,
+    MIN_FRACCION_VERDE_CIUDAD,
+    PESO_MINIMO_CIUDAD,
+)
+from src.dungeon import casas_ciudad, huellas_ciudad as hc, layout_decoracion as ld, zonas_ciudad as zc  # noqa: E402
 from src.dungeon import ciudad_mapa as cm  # noqa: E402
 from src.dungeon.grafo_ciudad import GrafoCiudad  # noqa: E402
 
@@ -33,7 +38,8 @@ def _con_letra(letra):
 
 def test_modulos_puros_sin_pygame():
     codigo = ("import sys, src.dungeon.zonas_ciudad, src.dungeon.casas_ciudad, src.dungeon.autotile_ciudad, "
-              "src.dungeon.ciudad_mapa; print('pygame' in sys.modules)")
+              "src.dungeon.huellas_ciudad, src.core.medicion_paleta, src.dungeon.ciudad_mapa; "
+              "print('pygame' in sys.modules)")
     salida = subprocess.run([sys.executable, "-c", codigo], cwd=RAIZ, capture_output=True, text=True, check=True)
     assert salida.stdout.strip() == "False"
 
@@ -68,7 +74,7 @@ def test_b_huellas_de_edificios_y_casas_dentro_del_mapa_y_sin_solaparse():
     for huella in todas:
         col, fila, ancho, alto = huella
         assert 0 < col and 0 < fila and col + ancho < cm.COLUMNAS and fila + alto < cm.FILAS, huella
-        assert ancho >= 2 and alto >= 2, huella  # techo y fachada
+        assert ancho >= 2 and alto >= 2, huella
         celdas = _celdas(huella)
         assert not celdas & ocupadas, huella
         ocupadas |= celdas
@@ -76,6 +82,24 @@ def test_b_huellas_de_edificios_y_casas_dentro_del_mapa_y_sin_solaparse():
 
 def test_b_las_casas_cubren_exactamente_las_h_del_mapa():
     assert set().union(*(_celdas(h) for h in HUELLAS_CASAS)) == _con_letra(cm.CASA)
+
+
+def test_b_pocos_edificios_y_bien_separados():
+    """4 edificios de zona y como máximo 6 secundarios; ninguno toca a otro."""
+    assert len(cm.EDIFICIOS) == 4 and len(cm.CASAS) <= 6
+    huellas = list(cm.EDIFICIOS.values()) + HUELLAS_CASAS
+    for i, a in enumerate(huellas):
+        for b in huellas[i + 1:]:
+            assert casas_ciudad.vecinas([a, b], distancia=0) == [], (a, b)
+
+
+def test_b_cada_edificio_de_zona_tiene_jardin_al_frente_y_sendero():
+    for zona, (col, fila, ancho, alto) in cm.EDIFICIOS.items():
+        puerta_col, puerta_fila = cm.ENTRADAS[zona]
+        frente = fila + alto
+        assert cm.casilla(puerta_col, frente) in (cm.ACERA, cm.BARRICADA), zona  # el sendero
+        jardin = [cm.casilla(c, frente) for c in range(col, col + ancho) if abs(c - puerta_col) > 1]
+        assert jardin and all(letra == cm.JARDIN for letra in jardin), zona
 
 
 # (c) Ningún par de edificios vecinos idénticos.
@@ -88,24 +112,22 @@ def test_c_dos_estilos_cualesquiera_difieren_lo_suficiente():
                 assets.VARIACION_MINIMA_ESTILOS, (a, b)
 
 
-def test_c_casas_vecinas_nunca_comparten_estilo():
-    pares = casas_ciudad.vecinas(HUELLAS_CASAS, distancia=2)
-    assert pares  # hay manzanas con casas juntas
-    for i, j in pares:
-        assert cm.CASAS[i][1] != cm.CASAS[j][1], (cm.CASAS[i], cm.CASAS[j])
+def test_c_ningun_edificio_secundario_repite_estilo():
+    estilos = [estilo for _, estilo in cm.CASAS]
+    assert len(set(estilos)) == len(estilos)
+    assert all(estilo in assets.ESTILOS_CASA for estilo in estilos)
 
 
-def test_c_los_edificios_de_zona_no_se_repiten():
-    compuestos = [c for c in assets.ARTE_EDIFICIOS.values() if c["fuente"] == "compuesto"]
-    assert len({(c["techo"], c["fachada"]) for c in compuestos}) == len(compuestos)
-    techos_casas = {e["techo_pack"] for e in assets.ESTILOS_CASA.values()}
-    assert not techos_casas & {c["techo"] for c in compuestos}  # ninguna casa se ve como un edificio de zona
+def test_c_los_edificios_de_zona_tienen_paletas_distintas():
+    paletas = [tuple(sorted(assets.PALETA_FACHADA_ZONA[z].items())) for z in assets.PALETA_FACHADA_ZONA]
+    assert len(set(paletas)) == len(paletas) == 3  # Hospital, Medios y Alcaldía; el Colegio es el pack escolar
 
 
-def test_c_cada_estilo_y_sus_luces_caben_en_la_fachada():
+def test_c_cada_casa_y_sus_ventanas_caben_en_la_fachada():
     for (col, fila, ancho, alto), nombre in cm.CASAS:
-        assert nombre in assets.ESTILOS_CASA
-        for x, y, w, h in casas_ciudad.luces_fachada(ancho, alto, assets.FILAS_FACHADA_CASA):
+        estilo = assets.ESTILOS_CASA[nombre]
+        for x, y, w, h in casas_ciudad.ventanas(ancho, alto, estilo["ventanas"], estilo["techo"]) + \
+                casas_ciudad.vitrinas(ancho, alto) + [casas_ciudad.puerta(ancho, alto)]:
             assert 0 <= x and 0 <= y and x + w <= ancho * 16 and y + h <= alto * 16, (nombre, (x, y, w, h))
 
 
@@ -125,14 +147,14 @@ def test_e_puertas_bolsillos_y_lote_liminal_se_alcanzan_desde_la_plaza():
     grafo = cm.grafo_casillas(cm.es_solida)
     alcanzables = set(grafo.bfs(cm.NODOS_CALLE[cm.ZONA_PLAZA])[0])
     for zona, (col, fila) in cm.ENTRADAS.items():
-        assert (col, fila + 1) in alcanzables, zona
+        if zona != cm.ZONA_ALCALDIA:  # la Alcaldía empieza sellada
+            assert (col, fila + 1) in alcanzables, zona
     col, fila, ancho, alto = cm.PLAZA_CIVICA
-    assert (col + 1, fila + alto - 1) in alcanzables  # la plaza de la Alcaldía
-    assert set(cm.PORTON_PARQUE) <= alcanzables
-    assert set(cm.SENDEROS_PARQUE) <= alcanzables
+    assert (col + 2, fila + alto - 1) in alcanzables  # la plaza de la Alcaldía
+    assert set(cm.SENDEROS_PARQUE) <= alcanzables  # los dos parques
     col, fila, ancho, _ = cm.PASEO_COMERCIAL
     assert all((c, fila) in alcanzables for c in range(col, col + ancho))  # la mitad norte del paseo, libre
-    assert set(zc.ACCESO_LIMINAL) <= alcanzables
+    assert cm.ACCESOS_BOLSILLOS <= alcanzables
     col, fila, ancho, alto = zc.LIMINAL_RESERVADO
     for celda in _celdas((col + 1, fila, ancho - 2, alto)):  # todo menos las esquinas con conos
         assert celda in alcanzables, celda
@@ -146,7 +168,7 @@ def test_e_los_bolsillos_no_rodean_barricadas():
         assert set(cm.NODOS_CALLE.values()) & set(alcanzables) == {casilla}
 
 
-# (f) Identidad de cada zona: N tipos de prop propios.
+# (f) Identidad de cada zona.
 
 def _presentes(id_zona):
     tipos = {p.tipo for p in PROPS if zc.zona_de(*p.base) == id_zona}
@@ -168,18 +190,17 @@ def test_f_la_identidad_de_cada_zona_es_propia_y_tiene_su_especie_de_arbol():
         for tipo in zona.identidad:
             assert tipo not in vistos, (tipo, id_zona, vistos.get(tipo))
             vistos[tipo] = id_zona
-    especies = [frozenset(z.arboles) for i, z in zc.ZONAS.items() if z.arboles and i != zc.PLAZA]
+    especies = [frozenset(z.arboles) for i, z in zc.ZONAS.items() if z.arboles]
     assert len(set(especies)) == len(especies)  # ninguna zona copia las especies de otra
+    for zona in zc.ZONAS.values():
+        assert set(zona.arboles) <= set(assets.ARBOLES_CIUDAD), zona.nombre
 
 
-def test_f_las_zonas_construidas_usan_props_de_los_packs_nuevos():
-    """Salvo el parque (vegetación: los packs nuevos no traen), cada zona
-    tiene al menos dos tipos de identidad con arte de los packs cyberpunk."""
-    for id_zona, zona in zc.ZONAS.items():
-        if id_zona in (zc.PARQUE, zc.LIMINAL):
-            continue
-        nuevos = set(zona.identidad) & set(assets.PROPS_CIUDAD)
-        assert len(nuevos) >= 2 or (id_zona == zc.PLAZA and nuevos), (id_zona, nuevos)
+def test_f_arboles_variados_pinos_frutales_otonales_y_sauces():
+    especies = {p.variante for p in PROPS if p.tipo == "arbol"}
+    for grupo in (assets.PINOS, assets.FRUTALES, assets.OTONALES, assets.SAUCES, assets.ARBUSTOS):
+        assert especies & set(grupo), grupo
+    assert len(especies) >= 15
 
 
 # (g) Farolas por zona; bancas simétricas.
@@ -201,31 +222,37 @@ def test_g_bancas_de_la_plaza_civica_enfrentadas_y_simetricas():
     assert (a.orientacion, b.orientacion) == ("E", "O")
 
 
-# Canal, puentes y lote reservado.
+# (h) Más verde, cero solapes y agua discreta.
 
-def test_el_canal_cruza_la_ciudad_y_cada_cruce_es_un_puente():
-    agua = _con_letra(cm.AGUA)
-    columnas_canal = {c for c, _ in agua if sum(1 for cc, _ in agua if cc == c) > 20}
-    assert len(columnas_canal) == 2  # 2 casillas de ancho, de norte a sur
-    filas_puente = [f for f in range(1, cm.FILAS - 1)
-                    if all(not cm.es_solida(c, f) for c in columnas_canal)]
-    tramos_puente = sum(1 for i, f in enumerate(filas_puente) if i == 0 or filas_puente[i - 1] != f - 1)
-    assert tramos_puente == 3  # calle norte, avenida y calle sur
-    for f in filas_puente:
-        assert all(cm.casilla(c, f) in (cm.CALLE, cm.ACERA) for c in columnas_canal)
+def test_h_al_menos_45_por_ciento_del_area_no_vial_es_verde():
+    assert hc.fraccion_verde(cm.MAPA, cm.VERDES, cm.CALLES) >= MIN_FRACCION_VERDE_CIUDAD
 
 
-def test_la_avenida_tiene_camellon_y_dos_calzadas():
-    camellon = _con_letra(cm.CAMELLON)
-    assert camellon and {f for _, f in camellon} == {26}
-    for c, f in camellon:
-        assert cm.casilla(c, f - 1) == cm.CALLE and cm.casilla(c, f + 1) == cm.CALLE
+def test_h_ninguna_huella_se_solapa_con_otra():
+    """Edificios, casas, fuentes, alberca y props: cada casilla tiene un dueño."""
+    assert hc.solapes(hc.huellas_ciudad(cm)) == []
 
 
-def test_las_entradas_de_los_bolsillos_estan_libres():
-    assert set(zc.ACCESO_LIMINAL) <= cm.ACCESOS_BOLSILLOS
-    for casilla in cm.ACCESOS_BOLSILLOS:
-        assert not cm.es_solida(*casilla), casilla
+def test_h_solapes_detecta_casillas_y_rects_compartidos():
+    elementos = [("a", frozenset({(0, 0), (1, 0)})), ("b", frozenset({(1, 0)})), ("c", frozenset({(5, 5)}))]
+    assert hc.solapes(elementos) == [("a", "b")]
+    assert hc.solapes_rects([("a", (0, 0, 10, 10)), ("b", (10, 0, 5, 5)), ("c", (9, 9, 2, 2))]) == [("a", "c")]
+    assert hc.fraccion_verde(["c.J", ":k#"], (".", "J", "k"), ("c",)) == 3 / 5
+
+
+def test_h_el_agua_es_poca():
+    """Solo la alberca del parque y dos fuentes chicas: nada de canales."""
+    agua = _con_letra(cm.AGUA) | _con_letra(cm.FUENTE)
+    assert len(agua) <= 16
+    assert _con_letra(cm.AGUA) == _celdas(cm.ALBERCA)
+
+
+def test_h_tapa_fachada():
+    huella = (10, 2, 4, 3)  # filas 2-4
+    assert ld.tapa_fachada((15, 3), [huella])  # al costado, a 2
+    assert ld.tapa_fachada((12, 7), [huella])  # 3 filas bajo la fachada
+    assert not ld.tapa_fachada((12, 8), [huella])
+    assert not ld.tapa_fachada((20, 3), [huella])
 
 
 def test_lote_liminal_vacio_conectado_y_con_espacio_para_aristas_nuevas():
@@ -236,3 +263,9 @@ def test_lote_liminal_vacio_conectado_y_con_espacio_para_aristas_nuevas():
     assert all(not cm.es_solida(c, f) for c, f in interior)
     sur = cm.NODOS_CALLE["Cruce Sur"]
     assert min(abs(sur[0] - c) for c, _ in zc.ACCESO_LIMINAL) <= 1  # se entra justo bajo el Cruce Sur
+
+
+def test_las_entradas_de_los_bolsillos_estan_libres():
+    assert set(zc.ACCESO_LIMINAL) <= cm.ACCESOS_BOLSILLOS
+    for casilla in cm.ACCESOS_BOLSILLOS:
+        assert not cm.es_solida(*casilla), casilla

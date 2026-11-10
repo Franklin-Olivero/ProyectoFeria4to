@@ -11,6 +11,8 @@ siempre: el juego nunca depende de un archivo de arte.
     pieza_colegio(nombre)      -> pieza del pack del Colegio (assets.PIEZAS_COLEGIO)
     arbol(numero, escala)      -> árbol del pack Trees_Vol2 (assets.RUTA_ARBOLES)
     pieza_ciudad(nombre)       -> pieza del atlas de Ciudad Nova (assets/ciudad/, packs cyberpunk)
+    ajustar_paleta(sup, s, b)  -> copia con la saturación y el brillo escalados (la única
+                                  función que corrige el color del arte de un pack)
 
 Las rutas y rects viven en src/core/assets.py.
 """
@@ -113,3 +115,22 @@ def pieza_ciudad(nombre, factor=1.0):
     if rect is None:
         return None
     return recorte(assets.RUTA_ATLAS_CIUDAD, rect, escala=1, factor=factor)
+
+
+def ajustar_paleta(superficie, saturacion=1.0, brillo=1.0):
+    """Copia de `superficie` con la saturación escalada por `saturacion`
+    (0 = gris, 1 = igual) y el brillo por `brillo` (< 1 oscurece): sobre su
+    versión en grises se pega la original con opacidad `saturacion`, o sea
+    gris + (color - gris) * saturacion. Con pixel art (alfa 0 o 255) el
+    alfa queda igual. Es el único ajuste de color del arte de packs."""
+    if saturacion == 1.0 and brillo == 1.0:
+        return superficie
+    salida = pygame.transform.grayscale(superficie)
+    if saturacion > 0:
+        color = superficie.copy()
+        color.set_alpha(round(255 * min(1.0, saturacion)))
+        salida.blit(color, (0, 0))
+    if brillo != 1.0:
+        tinte = max(0, min(255, round(255 * brillo)))
+        salida.fill((tinte, tinte, tinte), special_flags=pygame.BLEND_RGB_MULT)
+    return salida

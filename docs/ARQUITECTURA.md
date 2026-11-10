@@ -194,7 +194,7 @@ corrupto → predeterminados) y `guardar(ruta)` (escribe a un temporal y lo
 renombra). El archivo es `preferencias.json`, en la carpeta de datos de usuario (`src/core/datos_usuario.py`), fuera del repo.
 *Depende de:* nada.
 
-**Ciudad con los packs cyberpunk** — `src/dungeon/autotile_ciudad.py` (puro) decide las piezas de cada casilla por sus vecinas (bordes, esquinas internas, brazo/cruce, línea de carril, cebra, barandas) y `src/ui/tiles_ciudad.py` / `fachadas_ciudad.py` las pegan desde `assets/ciudad/atlas.png` (recortes 1:1 de `tools/empaquetar_ciudad.py`), con caché por descriptor y fallback al pixel art.
+**Ciudad verde y sobria** — `src/dungeon/autotile_ciudad.py` (puro) decide las piezas de cada casilla por sus vecinas (bordes, esquinas internas, brazo/cruce, línea central, cebra) y `src/ui/tiles_ciudad.py` las pega; toda imagen de la ciudad pasa por `src/ui/arte_ciudad.py` (lista blanca `assets.ASSETS_CIUDAD_PERMITIDOS` + ajuste de paleta central); `src/dungeon/huellas_ciudad.py` (puro) valida cero solapes y mide el área verde.
 
 **Ciudad decorada** — `src/dungeon/layout_decoracion.py` (puro) genera los props por reglas sobre el mapa; `src/ui/decoracion_ciudad.py` los dibuja por Y con el jugador y `src/ui/edificios_ciudad.py` cada edificio a escala entera de su huella; `src/core/puntajes_roles.py` lleva los stats a 1–10.
 

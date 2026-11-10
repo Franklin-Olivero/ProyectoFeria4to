@@ -4,37 +4,36 @@ El mundo es una cuadrícula de 64x47 casillas de TAM_CASILLA px (48),
 más grande que la ventana: la cámara sigue al jugador. Cada carácter de
 MAPA es una casilla:
 
-    .  pasto (parque, patios)         #  edificio de zona (sólido)
-    :  acera / plaza / sendero        H  casa (sólida; una de CASAS)
-    c  calle (2 carriles)             W  muro / cerca (sólido)
-    k  camellón de la avenida (sól.)  J  jardín tecno cercado (sólido)
-    ~  canal de datos (sólido)        F  fuente o monumento (sólido)
-    E  entrada de edificio            X  barricada de la Alcaldía (sólida
-                                         solo mientras está sellada)
+    .  césped (parques, transitable)  #  edificio de zona (sólido)
+    :  banqueta / plaza / sendero     H  edificio secundario (sólido; uno de CASAS)
+    c  calle (2 carriles)             J  jardín: pasto con árboles y arbustos (sólido)
+    k  camellón arbolado (sólido)     ~  alberca del parque (sólida)
+    E  entrada de edificio            F  fuente (sólida)
+    X  barricada de la Alcaldía (sólida solo mientras está sellada)
 
-Plano (rehecho con los packs cyberpunk): la Avenida Nova cruza la ciudad
-de oeste a este con camellón (carriles en las filas 24-25 y 27-28) y
-atraviesa la Plaza central; los radios norte y sur salen de la Plaza
-desplazados (en molinete) y el anillo exterior tiene un codo al norte
-(las calles de la Alcaldía y del Colegio van por filas distintas) y una
-Z al sur hacia la Empresa de Medios. El Canal de Datos baja de norte a
-sur por las columnas 38-39, se cruza por tres puentes (calle norte,
-avenida y calle sur) y al noreste se ensancha en la laguna del Parque.
-Bolsillos sin salida (cada uno da a un solo tramo o a un nodo): Plaza
-cívica, Parque (un portón a la avenida), patio del Colegio, Paseo
-comercial (al radio sur), jardín del Hospital (a la Plaza) y el lote del
-Distrito Liminal (bajo el Cruce Sur). Ninguno permite rodear una barricada.
+Plano verde: las calles son la estructura (Avenida Nova con camellón
+arbolado de oeste a este, radios en molinete desde la Plaza, codo al
+norte y Z al sur hacia Medios) y entre ellas casi todo es verde: el
+Parque Central (abierto a la Plaza, senderos en cruz y una alberca
+chica), el Jardín del Colegio, jardines al frente de cada edificio y
+manzanas de jardín con árboles. Pocos edificios bien separados: los 4
+de zona (puerta al sur, jardín delante y un sendero hasta la banqueta)
+y 6 secundarios (CASAS). Bolsillos sin salida (cada uno da a un solo
+tramo o a un nodo): Plaza cívica, Parque Central (a la Plaza), Jardín
+del Colegio, Paseo comercial (al radio sur), los senderos de los
+secundarios y el lote del Distrito Liminal (bajo el Cruce Sur). Ninguno
+permite rodear una barricada.
 
 Las calles forman un grafo (src/dungeon/grafo_ciudad.py): NODOS_CALLE
 dice en qué casilla está cada nodo y TRAMOS, por qué casillas pasa cada
 arista y cuál es su sección transversal, donde se levanta su barricada
-cuando la calle se satura. Cada sección va de un sólido a otro (acera,
-calle, acera; el camellón ya es sólido), así una barricada corta el paso.
+cuando la calle se satura. Cada sección va de un sólido a otro (banqueta,
+calle, banqueta; el camellón ya es sólido), así una barricada corta el paso.
 
-Decoración (farolas, bancas, árboles, máquinas...): se genera por reglas
-en src/dungeon/layout_decoracion.py sobre este mapa; las casillas de los
+Decoración (farolas, bancas, árboles...): se genera por reglas en
+src/dungeon/layout_decoracion.py sobre este mapa; las casillas de los
 props sólidos se suman a es_solida (PROPS_SOLIDOS). El dibujo por
-auto-tiling compuesto vive en src/dungeon/autotile_ciudad.py (puro) y
+auto-tiling vive en src/dungeon/autotile_ciudad.py (puro) y
 src/ui/tiles_ciudad.py.
 
 Funciones para el movimiento y la cámara: es_solida, casilla_de,
@@ -67,7 +66,6 @@ CALLE = "c"
 CAMELLON = "k"
 EDIFICIO = "#"
 CASA = "H"
-MURO = "W"
 JARDIN = "J"
 ENTRADA = "E"
 BARRICADA = "X"
@@ -75,56 +73,57 @@ FUENTE = "F"
 AGUA = "~"
 
 CALLES = (CALLE,)
-SOLIDAS = (EDIFICIO, CASA, MURO, JARDIN, CAMELLON, FUENTE, AGUA)
+SOLIDAS = (EDIFICIO, CASA, JARDIN, CAMELLON, FUENTE, AGUA)
+VERDES = (PASTO, JARDIN, CAMELLON)  # vegetación (para medir el área verde)
 
 MAPA = [
-    "WWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWW",
-    "WHHHHHHHHHHHHHHHHHHHHJJJJJHHHHHHHJJJJJ~~WWWWWWWWWWWWWWWWWHHHHHHW",
-    "WHHHHHHHHHHHHHHHHHHHHJJJJJHHHHHHHJJJJJ~~::::::###########HHHHHHW",
-    "WHHHHHHHHH###########JJJJJHHHHHHHJJJJJ~~::FF::###########HHHHHHW",
-    "WHHHHHHHHH###########HHHHHHHHHHHHHHHHH~~::FF::###########HHHHHHW",
-    "WHHHHHHHHH###########HHHHHHHHHHHHHHHHH~~::::::###########HHHHHHW",
-    "WHHHHHHHHH###########HHHHHHHHHHHHHHHHH~~::::::#####E#####HHHHHHW",
-    "WHHHHHHHHH###########HHHHHHHHHHHH:::::::::::::::::XXX::::HHHHHHW",
-    "WHHHHHHHHH#####E#####HHHHHHHHHHHH:cccccccccccccccccccccc:HHHHHHW",
-    "WHHHH:::::::::::::::::::::::::::::cccccccccccccccccccccc:HHHHHHW",
-    "WHHHH:cccccccccccccccccccccccccccccc::::::::::::::::::cc:HHHHHHW",
-    "WHHHH:cccccccccccccccccccccccccccccc:W~~WWWWWWWWWWWWWWcc:HHHHHHW",
-    "WHHHH:cc::::::::::::::::::::::::::cc:W~~......:.....W:cc:JJJJJJW",
-    "WHHHH:cc:W.....::....HHHHHHHHHHHH:cc:W~~~~~~~.:.....W:cc:JJJJJJW",
-    "WHHHH:cc:W.:::::::::.HHHHHHHHHHHH:cc:W~~~~~~~~:.....W:cc:JJJJJJW",
-    "WHHHH:cc:W.:::::::::.HHHHHHHHHHHH:cc:W~~~~~~~~:.....W:cc:JJJJJJW",
-    "WHHHH:cc:W.:::::::::.HHHHHHHHHHHH:cc:W~~~~~~~~:.....W:cc:HHHHHHW",
-    "WJJJJ:cc:W.:::::::::.HHHHHHHHHHHH:cc:W~~~~~~~~::::::W:cc:HHHHHHW",
-    "WJJJJ:cc:W...........HHHHHHHHHHHH:cc:W~~~~~~~~:.....W:cc:HHHHHHW",
-    "WJJJJ:cc:WWWWWWHHHHHHHH:::::::::::::::~~~~~~~.:.....W:cc:HHHHHHW",
-    "WJJJJ:cc:WJJJJJHHHHHHHH::::::FFF::::::~~......:.....W:cc:HHHHHHW",
-    "WJJJJ:cc:WJJJJJHHHHHHHH::::::FFF::::::~~......:.....W:cc:HHHHHHW",
-    "WHHHH:cc:WJJJJJHHHHHHHH:::::::::::::::~~WWWWWW::WWWWW:cc:HHHHHHW",
-    "WHHHH:cc::::::::::::::::::::::::::::::::::::::::::::::cc:HHHHHHW",
-    "WHHHH:ccccccccccccccccc:::::::::::::::cccccccccccccccccc:HHHHHHW",
-    "WHHHH:ccccccccccccccccc:::::::::::::::cccccccccccccccccc:HHHHHHW",
-    "WHHHH:cccckkkkkkkkkkkcc:::::::::::::::ccckkkkkkkkkkkcccc:HHHHHHW",
-    "WHHHH:ccccccccccccccccc:::::::::::::::cccccccccccccccccc:HHHHHHW",
-    "WHHHH:ccccccccccccccccc:::::::::::::::cccccccccccccccccc:HHHHHHW",
-    "WJJJJ:cc::::::::::::::::::::::::::::::::::::::::::::::cc:HHHHHHW",
-    "WJJJJ:cc:WWWWWWWWWWWWWW:::::::::::::::~~HHHHHHHWWWWWW:cc:HHHHHHW",
-    "WJJJJ:cc:###########...:::::::::::::::~~HHHHHHHJJJJJJ:cc:JJJJJJW",
-    "WJJJJ:cc:###########...W:cc:HHHHHHHHHH~~HHHHHHHJJJJJJ:cc:JJJJJJW",
-    "WHHHH:cc:###########:::W:cc:HHHHHHHHHH~~HHHHHHHJJJJJJ:cc:JJJJJJW",
-    "WHHHH:cc:###########...W:cc:::::::::::~~HHHHHHHWWWWWW:cc:JJJJJJW",
-    "WHHHH:cc:###########...W:cc:::::::::::~~W###########W:cc:HHHHHHW",
-    "WHHHH:cc:#####E#####WWWW:cc:JJJJJJJJJJ~~W###########W:cc:HHHHHHW",
-    "WHHHH:cc:::::::::::::::::cc:::::::HHHH~~W###########W:cc:HHHHHHW",
-    "WHHHH:ccccccccccccccccccccccccccc:HHHH~~W###########W:cc:HHHHHHW",
-    "WHHHH:ccccccccccccccccccccccccccc:HHHH~~W###########W:cc:HHHHHHW",
-    "WHHHH::::::::::::::::::::::::::cc:HHHH~~W#####E#####W:cc:HHHHHHW",
-    "WHHHHHHHHJJJJJHHHHHHHH:::::::W:cc:::::::::::::::::::::cc:JJJJJJW",
-    "WHHHHHHHHJJJJJHHHHHHHH:::::::W:ccccccccccccccccccccccccc:JJJJJJW",
-    "WHHHHHHHHJJJJJHHHHHHHH:::::::W:ccccccccccccccccccccccccc:JJJJJJW",
-    "WHHHHHHHHJJJJJHHHHHHHH:::::::W:::::::::::::::::::::::::::JJJJJJW",
-    "WHHHHHHHHJJJJJHHHHHHHH:::::::WWWWWWWWW~~WWWWWWWWWWWWWWWWWJJJJJJW",
-    "WWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWW",
+    "JJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJ",
+    "JJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJ",
+    "JJJJJJJJJJ###########JJJJJJJJJJJJJJJJJJ::::::J###########JJJJJJJ",
+    "JJHHHHHHJJ###########JJJHHHHHHJJJJJJJJJ::FF::J###########JJJJJJJ",
+    "JJHHHHHHJJ###########JJJHHHHHHJJJJJJJJJ::FF::J###########JJJJJJJ",
+    "JJHHHHHHJJ###########JJJHHHHHHJJJJJJJJJ::::::J#####E#####JJJJJJJ",
+    "JJJJJ:JJJJ###########JJJHHHHHHJJJJJJJJJ::::::JJJJJXXXJJJJJJJJJJJ",
+    "JJJJJ:JJJJ#####E#####JJJJJJ:JJJJJ::::::::::::::::::::::::JJJJJJJ",
+    "JJJJJ:JJJJJJJJJ:JJJJJJJJJJJ:JJJJJ:cccccccccccccccccccccc:JJJJJJJ",
+    "JJJJJ:::::::::::::::::::::::::::::cccccccccccccccccccccc:JJJJJJJ",
+    "JJJJJ:cccccccccccccccccccccccccccccc::::::::::::::::::cc:JJJJJJJ",
+    "JJJJJ:cccccccccccccccccccccccccccccc:JJJJJJJJJJJJJJJJ:cc:JJJJJJJ",
+    "JJJJJ:cc::::::::::::::::::::::::::cc:J......:.......J:cc:JJJJJJJ",
+    "JJJJJ:cc:JJJJJJ::JJJJJJJJJJJJJJJJ:cc:J......:.~~~...J:cc:JJJJJJJ",
+    "JJJJJ:cc:J.....::...............J:cc:J......:.~~~...J:cc:HHHHHJJ",
+    "JJJJJ:cc:J.....::...............J:cc:J......:.......J:cc:HHHHHJJ",
+    "JJJJJ:cc:J.....::...............J:cc:J......:.......J:cc:HHHHHJJ",
+    "JJJJJ:cc:J::::::::::::::::::::::J:cc:J::::::::::::::J:cc:HHHHHJJ",
+    "JJJJJ:cc:J............JJJJJJJJJJJ:cc:J......:.......J:cc::::..JJ",
+    "JJJJJ:cc:J............J::::::::::::::::.....:.......J:cc:JJJJJJJ",
+    "JJJJJ:cc:J............J::::::FF::::::::.....:.......J:cc:JJJJJJJ",
+    "JJJJJ:cc:J............J::::::FF::::::::.....:.......J:cc:JJJJJJJ",
+    "JJJJJ:cc:JJJJJJJJJJJJJJ:::::::::::::::JJJJJJJJJJJJJJJ:cc:JJJJJJJ",
+    "JJJJJ:cc::::::::::::::::::::::::::::::::::::::::::::::cc:JJJJJJJ",
+    "JJJJJ:ccccccccccccccccc:::::::::::::::cccccccccccccccccc:JJJJJJJ",
+    "JJJJJ:ccccccccccccccccc:::::::::::::::cccccccccccccccccc:JJJJJJJ",
+    "JJJJJ:cccckkkkkkkkkkkcc:::::::::::::::ccckkkkkkkkkkkcccc:JJJJJJJ",
+    "JJJJJ:ccccccccccccccccc:::::::::::::::cccccccccccccccccc:JJJJJJJ",
+    "JJJJJ:ccccccccccccccccc:::::::::::::::cccccccccccccccccc:JJJJJJJ",
+    "JJJJJ:cc::::::::::::::::::::::::::::::::::::::::::::::cc:JJJJJJJ",
+    "JJJJJ:cc:###########JJJ:::::::::::::::JJJJJJJJJJJJJJJ:cc:JJJJJJJ",
+    "JJJJJ:cc:###########JJJ:::::::::::::::JJJJJJJJJJJJJJJ:cc:JJJJJJJ",
+    "JJJJJ:cc:###########JJJJ:cc:HHHHHJHHHHJJJJJJJJJJJJJJJ:cc:JJJJJJJ",
+    "JJJJJ:cc:###########JJJJ:cc:HHHHHJHHHHJJJJJJJJJJJJJJJ:cc:JJJJJJJ",
+    "JJJJJ:cc:###########JJJJ:cc:::::::::::JJJ###########J:cc:JJJJJJJ",
+    "JJJJJ:cc:#####E#####JJJJ:cc:::::::::::JJJ###########J:cc:JJJJJJJ",
+    "JJJJJ:cc:JJJJJ:JJJJJJJJJ:cc:JJJJJJJJJJJJJ###########J:cc:JJJJJJJ",
+    "JJJJJ:cc:::::::::::::::::cc:::::::JJJJJJJ###########J:cc:JJJJJJJ",
+    "JJJJJ:ccccccccccccccccccccccccccc:JJJJJJJ###########J:cc:HHHHHJJ",
+    "JJJJJ:ccccccccccccccccccccccccccc:JJJJJJJ#####E#####J:cc:HHHHHJJ",
+    "JJJJJ::::::::::::::::::::::::::cc:JJJJJJJJJJJJ:JJJJJJ:cc:HHHHHJJ",
+    "JJJJJJJJJJJJJJJJJJJJJJ:::::::J:cc:::::::::::::::::::::cc:HHHHHJJ",
+    "JJJJJJJJJJJJJJJJJJJJJJ:::::::J:ccccccccccccccccccccccccc::::..JJ",
+    "JJJJJJJJJJJJJJJJJJJJJJ:::::::J:ccccccccccccccccccccccccc:JJJJJJJ",
+    "JJJJJJJJJJJJJJJJJJJJJJ:::::::J:::::::::::::::::::::::::::JJJJJJJ",
+    "JJJJJJJJJJJJJJJJJJJJJJ:::::::JJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJ",
+    "JJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJ",
 ]
 
 COLUMNAS = len(MAPA[0])
@@ -132,84 +131,77 @@ FILAS = len(MAPA)
 TAM_MUNDO = (COLUMNAS * TAM_CASILLA, FILAS * TAM_CASILLA)
 
 # Edificios de zona: (columna, fila, ancho, alto) en casillas. Todas las
-# puertas miran al sur (fachada estilo Pokémon) y dan a una acera.
+# puertas miran al sur (fachada estilo Pokémon); delante, una fila de
+# jardín con un sendero de la puerta a la banqueta.
 EDIFICIOS = {
-    ZONA_COLEGIO: (10, 3, 11, 6),
-    ZONA_ALCALDIA: (46, 2, 11, 5),
-    ZONA_HOSPITAL: (9, 31, 11, 6),
-    ZONA_EMPRESA_MEDIOS: (41, 35, 11, 6),
+    ZONA_COLEGIO: (10, 2, 11, 6),
+    ZONA_ALCALDIA: (46, 2, 11, 4),
+    ZONA_HOSPITAL: (9, 30, 11, 6),
+    ZONA_EMPRESA_MEDIOS: (41, 34, 11, 6),
 }
 # Casilla de la puerta (una 'E' del mapa) de cada edificio.
 ENTRADAS = {
-    ZONA_COLEGIO: (15, 8),
-    ZONA_ALCALDIA: (51, 6),
-    ZONA_HOSPITAL: (14, 36),
-    ZONA_EMPRESA_MEDIOS: (46, 40),
+    ZONA_COLEGIO: (15, 7),
+    ZONA_ALCALDIA: (51, 5),
+    ZONA_HOSPITAL: (14, 35),
+    ZONA_EMPRESA_MEDIOS: (46, 39),
 }
-# Casillas 'X' frente a la Alcaldía: sólidas mientras está sellada.
+# Casillas 'X' en el jardín de la Alcaldía, sobre su sendero: sólidas
+# mientras está sellada.
 BARRICADAS_ALCALDIA = frozenset(
     (col, fila) for fila, linea in enumerate(MAPA) for col, letra in enumerate(linea) if letra == BARRICADA
 )
 
-# Plaza central: (columna, fila, ancho, alto). Es acera ':' para la
-# lógica; solo cambia su dibujo (losas, emblema al centro y el monumento).
+# Plaza central: (columna, fila, ancho, alto). Es banqueta ':' para la
+# lógica (losa gris, como el parque) con una fuente chica al norte.
 PLAZA = (23, 19, 15, 13)
-MONUMENTO = (29, 20, 3, 2)  # las 'F' de la Plaza: la Torre de Datos
+FUENTE_PLAZA = (29, 20, 2, 2)
 
-# Plaza de la Alcaldía (zona cívica): losas con la fuente de datos; se
-# entra desde la acera norte, entre el canal y la Alcaldía.
-PLAZA_CIVICA = (40, 2, 6, 5)
-FUENTE_CIVICA = (42, 3, 2, 2)
+# Plaza de la Alcaldía (zona cívica): losas con una fuente chica; se entra
+# desde la banqueta norte de su calle.
+PLAZA_CIVICA = (39, 2, 6, 5)
+FUENTE_CIVICA = (41, 3, 2, 2)
 
-# Parque (cuadrante noreste): pasto, laguna del canal y un sendero en T;
-# su único acceso es el portón de la fila 22, desde la Avenida Nova.
-PARQUE = (40, 12, 12, 10)
-PORTON_PARQUE = ((46, 22), (47, 22))
-SENDEROS_PARQUE = frozenset(
-    [(col, fila) for fila in range(PARQUE[1], PARQUE[1] + PARQUE[3])
-     for col in range(PARQUE[0], PARQUE[0] + PARQUE[2]) if MAPA[fila][col] == ACERA] + list(PORTON_PARQUE)
+# Parque Central (cuadrante noreste): césped, senderos en cruz y una
+# alberca chica; se entra desde la Plaza (columna 38, filas 19-21).
+PARQUE = (38, 12, 14, 10)
+ALBERCA = (46, 13, 3, 2)
+ENTRADA_PARQUE = ((38, 19), (38, 20), (38, 21))
+# Jardín del Colegio (cuadrante noroeste): césped con senderos; un seto lo
+# rodea (también frente a la Plaza) y se entra solo por (15-16, 13), desde
+# la banqueta de la calle del Colegio.
+JARDIN_COLEGIO = (10, 13, 22, 9)
+PARQUES = (PARQUE, JARDIN_COLEGIO)
+SENDEROS_PARQUE = frozenset(  # las losas de la Plaza (que asoman en el rect del jardín) no cuentan
+    (col, fila) for c0, f0, ancho, alto in PARQUES for fila in range(f0, f0 + alto)
+    for col in range(c0, c0 + ancho) if MAPA[fila][col] == ACERA
+    and not (PLAZA[0] <= col < PLAZA[0] + PLAZA[2] and PLAZA[1] <= fila < PLAZA[1] + PLAZA[3])
 )
-# Otros bolsillos con identidad propia (dibujo y decoración).
-PATIO_COLEGIO = (10, 13, 11, 6)  # cancha con pasto alrededor, abierta a la acera de la calle del Colegio
-PASEO_COMERCIAL = (28, 34, 10, 2)  # calle peatonal con tiendas al norte y cantero al sur, abierta al radio sur
-JARDIN_HOSPITAL = (20, 31, 3, 5)
-# Entradas de los bolsillos: la decoración nunca las tapa (como los senderos).
+PASEO_COMERCIAL = (28, 34, 10, 2)  # calle peatonal con tiendas al norte y jardín al sur, abierta al radio sur
+# Entradas de los bolsillos y senderos de los edificios secundarios: la
+# decoración nunca los tapa (como los senderos del parque).
 ACCESOS_BOLSILLOS = frozenset([
-    (27, 34), (27, 35),  # paseo comercial, desde la acera del radio sur
-    (15, 12), (16, 12), (15, 13), (16, 13),  # patio del Colegio
-    (42, 7), (43, 7),  # plaza cívica
-    (22, 31), (23, 31),  # jardín del Hospital, desde la Plaza
+    (27, 34), (27, 35),  # Paseo comercial, desde la banqueta del radio sur
+    (15, 12), (16, 12), (15, 13), (16, 13),  # Jardín del Colegio
+    (41, 7), (42, 7),  # plaza cívica
+    (37, 19), (37, 20), (37, 21),  # Parque Central, desde la Plaza
     (24, 40), (25, 40), (26, 40),  # lote del Distrito Liminal (zonas_ciudad.ACCESO_LIMINAL)
+    (5, 6), (5, 7), (5, 8), (5, 9),  # sendero de la tienda de barrio
+    (27, 7), (27, 8), (27, 9),  # sendero de los apartamentos junto al Colegio
+    (57, 18), (58, 18), (59, 18), (56, 18),  # sendero de los apartamentos del este (su patio: 60-61)
+    (57, 42), (58, 42), (59, 42), (56, 42),  # sendero de los apartamentos del sureste (su patio: 60-61)
 ])
 
-# Casas: cada una es un edificio con su huella (col, fila, ancho, alto) y
-# su estilo (assets.ESTILOS_CASA: techo, fachada y neón de los packs).
-# Juntas cubren exactamente las 'H' del mapa; dos casas a 2 casillas o
-# menos nunca comparten estilo.
+# Edificios secundarios: sprites completos (pixel art de casas_render) con
+# su huella (col, fila, ancho, alto) y su estilo (assets.ESTILOS_CASA).
+# Juntos cubren exactamente las 'H' del mapa; nunca dos iguales cerca.
 CASAS = (
-    ((1, 1, 6, 4), "lima"), ((7, 1, 6, 2), "magenta"), ((13, 1, 5, 2), "grafito"), ((18, 1, 3, 2), "magenta"),
-    ((26, 1, 4, 4), "ambar"), ((30, 1, 3, 4), "magenta"), ((57, 1, 6, 4), "lima"), ((7, 3, 3, 4), "oliva"),
-    ((21, 4, 5, 3), "acero"), ((33, 4, 5, 3), "oliva"), ((1, 5, 6, 4), "grafito"), ((26, 5, 4, 4), "grafito"),
-    ((30, 5, 3, 4), "lima"), ((57, 5, 6, 4), "ambar"), ((7, 7, 3, 2), "cobalto"), ((21, 7, 5, 2), "oliva"),
-    ((1, 9, 4, 4), "cobre"), ((57, 9, 6, 3), "cobre"), ((1, 13, 4, 4), "magenta"), ((21, 13, 6, 4), "lima"),
-    ((27, 13, 6, 4), "acero"), ((57, 16, 6, 4), "cobre"), ((21, 17, 6, 2), "cobalto"),
-    ((27, 17, 6, 2), "ambar"), ((15, 19, 5, 4), "ambar"), ((20, 19, 3, 4), "acero"),
-    ((57, 20, 6, 4), "magenta"), ((1, 22, 4, 4), "ambar"), ((57, 24, 6, 4), "lima"), ((1, 26, 4, 3), "lima"),
-    ((57, 28, 6, 3), "cobalto"), ((40, 30, 4, 3), "lima"), ((44, 30, 3, 3), "cobre"),
-    ((28, 32, 6, 2), "magenta"), ((34, 32, 4, 2), "oliva"), ((1, 33, 4, 4), "lima"), ((40, 33, 4, 2), "acero"),
-    ((44, 33, 3, 2), "grafito"), ((34, 37, 4, 4), "grafito"),
-    ((57, 35, 6, 4), "cobalto"), ((1, 37, 4, 4), "cobre"), ((57, 39, 6, 2), "oliva"),
-    ((1, 41, 5, 3), "magenta"), ((6, 41, 3, 3), "grafito"), ((14, 41, 5, 3), "acero"),
-    ((19, 41, 3, 3), "magenta"), ((1, 44, 5, 2), "ambar"), ((6, 44, 3, 2), "cobre"), ((14, 44, 5, 2), "lima"),
-    ((19, 44, 3, 2), "cobalto"),
-)
-
-# Arboledas: (rect, cantidad, separación mínima en casillas) sobre los
-# jardines tecno cercados ('J'); la especie sale de la zona de cada casilla.
-ARBOLEDAS = (
-    ((1, 17, 4, 5), 3, 2), ((1, 29, 4, 4), 2, 2), ((57, 12, 6, 4), 3, 2), ((57, 31, 6, 4), 3, 2),
-    ((21, 1, 5, 3), 2, 2), ((33, 1, 5, 3), 2, 2), ((10, 20, 5, 3), 2, 2), ((47, 31, 6, 3), 2, 2),
-    ((9, 41, 5, 5), 3, 2), ((57, 41, 6, 5), 3, 2),
+    ((28, 32, 5, 2), "salvia"),  # tienda con toldo del Paseo comercial
+    ((34, 32, 4, 2), "madera"),  # café con toldo del Paseo comercial
+    ((24, 3, 6, 4), "ladrillo"),  # apartamentos junto al Colegio
+    ((57, 14, 5, 4), "pizarra"),  # apartamentos del este
+    ((57, 38, 5, 4), "estuco"),  # apartamentos del sureste
+    ((2, 3, 6, 3), "terracota"),  # tienda de barrio del noroeste
 )
 
 # Aparición inicial: en la Plaza, junto a su nodo.
@@ -347,7 +339,7 @@ def casilla(col, fila):
 
 
 def es_solida(col, fila, barricadas=frozenset()):
-    """True si no se puede pisar: edificio, casa, muro, jardín, canal, un prop,
+    """True si no se puede pisar: edificio, casa, jardín, camellón, agua, un prop,
     fuera del mundo o una casilla de `barricadas` (las barricadas activas)."""
     letra = casilla(col, fila)
     if letra is None or letra in SOLIDAS or (col, fila) in PROPS_SOLIDOS:
@@ -496,7 +488,8 @@ def grafo_casillas(es_solida_fn):
 
 DECORACION = layout_decoracion.generar(
     MAPA, CALLES, [(t.puntos, t.seccion) for t in TRAMOS], NODOS_CALLE.values(), ENTRADAS.values(), SPAWN,
-    PLAZA, PARQUE, SENDEROS_PARQUE | ACCESOS_BOLSILLOS, EDIFICIOS.values(), ARBOLEDAS,
+    PLAZA, PARQUES, SENDEROS_PARQUE | ACCESOS_BOLSILLOS,
+    list(EDIFICIOS.values()) + [huella for huella, _ in CASAS],
 )
 # Casillas que la decoración vuelve sólidas (las suma es_solida).
 PROPS_SOLIDOS = frozenset(casilla for prop in DECORACION if prop.solido for casilla in prop.casillas)

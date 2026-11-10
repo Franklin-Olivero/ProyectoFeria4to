@@ -392,13 +392,16 @@ def fachada(zona, ancho, alto, columna_puerta, escala=assets.ESCALA_PIXEL):
     clave = (zona, ancho, alto, columna_puerta, escala)
     if clave not in _fachadas:
         neon = assets.COLORES_NEON_ZONA[zona]
+        propia = assets.PALETA_FACHADA_ZONA.get(zona, {})  # cada edificio con su muro y su techo
         paleta = {
-            "w": assets.COLOR_MURO_EDIFICIO, "d": assets.COLOR_MURO_EDIFICIO_LINEA,
-            "R": assets.COLOR_TECHO_CASA_BRILLO, "r": assets.COLOR_TECHO_CASA,
-            "q": assets.COLOR_TECHO_CASA_LINEA, "e": assets.COLOR_ALERO,
+            "w": propia.get("muro", assets.COLOR_MURO_EDIFICIO),
+            "d": propia.get("linea", assets.COLOR_MURO_EDIFICIO_LINEA),
+            "R": propia.get("techo_brillo", assets.COLOR_TECHO_CASA_BRILLO),
+            "r": propia.get("techo", assets.COLOR_TECHO_CASA),
+            "q": propia.get("techo_linea", assets.COLOR_TECHO_CASA_LINEA), "e": assets.COLOR_ALERO,
             "k": assets.COLOR_MARCO_VENTANA, "y": assets.COLOR_VENTANA_ENCENDIDA,
             "o": assets.COLOR_VENTANA_APAGADA, "n": neon, "l": (255, 255, 255),
-            "p": _oscurecer(neon, assets.FACTOR_PUERTA_OSCURA), "b": assets.COLOR_BASE_EDIFICIO,
+            "p": _oscurecer(neon, assets.FACTOR_PUERTA_OSCURA), "b": propia.get("base", assets.COLOR_BASE_EDIFICIO),
             "c": assets.COLOR_COLUMNA,
         }
         # sprites.sprite cachea por id(filas): las filas se guardan aquí

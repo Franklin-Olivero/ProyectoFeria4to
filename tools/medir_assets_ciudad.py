@@ -4,10 +4,10 @@
     python tools/medir_assets_ciudad.py --referencia <commit>   # plano con el que comparar
 
 Casillas: cada casilla de la panorámica se cuenta según quién la dibuja:
-la casa o el edificio que la cubre (armados con los packs o en pixel art /
-pack escolar) o, si no, su suelo (tiles_ciudad.origen: los packs cyberpunk
-o el pixel art en código). Props: decoracion_ciudad.origen de cada uno
-(máquinas y torre de los packs nuevos vs farolas, bancas, árboles y
+la casa o el edificio que la cubre (sprites completos antiguos: pixel art
+y pack escolar) o, si no, su suelo (tiles_ciudad.origen: la calzada y las
+banquetas de los packs cyberpunk o el pasto en pixel art). Props:
+decoracion_ciudad.origen (todos del arte antiguo: pack urbano, árboles,
 Backrooms). También lista las piezas del atlas que nadie usa y el % de
 casillas cuya categoría (calle, paso, pasto, construido, barrera, agua)
 cambió respecto del plano de `--referencia` (por defecto, el último commit
@@ -42,18 +42,15 @@ def _dentro(rect, col, fila):
 
 def medir_casillas():
     from src.dungeon import ciudad_mapa
-    from src.ui import casas_render, edificios_ciudad, tiles_ciudad
+    from src.ui import tiles_ciudad
 
     conteo = {"nuevo": 0, "antiguo": 0}
     for fila in range(ciudad_mapa.FILAS):
         for col in range(ciudad_mapa.COLUMNAS):
             origen = None
-            for indice, (huella, _) in enumerate(ciudad_mapa.CASAS):
-                if _dentro(huella, col, fila):
-                    origen = "nuevo" if casas_render.compuesta(indice) else "antiguo"
-            for zona, huella in ciudad_mapa.EDIFICIOS.items():
-                if _dentro(huella, col, fila):
-                    origen = "nuevo" if edificios_ciudad.compuesto(zona) else "antiguo"
+            huellas = [h for h, _ in ciudad_mapa.CASAS] + list(ciudad_mapa.EDIFICIOS.values())
+            if any(_dentro(huella, col, fila) for huella in huellas):
+                origen = "antiguo"  # sprites completos: los packs nuevos no traen edificios
             conteo[origen or tiles_ciudad.origen(col, fila)] += 1
     return conteo
 
@@ -68,23 +65,15 @@ def medir_props():
 
 
 def piezas_sin_uso():
+    """Piezas del atlas que el render de la ciudad no pidió (render panorámico)."""
     from src.core import assets
+    from src.dungeon.partida import Partida
+    from src.ui import arte_ciudad, ciudad_render
 
     with open(assets.RUTA_ATLAS_CIUDAD_JSON, encoding="utf-8") as archivo:
         piezas = set(json.load(archivo)["piezas"])
-    usadas = set()
-    for valor in vars(assets).values():
-        for texto in (valor if isinstance(valor, (tuple, list)) else (valor,)):
-            if isinstance(texto, str):
-                usadas.add(texto)
-    for mapa in (assets.TEXTURA_TERRENO_CIUDAD, assets.PROPS_CIUDAD):
-        for valor in mapa.values():
-            usadas |= set(valor) if isinstance(valor, tuple) else {valor}
-    for estilo in assets.ESTILOS_CASA.values():
-        usadas |= {estilo["techo_pack"], estilo["fachada_pack"]}
-    for config in assets.ARTE_EDIFICIOS.values():
-        usadas |= {v for v in config.values() if isinstance(v, str)}
-    usadas.add("puerta_vidrio")  # puerta de las casas (casas_render)
+    ciudad_render.render_panoramico(Partida())
+    usadas = {id_arte.split(":", 1)[1] for id_arte in arte_ciudad.pedidos if id_arte.startswith("ciudad:")}
     return sorted(piezas - usadas)
 
 
@@ -123,7 +112,8 @@ def main():
           f" = {_porcentaje(casillas):.1f} % de packs nuevos")
     print(f"Props:                     {props['nuevo']} nuevos / {props['antiguo']} antiguos"
           f" = {_porcentaje(props):.1f} % de packs nuevos")
-    print(f"Total (casillas + props):  {_porcentaje(total):.1f} % de packs nuevos")
+    print(f"Total (casillas + props):  {_porcentaje(total):.1f} % de packs nuevos"
+          " (de los packs nuevos solo se usa la calzada, la banqueta y el agua: lo demás es a propósito)")
     sin_uso = piezas_sin_uso()
     print("Piezas del atlas sin usar:", ", ".join(sin_uso) if sin_uso else "ninguna")
     cambio = cambio_de_plano(args.referencia)

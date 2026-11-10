@@ -10,24 +10,27 @@ Reglas:
       (lineas_de_acera: desde el eje se avanza en perpendicular por la
       calle hasta la primera casilla que no es calle). En cada acera,
       farolas cada ESPACIADO_FAROLAS casillas desde MARGEN_FAROLAS_CRUCE y,
-      corrido medio espaciado, mobiliario por turnos (cajas eléctricas,
-      papeleras, transformadores, hidrantes). Si una cae sobre algo
-      reservado o sobre un puente se salta (el hueco queda múltiplo del
-      espaciado).
+      corrido medio espaciado, mobiliario discreto por turnos (papeleras,
+      buzones, jardineras). Si una cae sobre algo reservado se salta (el
+      hueco queda múltiplo del espaciado).
     - Camellón de la avenida ('k'): una hilera de árboles cada
       ESPACIADO_ARBOLES_AVENIDA casillas.
     - Plaza: bancas en pares simétricos respecto de su centro, mirando al
       centro; faroles y canteros en sus cuatro cuadrantes y árboles neón
       en las esquinas de abajo.
-    - Parque: sendero libre; pares de bancas a los lados del sendero
-      mirándolo; farolas a lo largo de él; ARBOLES_PARQUE árboles
-      agrupados al azar (semilla fija) sin pisar el sendero ni tocarse.
+    - Parques (Parque Central y Jardín del Colegio): sendero libre; pares
+      de bancas a los lados del sendero mirándolo; farolas a lo largo de
+      él; ARBOLES_PARQUE árboles por parque, al azar (semilla fija), sin
+      pisar el sendero ni tocarse.
     - Zonas (src/dungeon/zonas_ciudad.py): cada farola toma el modelo de
       su zona y cada árbol una especie de su zona; los hitos de cada zona
-      (máquinas, tótems, servidores, terrazas...) van en sus casillas, con
-      su huella de varias casillas si la tienen.
-    - Arboledas: ARBOLEDAS (rect, cantidad, separación) sobre los jardines
-      tecno ('J'), con la semilla fija, sin tocarse entre sí.
+      (paradas, terrazas, bicicletas...) van en sus casillas, con su
+      huella de varias casillas si la tienen.
+    - Jardines ('J'): árboles en grupos naturales (centros separados,
+      2-4 árboles por grupo alrededor de cada centro) y arbustos en el borde
+      de los canteros que dan a la banqueta. Nunca un árbol pegado a un
+      edificio ni a menos de ALTO_COPA_CASILLAS bajo su fachada (la copa la
+      taparía).
 
 Nunca se coloca un prop sobre: calles, el eje de un tramo, la sección de
 una barricada, un nodo, una puerta, la casilla frente a una puerta (y sus
@@ -40,13 +43,19 @@ from dataclasses import dataclass
 
 from src.dungeon import zonas_ciudad
 from src.core.balance import (
+    ALTO_COPA_CASILLAS,
     ARBOLES_PARQUE,
+    ARBOLES_POR_GRUPO,
+    ESPACIADO_ARBUSTOS,
     ESPACIADO_ARBOLES_AVENIDA,
     ESPACIADO_FAROLAS,
     ESPACIADO_MOBILIARIO_ACERA,
     MARGEN_FAROLAS_CRUCE,
+    RADIO_GRUPO_ARBOLES,
     SEMILLA_DECORACION,
+    SEPARACION_ARBOLES_JARDIN,
     SEPARACION_ARBOLES_PARQUE,
+    SEPARACION_GRUPOS_ARBOLES,
 )
 
 CAPA_SUELO = "suelo"
@@ -55,9 +64,9 @@ CAPA_ARBOL = "arbol"
 
 NORTE, SUR, ESTE, OESTE = "N", "S", "E", "O"
 ACERA, PASTO, JARDIN, CAMELLON, AGUA = ":", ".", "J", "k", "~"
-# Letras del mapa donde puede ir un prop: pasto y acera/plaza; los árboles
-# además en los jardines tecno y el camellón (ya sólidos). Nunca calle,
-# edificio, casa, muro, agua ni puerta.
+# Letras del mapa donde puede ir un prop: pasto y banqueta/plaza; los
+# árboles y arbustos además en los jardines y el camellón (ya sólidos).
+# Nunca calle, edificio, casa, agua ni puerta.
 LIBRES = (PASTO, ACERA, JARDIN, CAMELLON)
 SOLO_ARBOLES = (JARDIN, CAMELLON)
 FAROLAS = ("farola", "farola_ornamental", "farola_baja", "farola_curva", "farola_jardin", "farola_farol")
@@ -65,8 +74,9 @@ FAROLAS = ("farola", "farola_ornamental", "farola_baja", "farola_curva", "farola
 # Variantes de árbol (número del pack Trees_Vol2; arte en assets.RUTA_ARBOLES).
 ARBOLES_AVENIDA = (57, 62, 67)
 ARBOLES_PARQUE_VARIANTES = (9, 12, 18, 52, 47, 24, 1, 3)
-ARBOLES_NEON = (75, 78, 84)
-MOBILIARIO_ACERA = ("caja_electrica", "basurero", "transformador", "hidrante")
+ARBOLES_PLAZA = (27, 33)  # otoñales: acento cálido en las esquinas de la Plaza
+ARBUSTOS = (36, 38)
+MOBILIARIO_ACERA = ("basurero", "buzon", "jardinera")
 
 
 @dataclass(frozen=True)
@@ -91,17 +101,17 @@ class Prop:
         return (self.casilla[0] + self.ancho // 2, self.casilla[1] + self.alto - 1)
 
 
-def generar(mapa, calles, tramos, nodos, entradas, spawn, plaza, parque, senderos, edificios=(), arboledas=(),
+def generar(mapa, calles, tramos, nodos, entradas, spawn, plaza, parques, senderos, edificios=(),
             semilla=SEMILLA_DECORACION, zonas=None):
     """Tupla de Prop de toda la ciudad.
 
     mapa: lista de cadenas (ciudad_mapa.MAPA); calles: letras de calle;
     tramos: [(puntos, seccion)] de cada arista; nodos y entradas: casillas;
-    plaza y parque: rects (col, fila, ancho, alto); senderos: casillas del
-    sendero del parque; edificios: rects de sus huellas (ningún árbol a
-    menos de 2 casillas: su copa taparía la fachada); arboledas:
-    [(rect, cantidad, separación)]; zonas: {id: Zona} (por defecto las de
-    zonas_ciudad)."""
+    plaza: rect (col, fila, ancho, alto); parques: rects de los parques;
+    senderos: casillas que ningún prop tapa (senderos de los parques y
+    entradas de los bolsillos); edificios: huellas de todos los edificios
+    (ningún árbol encima de su fachada); zonas: {id: Zona} (por defecto
+    las de zonas_ciudad)."""
     rng = random.Random(semilla)
     zonas = zonas_ciudad.ZONAS if zonas is None else zonas
     reservadas = _reservadas(mapa, calles, tramos, nodos, entradas, spawn, senderos)
@@ -128,11 +138,11 @@ def generar(mapa, calles, tramos, nodos, entradas, spawn, plaza, parque, sendero
             capa = CAPA_ARBOL if hito.tipo == "arbol" else CAPA_OBJETO
             poner(Prop(hito.tipo, hito.casilla, hito.orientacion, capa, True, hito.variante, hito.ancho, hito.alto))
     _plaza(poner, plaza)
-    _parque(poner, mapa, parque, senderos, rng, arbol_cerca)
+    for parque in parques:
+        _parque(poner, mapa, parque, senderos, rng, arbol_cerca)
     _aceras(poner, mapa, calles, tramos, plaza)
     _camellon(poner, mapa, rng)
-    for rect, cantidad, separacion in arboledas:
-        _arboleda(poner, mapa, rect, cantidad, separacion, rng, arbol_cerca, edificios)
+    _jardines(poner, mapa, rng, arbol_cerca, edificios)
     unicos = {id(p): p for p in ocupadas.values()}.values()
     return tuple(sorted(unicos, key=lambda p: (p.casilla[1], p.casilla[0])))
 
@@ -261,7 +271,7 @@ def _plaza(poner, plaza):
             casilla = (cx + (6 if dx > 0 else -6), cy + (3 if dy > 0 else -3))
             poner(Prop(zonas_ciudad.farola_de(*casilla), casilla))
     for dx in (-7, 7):
-        poner(Prop("arbol", (cx + dx, cy + 5), SUR, CAPA_ARBOL, True, ARBOLES_NEON[0 if dx < 0 else 2]))
+        poner(Prop("arbol", (cx + dx, cy + 5), SUR, CAPA_ARBOL, True, ARBOLES_PLAZA[0 if dx < 0 else 1]))
 
 
 def _parque(poner, mapa, parque, senderos, rng, arbol_cerca=lambda casilla, separacion: False):
@@ -290,25 +300,60 @@ def _parque(poner, mapa, parque, senderos, rng, arbol_cerca=lambda casilla, sepa
             puestos.append(casilla)
 
 
-def _arboleda(poner, mapa, rect, cantidad, separacion, rng, arbol_cerca=lambda casilla, separacion: False,
-              edificios=()):
-    """`cantidad` árboles de la especie de su zona en el jardín de `rect`,
-    al azar con la semilla fija, a `separacion` casillas o más entre sí y
-    nunca pegados a una fachada."""
-    col, fila, ancho, alto = rect
-    libres = [(c, f) for f in range(fila, fila + alto) for c in range(col, col + ancho)
-              if _letra(mapa, (c, f)) in (JARDIN, PASTO)
-              and not any(distancia_a_rect((c, f), huella) <= 1 for huella in edificios)]
-    rng.shuffle(libres)
-    puestos = []
-    for casilla in libres:
-        if len(puestos) >= cantidad:
-            break
-        if arbol_cerca(casilla, separacion):
-            continue
-        especie = rng.choice(zonas_ciudad.arboles_de(*casilla, ARBOLES_PARQUE_VARIANTES))
-        if poner(Prop("arbol", casilla, SUR, CAPA_ARBOL, True, especie)):
-            puestos.append(casilla)
+def tapa_fachada(casilla, edificios):
+    """True si un árbol en `casilla` taparía un edificio: a 2 casillas o
+    menos de él (la copa de los grandes mide casi 3 de ancho) o debajo de su
+    fachada a menos de ALTO_COPA_CASILLAS filas (la copa sube y cubriría la
+    puerta y las ventanas)."""
+    col, fila = casilla
+    for huella in edificios:
+        if distancia_a_rect(casilla, huella) <= 2:
+            return True
+        c0, f0, ancho, alto = huella
+        debajo = fila - (f0 + alto - 1)
+        if c0 - 1 <= col <= c0 + ancho and 0 < debajo <= ALTO_COPA_CASILLAS:
+            return True
+    return False
+
+
+def _jardines(poner, mapa, rng, arbol_cerca, edificios):
+    """Árboles en grupos naturales sobre los jardines y arbustos en sus bordes.
+
+    1) Centros de grupo: casillas de jardín al azar (semilla fija) a
+       SEPARACION_GRUPOS_ARBOLES o más de otro centro.
+    2) Alrededor de cada centro, ARBOLES_POR_GRUPO árboles a lo sumo a
+       RADIO_GRUPO_ARBOLES, a SEPARACION_ARBOLES_JARDIN o más de cualquier
+       otro árbol; la especie, la de la zona.
+    3) Arbustos en las casillas de jardín que dan a una banqueta, cada
+       ESPACIADO_ARBUSTOS, lejos de los árboles."""
+    jardin = [(c, f) for f, linea in enumerate(mapa) for c, letra in enumerate(linea)
+              if letra == JARDIN and f > 0 and not tapa_fachada((c, f), edificios)]
+    rng.shuffle(jardin)
+    centros = []
+    for casilla in jardin:
+        if all(max(abs(casilla[0] - c[0]), abs(casilla[1] - c[1])) >= SEPARACION_GRUPOS_ARBOLES for c in centros):
+            centros.append(casilla)
+    disponibles = set(jardin)
+    for cx, cy in centros:
+        cuantos = rng.randint(*ARBOLES_POR_GRUPO)
+        alrededor = [(cx + dx, cy + dy) for dy in range(-RADIO_GRUPO_ARBOLES, RADIO_GRUPO_ARBOLES + 1)
+                     for dx in range(-RADIO_GRUPO_ARBOLES, RADIO_GRUPO_ARBOLES + 1)]
+        rng.shuffle(alrededor)
+        alrededor.sort(key=lambda c: c != (cx, cy))  # el centro primero
+        puestos = 0
+        for casilla in alrededor:
+            if puestos >= cuantos:
+                break
+            if casilla not in disponibles or arbol_cerca(casilla, SEPARACION_ARBOLES_JARDIN):
+                continue
+            especie = rng.choice(zonas_ciudad.arboles_de(*casilla, ARBOLES_PARQUE_VARIANTES))
+            if poner(Prop("arbol", casilla, SUR, CAPA_ARBOL, True, especie)):
+                puestos += 1
+    vecinas = ((0, -1), (0, 1), (-1, 0), (1, 0))
+    borde = sorted(c for c in disponibles if any(_letra(mapa, (c[0] + dc, c[1] + df)) == ACERA for dc, df in vecinas))
+    for i, casilla in enumerate(borde):
+        if i % ESPACIADO_ARBUSTOS == 0 and not arbol_cerca(casilla, SEPARACION_ARBOLES_JARDIN):
+            poner(Prop("arbol", casilla, SUR, CAPA_ARBOL, True, rng.choice(ARBUSTOS)))
 
 
 def distancia_a_rect(casilla, rect):

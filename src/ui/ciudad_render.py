@@ -1,11 +1,10 @@
 """Dibujo de Ciudad Nova (escena CIUDAD, solo presentación).
 
-El fondo estático (suelo armado por auto-tiling con los packs
-cyberpunk, emblemas de la Plaza y de los cruces, la grieta del lote
-liminal, casas y edificios) se pinta por chunks de LADO_CHUNK_CIUDAD px la
+El fondo estático (suelo armado por auto-tiling: calzada de los packs
+cyberpunk, banquetas, pasto y jardines; casas y edificios) se pinta por chunks de LADO_CHUNK_CIUDAD px la
 primera vez que la cámara los ve y queda cacheado; cada frame se copian
 solo los chunks visibles. Encima van las capas que cambian: el agua del
-canal (animada), las luces de las fachadas que parpadean, el vapor de los
+alberca y las fuentes (animada), las ventanas que parpadean, el vapor de los
 cruces, las hojas que caen, halos de las farolas, auras de toxicidad,
 rótulos neón, barricadas activas, la ruta sugerida y el jugador junto a
 la decoración ordenada por Y. También dibuja el cintillo de noticias y los
@@ -19,7 +18,7 @@ import pygame
 from src.core import assets
 from src.core.balance import ADELANTO_CAMARA_CIUDAD, TAM_CASILLA
 from src.dungeon import autotile_ciudad, ciudad_mapa, zonas_ciudad
-from src.ui import cargador_assets, casas_render, casillas_ciudad, decoracion_ciudad, dibujo
+from src.ui import arte_ciudad, casas_render, casillas_ciudad, decoracion_ciudad, dibujo
 from src.ui import edificios_ciudad, sprites, tiles_ciudad
 from src.ui.fuentes import fuente
 from src.ui.mapa_render import color_toxicidad
@@ -64,23 +63,16 @@ def _centro_cruce(nodo):
     return ((min(columnas) + max(columnas) + 1) / 2 * TAM_CASILLA, (min(filas) + max(filas) + 1) / 2 * TAM_CASILLA)
 
 
-def _emblemas():
-    """[(pieza, centro px del mundo)]: el emblema de la Plaza, el de cada
-    cruce (uno distinto por cruce) y la grieta del lote liminal."""
-    if "emblemas" not in _cache:
-        lista = [(assets.PIEZA_EMBLEMA_PLAZA, ciudad_mapa.centro_casilla(*ciudad_mapa.NODOS_CALLE[ciudad_mapa.ZONA_PLAZA]))]
-        cruces = [n for n in ciudad_mapa.NODOS_CALLE if n.startswith("Cruce")]
-        for i, nodo in enumerate(sorted(cruces)):
-            lista.append((assets.PIEZAS_EMBLEMA_CRUCE[i % len(assets.PIEZAS_EMBLEMA_CRUCE)], _centro_cruce(nodo)))
-        col, fila, ancho, alto = zonas_ciudad.LIMINAL_RESERVADO
-        lista.append((assets.PIEZA_GRIETA_LIMINAL, ((col + ancho / 2) * TAM_CASILLA, (fila + alto / 2) * TAM_CASILLA)))
-        _cache["emblemas"] = lista
-    return _cache["emblemas"]
+def _centros_cruce():
+    """Centro (px del mundo) de cada cruce con nombre: de ahí sale el vapor."""
+    if "cruces" not in _cache:
+        _cache["cruces"] = [_centro_cruce(n) for n in sorted(ciudad_mapa.NODOS_CALLE) if n.startswith("Cruce")]
+    return _cache["cruces"]
 
 
 def chunk(cx, cy):
     """Surface (cacheada) del chunk (cx, cy) del fondo estático: suelo,
-    emblemas, casas y edificios de zona."""
+    casas y edificios de zona."""
     clave = ("chunk", cx, cy)
     if clave not in _cache:
         lado = assets.LADO_CHUNK_CIUDAD
@@ -91,15 +83,6 @@ def chunk(cx, cy):
         for fila in range(y0 // TAM_CASILLA, min(ciudad_mapa.FILAS, (y0 + lado) // TAM_CASILLA + 1)):
             for col in range(x0 // TAM_CASILLA, min(ciudad_mapa.COLUMNAS, (x0 + lado) // TAM_CASILLA + 1)):
                 superficie.blit(tiles_ciudad.casilla(col, fila), (col * TAM_CASILLA - x0, fila * TAM_CASILLA - y0))
-        if tiles_ciudad.disponible():
-            for nombre, (px, py) in _emblemas():
-                pieza = cargador_assets.pieza_ciudad(nombre)
-                if pieza is not None:
-                    superficie.blit(pieza, pieza.get_rect(center=(round(px) - x0, round(py) - y0)))
-        else:
-            mosaico = casillas_ciudad.mosaico_plaza()
-            centro = ciudad_mapa.centro_casilla(*ciudad_mapa.NODOS_CALLE[ciudad_mapa.ZONA_PLAZA])
-            superficie.blit(mosaico, mosaico.get_rect(center=(centro[0] - x0, centro[1] - y0)))
         # Casas y edificios con su escala entera, del tamaño de su huella.
         casas_render.dibujar_todas(superficie, (-x0, -y0))
         edificios_ciudad.dibujar_todos(superficie, (-x0, -y0))
@@ -138,7 +121,7 @@ def mundo_base():
 
 
 def _dibujar_agua(pantalla, rect_vista, dx, dy, tiempo):
-    """El canal y las fuentes con el cuadro de agua de este instante."""
+    """La alberca y las fuentes con el cuadro de agua de este instante."""
     if not tiles_ciudad.disponible():
         return
     cuadro = tiles_ciudad.cuadro_agua(tiempo)
@@ -164,7 +147,7 @@ def _vapor(superficie_cache=_cache):
 def _dibujar_vapor(pantalla, rect_vista, dx, dy, tiempo):
     """Bocanadas de vapor que suben de las alcantarillas de cada cruce."""
     bocanada = _vapor()
-    for i, (nombre, (px, py)) in enumerate(_emblemas()[1:-1]):
+    for i, (px, py) in enumerate(_centros_cruce()):
         for k in range(assets.BOCANADAS_VAPOR):
             fase = (tiempo / assets.PERIODO_VAPOR + k / assets.BOCANADAS_VAPOR + i * 0.37) % 1.0
             figura = pygame.transform.scale_by(bocanada, 0.5 + fase)
@@ -310,7 +293,7 @@ def _dibujar_rotulos(pantalla, rect_vista, dx, dy, tiempo=0.0):
 
 
 def _dibujar_barricadas(pantalla, partida, rect_vista, dx, dy):
-    imagen = cargador_assets.prop_urbano("barricada") or casillas_ciudad.casilla_barricada()
+    imagen = arte_ciudad.imagen("urbano:barricada") or casillas_ciudad.casilla_barricada()
     for col, fila in partida.barricadas_activas():
         casilla = pygame.Rect(col * TAM_CASILLA + dx, fila * TAM_CASILLA + dy, TAM_CASILLA, TAM_CASILLA)
         if rect_vista.colliderect(casilla):

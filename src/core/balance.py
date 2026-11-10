@@ -702,9 +702,31 @@ ESPACIADO_FAROLAS = 6  # casillas entre dos farolas seguidas de una misma acera
 MARGEN_FAROLAS_CRUCE = 3  # casillas desde el inicio de un tramo hasta su primera farola
 ESPACIADO_ARBOLES_AVENIDA = 3  # casillas entre árboles de la hilera del camellón de la Avenida Nova
 ESPACIADO_MOBILIARIO_ACERA = 12  # casillas entre papeleras, canteros, buzones o hidrantes
-ARBOLES_PARQUE = 7  # árboles agrupados en el pasto del parque (la laguna ocupa el resto)
+ARBOLES_PARQUE = 10  # árboles agrupados en el césped de cada parque
+# Jardines ('J'): árboles en grupos naturales. Centros de grupo a
+# SEPARACION_GRUPOS_ARBOLES casillas o más entre sí; en cada grupo, de
+# ARBOLES_POR_GRUPO[0] a [1] árboles a RADIO_GRUPO_ARBOLES del centro y a
+# SEPARACION_ARBOLES_JARDIN o más entre ellos. Arbustos en el borde de los
+# canteros cada ESPACIADO_ARBUSTOS casillas.
+SEPARACION_GRUPOS_ARBOLES = 5
+RADIO_GRUPO_ARBOLES = 2
+ARBOLES_POR_GRUPO = (2, 4)
+SEPARACION_ARBOLES_JARDIN = 2
+ESPACIADO_ARBUSTOS = 3
+ALTO_COPA_CASILLAS = 3  # casillas que sube la copa: un árbol nunca va tan cerca bajo una fachada
 SEPARACION_ARBOLES_PARQUE = 2  # casillas mínimas entre dos árboles del parque (Chebyshev)
 SEMILLA_DECORACION = 404
+# Paleta de Ciudad Nova (src/core/medicion_paleta.py, tools/medir_paleta_ciudad.py):
+# la ciudad es sobria; el neón saturado queda para carteles, puertas,
+# ventanas puntuales y la línea amarilla de la calzada.
+UMBRAL_SATURACION_ALTA = 0.50  # saturación (0-1) desde la que un píxel cuenta como neón...
+UMBRAL_BRILLO_SATURADO = 0.35  # ...si además es así de brillante
+UMBRAL_SATURACION_COLOR = 0.22  # bajo esto el píxel es neutro (grises y azul-gris nocturno)
+FRACCION_FAMILIA_DOMINANTE = 0.04  # una familia de color domina si pasa este % de píxeles
+MAX_FRACCION_SATURADA_CIUDAD = 0.08  # tope de neón en la panorámica
+MAX_FAMILIAS_DOMINANTES_CIUDAD = 4  # neutro + verde + pocas más
+# Verde: al menos esta fracción del área no vial (sin calles ni edificios) es vegetación.
+MIN_FRACCION_VERDE_CIUDAD = 0.45
 # Cámara de la ciudad: encuadra un poco más arriba del jugador (las
 # fachadas miran al sur: frente a una puerta se ve el edificio entero).
 ADELANTO_CAMARA_CIUDAD = 72  # px

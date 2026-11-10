@@ -28,12 +28,16 @@ from src.dungeon.grafo_ciudad import GrafoCiudad  # noqa: E402
 PROPS = cm.DECORACION
 
 
+def _edificios():
+    return list(cm.EDIFICIOS.values()) + [huella for huella, _ in cm.CASAS]
+
+
 def _generar_de_nuevo(semilla=None):
-    argumentos = dict(edificios=cm.EDIFICIOS.values(), arboledas=cm.ARBOLEDAS)
+    argumentos = dict(edificios=_edificios())
     if semilla is not None:
         argumentos["semilla"] = semilla
     return ld.generar(cm.MAPA, cm.CALLES, [(t.puntos, t.seccion) for t in cm.TRAMOS], cm.NODOS_CALLE.values(),
-                      cm.ENTRADAS.values(), cm.SPAWN, cm.PLAZA, cm.PARQUE,
+                      cm.ENTRADAS.values(), cm.SPAWN, cm.PLAZA, cm.PARQUES,
                       cm.SENDEROS_PARQUE | cm.ACCESOS_BOLSILLOS,
                       **argumentos)
 
@@ -53,7 +57,7 @@ def test_hay_de_todo_y_ningun_prop_se_superpone():
     assert len(casillas) == len(set(casillas))
     tipos = Counter(p.tipo for p in PROPS)
     assert sum(tipos[f] for f in ld.FAROLAS) > 0
-    for tipo in ("banca", "arbol", "jardinera", "basurero", "hidrante", "caja_electrica", "transformador"):
+    for tipo in ("banca", "arbol", "jardinera", "basurero", "buzon"):
         assert tipos[tipo] > 0, tipo
 
 
@@ -69,7 +73,7 @@ def test_ningun_prop_sobre_un_camino_una_puerta_o_una_barricada():
         for casilla in prop.casillas:
             assert casilla not in prohibidas, prop
             assert cm.casilla(*casilla) not in cm.CALLES, prop
-            assert cm.casilla(*casilla) not in (cm.EDIFICIO, cm.ENTRADA, cm.CASA, cm.MURO, cm.FUENTE, cm.AGUA), prop
+            assert cm.casilla(*casilla) not in (cm.EDIFICIO, cm.ENTRADA, cm.CASA, cm.FUENTE, cm.AGUA), prop
 
 
 def test_props_sobre_casillas_validas():
@@ -159,7 +163,7 @@ def test_bancas_del_parque_enfrentadas_al_sendero():
         assert frente in cm.SENDEROS_PARQUE, banca
 
 
-def test_arboles_del_parque_agrupados_sin_tocarse_ni_pisar_el_sendero():
+def test_arboles_de_los_parques_sin_tocarse_ni_pisar_el_sendero():
     arboles = [p.casilla for p in PROPS if p.tipo == "arbol" and ld._dentro(cm.PARQUE, p.casilla)
                and cm.casilla(*p.casilla) == cm.PASTO]
     assert len(arboles) >= 5
@@ -180,12 +184,15 @@ def test_hilera_de_arboles_en_el_camellon_a_paso_fijo():
             assert b - a == ESPACIADO_ARBOLES_AVENIDA
 
 
-def test_arboles_de_los_jardines_lejos_de_las_fachadas():
+def test_arboles_de_los_jardines_en_grupos_y_lejos_de_las_fachadas():
     en_jardines = [p for p in PROPS if p.tipo == "arbol" and cm.casilla(*p.casilla) == cm.JARDIN]
-    assert len(en_jardines) >= 15
+    assert len(en_jardines) >= 80
     for p in en_jardines:
-        for rect in cm.EDIFICIOS.values():
-            assert ld.distancia_a_rect(p.casilla, rect) > 1, p
+        assert not ld.tapa_fachada(p.casilla, _edificios()), p
+    # Agrupados: la mayoría de los árboles grandes tiene otro a 2-3 casillas.
+    grandes = [p.casilla for p in en_jardines if p.variante not in ld.ARBUSTOS]
+    con_vecino = sum(1 for a in grandes if any(a != b and max(abs(a[0] - b[0]), abs(a[1] - b[1])) <= 3 for b in grandes))
+    assert con_vecino >= 0.7 * len(grandes)
 
 
 def test_con_la_decoracion_todo_se_alcanza_y_las_barricadas_siguen_cortando():

@@ -1,7 +1,6 @@
 """Arte nuevo: props de la ciudad (no cortan ninguna ruta), rects de las
 hojas dentro de sus imágenes y fallback del cargador si falta una hoja."""
 
-import json
 import os
 import struct
 import sys
@@ -31,17 +30,12 @@ def _tamanio_png(ruta):
 # Props de Ciudad Nova
 # ----------------------------------------------------------------------
 
-_PIEZAS_CIUDAD = json.load(open(os.path.join(RAIZ, assets.RUTA_ATLAS_CIUDAD_JSON), encoding="utf-8"))["piezas"]
-
-
 def test_cada_prop_tiene_arte():
     for prop in ciudad_mapa.DECORACION:
         if prop.tipo == "arbol":
             assert os.path.exists(os.path.join(assets.RUTA_ARBOLES, f"arbol_{prop.variante:02d}.png")), prop
         elif prop.tipo in zonas_ciudad.PROPS_BACKROOMS:
             assert rutas_backrooms.rect_prop(_ATLAS_CIUDAD, zonas_ciudad.PROPS_BACKROOMS[prop.tipo]), prop
-        elif prop.tipo in assets.PROPS_CIUDAD:  # packs cyberpunk: pieza del atlas de la ciudad
-            assert assets.PROPS_CIUDAD[prop.tipo] in _PIEZAS_CIUDAD, prop
         else:
             assert prop.tipo in assets.PROPS_URBANOS, prop
         assert ciudad_mapa.es_solida(*prop.casilla) == prop.solido or not prop.solido
