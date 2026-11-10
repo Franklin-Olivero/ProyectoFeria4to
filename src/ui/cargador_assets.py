@@ -10,10 +10,12 @@ siempre: el juego nunca depende de un archivo de arte.
     prop_urbano(nombre)        -> prop de la ciudad (assets.PROPS_URBANOS), recortado a su contenido
     pieza_colegio(nombre)      -> pieza del pack del Colegio (assets.PIEZAS_COLEGIO)
     arbol(numero, escala)      -> árbol del pack Trees_Vol2 (assets.RUTA_ARBOLES)
+    pieza_ciudad(nombre)       -> pieza del atlas de Ciudad Nova (assets/ciudad/, packs cyberpunk)
 
 Las rutas y rects viven en src/core/assets.py.
 """
 
+import json
 import os
 
 import pygame
@@ -22,6 +24,7 @@ from src.core import assets
 
 _hojas = {}  # ruta -> Surface o None
 _recortes = {}  # (ruta, rect, escala, factor, ajustar) -> Surface o None
+_atlas = {}  # ruta del json -> {nombre: rect}
 
 
 def hoja(ruta):
@@ -91,3 +94,22 @@ def pieza_colegio(nombre, factor=1.0):
         return None
     archivo, rect = assets.PIEZAS_COLEGIO[nombre]
     return recorte(os.path.join(assets.RUTA_COLEGIO, archivo), rect, factor=factor)
+
+
+def rects_atlas(ruta_json):
+    """{nombre: (x, y, w, h)} de un atlas empaquetado, o {} si falta o está roto."""
+    if ruta_json not in _atlas:
+        try:
+            with open(ruta_json, encoding="utf-8") as archivo:
+                _atlas[ruta_json] = {n: tuple(r) for n, r in json.load(archivo)["piezas"].items()}
+        except (OSError, ValueError, KeyError, TypeError):
+            _atlas[ruta_json] = {}
+    return _atlas[ruta_json]
+
+
+def pieza_ciudad(nombre, factor=1.0):
+    """Pieza `nombre` del atlas de Ciudad Nova (assets.RUTA_ATLAS_CIUDAD), o None."""
+    rect = rects_atlas(assets.RUTA_ATLAS_CIUDAD_JSON).get(nombre)
+    if rect is None:
+        return None
+    return recorte(assets.RUTA_ATLAS_CIUDAD, rect, escala=1, factor=factor)

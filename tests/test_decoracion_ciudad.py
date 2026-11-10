@@ -14,6 +14,7 @@ sys.path.insert(0, RAIZ)
 
 from src.core import assets  # noqa: E402
 from src.core.balance import (  # noqa: E402
+    ESPACIADO_ARBOLES_AVENIDA,
     ESPACIADO_FAROLAS,
     METROS_POR_CASILLA,
     METROS_POR_PUNTO_DE_PESO,
@@ -32,7 +33,8 @@ def _generar_de_nuevo(semilla=None):
     if semilla is not None:
         argumentos["semilla"] = semilla
     return ld.generar(cm.MAPA, cm.CALLES, [(t.puntos, t.seccion) for t in cm.TRAMOS], cm.NODOS_CALLE.values(),
-                      cm.ENTRADAS.values(), cm.SPAWN, cm.PLAZA, cm.PARQUE, cm.SENDEROS_PARQUE,
+                      cm.ENTRADAS.values(), cm.SPAWN, cm.PLAZA, cm.PARQUE,
+                      cm.SENDEROS_PARQUE | cm.ACCESOS_BOLSILLOS,
                       **argumentos)
 
 
@@ -51,7 +53,7 @@ def test_hay_de_todo_y_ningun_prop_se_superpone():
     assert len(casillas) == len(set(casillas))
     tipos = Counter(p.tipo for p in PROPS)
     assert sum(tipos[f] for f in ld.FAROLAS) > 0
-    for tipo in ("banca", "arbol", "jardinera", "basurero", "buzon", "hidrante"):
+    for tipo in ("banca", "arbol", "jardinera", "basurero", "hidrante", "caja_electrica", "transformador"):
         assert tipos[tipo] > 0, tipo
 
 
@@ -67,7 +69,7 @@ def test_ningun_prop_sobre_un_camino_una_puerta_o_una_barricada():
         for casilla in prop.casillas:
             assert casilla not in prohibidas, prop
             assert cm.casilla(*casilla) not in cm.CALLES, prop
-            assert cm.casilla(*casilla) not in (cm.EDIFICIO, cm.ENTRADA, cm.CASA, cm.FUENTE, cm.AGUA), prop
+            assert cm.casilla(*casilla) not in (cm.EDIFICIO, cm.ENTRADA, cm.CASA, cm.MURO, cm.FUENTE, cm.AGUA), prop
 
 
 def test_props_sobre_casillas_validas():
@@ -75,37 +77,59 @@ def test_props_sobre_casillas_validas():
         for casilla in prop.casillas:
             letra = cm.casilla(*casilla)
             if prop.tipo == "arbol":
-                assert letra in (cm.PASTO, cm.ARBOL, cm.ACERA), prop  # pasto, seto o rincón de la Plaza
+                assert letra in (cm.PASTO, cm.JARDIN, cm.CAMELLON, cm.ACERA), prop  # pasto, jardín, camellón o Plaza
             else:
                 assert letra in (cm.PASTO, cm.ACERA), prop
 
 
+def _aceras_de(t):
+    """[(segmento, desplazamiento)] de cada acera de los tramos rectos de `t`."""
+    salida = []
+    for inicio, fin in zip(t.puntos, t.puntos[1:]):
+        for lado, letra in ld.lineas_de_acera(cm.MAPA, cm.CALLES, inicio, fin):
+            if letra == ":":
+                salida.append(((inicio, fin), lado))
+    return salida
+
+
+def _farolas_en(segmento, lado):
+    (c0, f0), (c1, f1) = segmento
+    horizontal = f0 == f1
+    return sorted(
+        p.casilla[0] if horizontal else p.casilla[1]
+        for p in PROPS if p.tipo in ld.FAROLAS and not ld._dentro(cm.PLAZA, p.casilla)
+        and (p.casilla[1] == f0 + lado if horizontal else p.casilla[0] == c0 + lado)
+        and (min(c0, c1) <= p.casilla[0] <= max(c0, c1) if horizontal else min(f0, f1) <= p.casilla[1] <= max(f0, f1))
+    )
+
+
+def test_las_aceras_se_miden_en_el_mapa():
+    """Una calle de 2 carriles tiene una acera a cada lado; la avenida, una
+    a cada lado de sus dos calzadas con el camellón en medio."""
+    assert ld.lineas_de_acera(cm.MAPA, cm.CALLES, (34, 10), (15, 10)) == [(-1, ":"), (2, ":")]
+    assert ld.lineas_de_acera(cm.MAPA, cm.CALLES, (14, 25), (6, 25)) == [(-2, ":"), (1, "k"), (4, ":")]
+    assert ld.lineas_de_acera(cm.MAPA, cm.CALLES, (25, 25), (25, 38)) == [(-1, ":"), (2, ":")]
+
+
 def test_farolas_a_intervalos_regulares_en_cada_acera():
-    """En cada línea de acera (misma fila o misma columna), dos farolas
-    seguidas están a un múltiplo exacto de ESPACIADO_FAROLAS."""
+    """En cada acera de un tramo recto, dos farolas seguidas están a un
+    múltiplo exacto de ESPACIADO_FAROLAS."""
     for t in cm.TRAMOS:
-        for (c0, f0), (c1, f1) in zip(t.puntos, t.puntos[1:]):
-            horizontal = f0 == f1
-            for lado in (-2, 2):
-                linea = sorted(
-                    p.casilla[0] if horizontal else p.casilla[1]
-                    for p in PROPS if p.tipo in ld.FAROLAS and not ld._dentro(cm.PLAZA, p.casilla)
-                    and (p.casilla[1] == f0 + lado if horizontal else p.casilla[0] == c0 + lado)
-                    and (min(c0, c1) <= p.casilla[0] <= max(c0, c1) if horizontal else min(f0, f1) <= p.casilla[1] <= max(f0, f1))
-                )
-                for a, b in zip(linea, linea[1:]):
-                    assert (b - a) % ESPACIADO_FAROLAS == 0 and b - a >= ESPACIADO_FAROLAS, (t.a, t.b, lado, linea)
+        for segmento, lado in _aceras_de(t):
+            linea = _farolas_en(segmento, lado)
+            for a, b in zip(linea, linea[1:]):
+                assert (b - a) % ESPACIADO_FAROLAS == 0 and b - a >= ESPACIADO_FAROLAS, (t.a, t.b, lado, linea)
 
 
-def test_las_avenidas_tienen_farolas_en_ambas_aceras():
+def test_las_calles_largas_tienen_farolas_en_ambas_aceras():
     for t in cm.TRAMOS:
-        (c0, f0), (c1, f1) = t.puntos[0], t.puntos[1]
-        if abs(c1 - c0) + abs(f1 - f0) < 2 * ESPACIADO_FAROLAS:
-            continue
-        for lado in (-2, 2):
-            hay = [p for p in PROPS if p.tipo in ld.FAROLAS
-                   and (p.casilla[1] == f0 + lado if f0 == f1 else p.casilla[0] == c0 + lado)]
-            assert hay, (t.a, t.b, lado)
+        for segmento, lado in _aceras_de(t):
+            (c0, f0), (c1, f1) = segmento
+            if abs(c1 - c0) + abs(f1 - f0) < 3 * ESPACIADO_FAROLAS:
+                continue
+            if ld._dentro(cm.PLAZA, segmento[0]) and ld._dentro(cm.PLAZA, segmento[1]):
+                continue
+            assert _farolas_en(segmento, lado), (t.a, t.b, lado)
 
 
 def test_misma_semilla_misma_ciudad_y_otra_semilla_otros_arboles():
@@ -145,14 +169,23 @@ def test_arboles_del_parque_agrupados_sin_tocarse_ni_pisar_el_sendero():
         assert all(abs(a[0] - s[0]) + abs(a[1] - s[1]) > 1 for s in cm.SENDEROS_PARQUE)
 
 
-def test_hileras_de_arboles_sobre_los_setos_lejos_de_las_fachadas():
-    en_setos = [p for p in PROPS if p.tipo == "arbol" and cm.casilla(*p.casilla) == cm.ARBOL]
-    assert len(en_setos) >= 20
-    por_fila = defaultdict(list)
-    for p in en_setos:
-        por_fila[p.casilla[1]].append(p.casilla[0])
+def test_hilera_de_arboles_en_el_camellon_a_paso_fijo():
+    en_camellon = sorted(p.casilla for p in PROPS if p.tipo == "arbol" and cm.casilla(*p.casilla) == cm.CAMELLON)
+    assert len(en_camellon) >= 6
+    por_tramo = defaultdict(list)
+    for col, fila in en_camellon:
+        por_tramo[col < cm.PLAZA[0]].append(col)
+    for columnas in por_tramo.values():
+        for a, b in zip(columnas, columnas[1:]):
+            assert b - a == ESPACIADO_ARBOLES_AVENIDA
+
+
+def test_arboles_de_los_jardines_lejos_de_las_fachadas():
+    en_jardines = [p for p in PROPS if p.tipo == "arbol" and cm.casilla(*p.casilla) == cm.JARDIN]
+    assert len(en_jardines) >= 15
+    for p in en_jardines:
         for rect in cm.EDIFICIOS.values():
-            assert ld._distancia_a_rect(p.casilla, rect) > 2, p
+            assert ld.distancia_a_rect(p.casilla, rect) > 1, p
 
 
 def test_con_la_decoracion_todo_se_alcanza_y_las_barricadas_siguen_cortando():

@@ -9,8 +9,10 @@ sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")
 from src.core.balance import (  # noqa: E402
     CRUCE_ESTE,
     CRUCE_NORTE,
+    CRUCE_OESTE,
     ZONA_COLEGIO,
     ZONA_EMPRESA_MEDIOS,
+    ZONA_HOSPITAL,
     ZONA_PLAZA,
 )
 from src.core.escenas import Escena, escena_tras_colapso  # noqa: E402
@@ -52,22 +54,22 @@ def test_ruta_sugerida_desde_la_posicion_del_jugador():
     partida = Partida()
     posicion = ciudad_mapa.centro_casilla(*ciudad_mapa.SPAWN)
     nodos, costo = partida.ruta_sugerida(posicion, ZONA_COLEGIO)
-    assert nodos == [ZONA_PLAZA, CRUCE_NORTE, ZONA_COLEGIO] and costo == 6
+    assert nodos == [ZONA_PLAZA, CRUCE_NORTE, ZONA_COLEGIO] and costo == 10  # 5 + 5
 
 
 def test_decision_aplica_colapso_progreso_y_pesos_de_la_zona():
     partida = Partida()
     partida.registrar_decision(ZONA_COLEGIO, PURIFICACION_EXITOSA)
     assert partida.progreso.mazmorras_completadas == 1
-    assert partida.ciudad.grafo.peso(CRUCE_NORTE, ZONA_COLEGIO) == 1
+    assert partida.ciudad.grafo.peso(CRUCE_NORTE, ZONA_COLEGIO) == 3  # 5 - 2
     assert partida.alcaldia_desbloqueada()
 
-    partida.registrar_decision(ZONA_EMPRESA_MEDIOS, DETONACION)
+    partida.registrar_decision(ZONA_HOSPITAL, DETONACION)
     assert partida.progreso.mazmorras_completadas == 1
-    assert partida.ciudad.grafo.peso(ZONA_EMPRESA_MEDIOS, CRUCE_ESTE) == 8
-    assert partida.ciudad.esta_bloqueada(ZONA_EMPRESA_MEDIOS, CRUCE_ESTE)
+    assert partida.ciudad.grafo.peso(ZONA_HOSPITAL, CRUCE_OESTE) == 8  # 5 + 3
+    assert partida.ciudad.esta_bloqueada(ZONA_HOSPITAL, CRUCE_OESTE)
     # La barricada es física: sus casillas son sólidas para el jugador.
-    seccion = ciudad_mapa.tramo(ZONA_EMPRESA_MEDIOS, CRUCE_ESTE).seccion
+    seccion = ciudad_mapa.tramo(ZONA_HOSPITAL, CRUCE_OESTE).seccion
     assert all(partida.es_solida(*casilla) for casilla in seccion)
 
 

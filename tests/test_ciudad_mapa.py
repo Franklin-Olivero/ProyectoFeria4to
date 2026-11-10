@@ -27,7 +27,7 @@ def test_mapa_rectangular_de_64x47_y_casillas_de_48px():
     assert TAM_CASILLA == 48
     assert cm.FILAS == 47
     assert all(len(fila) == cm.COLUMNAS == 64 for fila in cm.MAPA)
-    letras_validas = set(".:c=|#HTEXF~")
+    letras_validas = set(".:ck#HWJEXF~")
     assert all(set(fila) <= letras_validas for fila in cm.MAPA)
 
 
@@ -248,9 +248,9 @@ def test_camara_centra_un_mundo_mas_chico_que_la_vista():
 def test_polilinea_de_ruta_sigue_los_codos_y_termina_en_la_puerta():
     puntos = cm.polilinea_ruta((100.0, 100.0), ["Colegio", "Cruce Oeste"])
     assert puntos[0] == (100.0, 100.0)
-    assert puntos[1] == cm.centro_casilla(19, 12)
-    assert cm.centro_casilla(9, 12) in puntos  # el codo
-    assert puntos[-1] == cm.centro_casilla(9, 25)
+    assert puntos[1] == cm.centro_casilla(15, 10)
+    assert cm.centro_casilla(6, 10) in puntos  # el codo
+    assert puntos[-1] == cm.centro_casilla(6, 25)
     hacia_puerta = cm.polilinea_ruta((0, 0), ["Plaza", "Cruce Norte", "Colegio"])
     assert hacia_puerta[-1] == cm.centro_casilla(*cm.ENTRADAS["Colegio"])
 

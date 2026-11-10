@@ -12,8 +12,9 @@ redistribuirlo) y escribe assets/backrooms/<grade>/:
 Qué se usa sale de las composiciones de COMPOSICIONES_EN_USO
 (src/dungeon/datos/composiciones/) armadas con compositor_interior, de las
 plantillas de PLANTILLAS_EN_USO (src/dungeon/datos/plantillas/), de la
-ciudad (agua de src/dungeon/agua_ciudad.py y props de
-zonas_ciudad.PROPS_BACKROOMS) y de EXTRA.
+ciudad (props de zonas_ciudad.PROPS_BACKROOMS; el suelo y el agua de la
+ciudad salen ahora de los packs cyberpunk, tools/empaquetar_ciudad.py) y
+de EXTRA.
 Para cada animación se incluye también su versión quieta (rutas_backrooms.
 prop_estatico_de o la "estatico" de la composición): si al grade le falta
 la animación, el juego dibuja esa.
@@ -35,7 +36,7 @@ os.environ.setdefault("SDL_VIDEODRIVER", "dummy")
 import pygame  # noqa: E402
 
 from src.core import assets  # noqa: E402
-from src.dungeon import agua_ciudad, ciudad_mapa, compositor_interior, zonas_ciudad  # noqa: E402
+from src.dungeon import compositor_interior, zonas_ciudad  # noqa: E402
 from src.ui import rutas_backrooms  # noqa: E402
 
 PACKS = os.path.join(RAIZ, "_packs", "extraidos")
@@ -92,8 +93,7 @@ def uso():
             plantillas.append(json.load(archivo))
     usados = {"tiles": set(EXTRA["tiles"]), "props": set(EXTRA["props"]),
               "animaciones": {n: None for n in EXTRA["animaciones"]}, "luces": set(EXTRA["luces"])}
-    # Ciudad Nova: el agua (auto-tiling sobre el mapa) y los props del pack.
-    usados["tiles"] |= agua_ciudad.tiles_usados(agua_ciudad.capas(ciudad_mapa.MAPA, terrenos), terrenos)
+    # Ciudad Nova: solo los props del pack (antena, conos, letrero).
     usados["props"] |= set(zonas_ciudad.PROPS_BACKROOMS.values())
     for plantilla in plantillas:
         usados["tiles"] |= compositor_interior.tiles_usados(plantilla)

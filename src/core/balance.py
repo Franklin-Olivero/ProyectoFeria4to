@@ -700,9 +700,9 @@ DURACION_ATENUACION_PAUSA = 0.4  # s del fundido de la música al pausar / reanu
 # ----------------------------------------------------------------------
 ESPACIADO_FAROLAS = 6  # casillas entre dos farolas seguidas de una misma acera
 MARGEN_FAROLAS_CRUCE = 3  # casillas desde el inicio de un tramo hasta su primera farola
-ESPACIADO_ARBOLES_AVENIDA = 4  # casillas entre árboles de una hilera sobre un seto
+ESPACIADO_ARBOLES_AVENIDA = 3  # casillas entre árboles de la hilera del camellón de la Avenida Nova
 ESPACIADO_MOBILIARIO_ACERA = 12  # casillas entre papeleras, canteros, buzones o hidrantes
-ARBOLES_PARQUE = 9  # árboles agrupados en el parque
+ARBOLES_PARQUE = 7  # árboles agrupados en el pasto del parque (la laguna ocupa el resto)
 SEPARACION_ARBOLES_PARQUE = 2  # casillas mínimas entre dos árboles del parque (Chebyshev)
 SEMILLA_DECORACION = 404
 # Cámara de la ciudad: encuadra un poco más arriba del jugador (las

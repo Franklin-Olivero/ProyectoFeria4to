@@ -416,8 +416,8 @@ GROSOR_CANDADO = 2
 # ----------------------------------------------------------------------
 # Misma escala en x y en y: el largo dibujado de cada calle es
 # proporcional a su largo real (y a su peso base, ver grafo_ciudad.py).
-# El origen centra la red de calles (columnas 9-54) en la pantalla.
-ORIGEN_MAPA_MUNDO = (224, 17)  # px de pantalla de la casilla (0, 0)
+# El origen centra la red de calles (columnas 6-55, filas 8-42) en la pantalla.
+ORIGEN_MAPA_MUNDO = (244, -18)  # px de pantalla de la casilla (0, 0)
 ESCALA_MAPA_MUNDO = (13, 13)  # px de pantalla por casilla, en x y en y
 POSICION_ESCALA_MAPA = (1240, 606)  # extremo derecho de la barra de escala (junto al panel de la ruta)
 COLOR_ESCALA_MAPA = COLOR_TEXTO_SECUNDARIO
@@ -429,7 +429,7 @@ ETIQUETAS_MAPA_MUNDO = {
     "Colegio": ("midbottom", 0, -32),
     "Alcaldía": ("midbottom", 0, -32),
     "Hospital": ("midtop", 0, 32),
-    "Empresa de Medios": ("midtop", 0, 32),
+    "Empresa de Medios": ("midbottom", -40, -32),  # arriba (abajo está el panel de la ruta), sin tapar el peso de Medios-Este
 }
 RADIO_ZONA_MAPA = 22
 RADIO_CRUCE_MAPA = 7
@@ -967,10 +967,17 @@ AMPLITUD_BALANCEO_LOBBY = 0.9  # grados que se mecen las siluetas
 ANCLA_EDIFICIOS = "midbottom"
 ARTE_EDIFICIOS = {
     "Colegio": {"fuente": "pack_colegio", "escala": 2},  # tejas de 32 px: 2 px de pantalla por píxel
-    "Hospital": {"fuente": "pixel_art", "escala": ESCALA_PIXEL},
-    "Empresa de Medios": {"fuente": "pixel_art", "escala": ESCALA_PIXEL},
-    "Alcaldía": {"fuente": "pixel_art", "escala": ESCALA_PIXEL},
+    # Compuestos con los packs cyberpunk a escala 1: techo (CORNERS 5), fachada
+    # (WALLS 1), puerta, pilares y el neón de la zona. Sin atlas: pixel art.
+    "Hospital": {"fuente": "compuesto", "escala": 1, "techo": "techo_2", "fachada": "fachada_vidrio",
+                 "puerta": "puerta_vidrio", "pilar": "pilar_cian", "neon": (120, 255, 220)},
+    "Empresa de Medios": {"fuente": "compuesto", "escala": 1, "techo": "techo_8", "fachada": "fachada_noche",
+                          "puerta": "puerta_vidrio", "pilar": "pilar_morado", "neon": (255, 80, 200)},
+    "Alcaldía": {"fuente": "compuesto", "escala": 1, "techo": "techo_11", "fachada": "fachada_neon",
+                 "puerta": "puerta_roja", "pilar": "pilar_morado", "neon": (255, 200, 90)},
 }
+FILAS_FACHADA_EDIFICIO = 2  # casillas de fachada de un edificio de zona (el resto es techo)
+ANCHO_PILAR_EDIFICIO = 24  # px de las columnas a cada lado de la fachada
 COLOR_PUERTA_COLEGIO = (34, 46, 70)
 COLOR_MARCO_PUERTA_COLEGIO = (84, 62, 44)
 COLOR_TECHO_COLEGIO = (40, 34, 56)
@@ -1592,34 +1599,107 @@ TOXICIDAD_ALTA_TABLERO = 67
 COLOR_TOXICIDAD_ALTA_TABLERO = (255, 96, 96)
 
 # ----------------------------------------------------------------------
-# Ciudad Nova por zonas (exteriores). Las casas son edificios con huella y
-# plantilla propias (ciudad_mapa.CASAS): se dibujan en pixel art de código
-# (src/ui/casas_render.py) con la plantilla de ESTILOS_CASA, a ESCALA_PIXEL
-# y del tamaño exacto de su huella, apoyadas en su borde inferior. Dos
-# plantillas cualesquiera difieren en al menos VARIACION_MINIMA_ESTILOS de
-# sus atributos y dos casas vecinas nunca comparten plantilla.
+# Ciudad Nova (exteriores) con los packs cyberpunk. Las láminas no traen un
+# tileset en grilla: tools/empaquetar_ciudad.py recorta texturas y piezas
+# 1:1 (props reducidos x1/2, factor entero) a assets/ciudad/atlas.png y el
+# juego arma cada casilla por auto-tiling compuesto
+# (src/dungeon/autotile_ciudad.py + src/ui/tiles_ciudad.py). Sin el atlas,
+# todo vuelve al pixel art en código de casillas_ciudad.py / casas_render.py.
 # ----------------------------------------------------------------------
-GRADE_CIUDAD = GRADE_POR_DEFECTO  # props y agua del pack Backrooms en la ciudad
-VARIACION_MINIMA_ESTILOS = 2
-ATRIBUTOS_ESTILO = ("muro", "techo", "color_techo", "ventanas", "toldo")
-ESTILOS_CASA = {
-    "violeta": {"muro": (42, 38, 80), "junta": (32, 28, 62), "techo": "tejas", "color_techo": (56, 46, 96),
-                "ventanas": "doble", "toldo": False},
-    "ladrillo": {"muro": (96, 46, 44), "junta": (70, 32, 32), "techo": "tejas", "color_techo": (60, 34, 40),
-                 "ventanas": "doble", "toldo": False},
-    "estuco": {"muro": (122, 108, 92), "junta": (96, 84, 72), "techo": "plano", "color_techo": (74, 68, 66),
-               "ventanas": "banda", "toldo": False},
-    "pizarra": {"muro": (44, 62, 92), "junta": (32, 46, 70), "techo": "mansarda", "color_techo": (30, 34, 46),
-                "ventanas": "vertical", "toldo": False},
-    "salvia": {"muro": (62, 90, 74), "junta": (46, 68, 56), "techo": "tejas", "color_techo": (36, 58, 52),
-               "ventanas": "doble", "toldo": True},
-    "hormigon": {"muro": (78, 80, 92), "junta": (60, 62, 72), "techo": "plano", "color_techo": (52, 54, 64),
-                 "ventanas": "cuadricula", "toldo": False},
-    "terracota": {"muro": (140, 82, 56), "junta": (108, 60, 42), "techo": "terraza", "color_techo": (64, 92, 52),
-                  "ventanas": "vertical", "toldo": False},
-    "madera": {"muro": (92, 66, 48), "junta": (70, 50, 36), "techo": "mansarda", "color_techo": (48, 36, 32),
-               "ventanas": "banda", "toldo": True},
+RUTA_ATLAS_CIUDAD = os.path.join("assets", "ciudad", "atlas.png")
+RUTA_ATLAS_CIUDAD_JSON = os.path.join("assets", "ciudad", "atlas.json")
+# Texturas de suelo por terreno (piezas del atlas; las de 96 px se cortan en
+# cuartos de 48 según la paridad de la casilla).
+TEXTURA_TERRENO_CIUDAD = {
+    "calle": "asfalto",
+    "acera": "acera",
+    "plaza": "plaza",  # Plaza central y plaza cívica
+    "cancha": "plaza_borde",  # patio del Colegio y paseo comercial
+    "verde": "pasto_tecno",  # camellón y jardines tecno
+    "muro": "fachada_franja",  # valla neón sobre losa
+    "agua": ("agua", "agua_b"),
 }
+# Factor de brillo por textura (< 1 oscurece): las losas claras del pack se
+# bajan para la noche neón de la ciudad.
+FACTOR_TEXTURA_CIUDAD = {"plaza": 0.58, "acera": 0.78, "plaza_borde": 0.9}
+PIEZA_BORDILLO = "bordillo"  # franja de peligro donde la calle toca otra cosa
+PIEZA_LINEA_CARRIL = "linea_carril"
+PIEZA_CEBRA = "cebra"
+PIEZA_CANTO = "borde_metal"  # canto del canal, el camellón, los jardines y las barandas de los puentes
+GROSOR_BORDILLO = 10  # px
+GROSOR_CANTO = 8  # px
+LARGO_TRAZO_CARRIL = 24  # px de cada trazo de la línea central (uno por casilla)
+PIEZA_EMBLEMA_PLAZA = "cruce_especial"
+PIEZAS_EMBLEMA_CRUCE = ("emblema_cruce_0", "emblema_cruce_1", "emblema_cruce_2", "emblema_cruce_3")
+PIEZA_GRIETA_LIMINAL = "grieta_liminal"
+PIEZA_TORRE_DATOS = "pilar_morado"  # monumento de la Plaza (ciudad_mapa.MONUMENTO)
+ALTO_TORRE_DATOS = 240  # px que se muestran de la torre (recortada desde arriba)
+# Agua del canal: la textura se desplaza y late (CUADROS_AGUA cuadros de
+# DURACION_CUADRO_AGUA s); BRILLO_AGUA = factor de brillo por cuadro.
+CUADROS_AGUA = 4
+DURACION_CUADRO_AGUA = 0.22
+DESPLAZAMIENTO_CUADRO_AGUA = 8  # px que avanza la textura por cuadro
+BRILLO_AGUA = (1.0, 1.08, 1.16, 1.08)
+# Props nuevos (pack DECORATIONS): nombre de prop -> pieza del atlas.
+PROPS_CIUDAD = {
+    nombre: nombre for nombre in (
+        "expendedora", "kiosco_neon", "maquina_snacks", "cajero", "servidor", "baliza_senal",
+        "consola_noticias", "monitor_medios", "dispensador_medico", "equipo_medico", "botiquin",
+        "casillero_escolar", "caja_material", "terminal_estudio", "totem_info", "pedestal_civico",
+        "urna_digital", "generador", "aire_ac", "contenedor", "medidor", "transformador",
+        "caja_electrica", "farol_datos",
+    )
+}
+ALFA_SOMBRA_PROP = 90
+# Vida urbana: vapor que sube de las alcantarillas de los cruces y rótulos
+# neón de los edificios que fallan un instante cada tanto.
+COLOR_VAPOR = (200, 210, 235)
+ALFA_VAPOR = 70
+RADIO_VAPOR = 18
+BOCANADAS_VAPOR = 3
+PERIODO_VAPOR = 3.2  # s que tarda una bocanada en subir y desvanecerse
+SUBIDA_VAPOR = 70  # px
+PERIODO_FALLA_ROTULO = 7.0  # s entre dos fallas de un rótulo
+DURACION_FALLA_ROTULO = 0.18  # s que se apaga
+
+# Casas: cada estilo es un techo (marco de CORNERS 5, en 9 partes), una
+# fachada (panel de WALLS 1, repetido a lo ancho) y el color de su neón;
+# las claves de respaldo (muro, junta, color_techo, ventanas, toldo) dibujan
+# la casa en pixel art si falta el atlas. Dos estilos cualesquiera difieren
+# en al menos VARIACION_MINIMA_ESTILOS de ATRIBUTOS_ESTILO y dos casas a 2
+# casillas o menos nunca comparten estilo (ciudad_mapa.CASAS).
+GRADE_CIUDAD = GRADE_POR_DEFECTO  # props del pack Backrooms en la ciudad (antena, conos, letrero)
+VARIACION_MINIMA_ESTILOS = 2
+ATRIBUTOS_ESTILO = ("techo_pack", "fachada_pack", "neon")
+LADO_MARCO_TECHO = 40  # px de las esquinas del marco del techo (9-slice)
+FILAS_FACHADA_CASA = 1  # casillas de fachada al pie de una casa (el resto es techo)
+ESTILOS_CASA = {
+    "cobalto": {"techo_pack": "techo_0", "fachada_pack": "fachada_vidrio", "neon": (90, 220, 255),
+                "muro": (44, 62, 92), "junta": (32, 46, 70), "techo": "mansarda", "color_techo": (30, 34, 46),
+                "ventanas": "vertical", "toldo": False},
+    "ambar": {"techo_pack": "techo_3", "fachada_pack": "fachada_roja", "neon": (255, 190, 70),
+              "muro": (96, 46, 44), "junta": (70, 32, 32), "techo": "tejas", "color_techo": (60, 34, 40),
+              "ventanas": "doble", "toldo": False},
+    "lima": {"techo_pack": "techo_4", "fachada_pack": "fachada_neon", "neon": (190, 255, 90),
+             "muro": (62, 90, 74), "junta": (46, 68, 56), "techo": "tejas", "color_techo": (36, 58, 52),
+             "ventanas": "doble", "toldo": True},
+    "grafito": {"techo_pack": "techo_7", "fachada_pack": "fachada_noche", "neon": (170, 120, 255),
+                "muro": (78, 80, 92), "junta": (60, 62, 72), "techo": "plano", "color_techo": (52, 54, 64),
+                "ventanas": "cuadricula", "toldo": False},
+    "magenta": {"techo_pack": "techo_9", "fachada_pack": "fachada_granate", "neon": (255, 80, 200),
+                "muro": (42, 38, 80), "junta": (32, 28, 62), "techo": "tejas", "color_techo": (56, 46, 96),
+                "ventanas": "doble", "toldo": False},
+    "acero": {"techo_pack": "techo_1", "fachada_pack": "fachada_tienda", "neon": (120, 200, 255),
+              "muro": (122, 108, 92), "junta": (96, 84, 72), "techo": "plano", "color_techo": (74, 68, 66),
+              "ventanas": "banda", "toldo": False},
+    "oliva": {"techo_pack": "techo_5", "fachada_pack": "fachada_noche", "neon": (150, 255, 170),
+              "muro": (140, 82, 56), "junta": (108, 60, 42), "techo": "terraza", "color_techo": (64, 92, 52),
+              "ventanas": "vertical", "toldo": False},
+    "cobre": {"techo_pack": "techo_6", "fachada_pack": "fachada_roja", "neon": (255, 140, 80),
+              "muro": (92, 66, 48), "junta": (70, 50, 36), "techo": "mansarda", "color_techo": (48, 36, 32),
+              "ventanas": "banda", "toldo": True},
+}
+GROSOR_NEON_CASA = 3  # px de la franja de neón entre techo y fachada
 COLOR_MARCO_CASA = (18, 16, 30)
 COLOR_VIDRIO_CASA = (36, 44, 70)
 COLORES_VENTANA_CASA = ((255, 204, 110), (255, 226, 160), (150, 220, 255), (255, 160, 200))
@@ -1628,12 +1708,6 @@ COLOR_ESCALON_CASA = (96, 92, 104)
 FRACCION_VENTANAS_ENCENDIDAS = 0.45
 FRACCION_VENTANAS_PARPADEAN = 0.12  # de las encendidas: se apagan y prenden despacio
 PERIODO_VENTANA = (9.0, 22.0)  # s de un ciclo de parpadeo (cada ventana el suyo)
-# Agua (tiles Backrooms, auto-tiling de src/dungeon/autotile.py): la fuente
-# de la plaza cívica (borde de azulejo + agua de piscina) y el estanque del
-# parque (agua estancada sobre el pasto). Animados con el ms de cada cuadro.
-TERRENO_BORDE_FUENTE = "pool_tile"
-TERRENO_AGUA_FUENTE = "pool_water"
-TERRENO_ESTANQUE = "pool_water"
 # Hojas que caen en el parque y la zona escolar (muy sutiles).
 CANTIDAD_HOJAS = 14
 COLORES_HOJA = ((140, 170, 70), (200, 150, 60), (170, 90, 60))

@@ -2,10 +2,11 @@
 
 Cada zona es un conjunto de rectángulos de casillas con su identidad
 visual: especies de árbol, modelo de farola y de banca, los tipos de prop
-que solo ella usa y los props colocados a mano (los "hitos" de la zona).
-Las reglas generales (farolas cada N casillas, bancas en pares, árboles
-agrupados) viven en src/dungeon/layout_decoracion.py y le preguntan a
-zona_de() qué modelo o especie toca en cada casilla.
+que solo ella usa (la mayoría, máquinas y objetos del pack DECORATIONS
+cyberpunk) y los props colocados a mano (los "hitos" de la zona). Las
+reglas generales (farolas cada N casillas, bancas en pares, árboles en
+el camellón y los jardines) viven en src/dungeon/layout_decoracion.py y
+le preguntan a zona_de() qué modelo o especie toca en cada casilla.
 
     ZONAS                -> {id: Zona}
     zona_de(col, fila)   -> id de la zona (la primera cuyo rect la contiene) o AVENIDA
@@ -27,14 +28,17 @@ ESCOLAR = "escolar"
 HOSPITAL = "hospital"
 MEDIOS = "medios"
 CIVICA = "civica"
+COMERCIAL = "comercial"
 RESIDENCIAL = "residencial"
 LIMINAL = "liminal"
 
 # Lote reservado para la parte 2 (mazmorras del nuevo mundo): (col, fila,
-# ancho, alto). Se llega por la abertura del seto bajo el Cruce Sur; queda
-# libre para 1-2 aristas nuevas del grafo y una entrada tipo grieta/ascensor.
-LIMINAL_RESERVADO = (28, 41, 8, 5)
-ACCESO_LIMINAL = ((31, 40), (32, 40), (33, 40))
+# ancho, alto). Está bajo el Cruce Sur y se entra por su acera (fila 40);
+# queda libre para 1-2 aristas nuevas del grafo (Cruce Sur - Distrito
+# Liminal) y una entrada tipo grieta/ascensor, que hoy es solo un dibujo
+# en el suelo (assets.PIEZA_GRIETA_LIMINAL).
+LIMINAL_RESERVADO = (22, 41, 7, 5)
+ACCESO_LIMINAL = ((24, 40), (25, 40), (26, 40))
 
 
 @dataclass(frozen=True)
@@ -61,97 +65,92 @@ class Zona:
 
 ZONAS = {
     LIMINAL: Zona(
-        "Distrito Liminal (reservado)", ((28, 40, 8, 6),),
+        "Distrito Liminal (reservado)", (LIMINAL_RESERVADO,),
         identidad=("cono", "letrero_prohibido"),
-        hitos=(Hito("cono", (28, 41)), Hito("cono", (35, 41)), Hito("letrero_prohibido", (28, 45)),
-               Hito("cono", (35, 45))),
+        hitos=(Hito("cono", (22, 41)), Hito("cono", (28, 41)), Hito("letrero_prohibido", (22, 45)),
+               Hito("cono", (28, 45))),
     ),
     PLAZA: Zona(
-        "Plaza central", ((25, 20, 15, 11),), arboles=(75, 84), farola="farola_ornamental",
-        identidad=("mesa_cafe", "carrito_comida", "jardinera"),
-        hitos=(Hito("mesa_cafe", (29, 22)), Hito("mesa_cafe", (35, 22)), Hito("carrito_comida", (29, 28)),
-               Hito("carrito_comida", (35, 28))),
+        "Plaza central", ((23, 19, 15, 13),), arboles=(75, 84), farola="farola_ornamental",
+        identidad=("farol_datos", "carrito_comida", "jardinera"),
+        hitos=(Hito("farol_datos", (23, 19)), Hito("farol_datos", (37, 19)), Hito("carrito_comida", (27, 31)),
+               Hito("carrito_comida", (33, 31))),
+    ),
+    PARQUE: Zona(
+        "Parque de la Laguna", ((40, 11, 13, 12),), arboles=(9, 12, 15, 18, 27, 30, 33, 47, 53, 62),
+        farola="farola_farol",
+        identidad=("estanque", "bebedero_pajaros", "mesa_sombrilla"),
+        hitos=(
+            Hito("arbol", (44, 20), variante=24), Hito("arbol", (40, 21), variante=24),  # sauces junto al agua
+            Hito("bebedero_pajaros", (50, 13)), Hito("mesa_sombrilla", (48, 19)), Hito("mesa_sombrilla", (50, 19)),
+        ),
+    ),
+    COMERCIAL: Zona(
+        "Paseo comercial", ((27, 32, 11, 6),), arboles=(36, 38), farola="farola_jardin",
+        identidad=("expendedora", "kiosco_neon", "maquina_snacks", "cajero", "mesa_cafe"),
+        hitos=(
+            # Terrazas en la mitad sur del paseo (la mitad norte queda libre) y máquinas al fondo.
+            Hito("mesa_cafe", (29, 35)), Hito("mesa_cafe", (31, 35)), Hito("mesa_cafe", (33, 35)),
+            Hito("expendedora", (28, 35)), Hito("kiosco_neon", (37, 35)), Hito("cajero", (35, 35)),
+            Hito("maquina_snacks", (27, 32)),
+        ),
     ),
     CIVICA: Zona(
-        "Zona cívica", ((25, 1, 38, 9), (57, 10, 7, 13)), arboles=(1, 3, 5, 7, 87), farola="farola_ornamental",
-        identidad=("fuente", "jardinera_flores", "bolardo", "jardinera_larga"),
+        "Zona cívica", ((21, 1, 17, 8), (40, 1, 17, 8)), arboles=(1, 3, 5, 7, 87), farola="farola_ornamental",
+        identidad=("fuente", "totem_info", "pedestal_civico", "urna_digital", "bolardo"),
         hitos=(
-            # Plaza de la Alcaldía: fuente al centro, bancas enfrentadas, jardineras y faroles.
-            Hito("banca", (26, 6), "E"), Hito("banca", (36, 6), "O"),
-            Hito("jardinera_flores", (26, 4)), Hito("jardinera_flores", (36, 4)),
-            Hito("farola_ornamental", (25, 8)), Hito("farola_ornamental", (37, 8)),
-            Hito("bolardo", (26, 8)), Hito("bolardo", (36, 8)),
-            # Jardín formal al este de la Alcaldía.
-            Hito("jardinera_larga", (52, 5)), Hito("jardinera_larga", (52, 8)),
-            Hito("arbol", (55, 5), variante=87), Hito("arbol", (55, 8), variante=87),
-            Hito("bolardo", (51, 4)), Hito("bolardo", (51, 8)),
+            # Plaza de la Alcaldía: fuente de datos al centro, bancas enfrentadas, tótem y pedestal.
+            Hito("banca", (40, 4), "E"), Hito("banca", (45, 4), "O"),
+            Hito("totem_info", (40, 2)), Hito("pedestal_civico", (45, 2)),
+            Hito("urna_digital", (45, 6)), Hito("bolardo", (40, 6)),
         ),
     ),
     ESCOLAR: Zona(
-        "Zona escolar", ((0, 0, 25, 10), (0, 10, 7, 13)), arboles=(43, 44, 49, 64), farola="farola_baja",
+        "Zona escolar", ((1, 1, 20, 22), (21, 9, 12, 14)), arboles=(43, 44, 49, 64), farola="farola_baja",
         banca="banca_corta",
-        identidad=("bicicletero", "bicicleta", "cartelera", "bebedero", "letrero_bienvenida", "casita_pajaros"),
+        identidad=("casillero_escolar", "caja_material", "terminal_estudio", "bicicletero", "bicicleta"),
         hitos=(
-            # Patio del Colegio: bicicletero con bicicletas, cartelera, bebedero y bienvenida.
-            Hito("bicicletero", (7, 6)), Hito("bicicleta", (8, 6)), Hito("bicicleta", (9, 6)),
-            Hito("cartelera", (11, 5)), Hito("bebedero", (12, 8)), Hito("letrero_bienvenida", (10, 8)),
-            Hito("banca_corta", (7, 8), "N"), Hito("banca_corta", (8, 8), "N"),
-            Hito("casita_pajaros", (2, 12)), Hito("casita_pajaros", (4, 12)),
-        ),
-    ),
-    PARQUE: Zona(
-        "Parque", ((12, 15, 19, 8),), arboles=(9, 12, 15, 18, 27, 30, 33, 47, 53, 62), farola="farola_farol",
-        identidad=("estanque", "bebedero_pajaros", "mesa_sombrilla"),
-        hitos=(
-            Hito("arbol", (20, 16), variante=24), Hito("arbol", (28, 17), variante=24),  # sauces junto al agua
-            Hito("bebedero_pajaros", (15, 17)), Hito("mesa_sombrilla", (14, 21)), Hito("mesa_sombrilla", (21, 21)),
-            Hito("casita_pajaros", (13, 16)),
-        ),
-    ),
-    RESIDENCIAL: Zona(
-        "Barrio residencial", ((35, 15, 18, 8),), arboles=(57, 62, 67, 69), farola="farola",
-        identidad=("buzon_azul", "cerca_madera", "parrilla", "barril"),
-        hitos=(
-            Hito("cerca_madera", (41, 19)), Hito("cerca_madera", (42, 19)), Hito("cerca_madera", (43, 19)),
-            Hito("parrilla", (42, 20)), Hito("barril", (44, 21)), Hito("buzon_azul", (44, 18)),
-            Hito("buzon_azul", (44, 16)),
+            # Patio del Colegio: casilleros y cajas en el borde de la cancha, bicicletero junto a la entrada.
+            Hito("casillero_escolar", (10, 18)), Hito("casillero_escolar", (11, 18)),
+            Hito("caja_material", (20, 18)), Hito("terminal_estudio", (20, 13)),
+            Hito("bicicletero", (11, 13)), Hito("bicicleta", (12, 13)), Hito("bicicleta", (13, 13)),
+            Hito("banca_corta", (17, 18), "N"), Hito("banca_corta", (18, 18), "N"),
         ),
     ),
     HOSPITAL: Zona(
-        "Zona hospitalaria", ((12, 27, 18, 9), (0, 23, 7, 24), (7, 40, 20, 7)), arboles=(42, 52, 57, 72),
-        farola="farola_curva",
-        identidad=("auto_van", "auto_sedan", "banca_parada", "cartel_parada", "maceta_planta"),
+        "Zona hospitalaria", ((1, 29, 22, 17),), arboles=(42, 52, 57, 72), farola="farola_curva",
+        identidad=("dispensador_medico", "equipo_medico", "botiquin", "banca_parada", "cartel_parada"),
         hitos=(
-            # Jardín ordenado junto al Hospital y estacionamiento con parada.
-            Hito("maceta_planta", (25, 32)), Hito("maceta_planta", (28, 32)),
-            Hito("banca_parada", (26, 33)), Hito("cartel_parada", (27, 33)),
-            Hito("auto_van", (1, 24), ancho=5, alto=3), Hito("auto_sedan", (1, 36), ancho=5, alto=3),
-            Hito("maceta_planta", (8, 42)), Hito("maceta_planta", (11, 42)),
+            # Jardín del Hospital (da a la Plaza) y parada frente a su puerta.
+            Hito("dispensador_medico", (20, 31)), Hito("equipo_medico", (22, 35)), Hito("botiquin", (20, 35)),
+            Hito("banca_parada", (10, 37)), Hito("cartel_parada", (11, 37)),
         ),
     ),
     MEDIOS: Zona(
-        "Zona de medios", ((35, 27, 18, 9), (57, 23, 7, 24), (37, 40, 20, 7)), arboles=(78, 81, 84, 90),
-        farola="farola_jardin",
-        identidad=("antena", "kiosco_digital", "maquina", "armario_electrico", "auto_hatch"),
+        "Zona de medios", ((40, 29, 13, 17), (27, 38, 13, 8)), arboles=(78, 81, 84, 90), farola="farola_jardin",
+        identidad=("servidor", "baliza_senal", "consola_noticias", "monitor_medios", "antena"),
         hitos=(
-            Hito("kiosco_digital", (38, 33)), Hito("maquina", (40, 33)), Hito("armario_electrico", (36, 33)),
-            Hito("antena", (61, 40), ancho=2), Hito("auto_hatch", (58, 24), ancho=5, alto=3),
-            Hito("kiosco_digital", (60, 36)), Hito("maquina", (58, 37)),
-            Hito("antena", (55, 42), ancho=2), Hito("armario_electrico", (53, 44)),
+            Hito("servidor", (40, 41)), Hito("consola_noticias", (36, 41)), Hito("monitor_medios", (33, 41)),
+            Hito("baliza_senal", (52, 41)), Hito("antena", (44, 44), ancho=2),
+            Hito("servidor", (50, 44)),
+        ),
+    ),
+    RESIDENCIAL: Zona(
+        "Barrio residencial", ((53, 1, 10, 45),), arboles=(57, 62, 67, 69), farola="farola",
+        identidad=("generador", "aire_ac", "contenedor", "medidor", "buzon_azul"),
+        hitos=(
+            Hito("generador", (56, 12)), Hito("aire_ac", (56, 20)), Hito("contenedor", (56, 30)),
+            Hito("medidor", (56, 38)), Hito("buzon_azul", (56, 14)),
         ),
     ),
 }
 # Tipos de identidad mínimos que cada zona construida debe mostrar (el
 # lote liminal está vacío a propósito).
 MINIMO_IDENTIDAD = 3
-ORDEN_ZONAS = (LIMINAL, PLAZA, CIVICA, ESCOLAR, PARQUE, RESIDENCIAL, HOSPITAL, MEDIOS)
+ORDEN_ZONAS = (LIMINAL, PLAZA, PARQUE, COMERCIAL, CIVICA, ESCOLAR, HOSPITAL, MEDIOS, RESIDENCIAL)
 
 # Props de Backrooms que usa la ciudad (tipo -> nombre en el pack).
 PROPS_BACKROOMS = {
-    "auto_van": "garage_car_van_grey",
-    "auto_sedan": "garage_car_sedan_beige",
-    "auto_hatch": "garage_car_hatch_teal",
-    "auto_estate": "garage_car_estate_green",
     "antena": "lab_antenna_mast",
     "cono": "garage_traffic_cone",
     "letrero_prohibido": "elec_sign_keep_out",

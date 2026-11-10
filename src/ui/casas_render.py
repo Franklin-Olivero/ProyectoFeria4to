@@ -1,6 +1,12 @@
-"""Fachadas de las casas de Ciudad Nova (solo dibujo).
+"""Casas de Ciudad Nova (solo dibujo).
 
-Cada casa de ciudad_mapa.CASAS se pinta una vez en pixel art (16 px por
+Con el atlas de la ciudad, cada casa de ciudad_mapa.CASAS se arma una vez
+con los packs cyberpunk (src/ui/fachadas_ciudad.py): el techo y la
+fachada de su estilo (assets.ESTILOS_CASA), su franja de neón, la puerta
+solo si da a una acera y un toldo si es una tienda del paseo comercial.
+Encima, cada frame, parpadean algunas luces de la fachada.
+
+Sin el atlas (respaldo), cada casa se pinta una vez en pixel art (16 px por
 casilla) con su plantilla de assets.ESTILOS_CASA: color del muro y sus
 hiladas, techo (tejas, mansarda con buhardillas, plano con pretil o
 terraza con plantas), patrón de ventanas (dobles, verticales, en banda o
@@ -20,8 +26,8 @@ import pygame
 
 from src.core import assets
 from src.core.balance import TAM_CASILLA
-from src.dungeon import casas_ciudad, ciudad_mapa
-from src.ui import cargador_assets
+from src.dungeon import casas_ciudad, ciudad_mapa, zonas_ciudad
+from src.ui import cargador_assets, fachadas_ciudad, tiles_ciudad
 
 ESCALA = assets.ESCALA_PIXEL
 LADO = casas_ciudad.LADO
@@ -107,8 +113,50 @@ def _base(indice):
     return lienzo, estilo
 
 
+def _con_puerta(huella):
+    """La puerta va al centro de la fachada solo si debajo hay por dónde entrar."""
+    col, fila, ancho, alto = huella
+    return not ciudad_mapa.es_solida(col + ancho // 2, fila + alto)
+
+
+def es_tienda(huella):
+    col, fila, ancho, alto = huella
+    return zonas_ciudad.zona_de(col + ancho // 2, fila + alto - 1) == zonas_ciudad.COMERCIAL
+
+
+def _compuesta(indice):
+    """La casa con los packs (techo + fachada + neón + puerta), o None."""
+    huella, nombre = ciudad_mapa.CASAS[indice]
+    _, _, ancho, alto = huella
+    estilo = assets.ESTILOS_CASA[nombre]
+    w = ancho * TAM_CASILLA
+    figura = fachadas_ciudad.edificio(
+        w, alto * TAM_CASILLA, assets.FILAS_FACHADA_CASA, estilo["techo_pack"], estilo["fachada_pack"],
+        estilo["neon"], puerta_x=w // 2 if _con_puerta(huella) else None, puerta="puerta_vidrio")
+    if figura is not None and es_tienda(huella):
+        toldo = cargador_assets.prop_urbano("toldo")
+        if toldo is not None:  # un toldo por casilla, a su tamaño, colgado bajo el neón
+            arriba = figura.get_height() - TAM_CASILLA * assets.FILAS_FACHADA_CASA
+            for col in range(ancho):
+                if col == ancho // 2 and _con_puerta(huella):
+                    continue  # sobre la puerta, no
+                figura.blit(toldo, toldo.get_rect(midtop=(col * TAM_CASILLA + TAM_CASILLA // 2, arriba)))
+    return figura
+
+
+def compuesta(indice):
+    """True si la casa se dibuja con los packs (para medir el origen del arte)."""
+    return tiles_ciudad.disponible() and imagen(indice) is not None and ("compuesta", indice) in _cache
+
+
 def imagen(indice):
     if indice not in _cache:
+        if tiles_ciudad.disponible():
+            figura = _compuesta(indice)
+            if figura is not None:
+                _cache[("compuesta", indice)] = True
+                _cache[indice] = figura
+                return figura
         lienzo, estilo = _base(indice)
         figura = pygame.transform.scale(lienzo, (lienzo.get_width() * ESCALA, lienzo.get_height() * ESCALA))
         (_, _, ancho, alto), _ = ciudad_mapa.CASAS[indice]
@@ -154,6 +202,13 @@ def dibujar_ventanas(pantalla, rect_mundo, dx, dy, tiempo):
         if not casa.colliderect(rect_mundo):
             continue
         estilo = assets.ESTILOS_CASA[nombre]
+        if compuesta(indice):
+            semilla = casas_ciudad.semilla((col, fila, ancho, alto))
+            for i, (x, y, w, h) in enumerate(casas_ciudad.luces_fachada(ancho, alto, assets.FILAS_FACHADA_CASA)):
+                if casas_ciudad.parpadea(semilla, i):
+                    color = estilo["neon"] if casas_ciudad.encendida(semilla, i, tiempo) else assets.COLOR_VIDRIO_CASA
+                    pantalla.fill(color, (casa.x + x * ESCALA + dx, casa.y + y * ESCALA + dy, w * ESCALA, h * ESCALA))
+            continue
         semilla = casas_ciudad.semilla((col, fila, ancho, alto))
         luz = casas_ciudad.color_ventana(semilla)
         for i, (x, y, w, h) in enumerate(casas_ciudad.ventanas(ancho, alto, estilo["ventanas"], estilo["techo"])):

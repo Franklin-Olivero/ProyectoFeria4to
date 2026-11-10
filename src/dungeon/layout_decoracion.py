@@ -6,32 +6,33 @@ variante). Nada se pone a mano casilla por casilla: las reglas viven
 aquí y los números (espaciados, semilla) en balance.py.
 
 Reglas:
-    - Farolas: a lo largo de cada tramo de calle, en las dos aceras
-      (eje ± 2), cada ESPACIADO_FAROLAS casillas desde MARGEN_FAROLAS_CRUCE.
-      Si una cae sobre algo reservado se salta (el hueco queda múltiplo del
+    - Aceras: las líneas de acera de cada tramo recto se miden en el mapa
+      (lineas_de_acera: desde el eje se avanza en perpendicular por la
+      calle hasta la primera casilla que no es calle). En cada acera,
+      farolas cada ESPACIADO_FAROLAS casillas desde MARGEN_FAROLAS_CRUCE y,
+      corrido medio espaciado, mobiliario por turnos (cajas eléctricas,
+      papeleras, transformadores, hidrantes). Si una cae sobre algo
+      reservado o sobre un puente se salta (el hueco queda múltiplo del
       espaciado).
-    - Mobiliario de acera: papeleras, canteros, buzones e hidrantes, por
-      turnos, cada ESPACIADO_MOBILIARIO_ACERA casillas en las mismas aceras,
-      corridos medio espaciado de farola para no chocar con ellas.
+    - Camellón de la avenida ('k'): una hilera de árboles cada
+      ESPACIADO_ARBOLES_AVENIDA casillas.
     - Plaza: bancas en pares simétricos respecto de su centro, mirando al
-      paseo; farolas, canteros y árboles de acento en sus cuatro esquinas.
+      centro; faroles y canteros en sus cuatro cuadrantes y árboles neón
+      en las esquinas de abajo.
     - Parque: sendero libre; pares de bancas a los lados del sendero
-      mirándolo; farolas a lo largo del sendero; ARBOLES_PARQUE árboles
+      mirándolo; farolas a lo largo de él; ARBOLES_PARQUE árboles
       agrupados al azar (semilla fija) sin pisar el sendero ni tocarse.
-    - Hileras en avenidas: árboles cada ESPACIADO_ARBOLES_AVENIDA casillas
-      sobre los setos ('T') que dan a una acera (ya eran sólidos).
     - Zonas (src/dungeon/zonas_ciudad.py): cada farola toma el modelo de
       su zona y cada árbol una especie de su zona; los hitos de cada zona
-      (fuente, bancas de la plaza cívica, autos, antenas...) van en sus
-      casillas, con su huella de varias casillas si la tienen.
-    - Arboledas: ARBOLEDAS (rect, cantidad, separación) con la semilla
-      fija, sin tocarse entre sí.
+      (máquinas, tótems, servidores, terrazas...) van en sus casillas, con
+      su huella de varias casillas si la tienen.
+    - Arboledas: ARBOLEDAS (rect, cantidad, separación) sobre los jardines
+      tecno ('J'), con la semilla fija, sin tocarse entre sí.
 
 Nunca se coloca un prop sobre: calles, el eje de un tramo, la sección de
 una barricada, un nodo, una puerta, la casilla frente a una puerta (y sus
-vecinas), el spawn o un sendero. Todo prop es sólido salvo los de capa
-"suelo" (hoy ninguno), así que tampoco corta un paso: las aceras corren
-junto a calles que siguen libres.
+vecinas), el spawn o un sendero. Las aceras miden una casilla: un prop
+sobre ellas no corta el paso, porque la calle de al lado sigue libre.
 """
 
 import random
@@ -53,17 +54,19 @@ CAPA_OBJETO = "objeto"
 CAPA_ARBOL = "arbol"
 
 NORTE, SUR, ESTE, OESTE = "N", "S", "E", "O"
-# Letras del mapa donde puede ir un prop: pasto, acera/plaza y seto (los
-# árboles de hilera); nunca calle, edificio, casa, agua ni puerta.
-LIBRES = (".", ":", "T")
+ACERA, PASTO, JARDIN, CAMELLON, AGUA = ":", ".", "J", "k", "~"
+# Letras del mapa donde puede ir un prop: pasto y acera/plaza; los árboles
+# además en los jardines tecno y el camellón (ya sólidos). Nunca calle,
+# edificio, casa, muro, agua ni puerta.
+LIBRES = (PASTO, ACERA, JARDIN, CAMELLON)
+SOLO_ARBOLES = (JARDIN, CAMELLON)
 FAROLAS = ("farola", "farola_ornamental", "farola_baja", "farola_curva", "farola_jardin", "farola_farol")
 
 # Variantes de árbol (número del pack Trees_Vol2; arte en assets.RUTA_ARBOLES).
 ARBOLES_AVENIDA = (57, 62, 67)
 ARBOLES_PARQUE_VARIANTES = (9, 12, 18, 52, 47, 24, 1, 3)
-ARBUSTOS = (36, 38)
 ARBOLES_NEON = (75, 78, 84)
-MOBILIARIO_ACERA = ("basurero", "jardinera", "buzon", "hidrante")
+MOBILIARIO_ACERA = ("caja_electrica", "basurero", "transformador", "hidrante")
 
 
 @dataclass(frozen=True)
@@ -95,8 +98,8 @@ def generar(mapa, calles, tramos, nodos, entradas, spawn, plaza, parque, sendero
     mapa: lista de cadenas (ciudad_mapa.MAPA); calles: letras de calle;
     tramos: [(puntos, seccion)] de cada arista; nodos y entradas: casillas;
     plaza y parque: rects (col, fila, ancho, alto); senderos: casillas del
-    sendero del parque; edificios: rects de sus huellas (ningún árbol de
-    hilera a menos de 2 casillas: su copa taparía la fachada); arboledas:
+    sendero del parque; edificios: rects de sus huellas (ningún árbol a
+    menos de 2 casillas: su copa taparía la fachada); arboledas:
     [(rect, cantidad, separación)]; zonas: {id: Zona} (por defecto las de
     zonas_ciudad)."""
     rng = random.Random(semilla)
@@ -110,26 +113,26 @@ def generar(mapa, calles, tramos, nodos, entradas, spawn, plaza, parque, sendero
             return False
         if not all(0 <= f < len(mapa) and 0 <= c < len(mapa[0]) and mapa[f][c] in LIBRES for c, f in celdas):
             return False
-        if prop.tipo != "arbol" and any(mapa[f][c] == "T" for c, f in celdas):
-            return False  # en los setos solo van árboles
+        if prop.tipo != "arbol" and any(mapa[f][c] in SOLO_ARBOLES for c, f in celdas):
+            return False  # en jardines y camellón solo van árboles
         for celda in celdas:
             ocupadas[celda] = prop
         return True
+
+    def arbol_cerca(casilla, separacion):
+        return any(p.tipo == "arbol" and max(abs(casilla[0] - c[0]), abs(casilla[1] - c[1])) < separacion
+                   for c, p in ocupadas.items())
 
     for id_zona in zonas_ciudad.ORDEN_ZONAS:  # primero los hitos: son la identidad de cada zona
         for hito in zonas[id_zona].hitos:
             capa = CAPA_ARBOL if hito.tipo == "arbol" else CAPA_OBJETO
             poner(Prop(hito.tipo, hito.casilla, hito.orientacion, capa, True, hito.variante, hito.ancho, hito.alto))
     _plaza(poner, plaza)
-    def arbol_cerca(casilla, separacion):
-        return any(p.tipo == "arbol" and max(abs(casilla[0] - c[0]), abs(casilla[1] - c[1])) < separacion
-                   for c, p in ocupadas.items())
-
     _parque(poner, mapa, parque, senderos, rng, arbol_cerca)
-    _aceras(poner, mapa, tramos, plaza)
-    _hileras_de_avenida(poner, mapa, rng, edificios)
+    _aceras(poner, mapa, calles, tramos, plaza)
+    _camellon(poner, mapa, rng)
     for rect, cantidad, separacion in arboledas:
-        _arboleda(poner, mapa, rect, cantidad, separacion, rng, arbol_cerca)
+        _arboleda(poner, mapa, rect, cantidad, separacion, rng, arbol_cerca, edificios)
     unicos = {id(p): p for p in ocupadas.values()}.values()
     return tuple(sorted(unicos, key=lambda p: (p.casilla[1], p.casilla[0])))
 
@@ -170,22 +173,63 @@ def _dentro(rect, casilla):
     return col <= casilla[0] < col + ancho and fila <= casilla[1] < fila + alto
 
 
+def lineas_de_acera(mapa, calles, inicio, fin):
+    """Desplazamientos perpendiculares (con signo) de las aceras de un
+    tramo recto de `inicio` a `fin`: desde la casilla de calle del eje más
+    cercana a su punto medio se avanza hacia cada lado mientras haya calle;
+    si se llega a una acera, ese es su desplazamiento. Si en el camino hay
+    un camellón, se cruza y se sigue (la avenida tiene aceras a los dos
+    lados de sus dos calzadas). Un segmento sin calle (el que cruza la
+    Plaza) no tiene aceras.
+    Devuelve [(desplazamiento, letra)] con letra ':' (acera) o 'k' (camellón)."""
+    (c0, f0), (c1, f1) = inicio, fin
+    horizontal = f0 == f1
+    centro = ((c0 + c1) / 2, (f0 + f1) / 2)
+    en_calle = [c for c in casillas_eje((inicio, fin)) if _letra(mapa, c) in calles]
+    if not en_calle:
+        return []
+    medio = min(en_calle, key=lambda c: (abs(c[0] - centro[0]) + abs(c[1] - centro[1]), c))
+    lineas = []
+    for signo in (-1, 1):
+        paso = 0
+        while True:
+            paso += signo
+            casilla = (medio[0], medio[1] + paso) if horizontal else (medio[0] + paso, medio[1])
+            letra = _letra(mapa, casilla)
+            if letra in calles:
+                continue
+            if letra == CAMELLON:
+                lineas.append((paso, CAMELLON))
+                continue
+            if letra == ACERA:
+                lineas.append((paso, ACERA))
+            break
+    return lineas
+
+
 # ----------------------------------------------------------------------
 # Reglas
 # ----------------------------------------------------------------------
 
-def _aceras(poner, mapa, tramos, plaza):
-    """Farolas a intervalos regulares y mobiliario por turnos en las dos
-    aceras de cada tramo recto (fuera de la Plaza, que tiene las suyas)."""
+def _junto_al_agua(mapa, casilla):
+    c, f = casilla
+    return any(_letra(mapa, (c + dc, f + df)) == AGUA for dc, df in ((0, -1), (0, 1), (-1, 0), (1, 0)))
+
+
+def _aceras(poner, mapa, calles, tramos, plaza):
+    """Farolas a intervalos regulares y mobiliario por turnos en las
+    aceras de cada tramo recto (fuera de la Plaza y de los puentes)."""
     turno = 0
     for puntos, _ in tramos:
         for (c0, f0), (c1, f1) in zip(puntos, puntos[1:]):
             horizontal = f0 == f1
             desde, hasta = (min(c0, c1), max(c0, c1)) if horizontal else (min(f0, f1), max(f0, f1))
-            for lado in (-2, 2):
+            for lado, letra in lineas_de_acera(mapa, calles, (c0, f0), (c1, f1)):
+                if letra != ACERA:
+                    continue
                 for paso in range(desde + MARGEN_FAROLAS_CRUCE, hasta - MARGEN_FAROLAS_CRUCE + 1):
                     casilla = (paso, f0 + lado) if horizontal else (c0 + lado, paso)
-                    if _dentro(plaza, casilla) or _letra(mapa, casilla) != ":":
+                    if _dentro(plaza, casilla) or _letra(mapa, casilla) != ACERA or _junto_al_agua(mapa, casilla):
                         continue
                     desplazamiento = paso - desde - MARGEN_FAROLAS_CRUCE
                     if desplazamiento % ESPACIADO_FAROLAS == 0:
@@ -195,11 +239,21 @@ def _aceras(poner, mapa, tramos, plaza):
                             turno += 1
 
 
+def _camellon(poner, mapa, rng):
+    """Hilera de árboles sobre el camellón de la avenida, a paso fijo."""
+    for fila, linea in enumerate(mapa):
+        columnas = [c for c, letra in enumerate(linea) if letra == CAMELLON]
+        for i, col in enumerate(columnas):
+            if i % ESPACIADO_ARBOLES_AVENIDA == 1:
+                poner(Prop("arbol", (col, fila), SUR, CAPA_ARBOL, True, rng.choice(ARBOLES_AVENIDA)))
+
+
 def _plaza(poner, plaza):
-    """Simetría respecto del centro de la Plaza: el paseo en cruz queda libre."""
+    """Simetría respecto del centro de la Plaza: los ejes de los radios y
+    el emblema central quedan libres."""
     col, fila, ancho, alto = plaza
     cx, cy = col + ancho // 2, fila + alto // 2
-    for dx in (-5, 5):
+    for dx in (-3, 3):
         for dy in (-4, 4):
             mira = SUR if dy < 0 else NORTE  # hacia el centro
             poner(Prop("banca", (cx + dx, cy + dy), mira))
@@ -214,15 +268,16 @@ def _parque(poner, mapa, parque, senderos, rng, arbol_cerca=lambda casilla, sepa
     """Bancas enfrentadas a ambos lados del sendero, farolas a lo largo de
     él y árboles agrupados (semilla fija) en el pasto."""
     col, fila, ancho, alto = parque
-    horizontales = sorted(c for c in senderos if _letra(mapa, (c[0], c[1] - 1)) == "." and _letra(mapa, (c[0], c[1] + 1)) == ".")
+    horizontales = sorted(c for c in senderos
+                          if _letra(mapa, (c[0], c[1] - 1)) == PASTO and _letra(mapa, (c[0], c[1] + 1)) == PASTO)
     for indice, (c, f) in enumerate(horizontales):
         if indice % ESPACIADO_FAROLAS == 1:
             poner(Prop(zonas_ciudad.farola_de(c, f - 1), (c, f - 1), SUR))
-        elif indice % ESPACIADO_FAROLAS == 4:
+        elif indice % ESPACIADO_FAROLAS == 3:
             poner(Prop("banca", (c, f - 1), SUR))  # par simétrico: una mira al sur...
             poner(Prop("banca", (c, f + 1), NORTE))  # ...y la otra al norte, al sendero
     libres = [(c, f) for f in range(fila, fila + alto) for c in range(col, col + ancho)
-              if _letra(mapa, (c, f)) == "." and all(abs(c - s[0]) + abs(f - s[1]) > 1 for s in senderos)]
+              if _letra(mapa, (c, f)) == PASTO and all(abs(c - s[0]) + abs(f - s[1]) > 1 for s in senderos)]
     rng.shuffle(libres)
     puestos = []
     for casilla in libres:
@@ -235,24 +290,15 @@ def _parque(poner, mapa, parque, senderos, rng, arbol_cerca=lambda casilla, sepa
             puestos.append(casilla)
 
 
-def _hileras_de_avenida(poner, mapa, rng, edificios):
-    """Árboles cada ESPACIADO_ARBOLES_AVENIDA casillas sobre los tramos
-    rectos de seto que dan a una acera, lejos de las fachadas."""
-    for horizontal in (True, False):
-        for corrida in _corridas_de_seto(mapa, horizontal):
-            for i, casilla in enumerate(corrida):
-                if any(_distancia_a_rect(casilla, rect) <= 2 for rect in edificios):
-                    continue
-                if i % ESPACIADO_ARBOLES_AVENIDA == 1:
-                    especie = rng.choice(ARBOLES_AVENIDA)
-                    poner(Prop("arbol", casilla, SUR, CAPA_ARBOL, True, especie))
-
-
-def _arboleda(poner, mapa, rect, cantidad, separacion, rng, arbol_cerca=lambda casilla, separacion: False):
-    """`cantidad` árboles de la especie de su zona en el pasto de `rect`,
-    al azar con la semilla fija y a `separacion` casillas o más entre sí."""
+def _arboleda(poner, mapa, rect, cantidad, separacion, rng, arbol_cerca=lambda casilla, separacion: False,
+              edificios=()):
+    """`cantidad` árboles de la especie de su zona en el jardín de `rect`,
+    al azar con la semilla fija, a `separacion` casillas o más entre sí y
+    nunca pegados a una fachada."""
     col, fila, ancho, alto = rect
-    libres = [(c, f) for f in range(fila, fila + alto) for c in range(col, col + ancho) if _letra(mapa, (c, f)) == "."]
+    libres = [(c, f) for f in range(fila, fila + alto) for c in range(col, col + ancho)
+              if _letra(mapa, (c, f)) in (JARDIN, PASTO)
+              and not any(distancia_a_rect((c, f), huella) <= 1 for huella in edificios)]
     rng.shuffle(libres)
     puestos = []
     for casilla in libres:
@@ -265,32 +311,7 @@ def _arboleda(poner, mapa, rect, cantidad, separacion, rng, arbol_cerca=lambda c
             puestos.append(casilla)
 
 
-def _corridas_de_seto(mapa, horizontal, minimo=4):
-    """Listas de casillas 'T' seguidas (en fila o en columna) que tocan una acera."""
-    filas, columnas = len(mapa), len(mapa[0])
-
-    def da_a_acera(c, f):
-        return any(_letra(mapa, (c + dc, f + df)) == ":" for dc, df in ((0, -1), (0, 1), (-1, 0), (1, 0)))
-
-    corridas = []
-    externo = range(filas) if horizontal else range(columnas)
-    interno = range(columnas) if horizontal else range(filas)
-    for a in externo:
-        actual = []
-        for b in interno:
-            c, f = (b, a) if horizontal else (a, b)
-            if _letra(mapa, (c, f)) == "T" and da_a_acera(c, f):
-                actual.append((c, f))
-                continue
-            if len(actual) >= minimo:
-                corridas.append(actual)
-            actual = []
-        if len(actual) >= minimo:
-            corridas.append(actual)
-    return corridas
-
-
-def _distancia_a_rect(casilla, rect):
+def distancia_a_rect(casilla, rect):
     """Distancia de Chebyshev (en casillas) de `casilla` a un rect (col, fila, ancho, alto)."""
     col, fila, ancho, alto = rect
     dx = max(col - casilla[0], 0, casilla[0] - (col + ancho - 1))

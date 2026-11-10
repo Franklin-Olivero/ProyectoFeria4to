@@ -83,9 +83,12 @@ def test_peso_base_es_funcion_del_largo_real_en_todas_las_calles():
 
 
 def test_largo_de_tramo_cuenta_los_codos():
-    # Colegio -> Cruce Oeste: 10 casillas al oeste y 13 al sur.
-    assert ciudad_mapa.largo_tramo(ciudad_mapa.tramo(ZONA_COLEGIO, CRUCE_OESTE)) == 23
-    assert ciudad_mapa.largo_tramo(ciudad_mapa.tramo(ZONA_PLAZA, CRUCE_SUR)) == 12
+    # Colegio -> Cruce Oeste: 9 casillas al oeste y 15 al sur.
+    assert ciudad_mapa.largo_tramo(ciudad_mapa.tramo(ZONA_COLEGIO, CRUCE_OESTE)) == 24
+    # Plaza -> Cruce Sur: 3 al sur y 5 al oeste por la Plaza, y 10 al sur por el radio.
+    assert ciudad_mapa.largo_tramo(ciudad_mapa.tramo(ZONA_PLAZA, CRUCE_SUR)) == 18
+    # Cruce Sur -> Medios: la Z (6 al este, 4 al sur y 15 al este).
+    assert ciudad_mapa.largo_tramo(ciudad_mapa.tramo(CRUCE_SUR, ZONA_EMPRESA_MEDIOS)) == 25
 
 
 def test_calle_mas_larga_pesa_mas():
@@ -119,6 +122,17 @@ def test_etiqueta_de_peso_a_mitad_de_la_calle_y_lejos_de_los_nodos():
             assert abs(col - nodo[0]) + abs(fila - nodo[1]) > 3, (t.a, t.b, nodo)
 
 
+def test_los_ejes_de_dos_calles_no_comparten_casillas():
+    """Fuera de sus nodos, dos tramos nunca pasan por la misma casilla:
+    en el mapa del mundo ninguna calle se dibuja encima de otra."""
+    nodos = set(ciudad_mapa.NODOS_CALLE.values())
+    vistas = {}
+    for t in ciudad_mapa.TRAMOS:
+        for casilla in set(ciudad_mapa.casillas_de_tramo(t.puntos)) - nodos:
+            assert casilla not in vistas, (t.a, t.b, vistas.get(casilla))
+            vistas[casilla] = (t.a, t.b)
+
+
 def test_ninguna_arista_es_puente():
     for a, b, _ in GrafoCiudad().calles():
         grafo = GrafoCiudad().grafo
@@ -146,13 +160,15 @@ def test_cada_edificio_tiene_dos_rutas_distintas():
 @pytest.mark.parametrize(
     "origen, destino, camino, costo",
     [
-        # Plaza -> Medios: por el Sur 3 + 4 = 7; por el Este 6 + 5 = 11.
-        (ZONA_PLAZA, ZONA_EMPRESA_MEDIOS, [ZONA_PLAZA, CRUCE_SUR, ZONA_EMPRESA_MEDIOS], 7),
-        # Plaza -> Colegio: por el Norte 3 + 3 = 6; por el Oeste 6 + 6 = 12 (el doble de largo).
-        (ZONA_PLAZA, ZONA_COLEGIO, [ZONA_PLAZA, CRUCE_NORTE, ZONA_COLEGIO], 6),
-        (ZONA_PLAZA, ZONA_ALCALDIA, [ZONA_PLAZA, CRUCE_NORTE, ZONA_ALCALDIA], 6),
-        # Hospital -> Alcaldía: Sur, Plaza, Norte = 4 + 3 + 3 + 3 = 13 (por el Oeste: 5 + 6 + 3 + 3 = 17).
-        (ZONA_HOSPITAL, ZONA_ALCALDIA, [ZONA_HOSPITAL, CRUCE_SUR, ZONA_PLAZA, CRUCE_NORTE, ZONA_ALCALDIA], 13),
+        # Plaza -> Medios: por el Sur 5 + 6 = 11; por el Este 6 + 6 = 12.
+        (ZONA_PLAZA, ZONA_EMPRESA_MEDIOS, [ZONA_PLAZA, CRUCE_SUR, ZONA_EMPRESA_MEDIOS], 11),
+        # Plaza -> Colegio: por el Norte 5 + 5 = 10; por el Oeste 6 + 6 = 12.
+        (ZONA_PLAZA, ZONA_COLEGIO, [ZONA_PLAZA, CRUCE_NORTE, ZONA_COLEGIO], 10),
+        # Plaza -> Alcaldía: por el Norte 5 + 5 = 10; por el Este 6 + 5 = 11.
+        (ZONA_PLAZA, ZONA_ALCALDIA, [ZONA_PLAZA, CRUCE_NORTE, ZONA_ALCALDIA], 10),
+        # Hospital -> Alcaldía: Sur, Plaza, Norte = 3 + 5 + 5 + 5 = 18 (Sur, Plaza, Este: 19;
+        # por el Oeste: 5 + 6 + 5 + 5 = 21).
+        (ZONA_HOSPITAL, ZONA_ALCALDIA, [ZONA_HOSPITAL, CRUCE_SUR, ZONA_PLAZA, CRUCE_NORTE, ZONA_ALCALDIA], 18),
         (ZONA_HOSPITAL, ZONA_HOSPITAL, [ZONA_HOSPITAL], 0),
     ],
 )
@@ -161,13 +177,13 @@ def test_rutas_calculadas_a_mano(origen, destino, camino, costo):
 
 
 def test_ruta_sugerida_elige_por_pesos_y_no_por_cantidad_de_calles():
-    # Desde el Cruce Sur la Empresa de Medios está a 1 calle (peso 4),
-    # y ninguna alternativa es más barata: 4 < 3 + 6 + 5.
+    # Desde el Cruce Sur la Empresa de Medios está a 1 calle (peso 6),
+    # y ninguna alternativa es más barata: 6 < 5 + 6 + 6.
     assert GrafoCiudad().ruta_sugerida(en(CRUCE_SUR), ZONA_EMPRESA_MEDIOS) == (
-        [CRUCE_SUR, ZONA_EMPRESA_MEDIOS], 4)
+        [CRUCE_SUR, ZONA_EMPRESA_MEDIOS], 6)
     # Desde la Plaza gana la más corta aunque ambas tengan 2 calles.
     nodos, costo = GrafoCiudad().ruta_sugerida(en(ZONA_PLAZA), ZONA_EMPRESA_MEDIOS)
-    assert nodos == [ZONA_PLAZA, CRUCE_SUR, ZONA_EMPRESA_MEDIOS] and costo == 7
+    assert nodos == [ZONA_PLAZA, CRUCE_SUR, ZONA_EMPRESA_MEDIOS] and costo == 11
 
 
 def test_al_bloquear_una_arista_la_ruta_rodea_con_mayor_costo():
@@ -176,7 +192,7 @@ def test_al_bloquear_una_arista_la_ruta_rodea_con_mayor_costo():
     assert ciudad.bloquear((CRUCE_SUR, ZONA_EMPRESA_MEDIOS))
     nodos_rodeo, costo_rodeo = ciudad.ruta_sugerida(en(CRUCE_SUR), ZONA_EMPRESA_MEDIOS)
     assert nodos_rodeo == [CRUCE_SUR, ZONA_PLAZA, CRUCE_ESTE, ZONA_EMPRESA_MEDIOS]
-    assert costo_rodeo == 3 + 6 + 5 > costo
+    assert costo_rodeo == 5 + 6 + 6 > costo
     tramos = set(map(frozenset, zip(nodos_rodeo, nodos_rodeo[1:])))
     assert frozenset((CRUCE_SUR, ZONA_EMPRESA_MEDIOS)) not in tramos
 
@@ -186,7 +202,7 @@ def test_nodo_mas_cercano_no_cruza_una_barricada():
     cercano a pie es el Cruce Sur aunque Medios esté cerca en línea recta."""
     ciudad = GrafoCiudad()
     col = ciudad_mapa.tramo(CRUCE_SUR, ZONA_EMPRESA_MEDIOS).seccion[0][0]
-    fila = ciudad_mapa.NODOS_CALLE[CRUCE_SUR][1]
+    fila = ciudad_mapa.NODOS_CALLE[ZONA_EMPRESA_MEDIOS][1]  # la calle de ese tramo (el último tramo de la Z)
     posicion_oeste = ciudad_mapa.centro_casilla(col - 1, fila)
     posicion_este = ciudad_mapa.centro_casilla(col + 1, fila)
     ciudad.bloquear((CRUCE_SUR, ZONA_EMPRESA_MEDIOS))
@@ -227,53 +243,53 @@ def test_puede_bloquearse_en_cualquier_orden(orden):
 
 def test_detonacion_sube_3_y_bloquea_al_llegar_a_8():
     ciudad = GrafoCiudad()
-    ciudad.actualizar_tras_mazmorra(ZONA_EMPRESA_MEDIOS, exito=False)
-    # La calle larga (100 m, peso 5) llega a 8 y se bloquea; la corta (70 m, peso 4) no.
-    assert ciudad.grafo.peso(ZONA_EMPRESA_MEDIOS, CRUCE_ESTE) == 8 == BLOQUEO_PESO
-    assert ciudad.esta_bloqueada(ZONA_EMPRESA_MEDIOS, CRUCE_ESTE)
-    assert ciudad.grafo.peso(CRUCE_SUR, ZONA_EMPRESA_MEDIOS) == 7
-    assert not ciudad.esta_bloqueada(CRUCE_SUR, ZONA_EMPRESA_MEDIOS)
+    ciudad.actualizar_tras_mazmorra(ZONA_HOSPITAL, exito=False)
+    # La calle larga (105 m, peso 5) llega a 8 y se bloquea; la corta (55 m, peso 3) no.
+    assert ciudad.grafo.peso(ZONA_HOSPITAL, CRUCE_OESTE) == 8 == BLOQUEO_PESO
+    assert ciudad.esta_bloqueada(ZONA_HOSPITAL, CRUCE_OESTE)
+    assert ciudad.grafo.peso(CRUCE_SUR, ZONA_HOSPITAL) == 6
+    assert not ciudad.esta_bloqueada(CRUCE_SUR, ZONA_HOSPITAL)
     # Las demás calles no cambian.
-    assert ciudad.grafo.peso(ZONA_PLAZA, CRUCE_ESTE) == 6
+    assert ciudad.grafo.peso(ZONA_PLAZA, CRUCE_OESTE) == 6
 
 
 def test_una_calle_que_desconectaria_queda_abierta_al_maximo():
     ciudad = GrafoCiudad()
-    ciudad.actualizar_tras_mazmorra(ZONA_EMPRESA_MEDIOS, exito=False)
-    ciudad.actualizar_tras_mazmorra(ZONA_EMPRESA_MEDIOS, exito=False)
-    # Cruce Sur - Medios llegó a 10, pero es su única salida abierta.
-    assert not ciudad.esta_bloqueada(CRUCE_SUR, ZONA_EMPRESA_MEDIOS)
-    assert ciudad.grafo.peso(CRUCE_SUR, ZONA_EMPRESA_MEDIOS) == PESO_MAXIMO_CIUDAD
-    assert ciudad.esta_bloqueada(ZONA_EMPRESA_MEDIOS, CRUCE_ESTE)
+    ciudad.actualizar_tras_mazmorra(ZONA_HOSPITAL, exito=False)
+    ciudad.actualizar_tras_mazmorra(ZONA_HOSPITAL, exito=False)
+    # Hospital - Cruce Sur llegó a 9, pero es su única salida abierta: queda al máximo.
+    assert not ciudad.esta_bloqueada(CRUCE_SUR, ZONA_HOSPITAL)
+    assert ciudad.grafo.peso(CRUCE_SUR, ZONA_HOSPITAL) == PESO_MAXIMO_CIUDAD
+    assert ciudad.esta_bloqueada(ZONA_HOSPITAL, CRUCE_OESTE)
 
 
 def test_desbloqueo_solo_al_bajar_de_6():
     ciudad = GrafoCiudad()
-    ciudad.actualizar_tras_mazmorra(ZONA_EMPRESA_MEDIOS, exito=False)  # 8: bloqueada
-    ciudad.actualizar_tras_mazmorra(ZONA_EMPRESA_MEDIOS, exito=True)  # 6: sigue bloqueada
-    assert ciudad.grafo.peso(ZONA_EMPRESA_MEDIOS, CRUCE_ESTE) == DESBLOQUEO_PESO
-    assert ciudad.esta_bloqueada(ZONA_EMPRESA_MEDIOS, CRUCE_ESTE)
-    ciudad.actualizar_tras_mazmorra(ZONA_EMPRESA_MEDIOS, exito=True)  # 4: se abre
-    assert ciudad.grafo.peso(ZONA_EMPRESA_MEDIOS, CRUCE_ESTE) == 4
-    assert not ciudad.esta_bloqueada(ZONA_EMPRESA_MEDIOS, CRUCE_ESTE)
+    ciudad.actualizar_tras_mazmorra(ZONA_HOSPITAL, exito=False)  # 8: bloqueada
+    ciudad.actualizar_tras_mazmorra(ZONA_HOSPITAL, exito=True)  # 6: sigue bloqueada
+    assert ciudad.grafo.peso(ZONA_HOSPITAL, CRUCE_OESTE) == DESBLOQUEO_PESO
+    assert ciudad.esta_bloqueada(ZONA_HOSPITAL, CRUCE_OESTE)
+    ciudad.actualizar_tras_mazmorra(ZONA_HOSPITAL, exito=True)  # 4: se abre
+    assert ciudad.grafo.peso(ZONA_HOSPITAL, CRUCE_OESTE) == 4
+    assert not ciudad.esta_bloqueada(ZONA_HOSPITAL, CRUCE_OESTE)
 
 
 def test_al_desbloquear_una_calle_otra_saturada_puede_bloquearse():
     ciudad = GrafoCiudad()
     for _ in range(2):
-        ciudad.actualizar_tras_mazmorra(ZONA_EMPRESA_MEDIOS, exito=False)
-    # Medios-Este bloqueada (10) y Sur-Medios al máximo pero abierta.
+        ciudad.actualizar_tras_mazmorra(ZONA_HOSPITAL, exito=False)
+    # Oeste-Hospital bloqueada (10) y Hospital-Sur al máximo pero abierta.
     for _ in range(2):
-        ciudad.actualizar_tras_mazmorra(ZONA_EMPRESA_MEDIOS, exito=True)
-        # Mientras Medios-Este siga bloqueada, Sur-Medios (8) no puede
+        ciudad.actualizar_tras_mazmorra(ZONA_HOSPITAL, exito=True)
+        # Mientras Oeste-Hospital siga bloqueada, Hospital-Sur (8) no puede
         # bloquearse y vuelve al máximo.
-        assert ciudad.grafo.peso(CRUCE_SUR, ZONA_EMPRESA_MEDIOS) == PESO_MAXIMO_CIUDAD
-    assert ciudad.calles_bloqueadas() == [(ZONA_EMPRESA_MEDIOS, CRUCE_ESTE)]
-    # Medios-Este: 10 -> 8 -> 6 -> 4, se abre; entonces Sur-Medios (8) sí se bloquea.
-    ciudad.actualizar_tras_mazmorra(ZONA_EMPRESA_MEDIOS, exito=True)
-    assert ciudad.calles_bloqueadas() == [(CRUCE_SUR, ZONA_EMPRESA_MEDIOS)]
+        assert ciudad.grafo.peso(CRUCE_SUR, ZONA_HOSPITAL) == PESO_MAXIMO_CIUDAD
+    assert ciudad.calles_bloqueadas() == [(CRUCE_OESTE, ZONA_HOSPITAL)]
+    # Oeste-Hospital: 10 -> 8 -> 6 -> 4, se abre; entonces Hospital-Sur (8) sí se bloquea.
+    ciudad.actualizar_tras_mazmorra(ZONA_HOSPITAL, exito=True)
+    assert ciudad.calles_bloqueadas() == [(ZONA_HOSPITAL, CRUCE_SUR)]
     for _ in range(2):
-        ciudad.actualizar_tras_mazmorra(ZONA_EMPRESA_MEDIOS, exito=True)
+        ciudad.actualizar_tras_mazmorra(ZONA_HOSPITAL, exito=True)
     assert ciudad.bloqueadas == set()
 
 
