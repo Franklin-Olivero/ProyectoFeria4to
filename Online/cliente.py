@@ -209,7 +209,10 @@ class Cliente:
             self._buffer += datos
             mensajes, self._buffer = deserializar_buffer(self._buffer)
             for msg in mensajes:
-                self._procesar(msg)
+                try:
+                    self._procesar(msg)
+                except Exception:
+                    pass
 
         self.conectado = False
 

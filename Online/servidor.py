@@ -264,7 +264,10 @@ class Servidor:
                 self._buffers[jid] = self._buffers.get(jid, b"") + datos
                 mensajes, self._buffers[jid] = deserializar_buffer(self._buffers[jid])
                 for msg in mensajes:
-                    self._procesar(jid, msg)
+                    try:
+                        self._procesar(jid, msg)
+                    except Exception:
+                        pass
 
             time.sleep(0.004)  # ~250 Hz
 
