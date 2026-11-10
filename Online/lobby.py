@@ -28,7 +28,7 @@ from src.core.config import FPS
 from src.core.preferencias import cargar as cargar_preferencias
 from src.ui import dibujo, hud, kit, sprites
 
-from Online.servidor import Servidor, PUERTO_DEFAULT, MAX_JUGADORES
+from Online.servidor import Servidor, PUERTO_DEFAULT, PUERTOS_CANDIDATOS, MAX_JUGADORES
 from Online.cliente import Cliente
 from Online.codigo_sala import generar_codigo, resolver_entrada, ip_local
 from Online.pantalla_rol import mostrar_pantalla_revelacion_rol
@@ -516,7 +516,8 @@ def pantalla_sala_espera(pantalla, reloj, presentar, clases_rol, es_host, conexi
                               sala.todos_listos(), aviso_temporal if aviso_timer > 0 else "")
 
         # Dibujar el Panel Lateral de Información de Sala
-        _dibujar_panel_sala(pantalla, ip, conexion.puerto if es_host else PUERTO_DEFAULT,
+        puerto_actual = getattr(conexion, "puerto", PUERTO_DEFAULT)
+        _dibujar_panel_sala(pantalla, ip, puerto_actual,
                             cantidad_conectados, es_host, latencia, diagnostico)
 
         # Dibujar el Radar del Grafo de Sala (Estructuras de Datos 2)
@@ -1123,14 +1124,27 @@ def menu_online(pantalla, reloj, presentar, clases_rol):
                 _pantalla_error(pantalla, reloj, presentar, e)
                 continue
 
-            # connect() bloquea hasta 5 s: se deja dibujado a dónde se está conectando.
-            pantalla.fill(assets.COLOR_FONDO)
-            dibujo.texto(pantalla, f"Conectando a {ip}:{puerto}...", (640, 360), COLOR_ONLINE,
-                         assets.TAMANIO_FUENTE_TITULO, negrita=True, ancla="center")
-            presentar()
+            # Si el invitado no escribió puerto explícito (con ':'), probamos el puerto
+            # resuelto y si falla, los demás candidatos automáticamente.
+            tiene_puerto_manual = ":" in entrada
+            candidatos = [puerto] if tiene_puerto_manual else [puerto] + [p for p in PUERTOS_CANDIDATOS if p != puerto]
 
             cliente = Cliente()
-            if not cliente.conectar(ip, puerto):
+            conectado = False
+            for p_candidato in candidatos:
+                pantalla.fill(assets.COLOR_FONDO)
+                dibujo.texto(pantalla, f"Conectando a {ip}:{p_candidato}...", (640, 360), COLOR_ONLINE,
+                             assets.TAMANIO_FUENTE_TITULO, negrita=True, ancla="center")
+                presentar()
+
+                # Timeout corto (1.8s) al escanear, o 4.0s si fue manual
+                t_out = 4.0 if tiene_puerto_manual else 1.8
+                if cliente.conectar(ip, p_candidato, timeout=t_out):
+                    puerto = p_candidato
+                    conectado = True
+                    break
+
+            if not conectado:
                 _pantalla_error(pantalla, reloj, presentar, cliente.error,
                                 _consejos_conexion(cliente, ip, info_red))
                 continue

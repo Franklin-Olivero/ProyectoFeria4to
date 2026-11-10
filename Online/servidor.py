@@ -34,7 +34,10 @@ from Online.protocolo import (
 )
 from Online.red_local import ahora_ms, enviar_todo, sin_retraso, suavizar
 
-PUERTO_DEFAULT = 7777
+# Puertos más propensos a estar abiertos en redes WiFi universitarias o públicas:
+# 8080 (HTTP alternativo), 8443 (HTTPS alternativo), 8000 (dev web), 5000, 9000, 25565, 7777, 8888.
+PUERTO_DEFAULT = 8080
+PUERTOS_CANDIDATOS = (8080, 8443, 8000, 5000, 9000, 25565, 7777, 8888)
 MAX_JUGADORES = 4
 BACKLOG = 5
 BUFFER_SIZE = 4096
@@ -99,14 +102,31 @@ class Servidor:
 
     def iniciar(self, puerto=PUERTO_DEFAULT, interfaz="0.0.0.0"):
         """Arranca el servidor en un hilo aparte. Retorna la IP local.
-        `interfaz` = "127.0.0.1" solo acepta conexiones de esta PC (tests)."""
-        self._socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        self._socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-        try:
-            self._socket.bind((interfaz, puerto))
-        except OSError as e:
-            self.error = f"No se pudo abrir el puerto {puerto}: {e}"
+        `interfaz` = "127.0.0.1" solo acepta conexiones de esta PC (tests).
+        Si el puerto pedido está ocupado o bloqueado (y no es 0), prueba
+        automáticamente los demás puertos de PUERTOS_CANDIDATOS."""
+        if puerto == 0:
+            candidatos = [0]
+        elif puerto is None:
+            candidatos = list(PUERTOS_CANDIDATOS)
+        else:
+            candidatos = [puerto] + [p for p in PUERTOS_CANDIDATOS if p != puerto]
+
+        ultimo_error = None
+        for p in candidatos:
+            sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+            sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+            try:
+                sock.bind((interfaz, p))
+                self._socket = sock
+                break
+            except OSError as e:
+                ultimo_error = e
+                sock.close()
+        else:
+            self.error = f"No se pudo abrir ningún puerto en {candidatos}: {ultimo_error}"
             return None
+
         self._socket.listen(BACKLOG)
         self._socket.setblocking(False)
         self.corriendo = True
