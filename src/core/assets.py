@@ -1054,6 +1054,21 @@ TONOS_PIEL = (
     (110, 66, 40),
     (80, 48, 32),
 )
+# Vestidores del lobby Online, pestañas HAIR / SHIRT / PANTS: se recolorea el
+# pelo, la camisa y el pantalón de las recetas que ya existen (sin arte nuevo,
+# src/ui/receta_jugador.py). Los nombres de cada color están en Online/personalizacion.py.
+TONOS_PELO = (
+    (24, 22, 34), (74, 46, 28), (128, 84, 50), (226, 186, 92), (186, 74, 40),
+    (168, 168, 180), (70, 120, 230), (240, 110, 190), (150, 96, 230),
+)
+COLORES_ROPA = (
+    (164, 110, 255), (220, 60, 70), (246, 140, 52), (250, 206, 60), (70, 180, 90),
+    (46, 200, 190), (90, 170, 250), (240, 110, 200), (44, 40, 58),
+)
+COLORES_PANTALON = (
+    (52, 84, 150), (34, 32, 46), (104, 104, 122), (98, 66, 44), (84, 96, 52),
+    (190, 170, 128), (112, 36, 52), (92, 64, 160), (220, 220, 232),
+)
 # Modal del vestidor (Online/personalizacion_render.py).
 COLOR_ACENTO_VESTIDOR = COLOR_CIAN_NEON
 COLOR_SOMBRA_VESTIDOR = (0, 0, 0, 110)  # RGBA: sombra bajo el jugador de la vista previa
@@ -1112,12 +1127,7 @@ ALFA_FANTASMA = 110  # el expulsado se ve a sí mismo medio transparente
 # Reunión de emergencia (Online/reunion_render.py). Botón REPORTAR abajo a la
 # derecha (sobre la barra de controles, fuera de la mazmorra); la reunión es
 # un modal encima de todo: tarjetas para votar a la izquierda, chat a la derecha.
-# Dentro del rincón inferior derecho del cuarto: el margen derecho es del
-# panel de J2/J4 en cooperativo. En la terminal va chico, en la barra de controles.
-RECT_BOTON_REPORTAR = (1040, 546, 100, 92)
-RECT_BOTON_SABOTEAR = (932, 546, 100, 92)  # solo el impostor lo ve, junto a REPORTAR
-RECT_BOTON_REPORTAR_TERMINAL = (1044, 666, 224, 48)
-ALTO_MINIMO_BOTON_GRANDE = 70  # más bajo que esto, el botón se dibuja en una sola fila
+# Dónde van los botones REPORTAR y SABOTEAR: Online/disposicion_hud.py (a la izquierda).
 TEXTO_BOTON_REPORTAR = "REPORTAR"
 COLOR_REPORTAR = (236, 52, 64)  # rojo de alarma (el botón listo)
 COLOR_REPORTAR_APAGADO = (70, 66, 104)  # mientras recarga
@@ -1155,9 +1165,9 @@ TEXTOS_FIN_PARTIDA = {
     # (fin, ¿esta PC es la del impostor?) -> (título, subtítulo, remate)
     ("tripulacion", False): ("¡Felicidades!", "Has descubierto al impostor", "Civitas se ha salvado"),
     ("tripulacion", True): ("Te descubrieron", "La tripulación te expulsó", "Civitas se ha salvado"),
-    ("impostor", False): ("El impostor ha ganado", "Expulsaron inocentes hasta quedar solo él y uno más",
+    ("impostor", False): ("El impostor quedó en pie", "y él destruyó Civitas",
                           "Civitas cayó en manos de la desinformación"),
-    ("impostor", True): ("¡Ganaste!", "El impostor ha ganado", "Engañaste a toda la tripulación"),
+    ("impostor", True): ("¡Felicidades!", "Has eliminado a los demás jugadores", "Has destruido Civitas con éxito"),
 }
 TEXTO_FIN_ERA_IMPOSTOR = "{nombre} era el impostor"
 CONTROLES_FIN_PARTIDA = [("Enter", "volver al menú")]

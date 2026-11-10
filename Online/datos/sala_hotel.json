@@ -1,0 +1,46 @@
+{
+  "id": "sala_online_hotel",
+  "descripcion": "Sala de espera del modo Online: un salón del mismo hotel Backrooms del lobby (src/dungeon/datos/composiciones/lobby_hotel.json), con los mismos tiles y props. 18x12 tiles de 16 px: la recepción (elegir rol) contra la pared del fondo, cuatro carritos de equipaje en las esquinas (los vestidores) y la franja de abajo libre para el botón de inicio. Lo arma src/dungeon/compositor_interior.py y lo dibuja Online/sala_hotel_render.py.",
+  "ancho": 18,
+  "alto": 12,
+  "tile": 16,
+  "piso": {"variantes": [3148, 3149, 3150]},
+  "muro": {
+    "terreno": "hotel_wall",
+    "rects": [[0, 0, 18, 1]],
+    "cara": {"izquierda": [2740, 2741], "derecha": [2736, 2737], "medio": [[2721, 2722], [2723, 2724]]}
+  },
+  "alfombras": [{"terreno": "hotel_runner", "rect": [2, 7, 14, 2]}],
+  "objetos": [
+    {"id": "letrero", "nombre": "hotel_vacancy_sign_neon_blink", "tipo": "animacion", "estatico": "hotel_vacancy_sign_neon", "x": 12, "y": 36, "ancho": 48, "alto": 18, "parpadeo": "neon"},
+    {"nombre": "hotel_clock_nohands", "tipo": "prop", "x": 72, "y": 32, "ancho": 14, "alto": 14, "reloj": true},
+    {"id": "aplique_izq", "nombre": "hotel_sconce_flicker_lit", "tipo": "animacion", "estatico": "hotel_sconce_lit", "apagado": "hotel_sconce_off", "x": 104, "y": 44, "ancho": 14, "alto": 30, "parpadeo": "zumbido"},
+    {"id": "aplique_der", "nombre": "hotel_sconce_flicker_lit", "tipo": "animacion", "estatico": "hotel_sconce_lit", "apagado": "hotel_sconce_off", "x": 170, "y": 44, "ancho": 14, "alto": 30, "parpadeo": "falla"},
+    {"nombre": "hotel_key_rack", "tipo": "prop", "x": 196, "y": 42, "ancho": 34, "alto": 26},
+    {"nombre": "hotel_elevator_indicator_lit", "tipo": "animacion", "estatico": "hotel_elevator_doors_lit", "x": 236, "y": 48, "ancho": 34, "alto": 33},
+    {"nombre": "hotel_elevator_call_lit", "tipo": "prop", "x": 273, "y": 40, "ancho": 10, "alto": 16},
+    {"nombre": "hotel_palm_tall", "tipo": "prop", "x": 88, "y": 80, "ancho": 30, "alto": 44, "obstaculo": true},
+    {"nombre": "hotel_front_desk_crt", "tipo": "prop", "x": 127, "y": 88, "ancho": 34, "alto": 40, "rol": "recepcion", "obstaculo": true},
+    {"nombre": "hotel_palm_tall", "tipo": "prop", "x": 170, "y": 80, "ancho": 30, "alto": 44, "obstaculo": true},
+    {"nombre": "hotel_luggage_trolley_loaded", "tipo": "prop", "x": 16, "y": 104, "ancho": 32, "alto": 42, "rol": "vestidor", "obstaculo": true},
+    {"nombre": "hotel_luggage_trolley_loaded", "tipo": "prop", "x": 240, "y": 104, "ancho": 32, "alto": 42, "rol": "vestidor", "obstaculo": true},
+    {"id": "lampara_izq", "nombre": "hotel_lobby_floor_lamp", "tipo": "prop", "apagado": "hotel_lobby_floor_lamp_off", "x": 52, "y": 136, "ancho": 16, "alto": 36, "parpadeo": "zumbido", "obstaculo": true},
+    {"id": "lampara_der", "nombre": "hotel_lobby_floor_lamp", "tipo": "prop", "apagado": "hotel_lobby_floor_lamp_off", "x": 222, "y": 136, "ancho": 16, "alto": 36, "parpadeo": "falla", "obstaculo": true},
+    {"nombre": "hotel_luggage_trolley_loaded", "tipo": "prop", "x": 16, "y": 184, "ancho": 32, "alto": 42, "rol": "vestidor", "obstaculo": true},
+    {"nombre": "hotel_luggage_trolley_loaded", "tipo": "prop", "x": 240, "y": 184, "ancho": 32, "alto": 42, "rol": "vestidor", "obstaculo": true}
+  ],
+  "luces": [
+    {"nombre": "alarm_glow_64", "x": 36, "y": 27, "objeto": "letrero"},
+    {"nombre": "lamp_glow_64", "x": 111, "y": 28, "objeto": "aplique_izq"},
+    {"nombre": "lamp_glow_64", "x": 177, "y": 28, "objeto": "aplique_der"},
+    {"nombre": "crt_glow_32", "x": 144, "y": 60},
+    {"nombre": "lamp_glow_64", "x": 60, "y": 104, "objeto": "lampara_izq"},
+    {"nombre": "lamp_glow_64", "x": 230, "y": 104, "objeto": "lampara_der"},
+    {"nombre": "troffer_pool_48x32", "x": 32, "y": 100},
+    {"nombre": "troffer_pool_48x32", "x": 256, "y": 100},
+    {"nombre": "troffer_pool_48x32", "x": 32, "y": 180},
+    {"nombre": "troffer_pool_48x32", "x": 256, "y": 180}
+  ],
+  "puestos": [[0, 9999]],
+  "polvo": {"cantidad": 30, "rect": [0, 48, 288, 144]}
+}

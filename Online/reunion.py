@@ -10,9 +10,9 @@ expulsado: se vuelve un fantasma (src/core/equipo.py), ya no mueve la
 terminal de decisión, no vota ni convoca, y todos ven si era el impostor.
 
 Fin de la partida: si expulsan al impostor, gana la tripulación ("Civitas
-se ha salvado"). Con JUGADORES_MINIMOS_VICTORIA_IMPOSTOR o más jugadores,
-si expulsan inocentes hasta que quedan solo el impostor y uno más, gana el
-impostor. Con 2 jugadores eso no pasa: el juego sigue.
+se ha salvado"). Si expulsan inocentes hasta que quedan solo el impostor y
+uno más, gana el impostor ("El impostor quedó en pie"); con 2 jugadores
+basta con expulsar al otro (JUGADORES_MINIMOS_VICTORIA_IMPOSTOR = 2).
 
 El host lleva todo (autoritativo) y lo manda en el ESTADO (`a_dict`); cada
 invitado solo lo muestra (`vista_de_dict`) y le pide al host convocar,

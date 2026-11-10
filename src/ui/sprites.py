@@ -16,6 +16,7 @@ import os
 import pygame
 
 from src.core import assets, balance
+from src.core.apariencia import PREDETERMINADA
 from src.ui import receta_jugador
 from src.ui.ruta_sprites import (
     cuadros_de_atlas,
@@ -573,15 +574,17 @@ def _hoja_vestida(rol, apariencia, escala):
     return _cache_vestidos[clave]
 
 
-def sprite_parte_jugador(simbolos, rol_fuente, piel=None, escala=assets.ESCALA_PIXEL):
+def sprite_parte_jugador(simbolos, rol_fuente, piel=None, escala=assets.ESCALA_PIXEL, colores=None):
     """Vista previa de una parte para el vestidor: la cabeza
     (assets.SIMBOLOS_CABEZA) o el traje (SIMBOLOS_TRAJE) de la receta de
-    `rol_fuente`, con la piel de color `piel` (None = la de su receta).
-    None si no hay receta."""
+    `rol_fuente`, con la piel de color `piel` (None = la de su receta) y
+    los colores de pelo, camisa y pantalón de `colores` (una Apariencia;
+    None = los de la receta). None si no hay receta."""
     piel = tuple(piel) if piel is not None else None
-    clave = (simbolos, rol_fuente, piel, escala)
+    colores = colores or PREDETERMINADA
+    clave = (simbolos, rol_fuente, piel, escala, colores.pelo, colores.ropa, colores.pantalon)
     if clave not in _cache_partes:
-        pixeles = receta_jugador.armar_parte(_recetas(), rol_fuente, simbolos, piel)
+        pixeles = receta_jugador.armar_parte(_recetas(), rol_fuente, simbolos, piel, colores)
         _cache_partes[clave] = None if pixeles is None else _superficie_pixeles(pixeles, escala)
     return _cache_partes[clave]
 

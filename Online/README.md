@@ -358,18 +358,21 @@ En `tests/test_online_sincronizacion.py`:
 ## 6. Vestidores estilo Among Us (personalizar el personaje)
 
 ### Qué hace
-Las 4 cajas de la sala de espera (`VESTIDOR-01` a `VESTIDOR-04`) son vestidores. Al acercarse a una, la caja se ilumina y aparece **"Presiona [E] o Click: Vestidor"**. Se abre un modal como el de Among Us, con tres pestañas:
+Los 4 carritos de equipaje del salón (`VESTIDOR 1` a `VESTIDOR 4`, ver la sección 13) son vestidores. Al acercarse a uno, se ilumina y aparece **"Presiona [E] o clic: vestidor"**. Se abre un modal como el de Among Us, con seis pestañas:
 
 | Pestaña | Qué cambia | Opciones |
 |---|---|---|
 | **COLOR** | Tono de piel (cara y manos) | AUTO + 8 tonos |
 | **HAT** | La parte de arriba: pelo, cara y lentes | AUTO + la cabeza de cada uno de los 4 roles |
 | **SKIN** | El traje: camisa, pantalón y zapatos | AUTO + el traje de cada uno de los 4 roles |
+| **HAIR** | Color del pelo de la cabeza que lleves | AUTO + 9 colores |
+| **SHIRT** | Color de la camisa o chaqueta del traje | AUTO + 9 colores (el primero, morado Civitas) |
+| **PANTS** | Color del pantalón | AUTO + 9 colores |
 
 - **AUTO** = lo de tu rol: quien nunca usa un vestidor se ve igual que siempre, y si cambias de rol en la laptop, lo que esté en AUTO cambia solo.
 - El **accesorio** (megáfono, palo selfie, micrófono, mano) siempre es el de tu **rol**, porque identifica su habilidad.
 - Los cambios se equipan al instante y **toda la sala los ve** (en su avatar del lobby). La apariencia también se ve **durante la partida**: en Ciudad Nova y en combate, en todas las PCs.
-- Controles: flechas/WASD eligen, `Tab` / `1-3` cambian de pestaña, clic en una casilla o pestaña, `E` / `Esc` / `Enter` (o clic fuera / en la X) cierran.
+- Controles: flechas/WASD eligen, `Tab` / `1-6` cambian de pestaña, clic en una casilla o pestaña, `E` / `Esc` / `Enter` (o clic fuera / en la X) cierran.
 
 ### Sin arte nuevo: el personaje se arma por partes
 No se agregó ningún sprite. Cada personaje viene de una receta de Pixelbolt (`assets/sprites/fuentes/<rol>.pixel.json`) que dibuja sus cuadros "estampando" símbolos: `cabeza`, `torso`, `piernas_*` y el accesorio del rol, cada uno con la paleta de su rol. `src/ui/receta_jugador.py` repite las estampas del rol del jugador, pero toma la `cabeza` de la receta elegida en HAT y el `torso`/`piernas` de la elegida en SKIN; la letra de la piel (`s`) se pinta con el tono de COLOR. Con todo en AUTO el resultado es **idéntico píxel a píxel** a la hoja PNG del rol (está probado en los tests).
@@ -476,13 +479,13 @@ Al entrar a una mazmorra, la tarjeta del capítulo y su diálogo solo salían en
 
 ### Qué hace
 Como en Among Us, cualquier jugador puede llamar a una reunión para debatir quién es el impostor.
-- **Botón REPORTAR** abajo a la derecha, dentro del rincón del cuarto (o la tecla **R**, o un clic; en la terminal va chico en la barra de controles). Se puede usar **cada 60 s** (`balance.COOLDOWN_REUNION`): el tiempo cuenta desde que arranca la partida y desde que termina cada reunión. Mientras recarga se ve apagado con los segundos que faltan.
+- **Botón REPORTAR** a la izquierda (o la tecla **R**, o un clic; dónde exactamente, en la sección 13; en la terminal va chico a la izquierda de la barra de controles). Se puede usar **cada 60 s** (`balance.COOLDOWN_REUNION`): el tiempo cuenta desde que arranca la partida y desde que termina cada reunión. Mientras recarga se ve apagado con los segundos que faltan.
 - Al apretarlo, el juego **se detiene en todas las PCs** (combate, caminar por la ciudad, el reloj de la terminal y el bloqueo del impostor) y se abre la reunión: **60 s** (`balance.DURACION_REUNION`) para hablar por el **chat** y **votar**.
 - **Votar:** flechas para elegir y **Enter dos veces** (o dos clics) sobre un jugador o sobre **Saltar votación**. El voto no se cambia. Durante la votación solo se ve quién ya votó; a quién, recién en el resultado.
 - **Chat:** se escribe con el teclado y se envía con Enter (80 caracteres por mensaje; se ven los últimos 14).
 - **Conteo:** se acaba el minuto (o ya votaron todos) y **solo cuentan los votos emitidos**: quien no votó no le suma a nadie. Si alguien tiene más votos que cualquier otro y que los saltos, queda **expulsado** y todos ven si **era el impostor**. Empate, mayoría de saltos o nadie votó: no se expulsa a nadie. El resultado se ve 6 s.
 - **Expulsado = fantasma:** los demás ya no lo ven (ni su muñeco ni su panel), los enemigos no lo persiguen y no recibe daño. Él sigue viendo a todos normal y se ve a sí mismo medio transparente; camina, pero no dispara, no usa habilidad ni dash, no recoge pruebas, no abre puertas ni entra a edificios. Tampoco mueve la terminal ni la investigación del capítulo 3, no vota, no escribe y no convoca (`src/core/equipo.py`, `jugador.expulsado`).
-- **Fin de la partida:** si expulsan al **impostor**, gana la tripulación: pantalla "¡Felicidades! Has descubierto al impostor · Civitas se ha salvado" (con 2, 3 o 4 jugadores). Con **3 o más** jugadores, si expulsan inocentes hasta que quedan **solo el impostor y uno más**, gana el impostor: pantalla "El impostor ha ganado" (con 4 jugadores hacen falta 2 inocentes; con 2 jugadores no pasa y el juego sigue). Las dos muestran quién era el impostor; tras 2 s, Enter vuelve al menú y la partida Online se cierra (`balance.JUGADORES_MINIMOS_VICTORIA_IMPOSTOR`).
+- **Fin de la partida:** si expulsan al **impostor**, gana la tripulación: pantalla "¡Felicidades! Has descubierto al impostor · Civitas se ha salvado" (con 2, 3 o 4 jugadores). Si expulsan inocentes hasta que quedan **solo el impostor y uno más** (con 2 jugadores: basta expulsar al otro), gana el impostor: los demás ven "El impostor quedó en pie · y él destruyó Civitas" y el impostor "¡Felicidades! Has eliminado a los demás jugadores · Has destruido Civitas con éxito" (con 4 jugadores hacen falta 2 inocentes). Las dos muestran quién era el impostor; tras 2 s, Enter vuelve al menú y la partida Online se cierra (`balance.JUGADORES_MINIMOS_VICTORIA_IMPOSTOR`).
 - Solo hay botón en una partida Online con impostor, en la ciudad, las mazmorras, la terminal y el jefe (no en las pantallas de resultado ni en los finales).
 
 ### Host autoritativo
@@ -503,7 +506,7 @@ Tests: `tests/test_reunion_online.py` (conteo, reglas, host, invitado, red real,
 ## 11. Botón SABOTEAR del impostor (publicación viral)
 
 ### Qué hace
-- Solo el impostor ve el botón **SABOTEAR** (tecla **Q** o clic), al lado de REPORTAR. Se puede cada **75 s** (`balance.COOLDOWN_POST_SABOTAJE`), en la ciudad, las mazmorras y el jefe (no en la terminal: ahí ya hay una decisión).
+- Solo el impostor ve el botón **SABOTEAR** (tecla **Q** o clic), junto a REPORTAR (a la izquierda). Se puede cada **75 s** (`balance.COOLDOWN_POST_SABOTAJE`), en la ciudad, las mazmorras y el jefe (no en la terminal: ahí ya hay una decisión).
 - Al apretarlo, a **todas las PCs** les salta en el celular una **publicación falsa** (como la terminal del final de la mazmorra, con el árbol fijo: Verificar / Me gusta / Compartir / Reportar / Ignorar) y el mundo se detiene. Nadie sabe quién la lanzó; arriba sale "¡Publicación viral! Decidan rápido qué hacer".
 - Hay **20 s** (`DURACION_POST_SABOTAJE`). Verificar o Reportar la **frenan**; Me gusta, Compartir o Ignorar la **vuelven viral**, y si se acaba el tiempo también.
 - El impostor también elige, pero recién después de **5 s** (`BLOQUEO_POST_SABOTAJE`, ve su indicador "Se habilita en N s"): si nadie eligió bien antes, puede elegir una mala.
@@ -526,3 +529,47 @@ Tests: `tests/test_reunion_online.py` (conteo, reglas, host, invitado, red real,
 - Al empezar una partida nueva o al terminar una Online, la red de la partida anterior se cierra (`cerrar_red_de_sesion`), así el puerto 7777 queda libre para volver a crear una sala.
 
 Tests: `tests/test_fin_y_sabotaje_online.py` (fantasma, fin de partida, sabotaje, versión, terminal del invitado) y `tests/test_terminal_celular.py` (la terminal tipo celular).
+
+---
+
+## 13. Lobby con el estilo de ahora, más ropa, 2 jugadores y botones a la izquierda
+
+### La sala de espera es un salón del hotel
+La sala Online tenía el estilo viejo (nave neón con baldosas, "AIRLOCK", laptop "CUSTOMIZE"). Ahora es un salón del **mismo hotel Backrooms** del lobby del juego, con sus tiles y props (sin arte nuevo):
+- **Recepción** (el escritorio con el computador): ahí se elige el rol (`E` o clic), como antes en la laptop.
+- **4 carritos de equipaje** en las esquinas: los vestidores, cada uno con su cartel y la vitrina de la cabeza y el traje de un rol.
+- Pared del fondo con el letrero de neón, el reloj con la hora real, apliques que parpadean, el llavero y el ascensor; palmeras y lámparas de pie; polvo en el aire.
+- Paneles de la derecha (ROOM SETTINGS, grafo de sala), el vestidor y los avisos con el **morado de Civitas** (vidrio oscuro, como el resto del juego).
+
+Archivos (todos en `Online/`):
+- `Online/datos/sala_hotel.json`: la composición del salón (rectángulos, mismo formato que las composiciones del lobby). Cada objeto dice qué es: `"rol": "recepcion"`, `"rol": "vestidor"` u `"obstaculo": true`.
+- `Online/sala_hotel.py` (puro): la arma con `src/dungeon/compositor_interior.py` y la pasa a px de pantalla (`disposicion`: piso por donde se camina, recepción, vestidores, obstáculos y dónde aparece cada jugador).
+- `Online/sala_hotel_render.py`: la dibuja con la escena del lobby del hotel (`src/ui/escena_lobby_render.EscenaLobby`, sin tocarla) corrida a la sala, más los carteles, halos e invitaciones. Si falta el arte Backrooms, vuelve la sala neón de antes.
+- `Online/lobby.py` toma de ahí todas las posiciones.
+
+### Más cosas para editar la skin: HAIR, SHIRT y PANTS
+Tres pestañas nuevas en el vestidor (9 colores cada una más AUTO). No hay sprites nuevos: se **recolorea** el arte de las recetas.
+- `src/ui/receta_jugador.py` encuentra en cada receta qué letras de la paleta son el pelo (`h` y sus tonos parecidos), la camisa (la letra que más se usa en el torso, sin contorno, piel ni blanco, y sus sombras) y el pantalón (`d`), y las tiñe con `teñir`, que conserva la luz de cada tono (las sombras siguen siendo sombras). Los lentes del Periodista, los cuellos, las corbatas y los zapatos no cambian.
+- `src/core/apariencia.py`: `Apariencia` suma `pelo`, `ropa` y `pantalon` (viajan por red; una versión vieja sin esos campos los deja en AUTO). Las paletas están en `src/core/assets.py` (`TONOS_PELO`, `COLORES_ROPA`, `COLORES_PANTALON`) porque las usa el dibujo del jugador en todo el juego; sus nombres, en `Online/personalizacion.py`.
+- Se ven en la sala, en la revelación del rol, en la ciudad, en las mazmorras y en la reunión.
+- Fuera de `Online/` solo se tocó lo obligatorio: `src/core/apariencia.py`, `src/ui/receta_jugador.py`, `src/ui/sprites.py` (vista previa con colores) y las paletas en `src/core/assets.py`.
+
+### Con 2 jugadores también gana el impostor
+`balance.JUGADORES_MINIMOS_VICTORIA_IMPOSTOR = 2`: si en una partida de 2 la votación expulsa al inocente, el impostor queda en pie y la partida termina al instante con las pantallas de la sección 10 ("El impostor quedó en pie · y él destruyó Civitas" para los demás, "¡Felicidades! Has eliminado a los demás jugadores · Has destruido Civitas con éxito" para el impostor). Un empate no expulsa a nadie y el juego sigue.
+
+### Los botones REPORTAR y SABOTEAR a la izquierda
+A la derecha estaban tapando el feed de Civitas (los comentarios de los ciudadanos, abajo a la derecha). Ahora `Online/disposicion_hud.py` (puro) decide dónde van, siempre a la izquierda:
+
+| Escena | Dónde |
+|---|---|
+| Ciudad | abajo a la izquierda |
+| Mazmorra o jefe con 2 jugadores | en el margen izquierdo, bajo el panel de J1 (uno sobre otro) |
+| Mazmorra o jefe con 3 o 4 | en el rincón inferior izquierdo del cuarto (el margen es del panel de J3); con el "HUD detallado", encima del panel de misión |
+| Terminal | REPORTAR chico, a la izquierda de la barra de controles |
+
+### Cómo probarlo
+1. Creen una sala: el lobby es el salón del hotel. Caminen hasta un carrito → `E` → prueben HAIR, SHIRT y PANTS; en la otra PC el avatar cambia al instante.
+2. Inicien una partida de 2 y voten al inocente: sale "El impostor quedó en pie" en su PC y "¡Felicidades! Has eliminado a los demás jugadores" en la del impostor.
+3. En la ciudad, el botón REPORTAR está abajo a la izquierda y ya no tapa el feed de la derecha.
+
+Tests: `tests/test_lobby_online_hotel.py` (sala, se llega a cada estación, arte existente, botones sin tapar nada, HAIR/SHIRT/PANTS y el recoloreado) y los de `tests/test_fin_y_sabotaje_online.py` (2 jugadores).
