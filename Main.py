@@ -112,7 +112,7 @@ from src.ui.instrucciones_render import dibujar_instrucciones
 from src.ui.terminal_decision import CONFIRMAR, DERECHA, DETONACION, IZQUIERDA, PURIFICACION_EXITOSA
 from src.ui.terminal_decision_render import dibujar_terminal
 
-from Online import disposicion_hud, reunion_render, sabotaje_render
+from Online import reunion_render, sabotaje_render
 from Online.lobby import menu_online
 from Online.sesion_red import AdaptadorOnlineHost, EntradaRed
 from Online.sesion_red import cerrar_red_de_sesion, compartir_combate_con_sesion, normalizar_escena, proteger_partida_online
@@ -768,9 +768,9 @@ def _jugar(pantalla, reloj, sesion, preferencias, presentar):
         """Reunión, publicación del sabotaje, sus resultados o el fin de la partida."""
         return bool(hasattr(adaptador_red, "evento_red_en_curso") and adaptador_red.evento_red_en_curso())
 
-    def rects_botones():
-        """(REPORTAR, SABOTEAR) a la izquierda, según la escena (Online/disposicion_hud.py)."""
-        return disposicion_hud.rects_botones(escena, len(jugadores), getattr(preferencias, "hud_detallado", False))
+    def rect_boton_reportar():
+        # En la terminal, chico y en la barra de controles: los celulares ocupan el rincón.
+        return assets.RECT_BOTON_REPORTAR_TERMINAL if escena == Escena.DECISION else assets.RECT_BOTON_REPORTAR
 
     def boton_reportar_visible(vista):
         """Online con impostor en juego, el mundo en marcha, sin modal y sin
@@ -898,19 +898,18 @@ def _jugar(pantalla, reloj, sesion, preferencias, presentar):
         elif vista.mostrando_resultado:
             reunion_render.dibujar_resultado_reunion(pantalla, vista, jugadores, tiempo_overlay)
         elif modal is None and boton_reportar_visible(vista):
-            rect_reportar, rect_sabotear = rects_botones()
-            reunion_render.dibujar_boton_reportar(pantalla, vista.recarga, COOLDOWN_REUNION, tiempo_overlay, rect_reportar)
-            if boton_sabotear_visible(vista) and rect_sabotear is not None:
-                reunion_render.dibujar_boton_sabotear(pantalla, vista_sab.recarga, COOLDOWN_POST_SABOTAJE, tiempo_overlay,
-                                                      rect_sabotear)
+            reunion_render.dibujar_boton_reportar(pantalla, vista.recarga, COOLDOWN_REUNION, tiempo_overlay,
+                                                  rect_boton_reportar())
+            if boton_sabotear_visible(vista):
+                reunion_render.dibujar_boton_sabotear(pantalla, vista_sab.recarga, COOLDOWN_POST_SABOTAJE, tiempo_overlay)
         elif modal is None and escena in ESCENAS_BOTON_REPORTAR and dialogo is None \
                 and any(getattr(j, "es_impostor", False) for j in jugadores):
             if indice_local in vista.expulsados:
                 reunion_render.dibujar_aviso_red(pantalla, assets.TEXTO_AVISO_FANTASMA, assets.COLOR_GRAVE,
-                                                 rects_botones()[0])
+                                                 rect_boton_reportar())
             elif vista.impostor_descubierto:
                 reunion_render.dibujar_aviso_red(pantalla, assets.TEXTO_IMPOSTOR_DESCUBIERTO, assets.COLOR_IMPOSTOR,
-                                                 rects_botones()[0])
+                                                 rect_boton_reportar())
         aviso = adaptador_red.aviso_version() if hasattr(adaptador_red, "aviso_version") else None
         if aviso and modal is None:
             dibujo.chip(pantalla, aviso, assets.POSICION_AVISO_VERSION, assets.COLOR_ALERTA, assets.COLOR_FONDO_PANEL,
@@ -1131,10 +1130,10 @@ def _jugar(pantalla, reloj, sesion, preferencias, presentar):
                 manejar_evento_reunion(evento, vista_actual)
                 continue
             if evento.type == pygame.MOUSEBUTTONDOWN and evento.button == 1 \
-                    and reunion_render.en_boton(evento.pos, rects_botones()[0]) and reportar():
+                    and reunion_render.en_boton_reportar(evento.pos, rect_boton_reportar()) and reportar():
                 continue
             if evento.type == pygame.MOUSEBUTTONDOWN and evento.button == 1 \
-                    and reunion_render.en_boton(evento.pos, rects_botones()[1]) and sabotear():
+                    and reunion_render.en_boton_sabotear(evento.pos) and sabotear():
                 continue
             if evento.type == pygame.CONTROLLERBUTTONDOWN:
                 # El control también navega la historia y la terminal (J2 en cooperativo).
@@ -1155,24 +1154,6 @@ def _jugar(pantalla, reloj, sesion, preferencias, presentar):
                 elif escena == Escena.DECISION and direccion_mando is not None:
                     # El mismo camino que el teclado: bloqueo del impostor y envío al host.
                     navegar_terminal(1 if len(jugadores) > 1 and adaptador_red is None else indice_local, direccion_mando)
-                elif escena == Escena.CIUDAD and evento.button in (BOTON_CONFIRMAR, pygame.CONTROLLER_BUTTON_X):
-                    if getattr(jugador, "expulsado", False):
-                        if audio is not None:
-                            audio.sonar(assets.SONIDO_DENEGADO)
-                    elif not mostrar_mapa_mundo:
-                        entrada = partida.entrada_cercana(jugador.rect.center)
-                        if entrada is not None:
-                            zona = entrada.nombre_zona
-                            if campania.zona_desbloqueada(zona, partida.colapso):
-                                entrar_a_zona(zona)
-                            elif audio is not None:
-                                audio.sonar(assets.SONIDO_DENEGADO)
-                elif evento.button == pygame.CONTROLLER_BUTTON_Y and dialogo is None:
-                    sabotear()
-                elif evento.button in (pygame.CONTROLLER_BUTTON_RIGHTSHOULDER, pygame.CONTROLLER_BUTTON_X) and dialogo is None:
-                    reportar()
-                elif evento.button == pygame.CONTROLLER_BUTTON_START and dialogo is None:
-                    abrir_pausa()
                 continue
             if evento.type != pygame.KEYDOWN:
                 continue

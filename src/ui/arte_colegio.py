@@ -139,11 +139,6 @@ def vestir_aula(fondo, rect, origen_y, semilla, libres):
     poner("maceta", piso.right - 40, piso.bottom - 50)
 
 
-def multiplicar_piso(fondo, piso):
-    """Tablones del pack sobre el piso (también para la biblioteca y el laboratorio)."""
-    _multiplicar_piso(fondo, piso)
-
-
 def _multiplicar_piso(fondo, piso):
     """Tablones del pack multiplicados sobre el piso pintado (luz, viñeta y
     grietas quedan visibles a través de la textura)."""

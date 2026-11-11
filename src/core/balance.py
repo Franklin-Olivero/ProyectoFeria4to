@@ -533,9 +533,9 @@ DURACION_RESULTADO_REUNION = 6.0  # s que todos ven a quién expulsaron
 MAX_MENSAJES_REUNION = 14  # mensajes del chat que guarda el host (y manda en el ESTADO)
 MAX_LARGO_MENSAJE_REUNION = 80  # caracteres por mensaje
 # Fin de la partida Online por votación: expulsar al impostor la gana la
-# tripulación; si expulsan inocentes hasta que quedan solo el impostor y uno
-# más (con 2 jugadores: solo el impostor), gana el impostor.
-JUGADORES_MINIMOS_VICTORIA_IMPOSTOR = 2
+# tripulación; con al menos estos jugadores, si expulsan inocentes hasta que
+# quedan solo el impostor y uno más, gana el impostor (con 2 jugadores no).
+JUGADORES_MINIMOS_VICTORIA_IMPOSTOR = 3
 # Modo Online: botón SABOTEAR del impostor (Online/post_sabotaje.py). A todos
 # les salta una publicación falsa y tienen poco tiempo para frenarla
 # (Verificar o Reportar); el impostor puede elegir recién tras su bloqueo.

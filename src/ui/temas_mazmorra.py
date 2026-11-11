@@ -23,12 +23,11 @@ import random
 import pygame
 
 from src.core import assets
-from src.ui import arte_colegio, decor_mazmorra
+from src.ui import arte_colegio
 
 P = 3  # px de pantalla por píxel del cuadro
 ALTO_CARA_MURO = 12  # en píxeles del cuadro (36 px en pantalla)
 _cache = {}
-_focos_actuales = {}  # tema -> focos del último cuarto pedido (None = sin arte generado)
 
 
 def _caja(s, color, x, y, w, h, borde=None):
@@ -44,7 +43,7 @@ def _aclarar(color, d):
 class _Cuadro:
     """Lienzo de baja resolución y dónde queda el cuarto dentro de él."""
 
-    def __init__(self, rect, direcciones, rng, toxicidad, arte=False):
+    def __init__(self, rect, direcciones, rng, toxicidad):
         self.ancho, self.alto = 1280 // P, (assets.ALTO_MUNDO_TEMA) // P
         self.s = pygame.Surface((self.ancho, self.alto))
         self.origen_y = assets.Y_MUNDO_TEMA
@@ -57,7 +56,6 @@ class _Cuadro:
         self.rng = rng
         self.direcciones = set(direcciones)
         self.toxicidad = toxicidad
-        self.arte = arte  # hay arte generado: el decorador pone piso, muro y muebles
         # Piso útil, sin la cara del muro.
         self.piso = pygame.Rect(self.x, self.y + ALTO_CARA_MURO, self.w, self.h - ALTO_CARA_MURO)
         self.cara = pygame.Rect(self.x, self.y, self.w, ALTO_CARA_MURO)
@@ -168,16 +166,6 @@ def _huella_nova(c):
             y += c.rng.choice((-1, 0, 1))
 
 
-def _base_con_arte(c, tema, oscuro, marco):
-    """Piso y cara lisos para que el decorador multiplique la textura y ponga
-    el muro generado; se conservan el vano norte, la sombra y las grietas."""
-    pygame.draw.rect(c.s, assets.BASE_PISO_TEMA[tema], c.piso)
-    pygame.draw.rect(c.s, oscuro, c.cara)
-    _hueco_puertas(c, oscuro, marco)
-    _sombra_cara(c)
-    _huella_nova(c)
-
-
 # ----------------------------------------------------------------------
 # Colegio
 # ----------------------------------------------------------------------
@@ -281,12 +269,6 @@ def _pintar_hospital(c):
     _exterior_oscuro(c, (6, 16, 28))
     _muros(c, (12, 28, 40), (88, 118, 128))
     # Piso: baldosa clínica fría y guías de color que llevan a urgencias.
-    if c.arte:
-        _base_con_arte(c, "hospital", (16, 40, 52), (80, 104, 116))
-        for x in (c.x + c.w // 4, c.x + 3 * c.w // 4):
-            _luz(c, x, c.y + c.h // 2, 110, (150, 230, 255), 40, 0.8)
-        _vineta(c, 80)
-        return
     pygame.draw.rect(c.s, (54, 80, 92), c.piso)
     for x in range(c.piso.left, c.piso.right, 16):
         pygame.draw.line(c.s, (46, 70, 82), (x, c.piso.top), (x, c.piso.bottom - 1))
@@ -364,13 +346,6 @@ def _pintar_medios(c):
     _exterior_oscuro(c, (6, 6, 20))
     _muros(c, (14, 14, 36), (40, 42, 78))
     # Piso: alfombra técnica oscura y placas de piso elevado.
-    if c.arte:
-        _base_con_arte(c, "medios", (6, 6, 20), (64, 66, 110))
-        _luz(c, c.x + c.w // 2, c.y + c.h // 2 + 10, 120, (120, 150, 255), 34, 0.8)
-        _luz(c, c.x + c.w // 4, c.y + 14, 60, (255, 90, 140), 36, 0.8)
-        _luz(c, c.x + 3 * c.w // 4, c.y + 14, 60, (70, 220, 240), 36, 0.8)
-        _vineta(c, 90)
-        return
     pygame.draw.rect(c.s, (30, 32, 60), c.piso)
     for x in range(c.piso.left, c.piso.right, 20):
         for y in range(c.piso.top, c.piso.bottom, 20):
@@ -442,17 +417,12 @@ def _pintar_servidor(c):
                     pygame.draw.rect(c.s, c.rng.choice(((255, 56, 120), (164, 110, 255), (60, 40, 110))), (x + 2, y, 5, 1))
     _exterior_oscuro(c, (6, 2, 18))
     _muros(c, (42, 18, 64), (26, 16, 50))
-    # Piso: placas negras con circuitos que convergen al núcleo. Con arte, el
-    # mármol de la Alcaldía se multiplica encima: los circuitos quedan como
-    # la corrupción de NOVA que se mete bajo el piso del poder.
-    if c.arte:
-        pygame.draw.rect(c.s, assets.BASE_PISO_TEMA["servidor"], c.piso)
-    else:
-        pygame.draw.rect(c.s, (16, 12, 34), c.piso)
-        for x in range(c.piso.left, c.piso.right, 24):
-            pygame.draw.line(c.s, (24, 18, 48), (x, c.piso.top), (x, c.piso.bottom - 1))
-        for y in range(c.piso.top, c.piso.bottom, 24):
-            pygame.draw.line(c.s, (24, 18, 48), (c.piso.left, y), (c.piso.right - 1, y))
+    # Piso: placas negras con circuitos que convergen al núcleo.
+    pygame.draw.rect(c.s, (16, 12, 34), c.piso)
+    for x in range(c.piso.left, c.piso.right, 24):
+        pygame.draw.line(c.s, (24, 18, 48), (x, c.piso.top), (x, c.piso.bottom - 1))
+    for y in range(c.piso.top, c.piso.bottom, 24):
+        pygame.draw.line(c.s, (24, 18, 48), (c.piso.left, y), (c.piso.right - 1, y))
     centro = (c.x + c.w // 2, c.y + c.h // 2 + 4)
     rng = c.rng
     for _ in range(26):
@@ -472,13 +442,6 @@ def _pintar_servidor(c):
     # Núcleo en el piso.
     for radio, color in ((34, (44, 16, 64)), (26, (66, 20, 84)), (18, (30, 12, 50))):
         pygame.draw.circle(c.s, color, centro, radio, 2 if radio != 18 else 0)
-    if c.arte:
-        _huella_nova(c)
-        _sombra_cara(c)
-        _luz(c, centro[0], centro[1], 100, (255, 60, 170), 60, 0.9)
-        _luz(c, c.x + c.w // 2, c.y + 30, 150, (255, 210, 150), 22, 0.6)
-        _vineta(c, 100)
-        return
     # Cara del muro: torres de servidores y pantallas corruptas con la marca de NOVA.
     pygame.draw.rect(c.s, (24, 14, 46), c.cara)
     for x in range(c.cara.left + 2, c.cara.right - 10, 16):
@@ -519,22 +482,14 @@ def fondo(rect, tema, semilla, direcciones=(), toxicidad=0):
     if clave not in _cache:
         if len(_cache) > 24:
             _cache.clear()
-        arte = decor_mazmorra.disponible(tema)
-        cuadro = _Cuadro(rect, direcciones, random.Random(f"{tema}-{semilla}"), toxicidad, arte)
+        cuadro = _Cuadro(rect, direcciones, random.Random(f"{tema}-{semilla}"), toxicidad)
         _PINTORES[tema](cuadro)
         final = pygame.transform.scale(cuadro.s, (cuadro.ancho * P, cuadro.alto * P))
-        focos = None
-        if arte:
+        if tema == "colegio" and arte_colegio.disponible():
             libres = [pygame.Rect(r.x * P, r.y * P, r.w * P, r.h * P) for r in cuadro.libres]
-            if tema == "colegio" and decor_mazmorra.variante(tema, semilla) == "aula":
-                arte_colegio.vestir_aula(final, rect, cuadro.origen_y, semilla, libres)
-            cuarto = pygame.Rect(cuadro.x * P, cuadro.y * P, cuadro.w * P, cuadro.h * P)
-            banda = assets.BANDA_DECOR_ARENA if tema == "servidor" else assets.BANDA_DECOR_MAZMORRA
-            focos = decor_mazmorra.vestir(final, cuarto, tema, semilla, libres, direcciones, banda)
-        final = final.convert() if pygame.display.get_surface() is not None else final
-        _cache[clave] = (final, focos)
-    final, _focos_actuales[tema] = _cache[clave]
-    return final
+            arte_colegio.vestir_aula(final, rect, cuadro.origen_y, semilla, libres)
+        _cache[clave] = final.convert() if pygame.display.get_surface() is not None else final
+    return _cache[clave]
 
 
 # ----------------------------------------------------------------------
@@ -582,20 +537,16 @@ def _pantalla_colegio(pantalla, rect, tiempo):
 
 def _energia_servidor(pantalla, rect, tiempo):
     """El núcleo late y la señal corre por las torres: la presencia de NOVA_404."""
-    _pulso_nucleo(pantalla, rect, tiempo)
-    for i in range(0, rect.width // (16 * P)):
-        if (i * 7 + int(tiempo * 8)) % 13 == 0:
-            x = rect.left + (2 + i * 16) * P
-            pygame.draw.rect(pantalla, assets.COLOR_NOVA, (x + 2 * P, rect.top + 3 * P, 10 * P, 2 * P))
-
-
-def _pulso_nucleo(pantalla, rect, tiempo):
     centro = (rect.centerx, rect.centery + 4 * P)
     fase = (tiempo * 0.7) % 1.0
     radio = round(40 + fase * 110)
     capa = pygame.Surface((radio * 2 + 6, radio * 2 + 6), pygame.SRCALPHA)
     pygame.draw.circle(capa, (*assets.COLOR_NOVA, round(70 * (1 - fase))), (radio + 3, radio + 3), radio, 3)
     pantalla.blit(capa, capa.get_rect(center=centro))
+    for i in range(0, rect.width // (16 * P)):
+        if (i * 7 + int(tiempo * 8)) % 13 == 0:
+            x = rect.left + (2 + i * 16) * P
+            pygame.draw.rect(pantalla, assets.COLOR_NOVA, (x + 2 * P, rect.top + 3 * P, 10 * P, 2 * P))
 
 
 _ANIMADORES = {
@@ -607,16 +558,7 @@ _ANIMADORES = {
 
 
 def dibujar_animado(pantalla, rect, tema, tiempo):
-    """Capa viva del cuarto. Con reducir movimiento se puede omitir sin perder nada.
-
-    Con arte generado lo que late son los objetos que brillan del cuarto (sus
-    pantallas y LEDs, donde de verdad están); sin él, los de siempre."""
-    focos = _focos_actuales.get(tema)
-    if focos is not None:
-        decor_mazmorra.dibujar_focos(pantalla, focos, tiempo, assets.Y_MUNDO_TEMA)
-        if tema == "servidor":
-            _pulso_nucleo(pantalla, rect, tiempo)
-        return
+    """Capa viva del cuarto. Con reducir movimiento se puede omitir sin perder nada."""
     animador = _ANIMADORES.get(tema)
     if animador is not None:
         animador(pantalla, rect, tiempo)
