@@ -84,10 +84,26 @@ Retratos: fondo verde quitado con `tools/procesar_retrato.py`.
 WAV de 22 kHz) y 15 efectos en `assets/audio/sfx/`. Si faltan, el juego sintetiza colchones y
 pitidos. **Nadie las ha escuchado aún:** ver `docs/QA_VISUAL.md`.
 
-## Escenarios (sin Higgsfield)
+## Escenarios de mazmorra y fachadas (Higgsfield, 10 nov 2026)
 
-Colegio, Hospital, Medios y Servidor Central se pintan en código (`src/ui/temas_mazmorra.py`),
-sin créditos: coherentes con los sprites y sin pixel art roto al escalar.
+16 imágenes con `nano_banana_2` (1k, 1,5 cr c/u = **24 créditos**; saldo 1099,5), todas con
+el pack escolar comprado (`assets/colegio/props.png`) como `image_references` para heredar su
+pixel art 3/4 frontal. Prompts en `prompts/higgsfield_mazmorras.md`. Ninguna se usa entera
+como fondo: `tools/procesar_higgsfield.py` las convierte en piezas (croma verde, separación
+por islas, reducción a la rejilla nativa ~8 px, paleta corta, contorno, bordes repetibles).
+
+| Archivos | Origen | Uso |
+|---|---|---|
+| `assets/mazmorras/{hospital,medios,alcaldia}/piso.png` (128×128, ×2) | textura 4×4 | multiplicada sobre el piso pintado |
+| `assets/mazmorras/{hospital,medios,alcaldia}/muro.png` (franja de 36 px) | muro frontal 16:9 | cara del muro |
+| `assets/mazmorras/<tema>/props/*.png` (52 objetos, ×2) | 7 hojas sobre verde | `src/ui/decor_mazmorra.py` los coloca junto a los muros (plan puro `plan_decor.py`) |
+| `assets/ciudad/fachadas/{hospital,medios,alcaldia}.png` (264×144 / 264×96, ×2) | edificio 16:9 / 21:9 | `edificios_ciudad.imagen` (huella exacta) |
+
+Descartados: de la hoja `hospital_b` se usan 6 de 11 objetos (los demás salieron isométricos);
+`cables` de Medios no se coloca (a tamaño de juego parecía un enemigo). El Colegio conserva el
+pack comprado para el aula; la biblioteca y el laboratorio suman objetos generados. El lobby
+(pack Backrooms) no se tocó. Sin los PNG, todo vuelve al pintado en código de `temas_mazmorra.py`.
+Capturas antes/después: `tools/capturas_mazmorras.py` → `docs/capturas/mazmorras/`.
 
 ## Pendiente (opcional, sin generar)
 
