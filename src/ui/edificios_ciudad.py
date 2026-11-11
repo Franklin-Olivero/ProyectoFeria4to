@@ -1,8 +1,7 @@
 """Edificios de Ciudad Nova: arte, escala y anclaje (solo presentación).
 
 Cada edificio se dibuja con la configuración de assets.ARTE_EDIFICIOS:
-su fuente de arte (pixel art en código con la paleta propia de la zona, la
-fachada generada con Higgsfield (assets/ciudad/fachadas/) o
+su fuente de arte (pixel art en código con la paleta propia de la zona, o
 el pack del Colegio) a una escala ENTERA (vecino más cercano, sin suavizado) para que mida
 exactamente su huella de ciudad_mapa.EDIFICIOS en casillas, anclado por
 su base-centro a la base de la huella. Así ningún edificio se sale de su
@@ -18,7 +17,7 @@ import pygame
 from src.core import assets
 from src.core.balance import TAM_CASILLA
 from src.dungeon import ciudad_mapa
-from src.ui import arte_colegio, cargador_assets, casillas_ciudad
+from src.ui import arte_colegio, casillas_ciudad
 
 _cache = {}
 
@@ -49,12 +48,6 @@ def imagen(zona):
         if config["fuente"] == "pack_colegio" and arte_colegio.disponible():
             placa = rect_placa(zona).move(-col * TAM_CASILLA, -fila * TAM_CASILLA)
             superficie = arte_colegio.fachada(ancho, alto, puerta, placa, config["escala"], TAM_CASILLA)
-        if config["fuente"] == "fachada":
-            # Fachada generada: ya mide huella / escala y trae su puerta al centro.
-            superficie = cargador_assets.fachada_generada(config["ruta"], config["escala"],
-                                                          assets.FACTOR_FACHADA_GENERADA)
-            if superficie is not None and superficie.get_size() != (ancho * TAM_CASILLA, alto * TAM_CASILLA):
-                superficie = None  # otra huella: mejor el pixel art que un edificio deformado
         if superficie is None:
             # Pixel art en código (16 px por casilla) a ESCALA_PIXEL: también el respaldo del Colegio.
             superficie = casillas_ciudad.fachada(zona, ancho, alto, puerta, assets.ESCALA_PIXEL)

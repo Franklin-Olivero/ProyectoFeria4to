@@ -18,7 +18,6 @@ import math
 
 import pygame
 
-from Online.disposicion_hud import ALTO_MINIMO_BOTON_GRANDE
 from Online.reunion import EXPULSADO, GANA_TRIPULACION, SALTAR
 from src.ui.terminal_decision import PURIFICACION_EXITOSA
 from src.core import assets
@@ -71,9 +70,12 @@ def objetivo_en(posicion, candidatos):
     return None
 
 
-def en_boton(posicion, rect):
-    """¿El clic cae en el botón? (`rect` de Online/disposicion_hud.py; None = no hay)."""
-    return rect is not None and pygame.Rect(rect).collidepoint(posicion)
+def en_boton_reportar(posicion, rect=None):
+    return pygame.Rect(rect or assets.RECT_BOTON_REPORTAR).collidepoint(posicion)
+
+
+def en_boton_sabotear(posicion):
+    return pygame.Rect(assets.RECT_BOTON_SABOTEAR).collidepoint(posicion)
 
 
 def opciones_de_voto(vista):
@@ -114,7 +116,7 @@ def _dibujar_boton(pantalla, rect, texto, tecla, color, icono, recarga, total, t
     segundos que faltan. Bajo (< ALTO_MINIMO_BOTON_GRANDE): en una sola fila."""
     rect = pygame.Rect(rect)
     listo = recarga <= 0.0
-    grande = rect.height >= ALTO_MINIMO_BOTON_GRANDE
+    grande = rect.height >= assets.ALTO_MINIMO_BOTON_GRANDE
     if listo:
         pulso = 0.5 + 0.5 * math.sin(tiempo * 4.0)
         halo = rect.inflate(round(6 + 4 * pulso), round(6 + 4 * pulso))
@@ -147,22 +149,23 @@ def _dibujar_boton(pantalla, rect, texto, tecla, color, icono, recarga, total, t
                           assets.TAMANIO_FUENTE_NORMAL, negrita=True, ancla="midleft", minimo=9)
 
 
-def dibujar_boton_reportar(pantalla, recarga, total, tiempo, rect):
+def dibujar_boton_reportar(pantalla, recarga, total, tiempo=0.0, rect=None):
     """REPORTAR: rojo cuando está listo (R o clic)."""
-    _dibujar_boton(pantalla, rect, assets.TEXTO_BOTON_REPORTAR, "R", assets.COLOR_REPORTAR, _megafono, recarga, total,
-                   tiempo)
+    _dibujar_boton(pantalla, rect or assets.RECT_BOTON_REPORTAR, assets.TEXTO_BOTON_REPORTAR, "R", assets.COLOR_REPORTAR,
+                   _megafono, recarga, total, tiempo)
 
 
-def dibujar_boton_sabotear(pantalla, recarga, total, tiempo, rect):
+def dibujar_boton_sabotear(pantalla, recarga, total, tiempo=0.0):
     """SABOTEAR: solo el impostor lo ve (Q o clic)."""
-    _dibujar_boton(pantalla, rect, assets.TEXTO_BOTON_SABOTEAR, "Q", assets.COLOR_SABOTEAR, _rayo, recarga, total, tiempo)
+    _dibujar_boton(pantalla, assets.RECT_BOTON_SABOTEAR, assets.TEXTO_BOTON_SABOTEAR, "Q", assets.COLOR_SABOTEAR,
+                   _rayo, recarga, total, tiempo)
 
 
-def dibujar_aviso_red(pantalla, texto, color, rect):
-    """Chip en lugar del botón: "Eres un fantasma..." o "Impostor descubierto"."""
-    rect = pygame.Rect(rect)
-    dibujo.chip(pantalla, texto, (rect.left, rect.bottom), color, assets.COLOR_FONDO_PANEL, color,
-                assets.TAMANIO_FUENTE_PEQUENA, ancla="bottomleft", alto=30, margen=10)
+def dibujar_aviso_red(pantalla, texto, color, rect=None):
+    """Chip en lugar del botón: "Expulsado" o "Impostor descubierto"."""
+    rect = pygame.Rect(rect or assets.RECT_BOTON_REPORTAR)
+    dibujo.chip(pantalla, texto, (rect.right, rect.bottom), color, assets.COLOR_FONDO_PANEL, color,
+                assets.TAMANIO_FUENTE_PEQUENA, ancla="bottomright", alto=30, margen=10)
 
 
 # ----------------------------------------------------------------------

@@ -71,24 +71,21 @@ def limpiar(texto):
 def resolver_entrada(texto, ip_propia, puerto_default):
     """Lo que escribe el invitado -> (ip, puerto).
 
-    Acepta un código de sala ("KMHB" o "KMHB:8080"), una IP ("10.20.54.107") o
-    una IP con puerto ("10.20.54.107:8080"). Lanza ValueError si no es ninguno.
+    Acepta un código de sala ("KMHB"), una IP ("10.20.54.107") o una IP con
+    puerto ("10.20.54.107:7777"). Lanza ValueError si no es ninguno.
     """
     texto = limpiar(texto)
+    if es_codigo(texto):
+        return resolver_codigo(texto, ip_propia), puerto_default
+
     texto = texto.replace(",", ".")  # punto del teclado numérico en algunos layouts
-
-    base, sep, puerto_str = texto.partition(":")
-    puerto = puerto_default
-    if sep:
-        if not puerto_str.isdigit() or not 0 < int(puerto_str) < 65536:
-            raise ValueError(f"Puerto inválido: {puerto_str}")
-        puerto = int(puerto_str)
-
-    if es_codigo(base):
-        return resolver_codigo(base, ip_propia), puerto
-
-    ip_a_entero(base)
-    return base, puerto
+    ip, _, puerto = texto.partition(":")
+    ip_a_entero(ip)
+    if not puerto:
+        return ip, puerto_default
+    if not puerto.isdigit() or not 0 < int(puerto) < 65536:
+        raise ValueError(f"Puerto inválido: {puerto}")
+    return ip, int(puerto)
 
 
 def ip_local():

@@ -29,7 +29,7 @@ INTERVALO_INTERNET_S = 2.0
 TIMEOUT_INTERNET_S = 1.5
 
 TIMEOUT_COMANDO_S = 5.0
-LIMITE_ENVIO_S = 4.0  # Tolera fluctuaciones y jitter de Wi-Fi sin desconectar prematuramente
+LIMITE_ENVIO_S = 1.0
 
 # Tipos de error al conectar
 TIMEOUT = "timeout"

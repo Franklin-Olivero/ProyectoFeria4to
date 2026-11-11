@@ -95,7 +95,7 @@ partida va sin semilla y los tests le pasan una.
   También tiene un botón SABOTEAR: a todos les salta una publicación viral con 20 s para frenarla.
   Cualquiera puede apretar REPORTAR (cada 60 s): reunión de 60 s con chat y votación (solo cuentan
   los votos emitidos). El expulsado queda como fantasma; si expulsan al impostor gana la
-  tripulación, y si solo quedan él y uno más (con 2 jugadores, basta expulsar al otro), gana el impostor.
+  tripulación, y con 3 o más jugadores, si solo quedan él y uno más, gana el impostor.
 - Detalle: `docs/SISTEMA_REPUTACION.md`, `docs/SISTEMA_REDENCION.md`.
 
 ## Cliente-servidor (Online)

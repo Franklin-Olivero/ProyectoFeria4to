@@ -8,12 +8,8 @@ Características:
        (con la sala y con internet) y, en el Host, el estado del Firewall ([F]).
     5. Radar en tiempo real con el Grafo de Sala (GrafoSala de Estructura de Datos 2).
     6. Botón central de inicio: requiere mínimo 2 jugadores y solo el Host puede iniciar.
-    7. La sala es un salón del hotel Backrooms (Online/sala_hotel.py y
-       sala_hotel_render.py), con el estilo del lobby del juego: la recepción
-       elige el rol y los 4 carritos de equipaje son vestidores (estilo Among
-       Us): de cerca, [E] o clic abre el modal COLOR / HAT / SKIN / HAIR /
-       SHIRT / PANTS y toda la sala ve el cambio al instante. Sin el arte
-       Backrooms, vuelve la sala neón de antes.
+    7. Las 4 cajas son vestidores (estilo Among Us): de cerca, [E] o clic abre
+       el modal COLOR / HAT / SKIN y toda la sala ve el cambio al instante.
     8. Al iniciar, el host sortea al impostor y cada jugador ve su rol, vestido
        como eligió, en la pantalla de revelación (Online/pantalla_rol.py).
 """
@@ -26,13 +22,12 @@ from src.core import assets
 from src.core.apariencia import PREDETERMINADA
 from src.core.config import FPS
 from src.core.preferencias import cargar as cargar_preferencias
-from src.ui import dibujo, hud, kit, sprites
+from src.ui import dibujo, hud, sprites
 
-from Online.servidor import Servidor, PUERTO_DEFAULT, PUERTOS_CANDIDATOS, MAX_JUGADORES
+from Online.servidor import Servidor, PUERTO_DEFAULT, MAX_JUGADORES
 from Online.cliente import Cliente
 from Online.codigo_sala import generar_codigo, resolver_entrada, ip_local
 from Online.pantalla_rol import mostrar_pantalla_revelacion_rol
-from Online import sala_hotel, sala_hotel_render
 from Online.personalizacion import PESTANAS, Vestidor
 from Online.personalizacion_render import CERRAR, FUERA, OPCION, PESTANA, dibujar_vestidor, objetivo_en
 from Online import firewall, registro_errores
@@ -42,9 +37,8 @@ from Online.protocolo import (
     msg_elegir_rol, msg_iniciar, msg_lobby, msg_posicion_lobby,
 )
 
-# Colores de la sala: el morado de Civitas, como el resto del juego
-# (los de piso y neón quedan para la sala de respaldo, sin el arte del hotel).
-COLOR_ONLINE = assets.COLOR_CIVITAS
+# Colores de la sala y estética retrofuturista
+COLOR_ONLINE = (100, 200, 255)
 COLOR_ESPERANDO = (150, 150, 185)
 COLOR_CONECTADO = assets.COLOR_TEAL
 COLOR_IP = assets.COLOR_AMARILLO
@@ -55,8 +49,7 @@ COLOR_MURO_LOBBY = (32, 28, 56)
 COLOR_BORDE_NEON = (70, 190, 240)
 COLOR_CAJA = (44, 40, 72)
 COLOR_CAJA_BORDE = (90, 84, 140)
-COLOR_FONDO_AVISO = (38, 22, 70)  # chip flotante de la recepción y de los vestidores
-COLOR_FONDO_CODIGO = (30, 18, 56)
+COLOR_FONDO_AVISO = (20, 40, 60)  # chip flotante de la laptop y de los vestidores
 
 # Mapeo de nombres de rol a sus identificadores de sprite y colores
 ROLES_INFO = {
@@ -66,27 +59,28 @@ ROLES_INFO = {
     "Candidato": {"color": assets.COLOR_CANDIDATO, "rol": "candidato", "desc": "Aura protectora"},
 }
 
-# La sala sale de Online/datos/sala_hotel.json (Online/sala_hotel.py): el
-# salón entero, el piso por donde se camina, la recepción (elegir rol), los
-# 4 vestidores, lo que estorba y dónde aparece cada jugador (0 = host).
-COMPOSICION_SALA = sala_hotel.cargar_composicion()
-_DISPOSICION = sala_hotel.disposicion(COMPOSICION_SALA) if COMPOSICION_SALA is not None else None
-if _DISPOSICION is not None:
-    SALA_RECT = pygame.Rect(_DISPOSICION.sala)
-    PISO_SALA = pygame.Rect(_DISPOSICION.piso)
-    ESTACION_ROLES = pygame.Rect(_DISPOSICION.recepcion)
-    CAJAS_VESTIDOR = [pygame.Rect(r) for r in _DISPOSICION.vestidores]
-    OBSTACULOS = [pygame.Rect(r) for r in _DISPOSICION.obstaculos]
-    SPAWNS = list(_DISPOSICION.apariciones)
-else:  # sin el archivo: la sala neón de antes
-    SALA_RECT = pygame.Rect(70, 50, 870, 590)
-    PISO_SALA = SALA_RECT.inflate(-40, -40)
-    ESTACION_ROLES = pygame.Rect(455, 230, 100, 70)
-    CAJAS_VESTIDOR = [pygame.Rect(140, 140, 90, 70), pygame.Rect(760, 140, 90, 70),
-                      pygame.Rect(140, 480, 90, 70), pygame.Rect(760, 480, 90, 70)]
-    OBSTACULOS = [ESTACION_ROLES, *CAJAS_VESTIDOR]
-    SPAWNS = [(505, 360), (610, 360), (430, 430), (680, 430)]
-RECT_BOTON_INICIO = pygame.Rect(SALA_RECT.centerx - 185, SALA_RECT.bottom - 52, 370, 50)
+# Límites de la sala de espera
+SALA_RECT = pygame.Rect(70, 50, 870, 590)
+
+# Obstáculos en la sala (colisión para los jugadores)
+OBSTACULOS = [
+    pygame.Rect(455, 230, 100, 70),   # Laptop Central
+    pygame.Rect(140, 140, 90, 70),    # Caja superior izquierda
+    pygame.Rect(760, 140, 90, 70),    # Caja superior derecha
+    pygame.Rect(140, 480, 90, 70),    # Caja inferior izquierda
+    pygame.Rect(760, 480, 90, 70),    # Caja inferior derecha
+]
+
+# Puntos de aparición por jugador (0=Host, 1, 2, 3)
+SPAWNS = [
+    (505, 360),
+    (610, 360),
+    (430, 430),
+    (680, 430),
+]
+
+# Las 4 cajas de carga son vestidores (Online/personalizacion.py).
+CAJAS_VESTIDOR = OBSTACULOS[1:]
 ALCANCE_VESTIDOR = 95  # px del centro del jugador al centro de la caja (igual que la laptop)
 # Con el vestidor abierto: flechas/WASD eligen, Tab o 1-3 cambian de pestaña.
 TECLAS_MOVER_VESTIDOR = {
@@ -96,8 +90,8 @@ TECLAS_MOVER_VESTIDOR = {
     pygame.K_DOWN: (0, 1), pygame.K_s: (0, 1),
 }
 TECLAS_PESTANA_VESTIDOR = {
-    pygame.K_1: 0, pygame.K_2: 1, pygame.K_3: 2, pygame.K_4: 3, pygame.K_5: 4, pygame.K_6: 5,
-    pygame.K_KP1: 0, pygame.K_KP2: 1, pygame.K_KP3: 2, pygame.K_KP4: 3, pygame.K_KP5: 4, pygame.K_KP6: 5,
+    pygame.K_1: 0, pygame.K_2: 1, pygame.K_3: 2,
+    pygame.K_KP1: 0, pygame.K_KP2: 1, pygame.K_KP3: 2,
 }
 TECLAS_CERRAR_VESTIDOR = (pygame.K_ESCAPE, pygame.K_e, pygame.K_RETURN, pygame.K_KP_ENTER)
 CAMBIO_VESTIDOR = "cambio"
@@ -358,8 +352,8 @@ def pantalla_sala_espera(pantalla, reloj, presentar, clases_rol, es_host, conexi
 
         # 2. Manejo de Eventos
         mouse_pos = pygame.mouse.get_pos()
-        rect_boton_inicio = RECT_BOTON_INICIO
-        rect_laptop = ESTACION_ROLES
+        rect_boton_inicio = pygame.Rect(320, 576, 370, 50)
+        rect_laptop = OBSTACULOS[0]
         cerca_laptop = math.hypot(pos_x - rect_laptop.centerx, pos_y - rect_laptop.centery) < 95
         caja_cercana = _caja_cercana(pos_x, pos_y)
 
@@ -394,7 +388,7 @@ def pantalla_sala_espera(pantalla, reloj, presentar, clases_rol, es_host, conexi
                         and CAJAS_VESTIDOR[caja_cercana].collidepoint(mouse_pos)):
                     vestidor = Vestidor(apariencia_local, pestana_vestidor)
 
-                # Clic en la recepción (elegir rol)
+                # Clic en la laptop central
                 if rect_laptop.collidepoint(mouse_pos) or cerca_laptop:
                     modal_roles_abierto = not modal_roles_abierto
 
@@ -476,7 +470,7 @@ def pantalla_sala_espera(pantalla, reloj, presentar, clases_rol, es_host, conexi
                 # Colisión con límites de la sala
                 rect_jugador = pygame.Rect(nx - 16, ny - 16, 32, 32)
                 colisiona = False
-                if not PISO_SALA.contains(rect_jugador):
+                if not SALA_RECT.inflate(-40, -40).contains(rect_jugador):
                     colisiona = True
                 for obs in OBSTACULOS:
                     if obs.colliderect(rect_jugador):
@@ -516,8 +510,7 @@ def pantalla_sala_espera(pantalla, reloj, presentar, clases_rol, es_host, conexi
                               sala.todos_listos(), aviso_temporal if aviso_timer > 0 else "")
 
         # Dibujar el Panel Lateral de Información de Sala
-        puerto_actual = getattr(conexion, "puerto", PUERTO_DEFAULT)
-        _dibujar_panel_sala(pantalla, ip, puerto_actual,
+        _dibujar_panel_sala(pantalla, ip, conexion.puerto if es_host else PUERTO_DEFAULT,
                             cantidad_conectados, es_host, latencia, diagnostico)
 
         # Dibujar el Radar del Grafo de Sala (Estructuras de Datos 2)
@@ -536,7 +529,7 @@ def pantalla_sala_espera(pantalla, reloj, presentar, clases_rol, es_host, conexi
         if vestidor is not None:
             controles = [
                 ("Flechas / WASD", "elegir"),
-                ("Tab / 1-6", "pestaña"),
+                ("Tab / 1-3", "pestaña"),
                 ("Clic", "elegir"),
                 ("E / Esc", "cerrar"),
             ]
@@ -666,11 +659,8 @@ def _revelar_rol(pantalla, reloj, presentar, es_impostor, nombre_rol, apariencia
 # =========================================================================
 
 def _dibujar_escenario_lobby(pantalla, tiempo, cerca_laptop, caja_cercana=None):
-    """El salón del hotel (Online/sala_hotel_render.py) o, si falta su arte,
-    la habitación neón de antes. `caja_cercana` = índice del vestidor al
-    alcance del jugador (se ilumina)."""
-    if sala_hotel_render.dibujar_sala(pantalla, tiempo, cerca_laptop, caja_cercana, COMPOSICION_SALA):
-        return
+    """Dibuja la habitación de la nave/búnker con piso texturizado y props.
+    `caja_cercana` = índice del vestidor al alcance del jugador (se ilumina)."""
     # Piso metálico con cuadrícula
     dibujo.panel(pantalla, SALA_RECT, COLOR_PISO_A, COLOR_MURO_LOBBY, grosor=8, radio=16)
 
@@ -717,7 +707,7 @@ def _dibujar_escenario_lobby(pantalla, tiempo, cerca_laptop, caja_cercana=None):
                          (caja.right - 8, caja.bottom - 12), 2)
 
     # Laptop Central (Estación de Personalización de Rol)
-    laptop_rect = ESTACION_ROLES
+    laptop_rect = OBSTACULOS[0]
     # Aura pulsante si estás cerca
     if cerca_laptop:
         pulso = int(25 + 15 * math.sin(tiempo * 8))
@@ -833,7 +823,7 @@ def _dibujar_boton_inicio(pantalla, rect, es_host, cantidad, todos_listos, aviso
                          assets.TAMANIO_FUENTE_MINI, ancla="center")
     else:
         # Invitado
-        dibujo.panel(pantalla, rect, COLOR_FONDO_AVISO, COLOR_ONLINE, grosor=1, radio=8)
+        dibujo.panel(pantalla, rect, (24, 30, 60), COLOR_ONLINE, grosor=1, radio=8)
         dibujo.texto(pantalla, "ESPERANDO A QUE EL HOST INICIE...",
                      (rect.centerx, rect.centery - 6), COLOR_ONLINE,
                      assets.TAMANIO_FUENTE_MEDIA, negrita=True, ancla="center")
@@ -891,8 +881,7 @@ def _texto_internet(medidor):
 def _dibujar_panel_sala(pantalla, ip, puerto, cantidad, es_host, latencia, diagnostico=None):
     """Panel lateral derecho estilo Among Us con los ajustes de la sala."""
     rect = pygame.Rect(960, 50, 260, 275)
-    kit.panel(pantalla, rect, COLOR_ONLINE, radio=12)
-    pygame.draw.rect(pantalla, COLOR_ONLINE, rect, 1, border_radius=12)
+    dibujo.panel(pantalla, rect, assets.COLOR_FONDO_PANEL, COLOR_ONLINE, grosor=2, radio=12)
 
     dibujo.texto(pantalla, "ROOM SETTINGS", (rect.centerx, rect.top + 16),
                  COLOR_ONLINE, assets.TAMANIO_FUENTE_TITULO, negrita=True, ancla="center")
@@ -903,7 +892,7 @@ def _dibujar_panel_sala(pantalla, ip, puerto, cantidad, es_host, latencia, diagn
                  assets.COLOR_TEXTO_SECUNDARIO, assets.TAMANIO_FUENTE_MINI)
     y += 18
     ip_rect = pygame.Rect(rect.left + 14, y, rect.width - 28, 38)
-    dibujo.panel(pantalla, ip_rect, COLOR_FONDO_CODIGO, COLOR_IP, grosor=1, radio=6)
+    dibujo.panel(pantalla, ip_rect, (14, 20, 36), COLOR_IP, grosor=1, radio=6)
     dibujo.texto(pantalla, " ".join(generar_codigo(ip)), (ip_rect.centerx, ip_rect.centery),
                  COLOR_IP, assets.TAMANIO_FUENTE_TITULO, negrita=True, ancla="center")
     dibujo.texto(pantalla, f"IP: {ip}:{puerto}", (rect.centerx, rect.bottom - 14),
@@ -913,7 +902,7 @@ def _dibujar_panel_sala(pantalla, ip, puerto, cantidad, es_host, latencia, diagn
     y += 48
     dibujo.texto(pantalla, "CAPACIDAD:", (rect.left + 16, y),
                  assets.COLOR_TEXTO_SECUNDARIO, assets.TAMANIO_FUENTE_PEQUENA)
-    dibujo.texto(pantalla, f"{cantidad} / 4", (rect.right - 16, y),
+    dibujo.texto(pantalla, f"👤 {cantidad} / 4", (rect.right - 16, y),
                  COLOR_CONECTADO if cantidad >= 2 else assets.COLOR_MAGENTA,
                  assets.TAMANIO_FUENTE_TITULO, negrita=True, ancla="topright")
 
@@ -952,7 +941,7 @@ def _dibujar_panel_sala(pantalla, ip, puerto, cantidad, es_host, latencia, diagn
 def _dibujar_radar_grafo(pantalla, sala):
     """Panel lateral inferior con la visualización del Grafo de Sala (ED2)."""
     rect = pygame.Rect(960, 340, 260, 300)
-    kit.panel(pantalla, rect, assets.COLOR_AMARILLO, radio=12)
+    dibujo.panel(pantalla, rect, assets.COLOR_FONDO_PANEL, assets.COLOR_BORDE_CHIP, grosor=1, radio=12)
 
     dibujo.texto(pantalla, "ESTRUCTURA DE DATOS", (rect.centerx, rect.top + 14),
                  assets.COLOR_AMARILLO, assets.TAMANIO_FUENTE_PEQUENA, negrita=True, ancla="center")
@@ -1124,27 +1113,14 @@ def menu_online(pantalla, reloj, presentar, clases_rol):
                 _pantalla_error(pantalla, reloj, presentar, e)
                 continue
 
-            # Si el invitado no escribió puerto explícito (con ':'), probamos el puerto
-            # resuelto y si falla, los demás candidatos automáticamente.
-            tiene_puerto_manual = ":" in entrada
-            candidatos = [puerto] if tiene_puerto_manual else [puerto] + [p for p in PUERTOS_CANDIDATOS if p != puerto]
+            # connect() bloquea hasta 5 s: se deja dibujado a dónde se está conectando.
+            pantalla.fill(assets.COLOR_FONDO)
+            dibujo.texto(pantalla, f"Conectando a {ip}:{puerto}...", (640, 360), COLOR_ONLINE,
+                         assets.TAMANIO_FUENTE_TITULO, negrita=True, ancla="center")
+            presentar()
 
             cliente = Cliente()
-            conectado = False
-            for p_candidato in candidatos:
-                pantalla.fill(assets.COLOR_FONDO)
-                dibujo.texto(pantalla, f"Conectando a {ip}:{p_candidato}...", (640, 360), COLOR_ONLINE,
-                             assets.TAMANIO_FUENTE_TITULO, negrita=True, ancla="center")
-                presentar()
-
-                # Timeout corto (1.8s) al escanear, o 4.0s si fue manual
-                t_out = 4.0 if tiene_puerto_manual else 1.8
-                if cliente.conectar(ip, p_candidato, timeout=t_out):
-                    puerto = p_candidato
-                    conectado = True
-                    break
-
-            if not conectado:
+            if not cliente.conectar(ip, puerto):
                 _pantalla_error(pantalla, reloj, presentar, cliente.error,
                                 _consejos_conexion(cliente, ip, info_red))
                 continue
