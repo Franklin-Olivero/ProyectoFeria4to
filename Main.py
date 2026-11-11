@@ -1700,6 +1700,9 @@ def _jugar(pantalla, reloj, sesion, preferencias, presentar):
                 combate_render.dibujar_indicador_apuntado(lienzo, j)  # J2 no tiene mira
         if getattr(jugador, "expulsado", False):
             _dibujar_fantasma(lienzo, jugador, tiempo)  # los demás no lo ven; él sí
+        if escena in ESCENAS_DE_COMBATE and hasattr(escenario, "dibujar_delante"):
+            # Un jugador detrás de un mueble queda tapado por él (vista 3/4).
+            escenario.dibujar_delante(lienzo, [j.rect for j in en_combate])
         for proyectiles in proyectiles_por_jugador:
             for proyectil in proyectiles:
                 proyectil.dibujar(lienzo)
@@ -1767,6 +1770,8 @@ def _frame_de_combate(
         return  # sin lugar de combate (cambio de escena a medio frame en Online): nada que simular
     teclas = pygame.key.get_pressed()
     en_combate = jugadores_en_combate(jugadores)
+    # Muebles sólidos y rompibles del lugar (src/dungeon/zona_coberturas.py).
+    coberturas = getattr(escenario, "coberturas", None)
     for jugador, entrada, proyectiles in zip(jugadores, entradas, proyectiles_por_jugador):
         jugador.actualizar_invulnerabilidad(dt)
         jugador.actualizar_dash(dt)
@@ -1775,14 +1780,18 @@ def _frame_de_combate(
         pedido = _leer_entrada(entrada, teclas, sacudida)
         if getattr(jugador, "expulsado", False):
             # Fantasma (lo expulsaron en una reunión, modo Online): camina, no pelea.
+            anterior = (jugador.posicion.x, jugador.posicion.y)
             jugador.manejar_input(replace(pedido, dash=False), dt, escenario.rect)
+            _frenar_en_coberturas(jugador, anterior, coberturas)
             continue
         if jugador not in en_combate:
             continue
         # Gracia de entrada al cuarto: el jugador solo puede moverse.
         jugador.armas_bloqueadas = escenario.gracia.activa
         # Mueve, apunta (mouse o stick) y arranca el dash si se pidió.
+        anterior = (jugador.posicion.x, jugador.posicion.y)
         jugador.manejar_input(pedido, dt, escenario.rect)
+        _frenar_en_coberturas(jugador, anterior, coberturas)
         if jugador.dash.activo:
             particulas.emitir(jugador.rect.center, jugador.COLOR)
         if pedido.habilidad:
@@ -1795,6 +1804,12 @@ def _frame_de_combate(
     for proyectiles in proyectiles_por_jugador:
         _actualizar_proyectiles(proyectiles, dt, escenario.rect)
     _actualizar_proyectiles(proyectiles_enemigos, dt, escenario.rect)
+
+    # Primero los muebles: una bala que da en una cobertura no llega a nadie.
+    if coberturas:
+        for proyectiles in (*proyectiles_por_jugador, proyectiles_enemigos):
+            _resolver_colisiones_contra_coberturas(proyectiles, coberturas, particulas)
+        _avisar_coberturas_rotas(coberturas, particulas)
 
     for jugador, proyectiles in zip(jugadores, proyectiles_por_jugador):
         _resolver_colisiones_contra_enemigos(proyectiles, escenario.enemigos, jugador, jugadores, textos)
@@ -2347,6 +2362,38 @@ def _resolver_colisiones_contra_enemigos(proyectiles, enemigos, jugador, jugador
                     textos.agregar(f"-{vida_antes - enemigo.vida:g}", (enemigo.rect.centerx, enemigo.rect.top - 12))
                 if not enemigo.vivo:
                     registrar_kill_equipo(jugador, jugadores)
+
+
+def _frenar_en_coberturas(jugador, anterior, coberturas):
+    """El jugador no atraviesa un mueble: se detiene en ese eje (y pierde
+    ahí la inercia, como contra un muro) y resbala por el otro."""
+    if not coberturas:
+        return
+    choco_x, choco_y = coberturas.frenar(jugador, anterior)
+    if choco_x:
+        jugador.velocidad_actual.x = 0
+    if choco_y:
+        jugador.velocidad_actual.y = 0
+
+
+def _resolver_colisiones_contra_coberturas(proyectiles, coberturas, particulas):
+    """Cada proyectil que toca un mueble en pie le aplica su efecto
+    (`al_chocar_cobertura`: dañarlo y destruirse, rebotar...) y levanta polvo."""
+    for proyectil in proyectiles:
+        if coberturas.impactar(proyectil) is not None:
+            centro = getattr(proyectil, "centro", None) or proyectil.rect.center
+            particulas.emitir((centro[0], centro[1]), assets.COLOR_POLVO_COBERTURA, assets.POLVO_POR_IMPACTO)
+            eventos_sonido.emitir("impacto_cobertura")
+    proyectiles[:] = [proyectil for proyectil in proyectiles if proyectil.vivo]
+
+
+def _avisar_coberturas_rotas(coberturas, particulas):
+    """Polvo y sonido de cada mueble que se rompió este frame."""
+    for cobertura in coberturas.rotas_recientes:
+        x, y, ancho, alto = cobertura.hitbox
+        particulas.emitir((x + ancho / 2, y + alto / 2), assets.COLOR_POLVO_COBERTURA, assets.POLVO_AL_ROMPER)
+        eventos_sonido.emitir("cobertura_rota")
+    coberturas.rotas_recientes.clear()
 
 
 def _resolver_colision_contra_jugador(proyectiles, jugador, textos):

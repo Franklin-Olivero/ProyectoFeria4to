@@ -73,8 +73,19 @@ class MazmorraJugable:
     def enemigos(self):
         return self.cuarto.enemigos
 
+    @property
+    def coberturas(self):
+        """Muebles sólidos del cuarto actual (ZonaCoberturas)."""
+        return self.cuarto.coberturas
+
     def colocar_en_entrada(self, jugadores):
         ubicar_en_fila(jugadores, self.cuarto.rect.center, (1, 0))
+        self._sacar_de_muebles(jugadores)
+
+    def _sacar_de_muebles(self, jugadores):
+        """Nadie aparece dentro de una cobertura (en cooperativo la fila es ancha)."""
+        for jugador in jugadores:
+            self.cuarto.coberturas.sacar(jugador)
 
     def _crear_cuarto_si_falta(self, id_cuarto, punto_entrada=None):
         if id_cuarto in self.cuartos:
@@ -158,6 +169,7 @@ class MazmorraJugable:
         dx, dy = HACIA_ADENTRO[OPUESTA[direccion]]
         # La fila va perpendicular a la dirección de entrada (a lo ancho de la puerta).
         ubicar_en_fila(jugadores, llegada, (-dy, dx))
+        self._sacar_de_muebles(jugadores)
         self.gracia.iniciar()
         eventos_sonido.emitir("puerta")
 
@@ -166,6 +178,9 @@ class MazmorraJugable:
 
     def dibujar(self, pantalla):
         self.cuarto.dibujar(pantalla)
+
+    def dibujar_delante(self, pantalla, cuerpos):
+        self.cuarto.dibujar_delante(pantalla, cuerpos)
 
 
 def ubicar_en_fila(jugadores, centro, eje):

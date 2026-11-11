@@ -76,7 +76,8 @@ def test_cargador_recorta_y_cachea():
     from src.ui import cargador_assets
 
     banca = cargador_assets.prop_urbano("banca")
-    assert banca is not None and banca.get_width() <= assets.CELDA_PROPS_URBANOS
+    escala = assets.ESCALA_PROP_URBANO.get("banca", assets.ESCALA_PROP_URBANO_PREDETERMINADA)
+    assert banca is not None and banca.get_width() <= assets.CELDA_PROPS_URBANOS * escala
     assert cargador_assets.prop_urbano("banca") is banca
     pupitre = cargador_assets.pieza_colegio("pupitre")
     assert pupitre.get_size() == tuple(assets.PIEZAS_COLEGIO["pupitre"][1][2:])

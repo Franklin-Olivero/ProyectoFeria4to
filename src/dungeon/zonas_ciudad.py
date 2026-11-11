@@ -137,7 +137,7 @@ ZONAS = {
         hitos=(
             # Patios de los apartamentos del este y buzones en la banqueta.
             Hito("parrilla", (60, 18)), Hito("cerca_madera", (61, 18)),
-            Hito("cerca_madera", (61, 42)), Hito("buzon_azul", (56, 13)), Hito("buzon_azul", (56, 39)),
+            Hito("cerca_madera", (61, 42)), Hito("buzon_azul", (56, 16)), Hito("buzon_azul", (56, 39)),
         ),
     ),
 }

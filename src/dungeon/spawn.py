@@ -32,15 +32,20 @@ def candidatas(limites):
     return puntos
 
 
-def posiciones_spawn(limites, punto_entrada, cantidad, rng, distancia_min=DISTANCIA_MIN_SPAWN_ENEMIGO):
+def posiciones_spawn(limites, punto_entrada, cantidad, rng, distancia_min=DISTANCIA_MIN_SPAWN_ENEMIGO,
+                     libre=None):
     """`cantidad` posiciones (x, y) ordenadas de la más cercana a la más
     lejana al punto de entrada. Todas a >= `distancia_min` de él y a >=
     SEPARACION_MIN_SPAWN_ENEMIGOS entre sí cuando el cuarto lo permite;
     si no alcanzaran, se completa con las candidatas más lejanas.
+    `libre` (opcional): función punto -> bool; las candidatas donde da
+    False se descartan (hay una cobertura encima o no se llega caminando).
     O(c * n), con c candidatas y n enemigos."""
     if cantidad <= 0:
         return []
     todas = candidatas(limites)
+    if libre is not None:
+        todas = [p for p in todas if libre(p)] or todas
 
     def lejania(punto):
         return math.dist(punto, punto_entrada)

@@ -2,15 +2,16 @@
 
 Cada cuarto se pinta una vez en baja resolución (1 píxel = 3 px en pantalla,
 la misma densidad que los personajes) y se cachea: cada frame es un solo blit.
-Nada de esto toca colisiones, puertas ni tamaños.
+El fondo no toca colisiones, puertas ni tamaños; los muebles sí son sólidos:
+`plan_objetos` entrega el plan con que la lógica crea las coberturas
+(src/dungeon/coberturas.py) y aquí solo se hornean los objetos sin hitbox.
 
 Composición común de un cuarto:
     - exterior: lo que se ve más allá de los muros, en los márgenes laterales;
     - cara del muro: una banda de 36 px dentro del borde superior. Es tan alta
       como el cuerpo de un personaje, así que los pies nunca pasan por encima:
       con la misma colisión de siempre el cuarto se lee en perspectiva 3/4;
-    - piso y mobiliario bajo: oscuros y desaturados para que personajes y balas
-      se distingan siempre (nada es sólido, y debe parecer parte del fondo);
+    - piso: oscuro y desaturado para que personajes y balas se distingan siempre;
     - luz: viñeta y charcos de luz horneados.
 
 `dibujar_animado` añade lo poco que se mueve (pantallas, LEDs, energía); son
@@ -512,10 +513,32 @@ _PINTORES = {
 }
 
 
-def fondo(rect, tema, semilla, direcciones=(), toxicidad=0):
+def _geometria(rect, direcciones):
+    """(cuarto, libres) en px de la Surface del mundo: el rect del cuarto y
+    las zonas que ningún objeto tapa (puertas y centro)."""
+    cuadro = _Cuadro(rect, direcciones, random.Random(0), 0, True)
+    libres = [pygame.Rect(r.x * P, r.y * P, r.w * P, r.h * P) for r in cuadro.libres]
+    return pygame.Rect(cuadro.x * P, cuadro.y * P, cuadro.w * P, cuadro.h * P), libres
+
+
+def plan_objetos(rect, tema, semilla, direcciones=(), con_terminal=False):
+    """[(nombre, (x, y, w, h), solido, base)] de los objetos del cuarto, en px
+    de PANTALLA (`base` = hitbox del objeto). Vacío si el tema no tiene arte. Es el mismo plan que usa
+    `fondo`: la lógica crea con él las coberturas (src/dungeon/coberturas.py)."""
+    if tema not in _PINTORES or not decor_mazmorra.disponible(tema):
+        return []
+    cuarto, libres = _geometria(rect, sorted(direcciones))
+    banda = assets.BANDA_DECOR_ARENA if tema == "servidor" else assets.BANDA_DECOR_MAZMORRA
+    objetos = decor_mazmorra.plan(tema, semilla, cuarto, libres, banda, con_terminal)
+    dy = assets.Y_MUNDO_TEMA
+    return [(nombre, (x, y + dy, w, h), solido, (bx, by + dy, bw, bh))
+            for nombre, (x, y, w, h), solido, (bx, by, bw, bh) in objetos]
+
+
+def fondo(rect, tema, semilla, direcciones=(), toxicidad=0, con_terminal=False):
     """Superficie de todo el mundo del cuarto (ancho de pantalla). Se dibuja
     en (0, assets.Y_MUNDO_TEMA). Cacheada: se pinta una vez por cuarto."""
-    clave = (tema, rect.size, rect.topleft, semilla, tuple(sorted(direcciones)), int(toxicidad // 18))
+    clave = (tema, rect.size, rect.topleft, semilla, tuple(sorted(direcciones)), int(toxicidad // 18), con_terminal)
     if clave not in _cache:
         if len(_cache) > 24:
             _cache.clear()
@@ -525,12 +548,10 @@ def fondo(rect, tema, semilla, direcciones=(), toxicidad=0):
         final = pygame.transform.scale(cuadro.s, (cuadro.ancho * P, cuadro.alto * P))
         focos = None
         if arte:
-            libres = [pygame.Rect(r.x * P, r.y * P, r.w * P, r.h * P) for r in cuadro.libres]
-            if tema == "colegio" and decor_mazmorra.variante(tema, semilla) == "aula":
-                arte_colegio.vestir_aula(final, rect, cuadro.origen_y, semilla, libres)
-            cuarto = pygame.Rect(cuadro.x * P, cuadro.y * P, cuadro.w * P, cuadro.h * P)
+            cuarto, libres = _geometria(rect, sorted(direcciones))
             banda = assets.BANDA_DECOR_ARENA if tema == "servidor" else assets.BANDA_DECOR_MAZMORRA
-            focos = decor_mazmorra.vestir(final, cuarto, tema, semilla, libres, direcciones, banda)
+            objetos = decor_mazmorra.plan(tema, semilla, cuarto, libres, banda, con_terminal)
+            focos = decor_mazmorra.vestir(final, cuarto, tema, semilla, objetos, direcciones)
         final = final.convert() if pygame.display.get_surface() is not None else final
         _cache[clave] = (final, focos)
     final, _focos_actuales[tema] = _cache[clave]

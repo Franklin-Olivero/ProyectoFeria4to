@@ -52,6 +52,13 @@ class OndaExpansiva:
         self.golpeados.append(enemigo)
         enemigo.recibir_dano(self.danio)
 
+    def al_chocar_cobertura(self, cobertura):
+        """La onda es un área: daña una vez cada mueble que alcanza y sigue."""
+        if cobertura in self.golpeados:
+            return
+        self.golpeados.append(cobertura)
+        cobertura.recibir_impacto(self.danio)
+
     def dibujar(self, pantalla):
         if self.radio >= 1:
             pygame.draw.circle(
@@ -91,6 +98,24 @@ class ProyectilRebotante(Proyectil):
 
         self.tiempo_vida -= dt
         if self.rebotes > assets.MAXIMO_REBOTES or self.tiempo_vida <= 0:
+            self.vivo = False
+
+    def al_chocar_cobertura(self, cobertura):
+        """Daña el mueble y rebota en él como en una pared: se invierte el
+        eje por el que menos se metió (esa es la cara que tocó)."""
+        cobertura.recibir_impacto(self.danio)
+        x, y, ancho, alto = cobertura.hitbox
+        entra_x = min(self.rect.right - x, x + ancho - self.rect.left)
+        entra_y = min(self.rect.bottom - y, y + alto - self.rect.top)
+        if entra_x <= entra_y:
+            self.direccion.x *= -1
+            self.rect.centerx += entra_x if self.rect.centerx > x + ancho / 2 else -entra_x
+        else:
+            self.direccion.y *= -1
+            self.rect.centery += entra_y if self.rect.centery > y + alto / 2 else -entra_y
+        self.posicion.update(self.rect.center)
+        self.rebotes += 1
+        if self.rebotes > assets.MAXIMO_REBOTES:
             self.vivo = False
 
 

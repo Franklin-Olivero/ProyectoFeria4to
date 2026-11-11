@@ -328,7 +328,7 @@ class Curandero(EnemigoTipado):
             self.nodo_activo = ("Selector", "Sequence", "Huir (solo)")
             return EXITO
         if distancia(self.xy, punto) > LLEGADA_ESCONDITE:
-            dx, dy = direccion(self.xy, punto)
+            dx, dy = self.rumbo_hacia(punto)  # rodea los muebles
             self.mover(dx, dy)
         self.nodo_activo = ("Selector", "Sequence", "Detrás de aliados")
         return EXITO

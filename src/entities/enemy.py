@@ -83,6 +83,10 @@ class Enemigo:
         self.congelado = False
         # Enemigos del mismo cuarto (los curanderos los leen).
         self.aliados = []
+        # Grafo de celdas del cuarto (src/dungeon/navegacion_cuarto.py): lo
+        # pone el cuarto cada frame. Con él, perseguir rodea las coberturas
+        # por el camino más corto (BFS); sin él (None) va en línea recta.
+        self.navegacion = None
         # Segundos vividos: solo para animaciones (parpadeo de la gracia).
         self.reloj = 0.0
 
@@ -142,6 +146,18 @@ class Enemigo:
     def dt(self):
         return self._dt
 
+    def rumbo_hacia(self, destino):
+        """Dirección unitaria (dx, dy) para llegar a `destino`: con muebles
+        en el cuarto, la que da su grafo de celdas (rodea por el camino más
+        corto, BFS); sin ellos, la línea recta."""
+        if self.navegacion is not None:
+            return self.navegacion.direccion(self.xy, destino, max(self.rect.size) / 2 + 1)
+        direccion = pygame.Vector2(destino) - self.posicion
+        if direccion.length_squared() == 0:
+            return (0.0, 0.0)
+        direccion = direccion.normalize()
+        return (direccion.x, direccion.y)
+
     def mover(self, dx, dy, factor=1.0):
         """Avanza en la dirección unitaria (dx, dy) a `factor` veces su velocidad."""
         self.posicion += pygame.Vector2(dx, dy) * self.velocidad * factor * self._dt
@@ -196,11 +212,8 @@ class Enemigo:
 
     def _perseguir_objetivo(self):
         self.nodo_activo = ("Selector", "Sequence", "Perseguir")
-        direccion = pygame.Vector2(self._objetivo().rect.center) - self.posicion
-        if direccion.length_squared() > 0:
-            direccion = direccion.normalize()
-            self.posicion += direccion * self.velocidad * self._dt
-            self.rect.center = (round(self.posicion.x), round(self.posicion.y))
+        dx, dy = self.rumbo_hacia(self._objetivo().rect.center)
+        self.mover(dx, dy)
         return EXITO
 
     def _disparar_a_objetivo(self):

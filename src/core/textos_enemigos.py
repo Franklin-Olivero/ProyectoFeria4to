@@ -68,11 +68,13 @@ TITULO_REGLAS_CUARTO = "Reglas del cuarto"
 REGLAS_CUARTO = (
     f"Al entrar a un cuarto tienes {GRACIA_ENTRADA_CUARTO_S:g} s de gracia: nadie ataca.",
     "El último cuarto se abre al limpiar todos; ahí te espera una decisión.",
+    "Los muebles frenan las balas: cúbrete detrás, pero se rompen con los impactos.",
 )
 TITULO_REGLAS_JEFE = "Reglas del jefe"
 REGLAS_JEFE = (
     f"{GRACIA_ENTRADA_CUARTO_S:g} s de gracia al empezar; tienes {TIEMPO_LIMITE_JEFE:g} s para vencerlo.",
     "Todos sus ataques dejan un hueco: muévete y busca la ventana para castigar.",
+    "Columnas y muebles te cubren un rato: las balas los rompen y el jefe aplasta los que pisa.",
 )
 
 

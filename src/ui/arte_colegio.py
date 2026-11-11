@@ -5,14 +5,17 @@ el aula de su mazmorra, con el "Traditional School Asset pack"
     fachada(...)    -> el Colegio entero (techo, dos pisos de pared con
         ventanas, puerta) a la resolución del pack y con escala entera,
         del tamaño exacto de su huella (assets.ARTE_EDIFICIOS).
-    vestir_aula(fondo, rect, ...) -> tablones de madera multiplicados sobre
+    plan_aula(cara, piso, ...) -> dónde va cada mueble del aula: pizarra y
+        reloj en la cara del muro, pupitres en filas, escritorio del
+        profesor, casilleros, estantes y macetas, siempre fuera de las
+        zonas libres (puertas y centro). Los dibuja decor_mazmorra (lo
+        chico, horneado) y cobertura_render (los muebles, que son
+        coberturas rompibles: src/dungeon/coberturas.py).
+    multiplicar_piso(fondo, piso) -> tablones de madera multiplicados sobre
         el piso pintado (así conserva su luz, su viñeta y las grietas de
-        NOVA según la toxicidad), pizarra y reloj en la cara del muro,
-        pupitres en filas, escritorio del profesor, casilleros, estantes y
-        macetas, siempre fuera de las zonas libres (puertas y centro).
+        NOVA según la toxicidad).
 
-Nada de esto toca colisiones: los muebles son fondo, como antes. Si falta
-el pack, `disponible()` es False y el Colegio se pinta como siempre.
+Si falta el pack, `disponible()` es False y el Colegio se pinta como siempre.
 """
 
 import os
@@ -24,6 +27,10 @@ from src.core import assets
 from src.ui import cargador_assets
 
 ALTO_CARA_MURO_PX = 36  # la misma banda que temas_mazmorra.ALTO_CARA_MURO * P
+# Pupitres del aula (48x58 px a escala 1.5; su base sólida mide 40x35).
+COLUMNAS_PUPITRES = 2
+PASO_PUPITRES = 124  # px entre columnas: 84 de pasillo
+FILAS_PUPITRES = (158, 270, 382)  # px desde el borde superior del piso: 77 entre bases
 
 
 def disponible():
@@ -90,53 +97,53 @@ def _aclarar(color, d):
 # Aula de la mazmorra
 # ----------------------------------------------------------------------
 
-def vestir_aula(fondo, rect, origen_y, semilla, libres):
-    """Viste `fondo` (la Surface del mundo del cuarto, ya escalada) en
-    el lugar. `rect`: el cuarto en px de pantalla; `origen_y`: dónde
-    empieza `fondo` en pantalla; `libres`: rects (px de `fondo`) que no
-    se pueden tapar."""
+def plan_aula(cara, piso, semilla, libres):
+    """[(nombre, rect)] del aula: pizarra y reloj en la cara del muro,
+    escritorio del profesor y estantes al fondo, casilleros a los costados,
+    pupitres en dos bloques con pasillos anchos (son coberturas: entre
+    filas y columnas cabe cualquier enemigo) y macetas en las esquinas.
+    `cara` y `piso`: pygame.Rect en px de la Surface del mundo; `libres`:
+    rects que no se pueden tapar. Los nombres son "pack:<pieza>"."""
     rng = random.Random(f"aula-{semilla}")
-    cuarto = pygame.Rect(rect.left, rect.top - origen_y, rect.width, rect.height)
-    cara = pygame.Rect(cuarto.left, cuarto.top, cuarto.width, ALTO_CARA_MURO_PX)
-    piso = pygame.Rect(cuarto.left, cara.bottom, cuarto.width, cuarto.height - ALTO_CARA_MURO_PX)
-    _multiplicar_piso(fondo, piso)
     ocupados = [pygame.Rect(r) for r in libres]
+    colocados = []
 
     def poner(nombre, x, y, en_piso=True):
-        pieza = cargador_assets.pieza_colegio(nombre, assets.FACTOR_MUEBLES_COLEGIO)
+        escala = assets.ESCALA_MUEBLES_COLEGIO if en_piso else 1
+        pieza = cargador_assets.pieza_colegio(nombre, assets.FACTOR_MUEBLES_COLEGIO, escala)
         if pieza is None:
             return False
         destino = pieza.get_rect(topleft=(round(x), round(y)))
         zona = piso if en_piso else cara
         if not zona.contains(destino) or any(destino.inflate(6, 6).colliderect(o) for o in ocupados):
             return False
-        fondo.blit(pieza, destino)
         ocupados.append(destino)
+        colocados.append((f"pack:{nombre}", tuple(destino)))
         return True
 
     # En la cara del muro: pizarra a la izquierda, reloj al centro-derecha.
     poner("pizarra", cara.left + 70, cara.top + 2, en_piso=False)
     poner("reloj", cara.centerx + 120, cara.top + 6, en_piso=False)
     # Escritorio del profesor y estantes junto al muro del fondo.
-    poner("escritorio", piso.left + 150, piso.top + 6)
-    poner("estante", piso.right - 60, piso.top + 4)
-    poner("estante", piso.right - 112, piso.top + 4)
+    poner("escritorio", piso.left + 190, piso.top + 6)
+    poner("estante", piso.right - 78, piso.top + 4)
+    poner("estante", piso.right - 156, piso.top + 4)
     # Casilleros a los costados.
-    for y in range(piso.top + 110, piso.bottom - 80, 84):
+    for y in range(piso.top + 172, piso.bottom - 110, 170):
         poner("casillero", piso.left + 6, y)
-        poner("casillero", piso.right - 36, y)
-    # Pupitres en filas a los dos lados del centro (algunos faltan: el aula quedó a medias).
-    for columna in range(3):
-        for fila in range(4):
-            for x in (piso.left + 60 + columna * 54, piso.right - 92 - columna * 54):
-                if rng.random() < 0.15:
+        poner("casillero", piso.right - 51, y)
+    # Pupitres: dos columnas por lado y hasta cuatro filas (algunos faltan:
+    # el aula quedó a medias). Los pasos entre ellos miden 72 px o más.
+    for columna in range(COLUMNAS_PUPITRES):
+        for fila, y in enumerate(FILAS_PUPITRES):
+            for x in (piso.left + 150 + columna * PASO_PUPITRES, piso.right - 198 - columna * PASO_PUPITRES):
+                if rng.random() < 0.18:
                     continue
-                y = piso.top + 100 + fila * 76
-                if poner("pupitre", x, y) and rng.random() < 0.25:
-                    poner("mochila", x + 30, y + 22)
+                poner("pupitre", x, piso.top + y)
     # Macetas en las esquinas de abajo.
-    poner("maceta", piso.left + 8, piso.bottom - 50)
-    poner("maceta", piso.right - 40, piso.bottom - 50)
+    poner("maceta", piso.left + 8, piso.bottom - 70)
+    poner("maceta", piso.right - 53, piso.bottom - 70)
+    return colocados
 
 
 def multiplicar_piso(fondo, piso):

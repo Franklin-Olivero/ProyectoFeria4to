@@ -9,6 +9,9 @@ Envuelve a MazmorraFinal (lógica pura) y le pone cuerpo con Pygame:
     - da el segundo de gracia al entrar y al reiniciar la pelea: mientras
       dura, la pelea entera queda en pausa (el jefe no ataca ni corre el
       reloj, los súbditos quedan congelados) y Main.py bloquea las armas,
+    - pone las coberturas rompibles del salón (columnas, bancas, mesas:
+      src/dungeon/zona_coberturas.py): frenan balas y súbditos, el jefe
+      aplasta las que pisa y vuelven enteras al reiniciar la pelea,
     - dibuja jefe, charcos, barra de vida, fase, tiempo y mensajes.
 
 Expone la misma interfaz que Cuarto (rect, enemigos, actualizar,
@@ -26,12 +29,13 @@ from src.core.equipo import jugador_mas_cercano
 from src.dungeon.gracia_entrada import GraciaEntrada
 from src.dungeon.mazmorra_final import EN_COMBATE, VICTORIA, MazmorraFinal
 from src.dungeon.mazmorra_jugable import ubicar_en_fila
+from src.dungeon.zona_coberturas import ZonaCoberturas
 from src.entities.enemigos import crear_enemigo
 from src.entities.variantes_enemigo import elegir_variantes
 from src.entities import tipos_enemigo
 from src.entities.tipos_enemigo import TipoEnemigo
 from src.entities.projectile import ProyectilConEstela
-from src.ui import dibujo, sprites, temas_mazmorra
+from src.ui import cobertura_render, dibujo, sprites, temas_mazmorra
 
 DISTANCIA_INICIO_JUGADOR = 50  # px desde el borde inferior de la arena
 SEMILLA_FONDO_ARENA = 777
@@ -53,6 +57,7 @@ class ArenaJefe:
         self.gracia = GraciaEntrada()
         self.gracia.iniciar()
         self._vincular_cuerpo_jefe()
+        self.coberturas = self._crear_coberturas()
         self.colocar_jugadores(jugadores)
 
     @property
@@ -66,9 +71,17 @@ class ArenaJefe:
             return self.subditos + [self.jefe]
         return list(self.subditos)
 
+    def _crear_coberturas(self):
+        """Los muebles sólidos del salón, del mismo plan con que se pinta."""
+        r = self.rect
+        plan = temas_mazmorra.plan_objetos(r, "servidor", SEMILLA_FONDO_ARENA)
+        return ZonaCoberturas((r.left, r.top, r.right, r.bottom), plan)
+
     def colocar_jugadores(self, jugadores):
         inicio = (self.rect.centerx, self.rect.bottom - DISTANCIA_INICIO_JUGADOR)
         ubicar_en_fila(jugadores, inicio, (1, 0))
+        for jugador in jugadores:
+            self.coberturas.sacar(jugador)
 
     def _vincular_cuerpo_jefe(self):
         # Al reiniciar la pelea la mazmorra crea un Jefe nuevo sin rect.
@@ -82,6 +95,8 @@ class ArenaJefe:
     def actualizar(self, dt, jugadores, proyectiles_enemigos):
         self._tiempo += dt
         self.gracia.actualizar(dt)
+        self.coberturas.actualizar(dt)
+        navegacion = self.coberturas.navegacion if self.coberturas else None
         if self.gracia.activa:
             # Gracia: nada hostil se mueve; el jefe ni siquiera se actualiza.
             for subdito in self.subditos:
@@ -91,9 +106,12 @@ class ArenaJefe:
         if self.mazmorra.estado == EN_COMBATE:
             for subdito in self.subditos:
                 subdito.congelado = False
+                subdito.navegacion = navegacion
                 objetivo = jugador_mas_cercano(subdito.rect.center, jugadores)
+                anterior = (subdito.posicion.x, subdito.posicion.y)
                 subdito.actualizar(dt, objetivo, proyectiles_enemigos)
                 subdito.mantener_dentro(self.rect)
+                self.coberturas.frenar(subdito, anterior, resbalar=subdito.velocidad * dt)
             self.subditos = [subdito for subdito in self.subditos if subdito.vivo]
 
         # El jefe respeta MAX_PROYECTILES_JEFE: se le pasa cuántas balas
@@ -101,11 +119,15 @@ class ArenaJefe:
         balas_jefe = sum(isinstance(p, ProyectilConEstela) for p in proyectiles_enemigos)
         self.mazmorra.actualizar(dt, jugadores, balas_jefe)
         self._vincular_cuerpo_jefe()
+        if self.jefe.vivo and self.mazmorra.estado == EN_COMBATE:
+            # El Servidor Central no rodea nada: lo que pisa, lo aplasta.
+            self.coberturas.aplastar(tuple(self.jefe.rect))
 
         if self.mazmorra.reinicio_pendiente:
             self.mazmorra.reinicio_pendiente = False
             self.subditos.clear()
             proyectiles_enemigos.clear()
+            self.coberturas = self._crear_coberturas()  # la pelea empieza de cero: muebles enteros
             for jugador in jugadores:
                 jugador.vida = jugador.vida_maxima
                 jugador.invulnerabilidad.reiniciar()
@@ -152,6 +174,7 @@ class ArenaJefe:
                 agro_permanente=True, variante=variante,
             )
             subdito.mantener_dentro(self.rect)
+            self.coberturas.sacar(subdito)
             self.subditos.append(subdito)
 
     # ------------------------------------------------------------------
@@ -164,10 +187,15 @@ class ArenaJefe:
         temas_mazmorra.dibujar_animado(pantalla, self.rect, "servidor", self._tiempo)
         for charco in self.mazmorra.charcos:
             self._dibujar_charco(pantalla, charco)
-        for subdito in self.subditos:
-            subdito.dibujar(pantalla)
+        # Muebles, súbditos y jefe por orden de base (vista 3/4).
+        entidades = [(subdito.rect.bottom, lambda s=subdito: s.dibujar(pantalla)) for subdito in self.subditos]
         if self.jefe.vivo:
-            self._dibujar_jefe(pantalla)
+            entidades.append((self.jefe.rect.bottom, lambda: self._dibujar_jefe(pantalla)))
+        cobertura_render.dibujar_con(pantalla, "servidor", self.coberturas.lista, entidades, self._tiempo)
+
+    def dibujar_delante(self, pantalla, cuerpos):
+        """Repinta los muebles que quedan delante de los jugadores."""
+        cobertura_render.dibujar_delante(pantalla, "servidor", self.coberturas.lista, cuerpos, self._tiempo)
 
     def _dibujar_charco(self, pantalla, charco):
         centro = (round(charco.x), round(charco.y))

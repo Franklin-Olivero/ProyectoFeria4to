@@ -67,7 +67,8 @@ def _armar_recorte(ruta, rect, escala, factor, ajustar):
         if caja.width and caja.height:
             pieza = pieza.subsurface(caja).copy()
     if escala != 1:
-        pieza = pygame.transform.scale(pieza, (pieza.get_width() * escala, pieza.get_height() * escala))
+        # Vecino más cercano también con escalas como 1.5: el pixel art no se difumina.
+        pieza = pygame.transform.scale(pieza, (round(pieza.get_width() * escala), round(pieza.get_height() * escala)))
     if factor != 1.0:
         tinte = round(255 * factor)
         pieza.fill((tinte, tinte, tinte, 255), special_flags=pygame.BLEND_RGBA_MULT)
@@ -80,7 +81,9 @@ def prop_urbano(nombre, factor=1.0):
         return None
     col, fila = assets.PROPS_URBANOS[nombre]
     lado = assets.CELDA_PROPS_URBANOS
-    return recorte(assets.RUTA_PROPS_URBANOS, (col * lado, fila * lado, lado, lado), factor=factor, ajustar=True)
+    escala = assets.ESCALA_PROP_URBANO.get(nombre, assets.ESCALA_PROP_URBANO_PREDETERMINADA)
+    return recorte(assets.RUTA_PROPS_URBANOS, (col * lado, fila * lado, lado, lado), escala=escala, factor=factor,
+                   ajustar=True)
 
 
 def arbol(numero, escala=assets.ESCALA_ARBOLES):
@@ -92,12 +95,13 @@ def arbol(numero, escala=assets.ESCALA_ARBOLES):
     return recorte(ruta, imagen.get_rect(), escala=escala)
 
 
-def pieza_colegio(nombre, factor=1.0):
-    """Pieza del pack del Colegio por nombre (assets.PIEZAS_COLEGIO), o None."""
+def pieza_colegio(nombre, factor=1.0, escala=assets.ESCALA_ARTE_PACKS):
+    """Pieza del pack del Colegio por nombre (assets.PIEZAS_COLEGIO), o None.
+    Los muebles del aula se piden con `escala` = assets.ESCALA_MUEBLES_COLEGIO."""
     if nombre not in assets.PIEZAS_COLEGIO:
         return None
     archivo, rect = assets.PIEZAS_COLEGIO[nombre]
-    return recorte(os.path.join(assets.RUTA_COLEGIO, archivo), rect, factor=factor)
+    return recorte(os.path.join(assets.RUTA_COLEGIO, archivo), rect, escala=escala, factor=factor)
 
 
 def pieza_mazmorra(tema, nombre, escala=assets.ESCALA_ARTE_MAZMORRA, factor=1.0):
@@ -150,7 +154,13 @@ def ajustar_paleta(superficie, saturacion=1.0, brillo=1.0):
     alfa queda igual. Es el único ajuste de color del arte de packs."""
     if saturacion == 1.0 and brillo == 1.0:
         return superficie
-    salida = pygame.transform.grayscale(superficie)
+    # Solo se toma el RGB de transform.grayscale: en algunos equipos (ARM)
+    # devuelve el alfa dañado en la mitad de los píxeles y los árboles
+    # salían con un halo rayado. El alfa se conserva del original: se
+    # copia, se deja su RGB en negro y se le suma el gris.
+    salida = superficie.copy()
+    salida.fill((0, 0, 0, 255), special_flags=pygame.BLEND_RGBA_MULT)
+    salida.blit(pygame.transform.grayscale(superficie), (0, 0), special_flags=pygame.BLEND_RGB_ADD)
     if saturacion > 0:
         color = superficie.copy()
         color.set_alpha(round(255 * min(1.0, saturacion)))

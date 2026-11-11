@@ -69,6 +69,7 @@ ACERA, PASTO, JARDIN, CAMELLON, AGUA = ":", ".", "J", "k", "~"
 # Nunca calle, edificio, casa, agua ni puerta.
 LIBRES = (PASTO, ACERA, JARDIN, CAMELLON)
 SOLO_ARBOLES = (JARDIN, CAMELLON)
+FILAS_FAROLA = 2  # filas que una farola sube por encima de su casilla
 FAROLAS = ("farola", "farola_ornamental", "farola_baja", "farola_curva", "farola_jardin", "farola_farol")
 
 # Variantes de árbol (número del pack Trees_Vol2; arte en assets.RUTA_ARBOLES).
@@ -140,7 +141,7 @@ def generar(mapa, calles, tramos, nodos, entradas, spawn, plaza, parques, sender
     _plaza(poner, plaza)
     for parque in parques:
         _parque(poner, mapa, parque, senderos, rng, arbol_cerca)
-    _aceras(poner, mapa, calles, tramos, plaza)
+    _aceras(poner, mapa, calles, tramos, plaza, edificios)
     _camellon(poner, mapa, rng)
     _jardines(poner, mapa, rng, arbol_cerca, edificios)
     unicos = {id(p): p for p in ocupadas.values()}.values()
@@ -226,9 +227,21 @@ def _junto_al_agua(mapa, casilla):
     return any(_letra(mapa, (c + dc, f + df)) == AGUA for dc, df in ((0, -1), (0, 1), (-1, 0), (1, 0)))
 
 
-def _aceras(poner, mapa, calles, tramos, plaza):
+def bajo_fachada(casilla, edificios, filas=FILAS_FAROLA):
+    """True si un poste alto en `casilla` taparía un edificio: la huella
+    queda a `filas` filas o menos por encima, en su misma columna (una
+    farola mide dos jugadores y media: sube casi tres casillas)."""
+    col, fila = casilla
+    for c0, f0, ancho, alto in edificios:
+        if c0 <= col < c0 + ancho and 0 < fila - (f0 + alto - 1) <= filas:
+            return True
+    return False
+
+
+def _aceras(poner, mapa, calles, tramos, plaza, edificios=()):
     """Farolas a intervalos regulares y mobiliario por turnos en las
-    aceras de cada tramo recto (fuera de la Plaza y de los puentes)."""
+    aceras de cada tramo recto (fuera de la Plaza y de los puentes). Una
+    farola que taparía la fachada de un edificio se salta."""
     turno = 0
     for puntos, _ in tramos:
         for (c0, f0), (c1, f1) in zip(puntos, puntos[1:]):
@@ -243,6 +256,8 @@ def _aceras(poner, mapa, calles, tramos, plaza):
                         continue
                     desplazamiento = paso - desde - MARGEN_FAROLAS_CRUCE
                     if desplazamiento % ESPACIADO_FAROLAS == 0:
+                        if bajo_fachada(casilla, edificios):
+                            continue
                         poner(Prop(zonas_ciudad.farola_de(*casilla), casilla, SUR if lado < 0 else NORTE))
                     elif desplazamiento % ESPACIADO_MOBILIARIO_ACERA == ESPACIADO_FAROLAS // 2:
                         if poner(Prop(MOBILIARIO_ACERA[turno % len(MOBILIARIO_ACERA)], casilla)):
@@ -268,7 +283,10 @@ def _plaza(poner, plaza):
             mira = SUR if dy < 0 else NORTE  # hacia el centro
             poner(Prop("banca", (cx + dx, cy + dy), mira))
             poner(Prop("jardinera", (cx + dx + (2 if dx > 0 else -2), cy + dy)))
-            casilla = (cx + (6 if dx > 0 else -6), cy + (3 if dy > 0 else -3))
+            # Las farolas miden dos jugadores: arriba van en la esquina de la
+            # acera (una columna más afuera y una fila más abajo), así no
+            # tapan el cantero que queda detrás de ellas.
+            casilla = (cx + (6 if dx > 0 else -6), cy + 3) if dy > 0 else (cx + (7 if dx > 0 else -7), cy - 2)
             poner(Prop(zonas_ciudad.farola_de(*casilla), casilla))
     for dx in (-7, 7):
         poner(Prop("arbol", (cx + dx, cy + 5), SUR, CAPA_ARBOL, True, ARBOLES_PLAZA[0 if dx < 0 else 1]))

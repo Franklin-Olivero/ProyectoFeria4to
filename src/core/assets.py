@@ -181,6 +181,7 @@ ALFA_ESTELA_PROYECTIL = 130
 # Enemigo
 # ----------------------------------------------------------------------
 TAMANIO_ENEMIGO = 40
+TAMANIO_ENEMIGO_MAXIMO = 64  # la hitbox más ancha de las variantes: lo que debe caber entre dos coberturas
 COLOR_ENEMIGO = COLOR_MAGENTA
 COLOR_ENEMIGO_SECUNDARIO = COLOR_MORADO
 VELOCIDAD_ENEMIGO = 90  # píxeles por segundo
@@ -524,7 +525,8 @@ COLOR_TEMA_INFO = (40, 120, 170)
 
 # Arte de mazmorra generado con Higgsfield (prompts/higgsfield_mazmorras.md),
 # reducido a pixel art con tools/procesar_higgsfield.py y colocado por
-# src/ui/decor_mazmorra.py. Todo es fondo: ningún objeto tiene colisión.
+# src/ui/decor_mazmorra.py. Los objetos son coberturas rompibles con hitbox
+# (src/dungeon/coberturas.py; números en balance.py).
 RUTA_MAZMORRAS = os.path.join("assets", "mazmorras")
 CARPETA_ARTE_TEMA = {"colegio": "colegio", "hospital": "hospital", "medios": "medios", "servidor": "alcaldia"}
 ESCALA_ARTE_MAZMORRA = 2  # 1 píxel de arte = 2 px de pantalla (la rejilla nativa de la imagen generada)
@@ -551,59 +553,71 @@ VARIANTES_CUARTO = {
 }
 # Reglas de colocación: (lugar, objetos, cantidad). Lugares: "fondo" (junto al
 # muro de arriba), "costados" (izquierdo y derecho, por pares), "esquinas" (abajo)
-# y "sueltos" (al azar, solo dentro de la franja BANDA_DECOR desde los muros).
+# "sueltos" (al azar, solo dentro de la franja BANDA_DECOR desde los muros) y
+# "centro" (las coberturas del medio del cuarto, por pares espejo: ver
+# src/ui/plan_decor.py). Casi todos son sólidos y rompibles
+# (src/dungeon/coberturas.py); los de balance.OBJETOS_SIN_HITBOX son adorno.
 DECORADO_VARIANTE = {
     ("colegio", "biblioteca"): (
         ("fondo", ("estanteria", "estanteria", "ficus", "estanteria", "estanteria"), 8),
         ("costados", ("estanteria", "mesa_lectura", "estanteria"), 3),
+        ("centro", ("mesa_lectura", "globo"), 4),
         ("esquinas", ("globo", "pack:maceta"), 2),
         ("sueltos", ("libros", "libros", "pack:mochila"), 4),
     ),
     ("colegio", "laboratorio"): (
         ("fondo", ("pizarra_movil", "pack:estante", "esqueleto", "pack:estante"), 5),
         ("costados", ("mesa_lab", "mesa_lab", "pack:casillero"), 3),
+        ("centro", ("mesa_lab", "pack:pupitre"), 4),
         ("esquinas", ("ficus", "globo"), 2),
         ("sueltos", ("libros", "pack:mochila"), 3),
     ),
     ("hospital", "sala"): (
         ("fondo", ("gabinete", "monitor", "planta", "gabinete"), 5),
         ("costados", ("camilla", "suero", "camilla"), 3),
+        ("centro", ("camilla", "carro"), 4),
         ("esquinas", ("biombo", "silla_ruedas"), 2),
         ("sueltos", ("carro", "contenedor"), 2),
     ),
     ("hospital", "urgencias"): (
         ("fondo", ("sillas_espera", "planta", "sillas_espera", "contenedor"), 5),
         ("costados", ("camilla", "monitor", "biombo"), 3),
+        ("centro", ("sillas_espera", "carro"), 4),
         ("esquinas", ("silla_ruedas", "oxigeno"), 2),
         ("sueltos", ("carro", "suero"), 2),
     ),
     ("hospital", "laboratorio"): (
         ("fondo", ("mesa_lab", "gabinete", "mesa_lab", "oxigeno"), 5),
         ("costados", ("carro", "monitor", "gabinete"), 3),
+        ("centro", ("mesa_lab", "contenedor"), 4),
         ("esquinas", ("planta", "contenedor"), 2),
         ("sueltos", ("suero",), 1),
     ),
     ("medios", "redaccion"): (
         ("fondo", ("escritorio_pc", "impresora", "escritorio_pc", "dispensador"), 5),
         ("costados", ("escritorio_pc", "silla_oficina", "escritorio_pc"), 3),
+        ("centro", ("escritorio_pc", "impresora"), 4),
         ("esquinas", ("planta", "maletas"), 2),
         ("sueltos", ("silla_oficina", "impresora"), 2),
     ),
     ("medios", "estudio"): (
         ("fondo", ("pantalla", "mesa_noticias", "pantalla"), 3),
         ("costados", ("camara", "softbox", "aro_luz"), 3),
+        ("centro", ("mesa_noticias", "camara"), 4),
         ("esquinas", ("maletas", "microfono"), 2),
         ("sueltos", ("silla_oficina",), 1),
     ),
     ("medios", "servidores"): (
         ("fondo", ("rack", "rack", "rack", "maletas", "rack", "rack"), 7),
         ("costados", ("rack", "escritorio_pc", "rack"), 3),
+        ("centro", ("rack", "maletas"), 4),
         ("esquinas", ("maletas", "planta"), 2),
         ("sueltos", ("dispensador",), 1),
     ),
     ("servidor", "salon"): (
         ("fondo", ("columna", "bandera", "columna", "busto", "columna", "columna"), 8),
         ("costados", ("columna", "bloque_glitch", "columna", "terminal"), 4),
+        ("centro", ("banca", "mesa_consejo"), 4),
         ("esquinas", ("palmera", "archivador"), 2),
         ("sueltos", ("cordon", "urna"), 2),
     ),
@@ -616,6 +630,19 @@ FOCO_PROP = {
     "bloque_glitch": (255, 56, 170), "archivador": (255, 56, 170),
 }
 ALFA_FOCO_MAXIMO = 70
+# Coberturas rompibles (src/ui/cobertura_render.py): cómo se ven al dañarse.
+COLOR_GRIETA_COBERTURA = (16, 12, 26)
+GROSOR_GRIETA_COBERTURA = 2  # px: un píxel del arte a escala 2
+GRIETAS_POR_ETAPA = (0, 3, 6)  # grietas dibujadas en cada etapa de daño
+MUESCAS_POR_ETAPA = (0, 0, 5)  # pedazos que le faltan en el borde
+FACTOR_ETAPA_COBERTURA = (1.0, 0.92, 0.8)  # se oscurece al dañarse
+DESTELLO_GOLPE_COBERTURA = 70  # brillo que suma al recibir un impacto (0-255)
+TEMBLOR_GOLPE_COBERTURA = 2  # px
+ESCOMBROS_COBERTURA = 18  # pedazos que quedan en el piso al romperse
+FACTOR_ESCOMBROS = 0.72
+COLOR_POLVO_COBERTURA = (214, 204, 190)
+POLVO_POR_IMPACTO = 3  # partículas
+POLVO_AL_ROMPER = 16
 # Vida de los personajes (src/entities/player.py, src/ui/enemigo_render.py).
 DURACION_DESTELLO_DANIO = 0.14  # s de destello blanco al recibir un golpe
 DURACION_RETROCESO_DISPARO = 0.09  # s del pequeño empujón visual al disparar
@@ -918,6 +945,9 @@ SONIDOS = {
     "jefe_derrotado": (_sfx("jefe", "bitcade_explosion_big.wav"), CATEGORIA_SFX),
     # Mazmorra: puertas, cuartos, gracia de entrada.
     "puerta": (_sfx("ciudad", "bitcade_land_thud.wav"), CATEGORIA_SFX),
+    # Coberturas: una bala que pega en un mueble y el mueble que se rompe.
+    "impacto_cobertura": (_sfx("ciudad", "bitcade_land_thud.wav"), CATEGORIA_SFX),
+    "cobertura_rota": (_sfx("enemigos", "bitcade_explosion_small.wav"), CATEGORIA_SFX),
     "puerta_sellada": (_sfx("ui", "bitcade_ui_error.wav"), CATEGORIA_UI),
     "cuarto_liberado": (_sfx("ui", "bitcade_jingle_level_up.wav"), CATEGORIA_SFX),
     "cuarto_final_desbloqueado": (_sfx("ui", "bitcade_powerup_extra_life.wav"), CATEGORIA_SFX),
@@ -1003,6 +1033,20 @@ ALTO_RETRATO_SELECCION = 92  # alto del retrato en la tarjeta de selección
 # placeholder de siempre (pixel art en código).
 # ----------------------------------------------------------------------
 ESCALA_ARTE_PACKS = 1
+# Proporción de los props urbanos frente al jugador (48x60 px). El pack
+# viene dibujado para personajes de ~32 px: a escala 1 una farola (62 px)
+# medía lo mismo que el jugador. Lo que es un poste (farolas, paradas)
+# va al doble: una farola mide dos jugadores. El mobiliario (bancas,
+# papeleras, mesas) va a 1.5: una banca sienta a dos y llega al pecho.
+# Lo que ya tenía buen tamaño (hidrante, macetas grandes) queda en 1.
+ESCALA_PROP_URBANO_PREDETERMINADA = 1.5
+ESCALA_PROP_URBANO = {
+    "farola": 2, "farola_ornamental": 2, "farola_baja": 2, "farola_curva": 2,
+    "farola_jardin": 2, "farola_farol": 2, "casita_pajaros": 2,
+    "hidrante": 1, "maceta_grande": 1, "maceta_planta": 1, "basurero_verde": 1,
+    "armario_electrico": 1, "barricada": 1, "parrilla": 1,
+    "cerca_madera": 1.25,  # a 1.5 se montaba sobre la parrilla de al lado
+}
 # Props urbanos ("Modern Urban RPG Pixel Asset Pack"): hoja de 15x16
 # celdas de 64 px. Nombre -> (columna, fila) de su celda.
 RUTA_PROPS_URBANOS = os.path.join("assets", "sprites", "props", "props_urbanos.png")
@@ -1105,6 +1149,11 @@ PIEZAS_COLEGIO = {
     "maceta": ("props.png", (289, 201, 30, 42)),
     "mochila": ("props.png", (36, 129, 24, 30)),
 }
+# Los muebles del pack (pupitre 32x39, casillero 30x70...) están hechos para
+# personajes de 32 px; el jugador mide 48x60. A 1.5 un pupitre llega a la
+# cintura y un casillero es más alto que él, como el resto de los objetos.
+ESCALA_MUEBLES_COLEGIO = 1.5
+PIEZAS_COLEGIO_DE_MURO = ("pizarra", "reloj")  # cuelgan de la cara del muro: escala 1, sin hitbox
 # El piso del aula se multiplica sobre el piso pintado (que ya trae luz,
 # viñeta y grietas de NOVA): este gris neutro es su base. Los muebles se
 # oscurecen un poco para que personajes y balas se lean siempre encima.

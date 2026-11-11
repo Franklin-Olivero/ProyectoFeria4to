@@ -63,7 +63,8 @@ def test_hay_texto_para_cada_tipo_de_enemigo():
         assert ficha.nombre and ficha.que_hace and ficha.comportamiento and ficha.consejo
         assert 1 <= ficha.amenaza <= textos_enemigos.AMENAZA_MAXIMA
     assert textos_enemigos.FICHA_JEFE.amenaza == textos_enemigos.AMENAZA_MAXIMA
-    assert len(textos_enemigos.REGLAS_CUARTO) == 2 and len(textos_enemigos.REGLAS_JEFE) == 2
+    assert len(textos_enemigos.REGLAS_CUARTO) == 3 and len(textos_enemigos.REGLAS_JEFE) == 3
+    assert "muebles" in textos_enemigos.REGLAS_CUARTO[-1]  # las coberturas se explican antes de entrar
 
 
 def test_retardo_anti_salto():

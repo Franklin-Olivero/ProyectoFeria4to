@@ -87,7 +87,7 @@ from src.ui.pantalla_resultado import ResultadoMazmorra
 # Se sube cuando cambia lo que viaja por la red: el invitado la manda en su
 # INPUT y el host en el ESTADO; si no coinciden, Main avisa que hay PCs con
 # otro código (p. ej. una laptop sin actualizar).
-VERSION_ESTADO = 3
+VERSION_ESTADO = 4  # 4: viaja la vida de las coberturas ("cob")
 INTERVALO_REPORTE_CIUDAD_S = 1 / 30  # el invitado avisa su posición en la ciudad ~30 veces por s
 REPETIR_PEDIDO_ZONA_S = 0.5  # no repetir el mismo pedido de entrada antes de esto
 MAX_PROYECTILES_RED = 120  # tope de proyectiles enemigos por estado (el jefe usa hasta 40)
@@ -1380,6 +1380,12 @@ class AdaptadorOnlineHost(_AdaptadorBase):
             estado["ins"] = self._pedidos(jugadores)
             proyectiles = getattr(self._sesion, "proyectiles_enemigos", None) or []
             estado["pro"] = [_datos_proyectil(p) for p in proyectiles[:MAX_PROYECTILES_RED] if p.vivo]
+        if escena in ESCENAS_DE_COMBATE:
+            # Vida de cada mueble del lugar, en el orden del plan (igual en todas las PCs).
+            lugar = arena if arena is not None else (mazmorra if en_mazmorra else None)
+            coberturas = getattr(lugar, "coberturas", None)
+            if coberturas:
+                estado["cob"] = [round(v, 2) for v in coberturas.vidas()]
         if arena is not None:
             estado["sub"] = [_datos_enemigo(s, i) for i, s in enumerate(arena.subditos)]
             estado["jefe"] = _datos_jefe(arena)
@@ -1868,6 +1874,11 @@ class AdaptadorOnlineJoin(_AdaptadorBase):
             self._espejar_arena(arena, estado)
         if escena in ESCENAS_DE_COMBATE:
             self._espejar_proyectiles(estado.get("pro"))
+            # Los muebles se rompen donde diga el host (aquí las balas solo se frenan).
+            lugar = arena if arena is not None else mazmorra
+            coberturas = getattr(lugar, "coberturas", None)
+            if coberturas is not None and isinstance(estado.get("cob"), list):
+                coberturas.aplicar_vidas(estado["cob"])
 
     def _reproducir_decisiones(self, estado, escena, partida, colapso):
         """Decisiones del host que este invitado no vio (llegó tarde o no
@@ -2032,9 +2043,12 @@ class AdaptadorOnlineJoin(_AdaptadorBase):
     def _perder_host(self, arena, mazmorra, partida, jugadores):
         """Se cayó la conexión: todo vuelve a simularse en esta PC y se sigue solo."""
         self._espejo = False
+        if arena is not None:
+            arena.coberturas.espejo = False
         if mazmorra is not None:
             _descongelar(mazmorra, "_cruzar")
             for cuarto in mazmorra.cuartos.values():
+                cuarto.coberturas.espejo = False  # vuelven a dañarse en esta PC
                 for enemigo in cuarto.enemigos:
                     _descongelar_enemigo(enemigo)
                 if cuarto.terminal is not None:

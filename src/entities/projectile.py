@@ -51,6 +51,13 @@ class Proyectil:
         enemigo.recibir_dano(self.danio)
         self.vivo = False
 
+    def al_chocar_cobertura(self, cobertura):
+        """Efecto al chocar con un mueble (src/dungeon/coberturas.py): le
+        quita vida y se destruye. Nadie dispara a través de una cobertura.
+        Las subclases pueden cambiarlo (rebotar, seguir de largo)."""
+        cobertura.recibir_impacto(self.danio)
+        self.vivo = False
+
     def dibujar(self, pantalla):
         # Estela punteada detrás del proyectil (sin estado: se deduce de
         # la dirección), cada punto más pequeño y más transparente.

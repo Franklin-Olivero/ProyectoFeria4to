@@ -15,6 +15,11 @@ tirador, curandero) lo decide composicion_cuarto
 posiciones_spawn (src/dungeon/spawn.py): siempre a una distancia segura
 del punto por donde entra el jugador, con los curanderos más atrás.
 
+Los muebles del cuarto son coberturas rompibles (`self.coberturas`, una
+ZonaCoberturas: src/dungeon/zona_coberturas.py): frenan a enemigos,
+jugadores y balas, y los enemigos los rodean con el grafo de celdas del
+cuarto (BFS). Salen del mismo plan con que se pinta el cuarto.
+
 Mientras `congelado` sea True (gracia de entrada, la pone la mazmorra
 jugable) todos sus enemigos quedan quietos.
 
@@ -43,10 +48,11 @@ from src.dungeon.clasificador_toxicidad import (
     nivel_a_dificultad,
 )
 from src.dungeon.spawn import posiciones_spawn
+from src.dungeon.zona_coberturas import ZonaCoberturas
 from src.entities.enemigos import crear_enemigo
 from src.entities.tipos_enemigo import composicion_cuarto
 from src.entities.variantes_enemigo import elegir_variantes
-from src.ui import cuarto_render, temas_mazmorra
+from src.ui import cobertura_render, cuarto_render, temas_mazmorra
 from src.ui.terminal_decision import TerminalDecision, construir_arbol_publicacion
 
 ANCHO_CUARTO = assets.ANCHO_CUARTO
@@ -169,11 +175,14 @@ class Cuarto:
         self.congelado = False  # gracia de entrada (ver gracia_entrada.py)
 
         self.puertas = self._crear_puertas(direcciones_puertas)
+        self.tema = assets.TEMA_POR_ZONA.get(self.nombre_zona)
+        entrada = punto_entrada if punto_entrada is not None else self.rect.center
+        self.coberturas = self._crear_coberturas(entrada)
         # Veces que cada variante apareció en la mazmorra (la comparte la
         # mazmorra para que cada cuarto traiga caras distintas).
         self.usos_variantes = usos_variantes if usos_variantes is not None else {}
         self.enemigos = self._crear_enemigos_iniciales(
-            punto_entrada if punto_entrada is not None else self.rect.center,
+            entrada,
             rng if rng is not None else random.Random(),
             es_cuarto_inicial,
         )
@@ -189,6 +198,23 @@ class Cuarto:
             rects[direccion].center = centro_puerta(self.rect, direccion)
         return {direccion: Puerta(direccion, rects[direccion]) for direccion in direcciones}
 
+    def _crear_coberturas(self, punto_entrada):
+        """Los muebles sólidos del cuarto, del mismo plan con que se pinta
+        (determinista por zona y `semilla_visual`: igual en todas las PCs).
+        Se garantiza que desde donde entra el jugador se llega caminando
+        al centro, a cada puerta y a la terminal."""
+        r = self.rect
+        plan = []
+        if self.tema is not None:
+            plan = temas_mazmorra.plan_objetos(r, self.tema, self.semilla_visual, tuple(self.puertas), self.es_final)
+        zona = ZonaCoberturas((r.left, r.top, r.right, r.bottom), plan)
+        if zona:
+            puntos = [r.center] + [punto_llegada(r, d) for d in self.puertas]
+            if self.es_final:
+                puntos.append((r.right - assets.ZONA_LIBRE_TERMINAL[0] // 2, r.centery))
+            zona.asegurar_caminos(puntos, punto_entrada)
+        return zona
+
     def _crear_enemigos_iniciales(self, punto_entrada, rng, es_cuarto_inicial):
         """Tipos según composicion_cuarto y posiciones según
         posiciones_spawn (lejos de `punto_entrada`). Las posiciones vienen
@@ -200,11 +226,21 @@ class Cuarto:
         """
         tipos = composicion_cuarto(self.dificultad, self.es_final, rng, es_cuarto_inicial)
         r = self.rect
-        posiciones = posiciones_spawn((r.left, r.top, r.right, r.bottom), punto_entrada, len(tipos), rng)
+        libre = None
+        if self.coberturas:
+            # Nadie aparece dentro de un mueble ni encerrado entre ellos.
+            lado = assets.TAMANIO_ENEMIGO_MAXIMO
+            libre = lambda p: (self.coberturas.punto_libre(p, (lado, lado))
+                               and self.coberturas.navegacion.alcanzable(p, punto_entrada))
+        posiciones = posiciones_spawn((r.left, r.top, r.right, r.bottom), punto_entrada, len(tipos), rng,
+                                      libre=libre)
         velocidad = assets.VELOCIDAD_ENEMIGO * self.dificultad["multiplicador_velocidad"]
         variantes = elegir_variantes(tipos, rng, self.usos_variantes)
-        return [crear_enemigo(tipo, x, y, velocidad, variante=variante)
-                for tipo, variante, (x, y) in zip(tipos, variantes, posiciones)]
+        enemigos = [crear_enemigo(tipo, x, y, velocidad, variante=variante)
+                    for tipo, variante, (x, y) in zip(tipos, variantes, posiciones)]
+        for enemigo in enemigos:
+            self.coberturas.sacar(enemigo)
+        return enemigos
 
     def _actualizar_estado_puertas(self):
         bloqueadas = len(self.enemigos) > 0
@@ -236,12 +272,17 @@ class Cuarto:
         donde los enemigos agregan los proyectiles que disparan (ver
         Enemigo._disparar_a_objetivo).
         """
+        self.coberturas.actualizar(dt)
+        navegacion = self.coberturas.navegacion if self.coberturas else None
         for enemigo in self.enemigos:
             enemigo.congelado = self.congelado
             enemigo.aliados = self.enemigos
+            enemigo.navegacion = navegacion
             objetivo = jugador_mas_cercano(enemigo.rect.center, jugadores)
+            anterior = (enemigo.posicion.x, enemigo.posicion.y)
             enemigo.actualizar(dt, objetivo, proyectiles_enemigos)
             enemigo.mantener_dentro(self.rect)
+            self.coberturas.frenar(enemigo, anterior, resbalar=enemigo.velocidad * dt)
 
         cantidad_antes = len(self.enemigos)
         self.enemigos = [enemigo for enemigo in self.enemigos if enemigo.vivo]
@@ -272,7 +313,8 @@ class Cuarto:
         if tema is not None:
             # Escenario propio del lugar: cada cuarto se pinta una vez y se reconoce.
             self.reloj_visual = pygame.time.get_ticks() / 1000.0
-            fondo = temas_mazmorra.fondo(self.rect, tema, self.semilla_visual, tuple(self.puertas), self.nivel_toxicidad)
+            fondo = temas_mazmorra.fondo(self.rect, tema, self.semilla_visual, tuple(self.puertas),
+                                         self.nivel_toxicidad, self.es_final)
             pantalla.blit(fondo, (0, assets.Y_MUNDO_TEMA))
             temas_mazmorra.dibujar_animado(pantalla, self.rect, tema, self.reloj_visual)
         else:
@@ -287,5 +329,15 @@ class Cuarto:
                 pantalla, self.rect, bloqueada=bool(self.enemigos), cantidad_enemigos=len(self.enemigos)
             )
 
-        for enemigo in self.enemigos:
-            enemigo.dibujar(pantalla)
+        # Muebles y enemigos por orden de base: lo de más abajo tapa a lo de más arriba.
+        cobertura_render.dibujar_con(
+            pantalla, self.tema, self.coberturas.lista,
+            [(enemigo.rect.bottom, lambda e=enemigo: e.dibujar(pantalla)) for enemigo in self.enemigos],
+            getattr(self, "reloj_visual", 0.0),
+        )
+
+    def dibujar_delante(self, pantalla, cuerpos):
+        """Repinta los muebles que quedan delante de `cuerpos` (rects de
+        los jugadores, que Main dibuja después del cuarto)."""
+        cobertura_render.dibujar_delante(pantalla, self.tema, self.coberturas.lista, cuerpos,
+                                         getattr(self, "reloj_visual", 0.0))

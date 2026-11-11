@@ -623,6 +623,8 @@ GANANCIA_SONIDO = {
     "jefe_escudo_roto": 0.58,
     "jefe_derrotado": 0.63,
     "puerta": 0.37,
+    "impacto_cobertura": 0.20,
+    "cobertura_rota": 0.50,
     "puerta_sellada": 0.32,
     "cuarto_liberado": 0.53,
     "cuarto_final_desbloqueado": 0.42,
@@ -736,3 +738,55 @@ ADELANTO_CAMARA_CIUDAD = 72  # px
 # ----------------------------------------------------------------------
 RETARDO_INSTRUCCIONES = 0.4  # s antes de aceptar "comenzar" (un Enter de más no la salta)
 TARJETAS_POR_PAGINA_INSTRUCCIONES = 4  # con más, ← → pasan de página
+
+
+# ----------------------------------------------------------------------
+# Coberturas rompibles (src/dungeon/coberturas.py, navegacion_cuarto.py)
+# ----------------------------------------------------------------------
+# Los muebles de una mazmorra son sólidos: frenan a jugadores, enemigos y
+# balas (de cualquiera), y cada bala que reciben les quita vida hasta que
+# se rompen. Así cubrirse sirve, pero no para siempre.
+# La hitbox es la base del objeto (vista 3/4): la parte de arriba de la
+# imagen es altura, y un personaje puede pasar por detrás de ella.
+FRACCION_HITBOX_COBERTURA = 0.6  # de la altura de la imagen, desde abajo
+MARGEN_LATERAL_HITBOX_COBERTURA = 4  # px que se recortan a cada lado
+# Un mueble cuya base queda a menos de esto del muro de arriba está contra
+# la pared: su hitbox sube hasta el muro (nadie cabe detrás de un estante).
+MARGEN_MURO_COBERTURA = 72  # = PASO_MINIMO_COBERTURA: detrás no cabría un enemigo
+# Vida por clase de objeto (en puntos de daño: una bala enemiga quita 1).
+VIDA_COBERTURA = {"fragil": 4, "media": 8, "resistente": 14}
+CLASE_COBERTURA_PREDETERMINADA = "media"
+CLASE_COBERTURA = {
+    # Livianos: sillas, plantas, trípodes.
+    "globo": "fragil", "esqueleto": "fragil", "suero": "fragil", "microfono": "fragil",
+    "aro_luz": "fragil", "softbox": "fragil", "camara": "fragil", "cordon": "fragil",
+    "bandera": "fragil", "lampara": "fragil", "planta": "fragil", "ficus": "fragil",
+    "palmera": "fragil", "pack:silla": "fragil", "silla_oficina": "fragil",
+    "silla_ruedas": "fragil", "oxigeno": "fragil", "dispensador": "fragil",
+    "monitor": "fragil", "pizarra_movil": "fragil", "biombo": "fragil", "urna": "fragil",
+    "pack:pupitre": "fragil",
+    # Macizos: estanterías, gabinetes, racks, piedra.
+    "estanteria": "resistente", "gabinete": "resistente", "rack": "resistente",
+    "columna": "resistente", "bloque_glitch": "resistente", "archivador": "resistente",
+    "pack:casillero": "resistente", "pack:estante": "resistente", "maletas": "resistente",
+    "busto": "resistente", "mesa_consejo": "resistente", "mesa_noticias": "resistente",
+}
+# Objetos chicos del piso que siguen siendo solo decoración (sin hitbox).
+OBJETOS_SIN_HITBOX = ("libros", "cables", "pack:mochila", "pack:maceta")
+# Etapas de daño: por debajo de cada fracción de vida el objeto se ve más roto.
+FRACCIONES_ETAPA_COBERTURA = (2 / 3, 1 / 3)
+DURACION_GOLPE_COBERTURA = 0.18  # s que tiembla y destella tras un impacto
+# Entre dos coberturas del centro del cuarto (y entre ellas y lo demás)
+# queda al menos este paso: cabe el enemigo más ancho (64 px).
+PASO_MINIMO_COBERTURA = 72
+# Y ningún hueco queda "a medias": o es más angosto que esto (no entra ni
+# el jugador, de 36 px) o mide PASO_MINIMO_COBERTURA o más (entran todos).
+# Así no existe un rincón donde el jugador quepa y los enemigos no.
+HUECO_CERRADO_COBERTURA = 30
+# Navegación de los enemigos: el piso se cuadricula en celdas y cada celda
+# libre es un nodo del grafo; BFS desde el jugador da el rodeo más corto.
+ESQUINA_COBERTURA = 16  # px: un enemigo enganchado menos que esto en un canto se corre y pasa
+NAV_CELDA = 24  # px por celda
+NAV_HOLGURA = 22  # px que se le suma a cada cobertura (medio enemigo típico)
+NAV_PASOS_VISTA = 6  # celdas del camino que se intentan saltar en línea recta
+NAV_MAX_RUTAS = 12  # BFS guardados (uno por celda de jugador reciente)

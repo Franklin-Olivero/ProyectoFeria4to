@@ -63,6 +63,9 @@ PruebaPythonGame/
 │   │   ├── progreso.py             # Mazmorras completadas (solo Purificación Exitosa). Puro.
 │   │   ├── charco.py               # Charco tóxico: aviso + fase activa con daño. Puro.
 │   │   ├── mazmorra_final.py       # Reglas de la pelea final, tiempo, victoria/derrota, desbloqueo. Puro.
+│   │   ├── coberturas.py           # Muebles sólidos y rompibles: hitbox, vida, etapas, colisión. Puro.
+│   │   ├── navegacion_cuarto.py    # Grafo de celdas del cuarto + BFS: los enemigos rodean los muebles. Puro.
+│   │   ├── zona_coberturas.py      # Coberturas + grafo de un lugar: frenar, impactar, aplastar, red. Puro.
 │   │   └── arena_jefe.py           # Cuerpo Pygame de la mazmorra final: rects, súbditos, dibujo.
 │   └── ui/
 │       ├── terminal_decision.py    # Minijuego de decisión sobre el árbol N-ario. Puro.
@@ -197,6 +200,10 @@ renombra). El archivo es `preferencias.json`, en la carpeta de datos de usuario 
 **Ciudad verde y sobria** — `src/dungeon/autotile_ciudad.py` (puro) decide las piezas de cada casilla por sus vecinas (bordes, esquinas internas, brazo/cruce, línea central, cebra) y `src/ui/tiles_ciudad.py` las pega; toda imagen de la ciudad pasa por `src/ui/arte_ciudad.py` (lista blanca `assets.ASSETS_CIUDAD_PERMITIDOS` + ajuste de paleta central); `src/dungeon/huellas_ciudad.py` (puro) valida cero solapes y mide el área verde.
 
 **Ciudad decorada** — `src/dungeon/layout_decoracion.py` (puro) genera los props por reglas sobre el mapa; `src/ui/decoracion_ciudad.py` los dibuja por Y con el jugador y `src/ui/edificios_ciudad.py` cada edificio a escala entera de su huella; `src/core/puntajes_roles.py` lleva los stats a 1–10.
+
+**Coberturas rompibles** — `src/dungeon/coberturas.py` (puro: `Cobertura` con hitbox en la base, vida por clase y etapas de daño; `separar`/`expulsar`), `src/dungeon/navegacion_cuarto.py` (puro: grafo de celdas del cuarto + BFS para que los enemigos rodeen los muebles) y `src/dungeon/zona_coberturas.py` (puro: lo que usan `Cuarto`, `ArenaJefe` y `Main._frame_de_combate`: frenar cuerpos, impactar balas, aplastar, vidas por red). El plan de dónde va cada mueble es el mismo con que se pinta el cuarto (`src/ui/plan_decor.py`, reglas en `assets.DECORADO_VARIANTE`) y `src/ui/cobertura_render.py` los dibuja por etapas, ordenados por Y con enemigos y jugadores. Números en `balance.py` (sección "Coberturas rompibles"); pruebas en `tests/test_coberturas.py` y `tests/test_coberturas_en_combate.py`.
+
+**Proporción de los objetos** — el jugador mide 48x60 px; `assets.ESCALA_PROP_URBANO` da la escala de cada prop de la ciudad (farolas ×2, mobiliario ×1.5) y `ESCALA_MUEBLES_COLEGIO` la de los muebles del pack escolar; `cargador_assets.recorte` escala siempre por vecino más cercano.
 
 **Ajustes y pausa** — `src/audio/ajustes_audio.py` (puro) carga/guarda en la carpeta de datos de usuario los volúmenes y el silencio, y `src/audio/gestor_audio.py` aplica el volumen efectivo en cada `Sound` (música en 2 canales reservados); `src/ui/pausa.py` (puro) es el menú de pausa: con `congelada` el bucle de `Main._jugar` no llama a ningún actualizar.
 
@@ -905,6 +912,7 @@ casillas de Ciudad Nova, unas 1560 casillas transitables.
 | Dijkstra (con `MinHeap`) + `camino` | `GrafoCiudad.ruta_sugerida`, tecla G y mapa del mundo | Ruta de menor saturación total sobre las calles abiertas, dibujada sobre el mapa. | O((V + E) log V) | Ver sección 4.1. |
 | `copia` + `eliminar_arista` + DFS (`es_conexo`) | `GrafoCiudad.puede_bloquearse` | Una calle saturada solo se bloquea si la ciudad sigue conexa. | O(V + E) | Ver sección 4.1. |
 | BFS (grafo de casillas) | `GrafoCiudad.nodo_mas_cercano`, tests del mapa | Nodo más cercano a pie; validar que el mapa y las barricadas son coherentes con el grafo. | O(V + E) | Ver sección 4.1. |
+| BFS (grafo de celdas del cuarto) | `NavegacionCuarto.direccion` / `alcanzable` (`src/dungeon/navegacion_cuarto.py`) | Los enemigos que persiguen rodean las coberturas por el camino más corto; ningún enemigo aparece encerrado y desde cada puerta se llega a todo el cuarto. Al romperse un mueble el grafo se rehace y su hueco es camino. | O(V + E), V ≤ 943 celdas; un BFS por celda de jugador, compartido por todos los que lo persiguen | Todas las celdas cuestan lo mismo: BFS ya da el camino más corto, sin heap. |
 | `cambiar_peso` | `GrafoCiudad.actualizar_tras_mazmorra` | Detonación +3 y Purificación Exitosa -2 en las calles de la entrada de la zona (rango [1, 10]); de ahí salen las barricadas. | O(grado) | Lista de adyacencia: cambiar un peso es O(1). |
 
 El `MinHeap` existe para Dijkstra: sacar el nodo con menor distancia
