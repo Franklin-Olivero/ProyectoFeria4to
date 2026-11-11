@@ -21,7 +21,7 @@ from src.entities.candidato import Candidato  # noqa: E402
 from src.entities.player import Ciudadano  # noqa: E402
 from src.ui import dibujo  # noqa: E402
 from src.ui.terminal_decision import CONFIRMAR, DERECHA, TerminalDecision, construir_arbol_publicacion  # noqa: E402
-from Online import reunion_render  # noqa: E402
+from Online import disposicion_hud, reunion_render  # noqa: E402
 from Online.cliente import Cliente  # noqa: E402
 from Online.protocolo import DECISION_NAV, DESCONEXION, REUNION  # noqa: E402
 from Online.reunion import (  # noqa: E402
@@ -31,6 +31,9 @@ from Online.reunion import (  # noqa: E402
 from Online.servidor import Servidor  # noqa: E402
 from Online.sesion_red import AdaptadorOnlineHost, AdaptadorOnlineJoin  # noqa: E402
 from tests.test_presentacion_online import _Red, _tecla, correr  # noqa: E402,F401
+
+
+BOTON_CIUDAD = disposicion_hud.rects_botones(Escena.CIUDAD, 2)[0]  # REPORTAR en la ciudad, con 2 jugadores
 
 
 def test_lo_pedido_un_minuto_para_hablar_y_el_boton_cada_60_segundos():
@@ -409,7 +412,7 @@ def test_r_convoca_y_la_reunion_se_lleva_el_teclado(correr):
 
     def guion(n, loc):
         if n == 3:
-            vistos["boton"] = _rojos(pygame.display.get_surface(), assets.RECT_BOTON_REPORTAR, assets.COLOR_REPORTAR)
+            vistos["boton"] = _rojos(pygame.display.get_surface(), BOTON_CIUDAD, assets.COLOR_REPORTAR)
             _tecla(pygame.K_r)
             _texto("r")  # la "r" de la tecla también llega como texto
         if n == 5:
@@ -482,7 +485,7 @@ def test_en_la_reunion_no_hay_combate(correr, monkeypatch):
 def test_clic_en_el_boton_convoca_y_clic_dos_veces_vota(correr):
     red = _RedReunion(cuando=10_000, espejo=False)
     vistos = {}
-    centro = pygame.Rect(assets.RECT_BOTON_REPORTAR).center
+    centro = pygame.Rect(BOTON_CIUDAD).center
 
     def guion(n, loc):
         if n == 3:
@@ -538,7 +541,7 @@ def test_el_expulsado_no_ve_el_boton(correr):
         return False
 
     correr(red, guion, id_local=0, preparar=_impostor_j2)
-    rect = pygame.Rect(assets.RECT_BOTON_REPORTAR)
+    rect = pygame.Rect(BOTON_CIUDAD)
     assert _rojos(vistos["pantalla"], (rect.left, rect.top, rect.width, rect.height - 34), assets.COLOR_REPORTAR) == 0
     assert red.reuniones.numero == 0  # la R no convoca
 
@@ -624,8 +627,8 @@ def test_los_textos_del_resultado():
 def test_el_boton_reportar(recarga):
     pygame.font.init()
     pantalla = pygame.Surface((1280, 720))
-    reunion_render.dibujar_boton_reportar(pantalla, recarga, COOLDOWN_REUNION, 0.4)
-    rojos = _rojos(pantalla, assets.RECT_BOTON_REPORTAR, assets.COLOR_REPORTAR)
+    reunion_render.dibujar_boton_reportar(pantalla, recarga, COOLDOWN_REUNION, 0.4, BOTON_CIUDAD)
+    rojos = _rojos(pantalla, BOTON_CIUDAD, assets.COLOR_REPORTAR)
     assert (rojos > 50) == (recarga == 0.0)
     fuente = dibujo.fuente(assets.TAMANIO_FUENTE_NORMAL, True)
-    assert fuente.size(assets.TEXTO_BOTON_REPORTAR)[0] <= pygame.Rect(assets.RECT_BOTON_REPORTAR).width - 10
+    assert fuente.size(assets.TEXTO_BOTON_REPORTAR)[0] <= pygame.Rect(BOTON_CIUDAD).width - 10

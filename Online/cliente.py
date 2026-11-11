@@ -73,16 +73,18 @@ class Cliente:
         self._buffer = b""
         self._rtt = None
         self._proximo_ping = 0.0
+        self.puerto = None
 
     # ------------------------------------------------------------------
     # API pública
     # ------------------------------------------------------------------
 
-    def conectar(self, ip, puerto):
+    def conectar(self, ip, puerto, timeout=5.0):
         """Se conecta al servidor. Retorna True si tuvo éxito."""
+        self.puerto = puerto
         try:
             self._socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-            self._socket.settimeout(5.0)
+            self._socket.settimeout(timeout)
             self._socket.connect((ip, puerto))
             sin_retraso(self._socket)
             self._socket.setblocking(False)
@@ -207,7 +209,10 @@ class Cliente:
             self._buffer += datos
             mensajes, self._buffer = deserializar_buffer(self._buffer)
             for msg in mensajes:
-                self._procesar(msg)
+                try:
+                    self._procesar(msg)
+                except Exception:
+                    pass
 
         self.conectado = False
 

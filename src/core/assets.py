@@ -521,6 +521,101 @@ COLOR_TEMA_NOVA_OSCURO = (150, 30, 96)
 COLOR_TEMA_PANTALLA = ((120, 30, 60), (24, 84, 120), (64, 44, 130))
 COLOR_TEMA_ECG = (90, 255, 170)
 COLOR_TEMA_INFO = (40, 120, 170)
+
+# Arte de mazmorra generado con Higgsfield (prompts/higgsfield_mazmorras.md),
+# reducido a pixel art con tools/procesar_higgsfield.py y colocado por
+# src/ui/decor_mazmorra.py. Todo es fondo: ningún objeto tiene colisión.
+RUTA_MAZMORRAS = os.path.join("assets", "mazmorras")
+CARPETA_ARTE_TEMA = {"colegio": "colegio", "hospital": "hospital", "medios": "medios", "servidor": "alcaldia"}
+ESCALA_ARTE_MAZMORRA = 2  # 1 píxel de arte = 2 px de pantalla (la rejilla nativa de la imagen generada)
+ESCALA_MURO_MAZMORRA = 1  # la franja del muro ya mide los 36 px de la cara
+# Color base del piso por tema: la textura se MULTIPLICA sobre él, así la
+# luz, la viñeta y las grietas de NOVA pintadas debajo siguen viéndose y el
+# piso queda más oscuro que los personajes.
+BASE_PISO_TEMA = {"hospital": (138, 150, 164), "medios": (196, 200, 220), "servidor": (176, 164, 190)}
+TINTE_MURO_TEMA = {"hospital": (150, 166, 172), "medios": (210, 210, 228), "servidor": (176, 150, 160)}
+FACTOR_PROPS_TEMA = {"colegio": 0.85, "hospital": 0.74, "medios": 0.86, "servidor": 0.8}  # < 1 oscurece
+COLOR_SOMBRA_PROP = (4, 5, 16, 96)
+BANDA_DECOR_MAZMORRA = 140  # px desde el muro: fuera de esa franja el piso queda libre para combatir
+BANDA_DECOR_ARENA = 140  # la arena: las columnas (136 px) caben junto al muro y el centro (720x224) queda libre
+SEPARACION_PROPS = 10  # px mínimos entre dos objetos
+ZONA_LIBRE_TERMINAL = (300, 170)  # px junto al muro derecho, a media altura: la terminal y su rótulo
+# Variantes de cuarto por tema: la semilla visual del cuarto elige una, así
+# los cuartos de una mazmorra no son iguales. "aula" es el pack escolar
+# comprado (src/ui/arte_colegio.py); "pack:<pieza>" pide una pieza de ese pack.
+VARIANTES_CUARTO = {
+    "colegio": ("aula", "biblioteca", "laboratorio"),
+    "hospital": ("sala", "urgencias", "laboratorio"),
+    "medios": ("redaccion", "estudio", "servidores"),
+    "servidor": ("salon",),
+}
+# Reglas de colocación: (lugar, objetos, cantidad). Lugares: "fondo" (junto al
+# muro de arriba), "costados" (izquierdo y derecho, por pares), "esquinas" (abajo)
+# y "sueltos" (al azar, solo dentro de la franja BANDA_DECOR desde los muros).
+DECORADO_VARIANTE = {
+    ("colegio", "biblioteca"): (
+        ("fondo", ("estanteria", "estanteria", "ficus", "estanteria", "estanteria"), 8),
+        ("costados", ("estanteria", "mesa_lectura", "estanteria"), 3),
+        ("esquinas", ("globo", "pack:maceta"), 2),
+        ("sueltos", ("libros", "libros", "pack:mochila"), 4),
+    ),
+    ("colegio", "laboratorio"): (
+        ("fondo", ("pizarra_movil", "pack:estante", "esqueleto", "pack:estante"), 5),
+        ("costados", ("mesa_lab", "mesa_lab", "pack:casillero"), 3),
+        ("esquinas", ("ficus", "globo"), 2),
+        ("sueltos", ("libros", "pack:mochila"), 3),
+    ),
+    ("hospital", "sala"): (
+        ("fondo", ("gabinete", "monitor", "planta", "gabinete"), 5),
+        ("costados", ("camilla", "suero", "camilla"), 3),
+        ("esquinas", ("biombo", "silla_ruedas"), 2),
+        ("sueltos", ("carro", "contenedor"), 2),
+    ),
+    ("hospital", "urgencias"): (
+        ("fondo", ("sillas_espera", "planta", "sillas_espera", "contenedor"), 5),
+        ("costados", ("camilla", "monitor", "biombo"), 3),
+        ("esquinas", ("silla_ruedas", "oxigeno"), 2),
+        ("sueltos", ("carro", "suero"), 2),
+    ),
+    ("hospital", "laboratorio"): (
+        ("fondo", ("mesa_lab", "gabinete", "mesa_lab", "oxigeno"), 5),
+        ("costados", ("carro", "monitor", "gabinete"), 3),
+        ("esquinas", ("planta", "contenedor"), 2),
+        ("sueltos", ("suero",), 1),
+    ),
+    ("medios", "redaccion"): (
+        ("fondo", ("escritorio_pc", "impresora", "escritorio_pc", "dispensador"), 5),
+        ("costados", ("escritorio_pc", "silla_oficina", "escritorio_pc"), 3),
+        ("esquinas", ("planta", "maletas"), 2),
+        ("sueltos", ("silla_oficina", "impresora"), 2),
+    ),
+    ("medios", "estudio"): (
+        ("fondo", ("pantalla", "mesa_noticias", "pantalla"), 3),
+        ("costados", ("camara", "softbox", "aro_luz"), 3),
+        ("esquinas", ("maletas", "microfono"), 2),
+        ("sueltos", ("silla_oficina",), 1),
+    ),
+    ("medios", "servidores"): (
+        ("fondo", ("rack", "rack", "rack", "maletas", "rack", "rack"), 7),
+        ("costados", ("rack", "escritorio_pc", "rack"), 3),
+        ("esquinas", ("maletas", "planta"), 2),
+        ("sueltos", ("dispensador",), 1),
+    ),
+    ("servidor", "salon"): (
+        ("fondo", ("columna", "bandera", "columna", "busto", "columna", "columna"), 8),
+        ("costados", ("columna", "bloque_glitch", "columna", "terminal"), 4),
+        ("esquinas", ("palmera", "archivador"), 2),
+        ("sueltos", ("cordon", "urna"), 2),
+    ),
+}
+# Objetos que brillan (pantallas, LEDs, glitch): `dibujar_animado` los hace
+# latir con un halo de este color. Son unos pocos blits por frame.
+FOCO_PROP = {
+    "monitor": (90, 255, 170), "escritorio_pc": (70, 220, 240), "pantalla": (70, 160, 255),
+    "mesa_noticias": (70, 220, 240), "rack": (62, 230, 196), "terminal": (255, 56, 170),
+    "bloque_glitch": (255, 56, 170), "archivador": (255, 56, 170),
+}
+ALFA_FOCO_MAXIMO = 70
 # Vida de los personajes (src/entities/player.py, src/ui/enemigo_render.py).
 DURACION_DESTELLO_DANIO = 0.14  # s de destello blanco al recibir un golpe
 DURACION_RETROCESO_DISPARO = 0.09  # s del pequeño empujón visual al disparar
@@ -979,10 +1074,15 @@ ARTE_EDIFICIOS = {
     "Colegio": {"fuente": "pack_colegio", "escala": 2},  # tejas de 32 px: 2 px de pantalla por píxel
     # Los packs cyberpunk no traen edificios completos: pixel art en código,
     # cada uno con su paleta sobria (PALETA_FACHADA_ZONA).
-    "Hospital": {"fuente": "pixel_art", "escala": ESCALA_PIXEL},
-    "Empresa de Medios": {"fuente": "pixel_art", "escala": ESCALA_PIXEL},
-    "Alcaldía": {"fuente": "pixel_art", "escala": ESCALA_PIXEL},
+    # Fachadas generadas con Higgsfield con el pack escolar como referencia de
+    # estilo (tools/procesar_higgsfield.py fachada): miden exactamente la huella
+    # / escala. Si falta el PNG, vuelve el pixel art en código.
+    "Hospital": {"fuente": "fachada", "ruta": os.path.join("assets", "ciudad", "fachadas", "hospital.png"), "escala": 2},
+    "Empresa de Medios": {"fuente": "fachada", "ruta": os.path.join("assets", "ciudad", "fachadas", "medios.png"),
+                          "escala": 2},
+    "Alcaldía": {"fuente": "fachada", "ruta": os.path.join("assets", "ciudad", "fachadas", "alcaldia.png"), "escala": 2},
 }
+FACTOR_FACHADA_GENERADA = 0.82  # de noche: un poco en penumbra, como la del Colegio
 COLOR_PUERTA_COLEGIO = (34, 46, 70)
 COLOR_MARCO_PUERTA_COLEGIO = (84, 62, 44)
 COLOR_TECHO_COLEGIO = (40, 34, 56)
@@ -1054,6 +1154,21 @@ TONOS_PIEL = (
     (110, 66, 40),
     (80, 48, 32),
 )
+# Vestidores del lobby Online, pestañas HAIR / SHIRT / PANTS: se recolorea el
+# pelo, la camisa y el pantalón de las recetas que ya existen (sin arte nuevo,
+# src/ui/receta_jugador.py). Los nombres de cada color están en Online/personalizacion.py.
+TONOS_PELO = (
+    (24, 22, 34), (74, 46, 28), (128, 84, 50), (226, 186, 92), (186, 74, 40),
+    (168, 168, 180), (70, 120, 230), (240, 110, 190), (150, 96, 230),
+)
+COLORES_ROPA = (
+    (164, 110, 255), (220, 60, 70), (246, 140, 52), (250, 206, 60), (70, 180, 90),
+    (46, 200, 190), (90, 170, 250), (240, 110, 200), (44, 40, 58),
+)
+COLORES_PANTALON = (
+    (52, 84, 150), (34, 32, 46), (104, 104, 122), (98, 66, 44), (84, 96, 52),
+    (190, 170, 128), (112, 36, 52), (92, 64, 160), (220, 220, 232),
+)
 # Modal del vestidor (Online/personalizacion_render.py).
 COLOR_ACENTO_VESTIDOR = COLOR_CIAN_NEON
 COLOR_SOMBRA_VESTIDOR = (0, 0, 0, 110)  # RGBA: sombra bajo el jugador de la vista previa
@@ -1112,12 +1227,7 @@ ALFA_FANTASMA = 110  # el expulsado se ve a sí mismo medio transparente
 # Reunión de emergencia (Online/reunion_render.py). Botón REPORTAR abajo a la
 # derecha (sobre la barra de controles, fuera de la mazmorra); la reunión es
 # un modal encima de todo: tarjetas para votar a la izquierda, chat a la derecha.
-# Dentro del rincón inferior derecho del cuarto: el margen derecho es del
-# panel de J2/J4 en cooperativo. En la terminal va chico, en la barra de controles.
-RECT_BOTON_REPORTAR = (1040, 546, 100, 92)
-RECT_BOTON_SABOTEAR = (932, 546, 100, 92)  # solo el impostor lo ve, junto a REPORTAR
-RECT_BOTON_REPORTAR_TERMINAL = (1044, 666, 224, 48)
-ALTO_MINIMO_BOTON_GRANDE = 70  # más bajo que esto, el botón se dibuja en una sola fila
+# Dónde van los botones REPORTAR y SABOTEAR: Online/disposicion_hud.py (a la izquierda).
 TEXTO_BOTON_REPORTAR = "REPORTAR"
 COLOR_REPORTAR = (236, 52, 64)  # rojo de alarma (el botón listo)
 COLOR_REPORTAR_APAGADO = (70, 66, 104)  # mientras recarga
@@ -1155,9 +1265,9 @@ TEXTOS_FIN_PARTIDA = {
     # (fin, ¿esta PC es la del impostor?) -> (título, subtítulo, remate)
     ("tripulacion", False): ("¡Felicidades!", "Has descubierto al impostor", "Civitas se ha salvado"),
     ("tripulacion", True): ("Te descubrieron", "La tripulación te expulsó", "Civitas se ha salvado"),
-    ("impostor", False): ("El impostor ha ganado", "Expulsaron inocentes hasta quedar solo él y uno más",
+    ("impostor", False): ("El impostor quedó en pie", "y él destruyó Civitas",
                           "Civitas cayó en manos de la desinformación"),
-    ("impostor", True): ("¡Ganaste!", "El impostor ha ganado", "Engañaste a toda la tripulación"),
+    ("impostor", True): ("¡Felicidades!", "Has eliminado a los demás jugadores", "Has destruido Civitas con éxito"),
 }
 TEXTO_FIN_ERA_IMPOSTOR = "{nombre} era el impostor"
 CONTROLES_FIN_PARTIDA = [("Enter", "volver al menú")]

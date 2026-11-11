@@ -117,7 +117,7 @@ def test_expulsar_al_impostor_gana_la_tripulacion_con_cualquier_cantidad(total):
 
 
 def test_con_tres_jugadores_expulsar_un_inocente_le_da_la_victoria_al_impostor():
-    assert JUGADORES_MINIMOS_VICTORIA_IMPOSTOR == 3
+    assert JUGADORES_MINIMOS_VICTORIA_IMPOSTOR == 2
     control = _votacion(3, (), {0: 2, 1: 2}, impostor=1)
     assert control.expulsados == {2} and control.fin == GANA_IMPOSTOR and control.impostor == 1
 
@@ -129,9 +129,14 @@ def test_con_cuatro_jugadores_hacen_falta_dos_inocentes():
     assert segunda.fin == GANA_IMPOSTOR
 
 
-def test_con_dos_jugadores_expulsar_al_inocente_no_termina_la_partida():
+def test_con_dos_jugadores_si_el_impostor_queda_en_pie_gana_al_instante():
     control = _votacion(2, (), {1: 0}, impostor=1)
-    assert control.expulsados == {0} and control.fin is None
+    assert control.expulsados == {0} and control.fin == GANA_IMPOSTOR and control.impostor == 1
+
+
+def test_con_dos_jugadores_un_empate_no_termina_nada():
+    control = _votacion(2, (), {0: 1, 1: 0}, impostor=1)
+    assert control.expulsados == set() and control.fin is None
 
 
 def test_terminada_la_partida_nada_mas_corre_ni_se_convoca():
@@ -145,8 +150,9 @@ def test_terminada_la_partida_nada_mas_corre_ni_se_convoca():
 
 def test_los_textos_del_final_dependen_de_quien_mira():
     assert reunion_render.textos_fin(GANA_TRIPULACION, False)[1:] == ("Has descubierto al impostor", "Civitas se ha salvado")
-    assert reunion_render.textos_fin(GANA_IMPOSTOR, False)[0] == "El impostor ha ganado"
-    assert reunion_render.textos_fin(GANA_IMPOSTOR, True)[0] == "¡Ganaste!"
+    assert reunion_render.textos_fin(GANA_IMPOSTOR, False)[:2] == ("El impostor quedó en pie", "y él destruyó Civitas")
+    assert reunion_render.textos_fin(GANA_IMPOSTOR, True) == (
+        "¡Felicidades!", "Has eliminado a los demás jugadores", "Has destruido Civitas con éxito")
     assert reunion_render.textos_fin(GANA_TRIPULACION, True)[0] == "Te descubrieron"
 
 

@@ -78,9 +78,10 @@ def test_a_dict_incluye_la_apariencia_de_cada_jugador():
     sala = _sala(0, 1)
     sala.elegir_rol(0, "Candidato")
     sala.elegir_apariencia(0, VESTIDO)
+    colores = {"pelo": None, "ropa": None, "pantalon": None}  # HAIR, SHIRT y PANTS sin tocar
     assert sala.a_dict() == {"jugadores": [
-        {"id": 0, "rol": "Candidato", "apariencia": {"piel": 5, "cabeza": "candidato", "traje": "periodista"}},
-        {"id": 1, "rol": None, "apariencia": {"piel": None, "cabeza": None, "traje": None}},
+        {"id": 0, "rol": "Candidato", "apariencia": {"piel": 5, "cabeza": "candidato", "traje": "periodista", **colores}},
+        {"id": 1, "rol": None, "apariencia": {"piel": None, "cabeza": None, "traje": None, **colores}},
     ]}
     assert json.loads(json.dumps(sala.a_dict())) == sala.a_dict()  # viaja como JSON
 

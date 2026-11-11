@@ -10,16 +10,32 @@ piel (assets.SIMBOLO_PIEL) se pinta con el tono elegido en COLOR. Las
 posiciones, las duraciones y el accesorio son siempre los del rol. No hay
 arte nuevo: solo se separa y se recombina el que ya existe.
 
+Los colores de HAIR, SHIRT y PANTS recolorean letras de la paleta: el
+pelo ("h" y sus tonos parecidos en la cabeza), la camisa (la letra que más
+se usa en el torso, sin contorno, piel ni blanco, y sus sombras) y el
+pantalón ("d" en las piernas). `teñir` conserva la luz de cada tono, así
+las sombras siguen siendo sombras del color nuevo.
+
 Un cuadro armado es una tupla de filas y cada fila una tupla de colores
 RGB o None (transparente); src/ui/sprites.py lo convierte en Surface.
 Armar un cuadro cuesta O(ancho * alto).
 """
 
+import colorsys
 import json
 import os
 
 from src.core import assets
 from src.core.apariencia import PREDETERMINADA
+
+LETRAS_FIJAS = ("k", "w")  # contorno y blanco: nunca se tiñen (la piel tampoco)
+LETRA_PELO = "h"
+LETRA_PANTALON = "d"
+SIMBOLO_TORSO = "torso"
+SIMBOLOS_PIERNAS = tuple(s for s in assets.SIMBOLOS_TRAJE if s != SIMBOLO_TORSO)
+DIFERENCIA_MAXIMA_TONO = 0.08  # 0..1 de la rueda de color (~30°): "el mismo color, más claro u oscuro"
+SATURACION_GRIS = 0.15  # por debajo, el color cuenta como gris (sin tono)
+LUZ_PARECIDA = (0.5, 2.0)  # sombra o brillo del mismo color: la luz no cambia más que esto (lentes != pelo)
 
 
 def leer_receta(rol, carpeta=None):
@@ -68,6 +84,90 @@ def tono_de_piel(apariencia, recetas, rol):
     return piel_original(recetas[apariencia.cabeza_para(rol)])
 
 
+def _luminancia(color):
+    return 0.299 * color[0] + 0.587 * color[1] + 0.114 * color[2]
+
+
+def teñir(original, referencia, objetivo):
+    """`original` pasado a la familia de `objetivo`: la letra de referencia
+    queda exactamente `objetivo` y las más oscuras o claras, en proporción."""
+    factor = _luminancia(original) / max(1.0, _luminancia(referencia))
+    return tuple(max(0, min(255, round(canal * factor))) for canal in objetivo)
+
+
+def _parecidos(paleta, referencia, candidatas):
+    """Letras de `candidatas` del mismo color que `referencia` (mismo tono,
+    o grises si la referencia es gris): sus sombras y brillos."""
+    def hsv(letra):
+        return colorsys.rgb_to_hsv(*(canal / 255 for canal in color_hex(paleta[letra])))
+
+    tono, saturacion, _ = hsv(referencia)
+    luz = max(1.0, _luminancia(color_hex(paleta[referencia])))
+    parecidas = {referencia}
+    for letra in candidatas:
+        if letra == referencia or letra not in paleta:
+            continue
+        otro_tono, otra_saturacion, _ = hsv(letra)
+        if not LUZ_PARECIDA[0] <= _luminancia(color_hex(paleta[letra])) / luz <= LUZ_PARECIDA[1]:
+            continue
+        if saturacion < SATURACION_GRIS:
+            if otra_saturacion < SATURACION_GRIS:
+                parecidas.add(letra)
+        elif otra_saturacion >= SATURACION_GRIS:
+            distancia = abs(tono - otro_tono)
+            if min(distancia, 1 - distancia) <= DIFERENCIA_MAXIMA_TONO:
+                parecidas.add(letra)
+    return parecidas
+
+
+def _letras_de(receta, simbolos):
+    """{letra: cuántas veces} en los `simbolos` de la receta."""
+    cuenta = {}
+    for simbolo in simbolos:
+        for fila in receta["symbols"].get(simbolo, ()):
+            for letra in fila:
+                if letra != ".":
+                    cuenta[letra] = cuenta.get(letra, 0) + 1
+    return cuenta
+
+
+def letras_teñibles(receta, parte):
+    """(letra de referencia, letras a teñir) de `parte` ("pelo", "ropa" o
+    "pantalon") en `receta`, o (None, set()) si la receta no la tiene."""
+    if parte == "pelo":
+        cuenta = _letras_de(receta, assets.SIMBOLOS_CABEZA)
+        referencia = LETRA_PELO if LETRA_PELO in cuenta else None
+    elif parte == "pantalon":
+        cuenta = _letras_de(receta, SIMBOLOS_PIERNAS)
+        referencia = LETRA_PANTALON if LETRA_PANTALON in cuenta else None
+    else:
+        cuenta = _letras_de(receta, (SIMBOLO_TORSO,))
+        posibles = [letra for letra in cuenta if letra not in LETRAS_FIJAS and letra != assets.SIMBOLO_PIEL]
+        referencia = max(posibles, key=lambda letra: (cuenta[letra], letra)) if posibles else None
+    if referencia is None or referencia not in receta["palette"]:
+        return None, set()
+    candidatas = [l for l in cuenta if l not in LETRAS_FIJAS and l != assets.SIMBOLO_PIEL]
+    return referencia, _parecidos(receta["palette"], referencia, candidatas)
+
+
+def _tintes(receta, simbolo, apariencia):
+    """{letra: color} que el vestidor cambia para este `simbolo` de `receta`."""
+    if simbolo in assets.SIMBOLOS_CABEZA and apariencia.pelo is not None:
+        parte, objetivo = "pelo", assets.TONOS_PELO[apariencia.pelo]
+    elif simbolo == SIMBOLO_TORSO and apariencia.ropa is not None:
+        parte, objetivo = "ropa", assets.COLORES_ROPA[apariencia.ropa]
+    elif simbolo in SIMBOLOS_PIERNAS and apariencia.pantalon is not None:
+        parte, objetivo = "pantalon", assets.COLORES_PANTALON[apariencia.pantalon]
+    else:
+        return None
+    referencia, letras = letras_teñibles(receta, parte)
+    if referencia is None:
+        return None
+    paleta = receta["palette"]
+    base = color_hex(paleta[referencia])
+    return {letra: teñir(color_hex(paleta[letra]), base, objetivo) for letra in letras}
+
+
 def _receta_del_simbolo(simbolo, rol, apariencia, recetas):
     if simbolo in assets.SIMBOLOS_CABEZA:
         return recetas[apariencia.cabeza_para(rol)]
@@ -92,13 +192,17 @@ def armar_cuadro(cuadro, recetas, rol, apariencia, piel, simbolos=None):
             receta = base  # la receta de la parte no lo trae: se usa el del rol
         filas = receta["symbols"].get(simbolo)
         if filas:
-            _estampar(pixeles, filas, receta["palette"], estampa.get("x", 0), estampa.get("y", 0), piel)
+            _estampar(pixeles, filas, receta["palette"], estampa.get("x", 0), estampa.get("y", 0), piel,
+                      _tintes(receta, simbolo, apariencia))
     return tuple(tuple(fila) for fila in pixeles)
 
 
-def _estampar(pixeles, filas, paleta, x0, y0, piel):
-    """Copia las filas de un símbolo en (x0, y0); '.' es transparente."""
+def _estampar(pixeles, filas, paleta, x0, y0, piel, tintes=None):
+    """Copia las filas de un símbolo en (x0, y0); '.' es transparente.
+    `tintes`: {letra: color} del vestidor (pelo, camisa, pantalón)."""
     colores = {letra: color_hex(valor) for letra, valor in paleta.items()}
+    if tintes:
+        colores.update(tintes)
     if piel is not None:
         colores[assets.SIMBOLO_PIEL] = tuple(piel)
     alto, ancho = len(pixeles), len(pixeles[0])
@@ -139,18 +243,20 @@ def armar_animaciones(recetas, rol, apariencia):
     return resultado or None
 
 
-def armar_parte(recetas, rol_fuente, simbolos, piel):
+def armar_parte(recetas, rol_fuente, simbolos, piel, colores=PREDETERMINADA):
     """Vista previa de una sola parte para el vestidor: los `simbolos`
     (assets.SIMBOLOS_CABEZA o SIMBOLOS_TRAJE) de la receta de `rol_fuente`
     en su cuadro de vista previa, recortada a las filas que ocupa (a lo
     ancho de la hoja, así todas las de una pestaña miden lo mismo). None
-    si no hay receta o la parte está vacía."""
+    si no hay receta o la parte está vacía. `colores`: una Apariencia de
+    la que solo se usan pelo, ropa y pantalón."""
     receta = recetas.get(rol_fuente)
     if receta is None:
         return None
     cuadro = next((c for c in receta["frames"] if c.get("name") == assets.CUADRO_VISTA_PREVIA),
                   receta["frames"][0])
-    pixeles = armar_cuadro(cuadro, recetas, rol_fuente, PREDETERMINADA, piel, simbolos)
+    solo_colores = PREDETERMINADA.con("pelo", colores.pelo).con("ropa", colores.ropa).con("pantalon", colores.pantalon)
+    pixeles = armar_cuadro(cuadro, recetas, rol_fuente, solo_colores, piel, simbolos)
     ocupadas = [y for y, fila in enumerate(pixeles) if any(color is not None for color in fila)]
     if not ocupadas:
         return None

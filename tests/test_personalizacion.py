@@ -10,7 +10,7 @@ import pytest  # noqa: E402
 
 from src.core import assets  # noqa: E402
 from src.core.apariencia import PREDETERMINADA, Apariencia  # noqa: E402
-from Online import lobby  # noqa: E402
+from Online import lobby, personalizacion_render  # noqa: E402
 from Online.personalizacion import (  # noqa: E402
     COLOR, COLUMNAS, HAT, PESTANAS, SKIN, Vestidor, etiqueta_opcion, opciones, texto_opcion,
 )
@@ -33,7 +33,7 @@ def test_vestidor_nuevo_tiene_todo_en_auto():
     vestidor = Vestidor()
     assert vestidor.pestana == COLOR
     assert vestidor.apariencia == PREDETERMINADA
-    assert [vestidor.indice_elegido(p) for p in PESTANAS] == [0, 0, 0]
+    assert [vestidor.indice_elegido(p) for p in PESTANAS] == [0] * len(PESTANAS) and len(PESTANAS) == 6
     assert Vestidor(pestana="PET").pestana == COLOR  # no hay pestaña de mascotas
 
 
@@ -87,10 +87,10 @@ def test_abajo_no_hace_nada_con_una_sola_fila():
 
 def test_pestanas_en_ciclo_sin_tocar_la_apariencia():
     vestidor = Vestidor(Apariencia(piel=1))
-    assert vestidor.pestana_siguiente(-1) is True and vestidor.pestana == SKIN
+    assert vestidor.pestana_siguiente(-1) is True and vestidor.pestana == PESTANAS[-1]  # la última: PANTS
     assert vestidor.pestana_siguiente() is True and vestidor.pestana == COLOR
     assert vestidor.ir_a_pestana(0) is False  # ya estaba
-    assert vestidor.ir_a_pestana(3) is False
+    assert vestidor.ir_a_pestana(len(PESTANAS)) is False
     assert vestidor.apariencia == Apariencia(piel=1)
 
 
@@ -139,7 +139,7 @@ def test_el_modal_se_dibuja_en_cada_pestana(pestana):
     dibujar_vestidor(pantalla, vestidor, "periodista", assets.COLOR_PERIODISTA, rect_casilla(1).center)
     # La casilla equipada lleva el borde de acento.
     elegida = rect_casilla(vestidor.indice_elegido())
-    assert pantalla.get_at((elegida.centerx, elegida.top + 1))[:3] == assets.COLOR_ACENTO_VESTIDOR
+    assert pantalla.get_at((elegida.centerx, elegida.top + 1))[:3] == personalizacion_render.COLOR_ACENTO
 
 
 # --- Lobby: abrir, usar y sincronizar -------------------------------------

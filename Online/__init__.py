@@ -9,7 +9,10 @@ Módulos:
     servidor    — acepta conexiones, retransmite estado
     cliente     — se conecta al servidor, envía input, recibe estado
     lobby       — pantalla de lobby (host/join) con Pygame
-    personalizacion — vestidor del lobby: pestañas COLOR / HAT / SKIN (puro)
+    personalizacion — vestidor del lobby: pestañas COLOR / HAT / SKIN / HAIR / SHIRT / PANTS (puro)
+    sala_hotel  — la sala de espera como salón del hotel Backrooms (puro: disposición)
+    sala_hotel_render — dibujo del salón con la escena del lobby del hotel
+    disposicion_hud — dónde van los botones REPORTAR y SABOTEAR (a la izquierda, puro)
     personalizacion_render — dibujo y ratón del vestidor
     pantalla_rol — revelación de rol al iniciar (impostor o tripulante)
     sabotaje    — bloqueo del sabotaje del impostor en la terminal (puro)

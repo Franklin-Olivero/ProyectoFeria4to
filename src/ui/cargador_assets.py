@@ -11,6 +11,8 @@ siempre: el juego nunca depende de un archivo de arte.
     pieza_colegio(nombre)      -> pieza del pack del Colegio (assets.PIEZAS_COLEGIO)
     arbol(numero, escala)      -> árbol del pack Trees_Vol2 (assets.RUTA_ARBOLES)
     pieza_ciudad(nombre)       -> pieza del atlas de Ciudad Nova (assets/ciudad/, packs cyberpunk)
+    pieza_mazmorra(tema, n)    -> objeto, piso o muro generado de una mazmorra (assets/mazmorras/)
+    fachada_generada(ruta, e)  -> fachada generada de un edificio de la ciudad
     ajustar_paleta(sup, s, b)  -> copia con la saturación y el brillo escalados (la única
                                   función que corrige el color del arte de un pack)
 
@@ -96,6 +98,29 @@ def pieza_colegio(nombre, factor=1.0):
         return None
     archivo, rect = assets.PIEZAS_COLEGIO[nombre]
     return recorte(os.path.join(assets.RUTA_COLEGIO, archivo), rect, factor=factor)
+
+
+def pieza_mazmorra(tema, nombre, escala=assets.ESCALA_ARTE_MAZMORRA, factor=1.0):
+    """Objeto, piso o muro generado para el tema (assets/mazmorras/<carpeta>/),
+    escalado entero; None si falta. Los objetos viven en props/<nombre>.png;
+    "piso" y "muro" en la raíz de la carpeta del tema."""
+    carpeta = assets.CARPETA_ARTE_TEMA.get(tema)
+    if carpeta is None:
+        return None
+    archivo = f"{nombre}.png" if nombre in ("piso", "muro") else os.path.join("props", f"{nombre}.png")
+    ruta = os.path.join(assets.RUTA_MAZMORRAS, carpeta, archivo)
+    imagen = hoja(ruta)
+    if imagen is None:
+        return None
+    return recorte(ruta, imagen.get_rect(), escala=escala, factor=factor)
+
+
+def fachada_generada(ruta, escala, factor=1.0):
+    """Fachada entera de un edificio de la ciudad (assets.ARTE_EDIFICIOS), o None."""
+    imagen = hoja(ruta)
+    if imagen is None:
+        return None
+    return recorte(ruta, imagen.get_rect(), escala=escala, factor=factor)
 
 
 def rects_atlas(ruta_json):
