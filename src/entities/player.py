@@ -62,7 +62,7 @@ from src.core.balance import (
     VIDA_BASE,
     intervalo_disparo,
 )
-from src.core.entrada import DISTANCIA_PUNTO_STICK, direccion_teclado, EJE_MAXIMO, leer_stick
+from src.core.entrada import DISTANCIA_PUNTO_STICK, direccion_teclado
 from src.dungeon.ciudad_mapa import mover_con_colision
 from src.entities.dash import Dash
 from src.entities.invulnerabilidad import Invulnerabilidad
@@ -224,20 +224,11 @@ class JugadorBase:
         if not self.dash.activo:
             self.rastro_dash.clear()
 
-    def caminar_en_ciudad(self, teclas, dt, es_solida, mando=None):
-        """Movimiento en Ciudad Nova: misma velocidad del rol (teclado o control),
-        contra las casillas sólidas del mapa."""
-        dir_teclado = direccion_teclado(teclas)
-        dir_mando = None
-        if mando is not None and hasattr(mando, "attached") and mando.attached():
-            try:
-                eje = lambda nombre: mando.get_axis(nombre) / EJE_MAXIMO
-                dir_mando = leer_stick(eje(pygame.CONTROLLER_AXIS_LEFTX), eje(pygame.CONTROLLER_AXIS_LEFTY))
-            except Exception:
-                dir_mando = None
-
-        dir_final = dir_mando or dir_teclado
-        direccion = pygame.Vector2(dir_final)
+    def caminar_en_ciudad(self, teclas, dt, es_solida):
+        """Movimiento en Ciudad Nova: misma velocidad del rol, pero contra
+        las casillas sólidas del mapa (mover_con_colision, por ejes
+        separados) en vez de contra los muros de un cuarto."""
+        direccion = pygame.Vector2(direccion_teclado(teclas))
         # Solo para el dibujo (animación de caminar en la ciudad).
         self.caminando_en_ciudad = direccion.length_squared() > 0
         if not self.caminando_en_ciudad:

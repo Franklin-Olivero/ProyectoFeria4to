@@ -203,9 +203,8 @@ def test_es_inmutable_y_sirve_de_clave():
 
 
 def test_a_dict_y_de_dict_ida_y_vuelta_por_json():
-    vacios = {"pelo": None, "ropa": None, "pantalon": None}
-    assert PREDETERMINADA.a_dict() == {"piel": None, "cabeza": None, "traje": None, **vacios}
-    assert VESTIDO.a_dict() == {"piel": 6, "cabeza": "ciudadano", "traje": "influencer", **vacios}
+    assert PREDETERMINADA.a_dict() == {"piel": None, "cabeza": None, "traje": None}
+    assert VESTIDO.a_dict() == {"piel": 6, "cabeza": "ciudadano", "traje": "influencer"}
     for piel in (None, *range(len(assets.TONOS_PIEL))):
         for cabeza in (None, *ROLES):
             for traje in (None, *ROLES):

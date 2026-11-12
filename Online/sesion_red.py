@@ -64,7 +64,7 @@ from src.core.balance import EFECTOS_POST_SABOTAJE_FRENADO, EFECTOS_POST_SABOTAJ
 from src.core.apariencia import Apariencia
 from src.core.balance import DURACION_TERMINAL_HISTORIA
 from src.core.colapso import COLAPSO_MAXIMO
-from src.core.entrada import EntradaMando, EntradaTeclado, InputJugador
+from src.core.entrada import EntradaTeclado, InputJugador
 from src.core.equipo import revivir_caidos, todos_caidos
 from src.core.escenas import ESCENAS_DE_COMBATE, Escena
 from src.dungeon import ciudad_mapa
@@ -606,18 +606,6 @@ class _MandoFicticio:
         return False
 
 
-def _detectar_mando():
-    """Busca el primer control físico real (GameController de SDL) conectado."""
-    try:
-        from pygame._sdl2 import controller
-        for indice in range(controller.get_count()):
-            if controller.is_controller(indice):
-                return controller.Controller(indice)
-    except Exception:
-        pass
-    return None
-
-
 class EntradaRed:
     """Host: input del jugador remoto que ocupa la ranura `id_jugador`
     (su índice en `jugadores`). Main.py la lee como a un control más."""
@@ -638,44 +626,19 @@ class EntradaRed:
 
 
 class EntradaTecladoRed(EntradaTeclado):
-    """Host: el teclado+mouse del J1 o control de PS4 si está conectado.
-    Guarda el último pedido y cuenta sus pulsos para mandárselo a los invitados."""
+    """Host: el teclado+mouse del J1 de siempre. Además guarda el último
+    pedido y cuenta sus pulsos, para mandárselo a los invitados (así lo
+    ven caminar y disparar entre un estado y el siguiente)."""
 
-    def __init__(self, mando=None):
+    def __init__(self):
         super().__init__()
-        real_mando = mando if (mando is not None and not isinstance(mando, _MandoFicticio)) else _detectar_mando()
-        self.mando = real_mando if real_mando is not None else _MandoFicticio()
-        self._mando_lector = EntradaMando(self.mando) if (real_mando is not None and hasattr(real_mando, "attached")) else None
+        self.mando = _MandoFicticio()
         self.ultimo = None
         self.pulsos_habilidad = 0
         self.pulsos_dash = 0
 
-    def leer(self, teclas=None, botones_mouse=None, punto_mouse=None):
-        if teclas is None:
-            teclas = pygame.key.get_pressed()
-        if botones_mouse is None:
-            botones_mouse = pygame.mouse.get_pressed()
-        if punto_mouse is None and pygame.mouse.get_focused():
-            punto_mouse = pygame.mouse.get_pos()
-
+    def leer(self, teclas, botones_mouse, punto_mouse):
         pedido = super().leer(teclas, botones_mouse, punto_mouse)
-
-        # Si hay control de PS4 conectado y activo, priorizarlo
-        if self._mando_lector is not None and self.mando.attached():
-            try:
-                pedido_mando = self._mando_lector.leer()
-                hay_mando = (
-                    pedido_mando.movimiento != (0.0, 0.0)
-                    or pedido_mando.direccion_apuntado is not None
-                    or pedido_mando.disparando
-                    or pedido_mando.habilidad
-                    or pedido_mando.dash
-                )
-                if hay_mando:
-                    pedido = pedido_mando
-            except Exception:
-                pass
-
         self.ultimo = pedido
         self.pulsos_habilidad += bool(pedido.habilidad)
         self.pulsos_dash += bool(pedido.dash)
@@ -684,15 +647,16 @@ class EntradaTecladoRed(EntradaTeclado):
 
 class EntradaLocalCliente(EntradaTeclado):
     """Entrada del jugador local en la máquina invitada: lee teclado/mouse
-    o control de PS4, y en cada frame manda el pedido (y su posición) al host."""
+    y en cada frame manda el pedido (y su posición) al host.
 
-    def __init__(self, adaptador, id_jugador=1, mando=None):
+    Es un EntradaTeclado: Main.py le pasa las teclas y el mouse ya en
+    coordenadas del mundo (descontando la sacudida de la pantalla)."""
+
+    def __init__(self, adaptador, id_jugador=1):
         super().__init__()
         self.adaptador = adaptador
         self.id_jugador = id_jugador
-        real_mando = mando if (mando is not None and not isinstance(mando, _MandoFicticio)) else _detectar_mando()
-        self.mando = real_mando if real_mando is not None else _MandoFicticio()
-        self._mando_lector = EntradaMando(self.mando) if (real_mando is not None and hasattr(real_mando, "attached")) else None
+        self.mando = _MandoFicticio()
         self.pulsos_habilidad = 0
         self.pulsos_dash = 0
 
@@ -705,22 +669,9 @@ class EntradaLocalCliente(EntradaTeclado):
             if punto_mouse is None and pygame.mouse.get_focused():
                 punto_mouse = pygame.mouse.get_pos()
             pedido = super().leer(teclas, botones_mouse, punto_mouse)
-
-            if self._mando_lector is not None and self.mando.attached():
-                pedido_mando = self._mando_lector.leer()
-                hay_mando = (
-                    pedido_mando.movimiento != (0.0, 0.0)
-                    or pedido_mando.direccion_apuntado is not None
-                    or pedido_mando.disparando
-                    or pedido_mando.habilidad
-                    or pedido_mando.dash
-                )
-                if hay_mando:
-                    pedido = pedido_mando
         except Exception:
             registro_errores.registrar("EntradaLocalCliente.leer")
             pedido = InputJugador()
-
         self.pulsos_habilidad += bool(pedido.habilidad)
         self.pulsos_dash += bool(pedido.dash)
         if self.adaptador is not None:
@@ -2071,19 +2022,17 @@ def _charco_desde(datos):
 class ConfigSesionHost:
     """Configura la sesión para el Host."""
 
-    def __init__(self, conexion, clases, ids_red=None, mando=None):
+    def __init__(self, conexion, clases, ids_red=None):
         self.conexion = conexion
         self.clases = clases
         self.ids_red = ids_red
-        real_mando = mando if (mando is not None and not isinstance(mando, _MandoFicticio)) else _detectar_mando()
-        self.mando = real_mando if real_mando is not None else _MandoFicticio()
+        self.mando = _MandoFicticio()
 
     def configurar_sesion(self, sesion):
         adaptador = AdaptadorOnlineHost(self.conexion, ids_red=self.ids_red)
         sesion.adaptador_red = adaptador
         sesion.id_local = 0
-        sesion.mando = self.mando
-        entradas = [EntradaTecladoRed(mando=self.mando)]
+        entradas = [EntradaTecladoRed()]
         for jid in range(1, len(self.clases)):
             entradas.append(EntradaRed(adaptador, id_jugador=jid))
         sesion.entradas = entradas
@@ -2095,23 +2044,21 @@ class ConfigSesionHost:
 class ConfigSesionJoin:
     """Configura la sesión para el Invitado."""
 
-    def __init__(self, conexion, clases, id_local=1, ids_red=None, mando=None):
+    def __init__(self, conexion, clases, id_local=1, ids_red=None):
         self.conexion = conexion
         self.clases = clases
         self.id_local = id_local
         self.ids_red = ids_red
-        real_mando = mando if (mando is not None and not isinstance(mando, _MandoFicticio)) else _detectar_mando()
-        self.mando = real_mando if real_mando is not None else _MandoFicticio()
+        self.mando = _MandoFicticio()
 
     def configurar_sesion(self, sesion):
         adaptador = AdaptadorOnlineJoin(self.conexion, id_local=self.id_local, ids_red=self.ids_red)
         sesion.adaptador_red = adaptador
         sesion.id_local = self.id_local
-        sesion.mando = self.mando
         entradas = []
         for jid in range(len(self.clases)):
             if jid == self.id_local:
-                entradas.append(EntradaLocalCliente(adaptador, id_jugador=jid, mando=self.mando))
+                entradas.append(EntradaLocalCliente(adaptador, id_jugador=jid))
             else:
                 entradas.append(EntradaRemotaHost(adaptador, id_jugador=jid))
         sesion.entradas = entradas
@@ -2190,14 +2137,14 @@ def preparar_sesion_online(clases, mando, conexion, es_host):
     """Inicializa la configuración de red y prepara las entradas para Host o Join."""
     ids = _ids_de_partida(conexion, len(clases))
     if es_host:
-        config = ConfigSesionHost(conexion, clases, ids_red=ids, mando=mando)
+        config = ConfigSesionHost(conexion, clases, ids_red=ids)
         return clases, mando, config
     id_red = conexion.id_jugador if getattr(conexion, "id_jugador", None) is not None else 1
     if id_red in ids:
         id_local = ids.index(id_red)
     else:
         id_local = max(0, min(id_red, len(clases) - 1))
-    config = ConfigSesionJoin(conexion, clases, id_local=id_local, ids_red=ids, mando=mando)
+    config = ConfigSesionJoin(conexion, clases, id_local=id_local, ids_red=ids)
     return clases, mando, config
 
 

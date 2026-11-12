@@ -21,7 +21,6 @@ from src.ui.terminal_decision import (  # noqa: E402
 from src.ui.terminal_decision_render import (  # noqa: E402
     PUBLICACION, dibujar_terminal, opciones_visibles, rects_acciones, tipo_de_imagen, zona_de_subtitulo,
 )
-from Online.disposicion_hud import RECT_REPORTAR_TERMINAL  # noqa: E402
 from Online.sesion_red import posts_sabotaje  # noqa: E402
 
 ZONAS = ("Colegio", "Hospital", "Empresa de Medios")
@@ -74,7 +73,7 @@ ESTADOS = list(_estados())
 ZONAS_RESERVADAS = [
     pygame.Rect(assets.RECT_INDICADOR_SABOTAJE),
     pygame.Rect(0, 720 - assets.ALTO_BARRA_CONTROLES, 1280, assets.ALTO_BARRA_CONTROLES),
-    pygame.Rect(RECT_REPORTAR_TERMINAL),
+    pygame.Rect(assets.RECT_BOTON_REPORTAR_TERMINAL),
 ]
 
 
