@@ -523,7 +523,7 @@ COLOR_TEMA_PANTALLA = ((120, 30, 60), (24, 84, 120), (64, 44, 130))
 COLOR_TEMA_ECG = (90, 255, 170)
 COLOR_TEMA_INFO = (40, 120, 170)
 
-# Arte de mazmorra generado con Higgsfield (prompts/higgsfield_mazmorras.md),
+# Arte de mazmorra generado con Higgsfield,
 # reducido a pixel art con tools/procesar_higgsfield.py y colocado por
 # src/ui/decor_mazmorra.py. Los objetos son coberturas rompibles con hitbox
 # (src/dungeon/coberturas.py; números en balance.py).

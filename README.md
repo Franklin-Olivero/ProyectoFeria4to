@@ -78,11 +78,10 @@ assets/          # audio/, backrooms/<grade>/, colegio/, fuentes, sprites y cuad
 tools/           # producción de contenido y QA (audio, video, retratos, recorrido)
 tests/           # suite de pytest
 docs/            # arquitectura, dirección de arte, guía de sustentación, QA, capturas
-prompts/         # encargos para el asistente de código
 ```
 
 Documentación detallada: `docs/ARQUITECTURA.md` (código), `docs/MODO_HISTORIA.md`
-(campaña), `docs/GUIA_SUSTENTACION.md` (exposición) y `CLAUDE.md` (reglas del proyecto).
+(campaña) y `docs/GUIA_SUSTENTACION.md` (exposición).
 
 ## Créditos de arte y audio
 

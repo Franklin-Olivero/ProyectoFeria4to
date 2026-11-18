@@ -88,7 +88,7 @@ pitidos. **Nadie las ha escuchado aún:** ver `docs/QA_VISUAL.md`.
 
 16 imágenes con `nano_banana_2` (1k, 1,5 cr c/u = **24 créditos**; saldo 1099,5), todas con
 el pack escolar comprado (`assets/colegio/props.png`) como `image_references` para heredar su
-pixel art 3/4 frontal. Prompts en `prompts/higgsfield_mazmorras.md`. Ninguna se usa entera
+pixel art 3/4 frontal. Ninguna se usa entera
 como fondo: `tools/procesar_higgsfield.py` las convierte en piezas (croma verde, separación
 por islas, reducción a la rejilla nativa ~8 px, paleta corta, contorno, bordes repetibles).
 
