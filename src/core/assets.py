@@ -912,6 +912,8 @@ RUTA_AUDIO = os.path.join("assets", "audio")
 CATEGORIA_MUSICA = "musica"
 CATEGORIA_SFX = "sfx"
 CATEGORIA_UI = "ui"
+CATEGORIA_CINEMATICA = "cinematica"  # banda sonora completa de una película (con voces)
+PISTAS_CINEMATICA = frozenset({"prologo_umbral"})  # suenan con el volumen general, no el de música
 
 
 def _sfx(carpeta, archivo):
@@ -997,6 +999,9 @@ MUSICA = {
     "redencion": _musica("redencion.wav"),
     "victoria": _musica("victoria.wav"),
     "derrota": _musica("derrota.wav"),
+    # Banda sonora completa del prólogo «La ciudad que perdió» (música, voces y
+    # efectos ya mezclados, sincronizada con assets/story/video/prologo_umbral).
+    "prologo_umbral": _musica("prologo_umbral.ogg"),
 }
 FUNDIDO_MUSICA_MS = 1400  # fundido cruzado entre pistas
 CANALES_MEZCLADOR = 32  # canales simultáneos de pygame.mixer
@@ -1604,6 +1609,31 @@ RECT_BOTON_COMENZAR = (470, 496, 340, 50)
 # Protagonista en la cinemática: retrato grande a la izquierda.
 ALTO_RETRATO_CINEMATICA = 300
 POSICION_RETRATO_CINEMATICA = (260, 330)  # centro
+# Prólogo «La ciudad que perdió»: película con rótulos cronometrados.
+VIDEO_PROLOGO = "prologo_umbral"  # assets/story/video/prologo_umbral/ (lineal, 15 fps)
+PISTA_PROLOGO = "prologo_umbral"  # assets.MUSICA
+FONDO_PROLOGO_UMBRAL = "umbral_colapso"  # respaldo si faltan los cuadros
+Y_SUBTITULO_PELICULA = 720 - ALTO_LETTERBOX - 14  # base del subtítulo de la película
+TAMANIO_FUENTE_SUBTITULO_PELICULA = 30
+TAMANIO_FUENTE_HABLANTE_PELICULA = 18
+COLOR_FONDO_SUBTITULO_PELICULA = (0, 0, 0, 215)  # RGBA: contraste alto sobre cualquier toma
+COLOR_HABLANTE_PELICULA = COLOR_AMARILLO  # hablante sin color propio
+COLOR_POR_HABLANTE_PELICULA = {"TEO": COLOR_AMARILLO, "LÍA": COLOR_TEAL, "CIUDADANA": (255, 120, 110)}
+# Rótulos de juego dentro de la película (misión, días, publicaciones, colapso, lugares).
+RECT_MISION_PELICULA = (40, 96, 470, 0)  # x, y, ancho (alto según renglones)
+COLOR_MISION_PELICULA = COLOR_AMARILLO
+COLOR_DESCARTADA_PELICULA = COLOR_GRAVE
+RECT_BARRA_COLAPSO_PELICULA = (860, 92, 380, 16)
+COLOR_BARRA_COLAPSO_PELICULA = COLOR_GRAVE
+COLOR_LUGAR_PELICULA = COLOR_TEAL
+TAMANIO_FUENTE_ROTULO_PELICULA = 22
+COLOR_NARRADOR_PELICULA = COLOR_TEXTO_HUD
+TAMANIO_FUENTE_ALERTA_PELICULA = 46
+COLOR_ALERTA_PELICULA = COLOR_GRAVE
+TAMANIO_FUENTE_LEMA_PELICULA = 40
+COLOR_LEMA_PELICULA = COLOR_TEXTO_HUD
+ALFA_VELO_LEMA = 150  # oscurece la imagen detrás de un lema
+COLOR_SOMBRA_PELICULA = (0, 0, 0)
 
 # ----------------------------------------------------------------------
 # Misiones (src/story/misiones.py, dibujo en src/ui/mision_render.py)

@@ -599,7 +599,7 @@ PUNTOS_JEFE_DERROTADO = 200
 # Los sonidos que se repiten mucho (disparos e impactos) van 40 % más
 # bajos para no tapar la música.
 # ----------------------------------------------------------------------
-VOLUMEN_CATEGORIA = {"musica": 0.85, "sfx": 1.0, "ui": 0.8}
+VOLUMEN_CATEGORIA = {"musica": 0.85, "sfx": 1.0, "ui": 0.8, "cinematica": 1.0}
 GANANCIA_SONIDO = {
     "disparo_ciudadano": 0.45,
     "disparo_influencer": 0.26,
@@ -664,6 +664,7 @@ GANANCIA_MUSICA = {
     "redencion": 0.76,
     "victoria": 0.91,
     "derrota": 0.89,
+    "prologo_umbral": 1.00,  # ya mezclada (~-22 dB RMS con voces): no se atenúa
 }
 # Anti-spam: un mismo sonido suena a lo sumo MAX_SIMULTANEOS_SONIDO
 # veces a la vez y nunca dos veces en menos de INTERVALO_MINIMO_SONIDO s

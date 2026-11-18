@@ -13,10 +13,18 @@ existe: quien la pide cae a la ilustración con paneo (el fallback).
 
 El jugador puede leer todo el tiempo que quiera: el clip va y vuelve despacio
 (vaivén) en vez de congelarse, así la escena sigue viva sin un corte visible.
+
+Un clip con `"lineal": true` en su clip.json (la película del prólogo) se
+reproduce una sola vez, sincronizado con su banda sonora: el cuadro es
+int(tiempo · fps) y al final se queda en el último. Sus cuadros pueden estar a
+menor resolución (960×540) y se escalan en el hilo lector, nunca en el frame.
+
+Si falta un clip se avisa una sola vez por consola y se usa el fallback.
 """
 
 import json
 import os
+import sys
 import threading
 
 import pygame
@@ -28,11 +36,14 @@ CUADROS_ADELANTADOS = 8  # cuadros que el hilo mantiene listos
 
 
 class _Clip:
-    def __init__(self, carpeta, nombres, fps, tamanio):
+    lineal = False  # vaivén por omisión (los clips de ambiente)
+
+    def __init__(self, carpeta, nombres, fps, tamanio, lineal=False):
         self.carpeta = carpeta
         self.nombres = nombres
         self.fps = fps
         self.tamanio = tamanio
+        self.lineal = lineal
         self.listos = {}  # índice -> Surface
         self.objetivo = 0
         self._candado = threading.Lock()
@@ -60,15 +71,24 @@ class _Clip:
                         del self.listos[viejo]
 
     def _cargar(self, indice):
-        imagen = pygame.image.load(os.path.join(self.carpeta, self.nombres[indice]))
+        try:
+            imagen = pygame.image.load(os.path.join(self.carpeta, self.nombres[indice]))
+        except (pygame.error, OSError):
+            return pygame.Surface(self.tamanio)  # un cuadro dañado se ve negro, no tumba el juego
         if imagen.get_size() != self.tamanio:
             imagen = pygame.transform.smoothscale(imagen, self.tamanio)
         return imagen
 
-    def en(self, tiempo):
+    def indice_en(self, tiempo):
+        """Cuadro que toca en el segundo `tiempo`. Puro, O(1)."""
         ultimo = len(self.nombres) - 1
+        if self.lineal:
+            return max(0, min(ultimo, int(tiempo * self.fps)))
         posicion = int(tiempo * self.fps) % (2 * ultimo) if ultimo > 0 else 0
-        indice = posicion if posicion <= ultimo else 2 * ultimo - posicion
+        return posicion if posicion <= ultimo else 2 * ultimo - posicion
+
+    def en(self, tiempo):
+        indice = self.indice_en(tiempo)
         with self._candado:
             self.objetivo = indice
             imagen = self.listos.get(indice)
@@ -80,23 +100,46 @@ class _Clip:
 
 
 _clips = {}
+_avisados = set()
 
 
 def disponible(id_clip):
     return os.path.isfile(os.path.join(RUTA_VIDEOS, id_clip, "clip.json"))
 
 
+def _avisar(id_clip, motivo):
+    if id_clip not in _avisados:
+        _avisados.add(id_clip)
+        print(f"[video] {id_clip}: {motivo}; se usa la ilustración de respaldo.", file=sys.stderr)
+
+
 def _abrir(id_clip, tamanio):
     carpeta = os.path.join(RUTA_VIDEOS, id_clip)
     try:
         with open(os.path.join(carpeta, "clip.json"), encoding="utf-8") as archivo:
-            fps = float(json.load(archivo).get("fps", 12))
+            datos = json.load(archivo)
+        fps = float(datos.get("fps", 12))
+        lineal = bool(datos.get("lineal", False))
         nombres = sorted(n for n in os.listdir(carpeta) if n.endswith(".jpg"))
-    except (OSError, ValueError, AttributeError):
+    except (OSError, ValueError, AttributeError) as error:
+        _avisar(id_clip, f"no se pudo abrir ({error.__class__.__name__})")
         return None
     if not nombres or fps <= 0:
+        _avisar(id_clip, "la carpeta no tiene cuadros")
         return None
-    return _Clip(carpeta, nombres, fps, tamanio)
+    return _Clip(carpeta, nombres, fps, tamanio, lineal)
+
+
+def duracion(id_clip):
+    """Segundos que dura un clip según su clip.json y sus cuadros, o None."""
+    carpeta = os.path.join(RUTA_VIDEOS, id_clip)
+    try:
+        with open(os.path.join(carpeta, "clip.json"), encoding="utf-8") as archivo:
+            fps = float(json.load(archivo).get("fps", 12))
+        cuadros = len([n for n in os.listdir(carpeta) if n.endswith(".jpg")])
+    except (OSError, ValueError, AttributeError):
+        return None
+    return cuadros / fps if fps > 0 and cuadros else None
 
 
 def cuadro(id_clip, tiempo, tamanio):

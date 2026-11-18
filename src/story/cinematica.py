@@ -19,6 +19,14 @@ Ritmo de lectura, la regla más importante:
     - Esc salta la cinemática, salvo la última toma si espera Enter.
     - Un texto largo se parte en varias tomas (paginar_texto): nunca se recorta.
 
+Película (`pelicula=True`, el prólogo «La ciudad que perdió»): un video
+continuo con su banda sonora (`pista`, una sola vez, sin bucle) y rótulos
+cronometrados (`rotulos`: subtítulos, alertas y títulos con inicio y fin en
+segundos). Dura `duracion`, avanza sola al terminar y Enter NO la corta (un
+Enter que venía de elegir rol no debe saltarse el corto): solo Esc la salta.
+El reloj de la toma se reinicia cuando arranca la pista (`reiniciar_reloj`),
+así video y audio empiezan juntos aunque cargar la pista tarde un frame.
+
 Nada aquí depende de archivos: si falta el video se usa la ilustración, y si
 falta la ilustración el dibujo (src/ui/cinematica_render.py) usa su fallback.
 """
@@ -52,8 +60,23 @@ EFECTO_TITULO = "titulo"
 EFECTO_TARJETA = "tarjeta"
 EFECTO_OBJETIVOS = "objetivos"
 EFECTO_TITULARES = "titulares"  # publicaciones de Civitas contra el protagonista
+EFECTO_PELICULA = "pelicula"  # video continuo con rótulos cronometrados, sin capas extra
 EFECTOS = (EFECTO_PANEO, EFECTO_GLITCH, EFECTO_NOTIFICACIONES, EFECTO_CAOS, EFECTO_RETRATO,
-           EFECTO_TITULO, EFECTO_TARJETA, EFECTO_OBJETIVOS, EFECTO_TITULARES)
+           EFECTO_TITULO, EFECTO_TARJETA, EFECTO_OBJETIVOS, EFECTO_TITULARES, EFECTO_PELICULA)
+
+# Estilos de un rótulo de película (los dibuja src/ui/cinematica_render.py).
+ROTULO_SUBTITULO = "subtitulo"  # lo que alguien dice, abajo, con su nombre
+ROTULO_ALERTA = "alerta"  # «CIUDAD UMBRAL — COLAPSO TOTAL»
+ROTULO_LEMA = "lema"  # frase grande centrada
+ROTULO_TITULO = "titulo"  # el título del juego ("título|subtítulo")
+ROTULO_MISION = "mision"  # tarjeta de misión del juego ("título|línea|línea")
+ROTULO_DESCARTADA = "descartada"  # sello rojo sobre la misión rechazada
+ROTULO_DIA = "dia"  # paso del tiempo ("DÍA 4 · ...")
+ROTULO_POST = "post"  # publicación falsa ("@cuenta|texto"), en x, y
+ROTULO_COLAPSO = "colapso"  # barra que sube de valor_desde a valor_hasta (%)
+ROTULO_LUGAR = "lugar"  # marcador de un lugar que se puede investigar, en x, y
+ESTILOS_ROTULO = (ROTULO_SUBTITULO, ROTULO_ALERTA, ROTULO_LEMA, ROTULO_TITULO, ROTULO_MISION,
+                  ROTULO_DESCARTADA, ROTULO_DIA, ROTULO_POST, ROTULO_COLAPSO, ROTULO_LUGAR)
 
 HABLANTE_NARRADOR = "NARRADOR"
 HABLANTE_NOVA = "NOVA_404"
@@ -95,10 +118,49 @@ class Toma:
     sonido: str | None = None  # efecto que suena al empezar la toma
     video: str | None = None  # id de assets/story/video/<id>/ (fallback: `fondo`)
     lineas: list = field(default_factory=list)  # textos extra del efecto (titulares, contexto)
+    pelicula: bool = False  # video continuo: no se repite, Enter no lo corta
+    pista: str | None = None  # banda sonora de la toma (assets.MUSICA), suena una vez
+    rotulos: list = field(default_factory=list)  # [Rotulo] cronometrados (solo película)
 
     @property
     def espera(self):
         return self.duracion <= ESPERA_ENTER
+
+    def rotulos_en(self, tiempo):
+        """Rótulos visibles en el segundo `tiempo`. O(r)."""
+        return [r for r in self.rotulos if r.inicio <= tiempo < r.fin]
+
+
+@dataclass(frozen=True)
+class Rotulo:
+    """Texto cronometrado sobre una película: aparece en `inicio` y se va en `fin` (s)."""
+
+    inicio: float
+    fin: float
+    texto: str
+    estilo: str = ROTULO_SUBTITULO
+    hablante: str | None = None
+    fila: int = 0  # renglón (0, 1, ...) para lemas apilados
+    x: float | None = None  # posición en fracción de pantalla (post, lugar, misión)
+    y: float | None = None
+    valor_desde: float = 0.0  # barra de colapso: % al empezar y al terminar
+    valor_hasta: float = 0.0
+
+    @property
+    def partes(self):
+        """El texto partido en renglones ("a|b|c")."""
+        return self.texto.split("|")
+
+    def valor_en(self, tiempo):
+        """% de la barra de colapso en `tiempo` (sube parejo de inicio a fin)."""
+        avance = max(0.0, min(1.0, (tiempo - self.inicio) / max(1e-6, self.fin - self.inicio)))
+        return self.valor_desde + (self.valor_hasta - self.valor_desde) * avance
+
+    def fraccion(self, tiempo, entrada=0.25):
+        """Opacidad 0-1: entra y sale con un fundido corto de `entrada` s."""
+        if not self.inicio <= tiempo < self.fin:
+            return 0.0
+        return max(0.0, min(1.0, (tiempo - self.inicio) / entrada, (self.fin - tiempo) / entrada))
 
 
 def paginar_tomas(tomas):
@@ -123,6 +185,7 @@ class Cinematica:
         self.tiempo = 0.0  # s dentro de la toma actual
         self.tiempo_texto = 0.0  # s de escritura (Enter lo adelanta)
         self.sonido_pendiente = self.tomas[0].sonido if self.tomas else None
+        self.pista_pendiente = self.tomas[0].pista if self.tomas else None
 
     def configurar_lectura(self, velocidad=None, modo=None):
         """Modo y velocidad elegidos en Ajustes (los pone Main.py)."""
@@ -185,6 +248,22 @@ class Cinematica:
         sonido, self.sonido_pendiente = self.sonido_pendiente, None
         return sonido
 
+    def tomar_pista(self):
+        """Banda sonora que debe arrancar ahora (una sola vez, al empezar una
+        toma con `pista`), o None. Quien la reproduce llama `reiniciar_reloj`."""
+        pista, self.pista_pendiente = self.pista_pendiente, None
+        return pista
+
+    def reiniciar_reloj(self):
+        """El audio de la película arrancó en este instante: el video también."""
+        self.tiempo = 0.0
+        self.tiempo_texto = 0.0
+
+    @property
+    def en_pelicula(self):
+        toma = self.actual
+        return toma is not None and toma.pelicula
+
     # ------------------------------------------------------------------
     def actualizar(self, dt):
         """Avanza el reloj; solo pasa de toma si no espera a Enter y el
@@ -202,6 +281,8 @@ class Cinematica:
         pasa a la siguiente toma (la de objetivos cierra la cinemática)."""
         if self.terminada:
             return
+        if self.en_pelicula:
+            return  # la película solo se salta con Esc
         if not self.texto_completo:
             toma = self.actual
             self.tiempo_texto = RETARDO_TEXTO + len(toma.texto) / self.velocidad + 0.01
@@ -219,6 +300,7 @@ class Cinematica:
             self.tiempo = 0.0
             self.tiempo_texto = 0.0
             self.sonido_pendiente = self.tomas[ultima].sonido
+            self.pista_pendiente = self.tomas[ultima].pista
         else:
             self.indice = len(self.tomas)
 
@@ -227,6 +309,7 @@ class Cinematica:
         self.tiempo = 0.0
         self.tiempo_texto = 0.0
         self.sonido_pendiente = self.actual.sonido if not self.terminada else None
+        self.pista_pendiente = self.actual.pista if not self.terminada else None
 
 
 # ----------------------------------------------------------------------
@@ -263,7 +346,21 @@ def _toma_desde_datos(datos, rol, nombre_rol, pistas=0, reputacion=0):
         objetivos=list(datos.get("objetivos", [])),
         sonido=datos.get("sonido"),
         video=datos.get("video"),
+        pelicula=bool(datos.get("pelicula", False)),
+        pista=datos.get("pista"),
+        rotulos=[_rotulo_desde_datos(r, nombre_rol) for r in datos.get("rotulos", [])],
     )
+
+
+def _rotulo_desde_datos(datos, nombre_rol):
+    hablante = datos.get("hablante")
+    if hablante == HABLANTE_JUGADOR:
+        hablante = nombre_rol
+    estilo = datos.get("estilo", ROTULO_SUBTITULO)
+    opcional = lambda clave: float(datos[clave]) if clave in datos else None  # noqa: E731
+    return Rotulo(float(datos["inicio"]), float(datos["fin"]), datos["texto"],
+                  estilo if estilo in ESTILOS_ROTULO else ROTULO_SUBTITULO, hablante, int(datos.get("fila", 0)),
+                  opcional("x"), opcional("y"), float(datos.get("valor_desde", 0)), float(datos.get("valor_hasta", 0)))
 
 
 def guion_intro(contenido, rol=None, nombre_rol="Tú"):

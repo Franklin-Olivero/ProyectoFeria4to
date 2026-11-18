@@ -59,7 +59,8 @@ def test_cada_sonido_tiene_categoria_y_ganancia():
     assert set(GANANCIA_SONIDO) == set(assets.SONIDOS)
     assert set(GANANCIA_MUSICA) == set(assets.MUSICA)
     assert all(0 < g <= 1.0 for g in GANANCIA_MUSICA.values())
-    assert set(VOLUMEN_CATEGORIA) == {assets.CATEGORIA_MUSICA, assets.CATEGORIA_SFX, assets.CATEGORIA_UI}
+    assert set(VOLUMEN_CATEGORIA) == {assets.CATEGORIA_MUSICA, assets.CATEGORIA_SFX, assets.CATEGORIA_UI,
+                                      assets.CATEGORIA_CINEMATICA}
 
 
 def _duracion_wav(ruta):
@@ -156,6 +157,16 @@ def test_volumen_final_es_general_por_categoria_por_ganancia():
     # La pausa atenúa la música.
     assert volumen_final("jefe", ajustes, es_musica=True, atenuacion=0.5) == pytest.approx(
         0.5 * volumen_final("jefe", ajustes, es_musica=True))
+
+
+def test_la_banda_sonora_de_la_cinematica_no_depende_del_deslizador_de_musica():
+    # Regresión: con la música al 22 % (rescatada de un preferencias.json viejo)
+    # las voces del prólogo sonaban a 0.19 y no se entendían.
+    baja = AjustesAudio(volumen_general=100, volumen_musica=22, volumen_efectos=36)
+    assert volumen_final("prologo_umbral", baja, es_musica=True) == pytest.approx(1.0)
+    assert volumen_final("prologo_umbral", AjustesAudio(volumen_general=60), es_musica=True) == pytest.approx(0.6)
+    assert volumen_final("prologo_umbral", AjustesAudio(silencio=True), es_musica=True) == 0.0
+    assert volumen_final("jefe", baja, es_musica=True) < 0.25  # la música normal sí lo respeta
 
 
 def test_volumen_final_silencio_cero_y_nunca_mas_de_uno():

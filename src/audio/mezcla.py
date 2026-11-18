@@ -52,6 +52,9 @@ def volumen_final(id_sonido, ajustes, es_musica=False, atenuacion=1.0):
     AjustesAudio del jugador (src/audio/ajustes_audio.py): general ×
     música/efectos × mezcla de su categoría × ganancia del ID × atenuación
     (la pausa baja la música) × 0 si está en silencio."""
+    if es_musica and id_sonido in assets.PISTAS_CINEMATICA:
+        return volumen_efectivo(ajustes, True, VOLUMEN_CATEGORIA[assets.CATEGORIA_CINEMATICA],
+                                GANANCIA_MUSICA.get(id_sonido, 1.0), atenuacion, solo_general=True)
     if es_musica:
         grupo, ganancia = assets.CATEGORIA_MUSICA, GANANCIA_MUSICA.get(id_sonido, 1.0)
     else:

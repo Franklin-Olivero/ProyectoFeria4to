@@ -106,7 +106,8 @@ def validar(datos):
 
 
 def _validar_cinematica(tomas):
-    """Cada toma necesita id único y duración numérica (0 = espera Enter)."""
+    """Cada toma necesita id único y duración numérica (0 = espera Enter); los
+    rótulos de una película, tiempos válidos dentro de su duración."""
     ids = set()
     for numero, toma in enumerate(tomas):
         if "id" not in toma:
@@ -116,6 +117,12 @@ def _validar_cinematica(tomas):
         ids.add(toma["id"])
         if not isinstance(toma.get("duracion", 5.0), (int, float)):
             raise ContenidoInvalido(f"cinematica_intro[{toma['id']}]: 'duracion' debe ser un número.")
+        for rotulo in toma.get("rotulos", []):
+            # Rótulos de la película: inicio < fin, dentro de la toma, con texto.
+            if not all(isinstance(rotulo.get(k), (int, float)) for k in ("inicio", "fin")) or not rotulo.get("texto"):
+                raise ContenidoInvalido(f"cinematica_intro[{toma['id']}]: cada rótulo necesita inicio, fin y texto.")
+            if not 0 <= rotulo["inicio"] < rotulo["fin"] <= toma.get("duracion", 5.0):
+                raise ContenidoInvalido(f"cinematica_intro[{toma['id']}]: rótulo fuera de tiempo: {rotulo['texto']!r}.")
 
 
 def _validar_dialogo(lineas, donde):

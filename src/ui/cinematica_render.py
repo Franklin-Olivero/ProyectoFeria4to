@@ -13,6 +13,8 @@ español que se escriben letra a letra. Cada efecto añade su capa:
     tarjeta         rótulo de capítulo con líneas que se abren
     objetivos       lista de la misión y el botón COMENZAR MISIÓN
     titulares       publicaciones de Civitas contra el protagonista
+    pelicula        video continuo (el prólogo) con rótulos cronometrados:
+                    subtítulos, la alerta «COLAPSO TOTAL», lemas y el título
 
 Una toma con `video` muestra sus cuadros (src/ui/video_cuadros.py). Si falta
 el video se usa la ilustración, y si falta la ilustración se dibuja un fondo
@@ -78,6 +80,8 @@ def dibujar_cinematica(pantalla, cinematica, dt=0.0, reducir_movimiento=False):
         _titulares(pantalla, toma, tiempo)
 
     _letterbox(pantalla)
+    if toma.rotulos:
+        _rotulos_pelicula(pantalla, toma, tiempo, reducir_movimiento)
     if toma.efecto == cine.EFECTO_TITULO:
         _titulo(pantalla, toma, tiempo)
     elif toma.efecto == cine.EFECTO_TARJETA:
@@ -398,6 +402,252 @@ def _objetivos(pantalla, toma, tiempo):
 
 
 # ----------------------------------------------------------------------
+# Película: rótulos cronometrados
+# ----------------------------------------------------------------------
+
+
+def _rotulos_pelicula(pantalla, toma, tiempo, reducir_movimiento=False):
+    visibles = toma.rotulos_en(tiempo)
+    lemas = [r for r in visibles if r.estilo == cine.ROTULO_LEMA]
+    if lemas:
+        # Un solo velo detrás de los lemas, para que se lean sobre cualquier imagen.
+        kit.velo(pantalla, round(assets.ALFA_VELO_LEMA * max(r.fraccion(tiempo, 0.5) for r in lemas)), assets.COLOR_NOCHE)
+        _letterbox(pantalla)
+    for rotulo in visibles:
+        alfa = round(255 * rotulo.fraccion(tiempo))
+        if rotulo.estilo == cine.ROTULO_ALERTA:
+            _rotulo_alerta(pantalla, rotulo, tiempo, alfa, reducir_movimiento)
+        elif rotulo.estilo == cine.ROTULO_LEMA:
+            _rotulo_lema(pantalla, rotulo, alfa)
+        elif rotulo.estilo == cine.ROTULO_TITULO:
+            kit.velo(pantalla, round(150 * rotulo.fraccion(tiempo, 0.8)), assets.COLOR_NOCHE)
+            _letterbox(pantalla)
+            partes = rotulo.partes
+            _titulo(pantalla, cine.Toma("titulo", titulo=partes[0]), tiempo - rotulo.inicio)
+            if len(partes) > 1 and tiempo - rotulo.inicio > 0.7:
+                # La pregunta final, grande y legible bajo el título.
+                ancho, alto = pantalla.get_size()
+                f = _texto_que_cabe(partes[1], assets.TAMANIO_FUENTE_ROTULO_PELICULA + 4, ancho - 120, negrita=True)
+                _con_sombra(pantalla, f, partes[1], assets.COLOR_TEXTO_HUD, (ancho // 2, alto // 2 + 50),
+                            layout.alfa_entrada(tiempo - rotulo.inicio - 0.7))
+        elif rotulo.estilo == cine.ROTULO_MISION:
+            _rotulo_mision(pantalla, rotulo, alfa)
+        elif rotulo.estilo == cine.ROTULO_DESCARTADA:
+            _rotulo_descartada(pantalla, rotulo, tiempo, alfa)
+        elif rotulo.estilo == cine.ROTULO_DIA:
+            _rotulo_dia(pantalla, rotulo, alfa)
+        elif rotulo.estilo == cine.ROTULO_POST:
+            _rotulo_post(pantalla, rotulo, tiempo, alfa)
+        elif rotulo.estilo == cine.ROTULO_COLAPSO:
+            _rotulo_colapso(pantalla, rotulo, tiempo, alfa)
+        elif rotulo.estilo == cine.ROTULO_LUGAR:
+            _rotulo_lugar(pantalla, rotulo, tiempo, alfa)
+        else:
+            _rotulo_subtitulo(pantalla, rotulo, alfa)
+
+
+def _texto_que_cabe(texto, tamanio, ancho_max, negrita=False):
+    """La superficie del texto, achicando la fuente hasta que quepa (nunca se corta)."""
+    f = fuente(tamanio, negrita)
+    while f.size(texto)[0] > ancho_max and tamanio > assets.TAMANIO_FUENTE_PEQUENA:
+        tamanio -= 2
+        f = fuente(tamanio, negrita)
+    return f
+
+
+def _con_sombra(pantalla, f, texto, color, centro, alfa):
+    sombra = f.render(texto, True, assets.COLOR_SOMBRA_PELICULA)
+    cara = f.render(texto, True, color)
+    sombra.set_alpha(alfa)
+    cara.set_alpha(alfa)
+    rect = cara.get_rect(center=centro)
+    pantalla.blit(sombra, rect.move(2, 2))
+    pantalla.blit(cara, rect)
+    return rect
+
+
+def _rotulo_subtitulo(pantalla, rotulo, alfa):
+    """Lo que alguien dice: el nombre en su color y la frase debajo, abajo y
+    centrado, sobre una franja casi opaca (se lee sobre cualquier toma)."""
+    ancho = pantalla.get_width()
+    f = _texto_que_cabe(rotulo.texto, assets.TAMANIO_FUENTE_SUBTITULO_PELICULA, ancho - 160)
+    alto_texto = f.get_height()
+    nombre = rotulo.hablante if rotulo.hablante and rotulo.hablante != cine.HABLANTE_NARRADOR else None
+    f_nombre = fuente(assets.TAMANIO_FUENTE_HABLANTE_PELICULA, True)
+    alto = alto_texto + (f_nombre.get_height() + 2 if nombre else 0)
+    base = assets.Y_SUBTITULO_PELICULA
+    fondo = pygame.Rect(0, 0, min(ancho - 80, f.size(rotulo.texto)[0] + 56), alto + 18)
+    fondo.midbottom = (ancho // 2, base + 8)
+    capa = pygame.Surface(fondo.size, pygame.SRCALPHA)
+    capa.fill((*assets.COLOR_FONDO_SUBTITULO_PELICULA[:3], round(assets.COLOR_FONDO_SUBTITULO_PELICULA[3] * alfa / 255)))
+    pantalla.blit(capa, fondo)
+    y = fondo.top + 9
+    if nombre:
+        color = assets.COLOR_POR_HABLANTE_PELICULA.get(nombre, assets.COLOR_HABLANTE_PELICULA)
+        etiqueta = f_nombre.render(nombre, True, color)
+        etiqueta.set_alpha(alfa)
+        pantalla.blit(etiqueta, etiqueta.get_rect(midtop=(ancho // 2, y)))
+        y += f_nombre.get_height() + 2
+    color = assets.COLOR_NARRADOR_PELICULA
+    _con_sombra(pantalla, f, rotulo.texto, color, (ancho // 2, y + alto_texto // 2), alfa)
+
+
+def _rotulo_alerta(pantalla, rotulo, tiempo, alfa, reducir_movimiento):
+    """«CIUDAD UMBRAL — COLAPSO TOTAL»: banda oscura y letras rojas que tiemblan."""
+    ancho, alto = pantalla.get_size()
+    banda = pygame.Rect(0, 0, ancho, 96)
+    banda.center = (ancho // 2, alto // 2 - 120)
+    capa = pygame.Surface(banda.size, pygame.SRCALPHA)
+    capa.fill((0, 0, 0, round(170 * alfa / 255)))
+    pantalla.blit(capa, banda)
+    for y in (banda.top, banda.bottom - 2):
+        linea = pygame.Surface((ancho, 2), pygame.SRCALPHA)
+        linea.fill((*assets.COLOR_ALERTA_PELICULA, alfa))
+        pantalla.blit(linea, (0, y))
+    f = _texto_que_cabe(rotulo.texto, assets.TAMANIO_FUENTE_ALERTA_PELICULA, ancho - 120, negrita=True)
+    dx = 0
+    if not reducir_movimiento:
+        _rng_glitch.seed(int(tiempo * 14))
+        if _rng_glitch.random() < 0.3:
+            dx = _rng_glitch.randint(-6, 6)
+            fantasma = f.render(rotulo.texto, True, assets.COLOR_MAGENTA)
+            fantasma.set_alpha(alfa // 2)
+            pantalla.blit(fantasma, fantasma.get_rect(center=(banda.centerx - dx * 2, banda.centery)))
+    _con_sombra(pantalla, f, rotulo.texto, assets.COLOR_ALERTA_PELICULA, (banda.centerx + dx, banda.centery), alfa)
+
+
+def _caja_alfa(pantalla, rect, rgba, alfa, borde=None):
+    capa = pygame.Surface(rect.size, pygame.SRCALPHA)
+    capa.fill((*rgba[:3], round(rgba[3] * alfa / 255)))
+    if borde is not None:
+        pygame.draw.rect(capa, (*borde, alfa), capa.get_rect(), 2)
+    pantalla.blit(capa, rect)
+
+
+def _rotulo_mision(pantalla, rotulo, alfa):
+    """Tarjeta de misión como la del juego: título en ámbar y detalles debajo."""
+    x, y, ancho, _ = assets.RECT_MISION_PELICULA
+    if rotulo.x is not None:
+        x = round(rotulo.x * pantalla.get_width())
+    if rotulo.y is not None:
+        y = round(rotulo.y * pantalla.get_height())
+    partes = rotulo.partes
+    f_rotulo = fuente(assets.TAMANIO_FUENTE_NORMAL, True)
+    f_titulo = _texto_que_cabe(partes[0], assets.TAMANIO_FUENTE_ROTULO_PELICULA, ancho - 32, negrita=True)
+    f_linea = fuente(assets.TAMANIO_FUENTE_MEDIA)
+    alto = 18 + f_rotulo.get_height() + 6 + f_titulo.get_height() + 8 + len(partes[1:]) * (f_linea.get_height() + 4) + 12
+    rect = pygame.Rect(x, y, ancho, alto)
+    _caja_alfa(pantalla, rect, (10, 8, 22, 225), alfa, assets.COLOR_MISION_PELICULA)
+    cy = rect.top + 14
+    for superficie in (f_rotulo.render("MISIÓN", True, assets.COLOR_MISION_PELICULA),
+                       f_titulo.render(partes[0], True, assets.COLOR_TEXTO_HUD)):
+        superficie.set_alpha(alfa)
+        pantalla.blit(superficie, (rect.left + 16, cy))
+        cy += superficie.get_height() + 6
+    cy += 2
+    for linea in partes[1:]:
+        superficie = _texto_que_cabe(linea, assets.TAMANIO_FUENTE_MEDIA, ancho - 32).render(
+            linea, True, assets.COLOR_TEXTO_SECUNDARIO)
+        superficie.set_alpha(alfa)
+        pantalla.blit(superficie, (rect.left + 16, cy))
+        cy += f_linea.get_height() + 4
+
+
+def _rotulo_descartada(pantalla, rotulo, tiempo, alfa):
+    """Sello rojo que cae sobre la misión: «MISIÓN DESCARTADA»."""
+    x, y, ancho, _ = assets.RECT_MISION_PELICULA
+    if rotulo.x is not None:
+        x = round(rotulo.x * pantalla.get_width())
+    if rotulo.y is not None:
+        y = round(rotulo.y * pantalla.get_height())
+    escala = 1.0 + 0.6 * max(0.0, 1.0 - (tiempo - rotulo.inicio) / 0.18)  # golpe del sello
+    f = fuente(round(assets.TAMANIO_FUENTE_ALERTA_PELICULA * 0.7 * escala), True)
+    texto = f.render(rotulo.texto, True, assets.COLOR_DESCARTADA_PELICULA)
+    marco = texto.get_rect().inflate(28, 16)
+    sello = pygame.Surface(marco.size, pygame.SRCALPHA)
+    sello.fill((20, 0, 4, 170))
+    pygame.draw.rect(sello, assets.COLOR_DESCARTADA_PELICULA, sello.get_rect(), 4)
+    sello.blit(texto, texto.get_rect(center=sello.get_rect().center))
+    sello = pygame.transform.rotate(sello, -8)
+    sello.set_alpha(alfa)
+    pantalla.blit(sello, sello.get_rect(center=(x + ancho // 2, y + 70)))
+
+
+def _rotulo_dia(pantalla, rotulo, alfa):
+    """Paso del tiempo, arriba a la izquierda: «DÍA 4 · 3 misiones sin completar»."""
+    f = fuente(assets.TAMANIO_FUENTE_ROTULO_PELICULA, True)
+    texto = f.render(rotulo.texto, True, assets.COLOR_ALERTA)
+    rect = texto.get_rect(topleft=(40, assets.ALTO_LETTERBOX + 22)).inflate(24, 12)
+    _caja_alfa(pantalla, rect, (0, 0, 0, 200), alfa)
+    pygame.draw.rect(pantalla, assets.COLOR_ALERTA, (rect.left, rect.top, 4, rect.height))
+    texto.set_alpha(alfa)
+    pantalla.blit(texto, texto.get_rect(center=rect.center).move(2, 0))
+
+
+def _rotulo_post(pantalla, rotulo, tiempo, alfa):
+    """Publicación falsa que aparece sobre la toma (cuenta|texto)."""
+    ancho, alto = pantalla.get_size()
+    partes = rotulo.partes
+    entrada = layout.fraccion_entrada(tiempo - rotulo.inicio, 0.3)
+    x = round((rotulo.x if rotulo.x is not None else 0.06) * ancho)
+    y = round((rotulo.y if rotulo.y is not None else 0.3) * alto) + round((1 - entrada) * 24)
+    capa = pygame.Surface((assets.ANCHO_NOTIFICACION + 120, assets.ALTO_NOTIFICACION + 10), pygame.SRCALPHA)
+    rect = capa.get_rect()
+    pygame.draw.rect(capa, (*assets.COLOR_FONDO_NOTIFICACION_FALSA, 240), rect, border_radius=8)
+    pygame.draw.rect(capa, (*assets.COLOR_BORDE_NOTIFICACION_FALSA, 255), rect, 2, border_radius=8)
+    dibujo.texto(capa, partes[0], (14, 8), assets.COLOR_TEXTO_NOTIFICACION, assets.TAMANIO_FUENTE_NORMAL, negrita=True)
+    compartidos = int(240 + (tiempo - rotulo.inicio) * 1900)  # el contador se dispara
+    dibujo.texto(capa, f"↗ {compartidos}", (rect.width - 12, 8), assets.COLOR_MAGENTA, assets.TAMANIO_FUENTE_NORMAL,
+                 negrita=True, ancla="topright")
+    layout.texto_en_ancho(capa, partes[-1], (14, 32), rect.width - 28, assets.COLOR_TEXTO_NOTIFICACION,
+                          assets.TAMANIO_FUENTE_MEDIA, minimo=13)
+    capa.set_alpha(alfa)
+    pantalla.blit(capa, (x, y))
+
+
+def _rotulo_colapso(pantalla, rotulo, tiempo, alfa):
+    """Barra de colapso de la ciudad que sube con el paso de los días."""
+    x, y, ancho, alto = assets.RECT_BARRA_COLAPSO_PELICULA
+    valor = rotulo.valor_en(tiempo)
+    f = fuente(assets.TAMANIO_FUENTE_MEDIA, True)
+    marco = pygame.Rect(x - 14, y - 10, ancho + 28, alto + f.get_height() + 26)
+    _caja_alfa(pantalla, marco, (0, 0, 0, 200), alfa)
+    etiqueta = f.render(f"{rotulo.texto}  {valor:4.0f}%", True, assets.COLOR_BARRA_COLAPSO_PELICULA)
+    etiqueta.set_alpha(alfa)
+    pantalla.blit(etiqueta, (x, y))
+    barra = pygame.Rect(x, y + f.get_height() + 6, ancho, alto)
+    _caja_alfa(pantalla, barra, (60, 20, 26, 255), alfa)
+    lleno = barra.copy()
+    lleno.width = round(ancho * max(0.0, min(100.0, valor)) / 100)
+    _caja_alfa(pantalla, lleno, (*assets.COLOR_BARRA_COLAPSO_PELICULA, 255), alfa)
+
+
+def _rotulo_lugar(pantalla, rotulo, tiempo, alfa):
+    """Lugar que el jugador podrá investigar: rombo que late y su nombre."""
+    ancho, alto = pantalla.get_size()
+    cx = round((rotulo.x if rotulo.x is not None else 0.5) * ancho)
+    cy = round((rotulo.y if rotulo.y is not None else 0.2) * alto)
+    latido = 1.0 + 0.12 * math.sin((tiempo - rotulo.inicio) * 6)
+    r = round(14 * latido)
+    rombo = pygame.Surface((r * 2 + 4, r * 2 + 4), pygame.SRCALPHA)
+    c = r + 2
+    pygame.draw.polygon(rombo, (*assets.COLOR_LUGAR_PELICULA, alfa), [(c, 2), (c * 2 - 2, c), (c, c * 2 - 2), (2, c)])
+    pantalla.blit(rombo, rombo.get_rect(center=(cx, cy)))
+    f = fuente(assets.TAMANIO_FUENTE_ALERTA_PELICULA - 12, True)
+    _con_sombra(pantalla, f, rotulo.texto, assets.COLOR_LUGAR_PELICULA, (cx, cy + r + 26), alfa)
+
+
+def _rotulo_lema(pantalla, rotulo, alfa):
+    """Frase grande, espaciada, en el centro de la imagen."""
+    ancho, alto = pantalla.get_size()
+    # Letras separadas (rótulo de cine) solo si la frase es corta; si no, no cabría grande.
+    texto = " ".join(rotulo.texto) if len(rotulo.texto) <= 22 else rotulo.texto
+    f = _texto_que_cabe(texto, assets.TAMANIO_FUENTE_LEMA_PELICULA, ancho - 120, negrita=True)
+    y = alto // 2 - 60 + rotulo.fila * (f.get_height() + 16)
+    _con_sombra(pantalla, f, texto, assets.COLOR_LEMA_PELICULA, (ancho // 2, y), alfa)
+
+
+# ----------------------------------------------------------------------
 # Subtítulos y controles
 # ----------------------------------------------------------------------
 
@@ -438,7 +688,7 @@ def _controles(pantalla, cinematica, toma, tiempo=0.0):
     dibujo.texto(pantalla, f"{actual}/{total}", (assets.MARGEN_PANTALLA, y), assets.COLOR_TEXTO_APAGADO,
                  assets.TAMANIO_FUENTE_PEQUENA, ancla="midleft")
     x = ancho - assets.MARGEN_PANTALLA
-    if not toma.espera:
+    if not toma.espera and not toma.pelicula:
         if not cinematica.texto_completo:
             etiqueta, color = TEXTO_REVELAR, assets.COLOR_TEXTO_SECUNDARIO
         else:

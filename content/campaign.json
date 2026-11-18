@@ -1035,109 +1035,251 @@
   },
   "cinematica_intro": [
     {
-      "id": "ciudad",
-      "duracion": 7.0,
-      "fondo": "portada",
-      "video": "intro_ciudad",
-      "efecto": "paneo",
-      "hablante": "NARRADOR",
-      "sonido": "transicion",
-      "texto": "Ciudad Nova nunca duerme. En seis días elige alcalde, y por primera vez la elección se discute casi entera en una sola red: Civitas."
-    },
-    {
-      "id": "civitas",
-      "duracion": 7.0,
-      "fondo": "ciudadanos_civitas",
-      "efecto": "notificaciones",
-      "hablante": "NARRADOR",
-      "sonido": "notificacion",
-      "texto": "Aquí se avisa de la reunión de padres, del pan recién hecho, de la ruta que cambió de horario. Una ciudad entera confía en lo que aparece en su pantalla."
-    },
-    {
-      "id": "grieta",
-      "duracion": 7.0,
-      "fondo": "ciudadanos_civitas",
-      "efecto": "caos",
-      "hablante": "NARRADOR",
-      "sonido": "notificacion",
-      "texto": "Hasta que una mañana aparece una captura recortada. Luego, un ataque contra una enfermera. Luego, una encuesta que nadie hizo."
-    },
-    {
-      "id": "caos",
-      "duracion": 7.0,
-      "fondo": "elecciones",
-      "efecto": "caos",
-      "hablante": "NARRADOR",
-      "sonido": "viral",
-      "texto": "Nadie cree estar mintiendo: cada quien comparte lo que le llega. En pocas horas, los vecinos que se saludaban ya no se creen nada."
-    },
-    {
-      "id": "amenaza",
-      "duracion": 7.0,
-      "fondo": "pantallas_nova",
-      "video": "nova_aparicion",
-      "efecto": "glitch",
-      "hablante": "NOVA_404",
-      "retrato": "nova",
-      "sonido": "glitch",
-      "texto": "No necesito sus votos. Me basta con lo que creen. Y ustedes mismos lo reparten por mí."
-    },
-    {
-      "id": "mensaje",
-      "duracion": 7.0,
-      "fondo": "portada",
-      "efecto": "retrato",
-      "hablante": "CIVITAS",
-      "retrato": "jugador",
-      "sonido": "notificacion",
-      "texto": "Mensaje urgente: tu cuenta está entre las pocas que aún citan sus fuentes. Necesitamos a alguien en quien la gente pueda confiar."
-    },
-    {
-      "id": "protagonista",
-      "duracion": 7.0,
-      "fondo": "portada",
-      "efecto": "retrato",
-      "hablante": "JUGADOR",
-      "retrato": "jugador",
-      "texto": "Si alguien está manipulando la verdad, vamos a descubrir quién es.",
-      "por_rol": {
-        "ciudadano": "Mis vecinos ya no saben qué creer. Si alguien está manipulando la verdad, vamos a descubrir quién es.",
-        "periodista": "Tres rumores, una misma firma. Si alguien está manipulando la verdad, voy a documentarlo y a descubrir quién es.",
-        "influencer": "Miles me preguntan qué es cierto. Antes de amplificar nada, voy a descubrir quién está manipulando la verdad.",
-        "candidato": "Quieren decidir la elección con mentiras. Si alguien está manipulando la verdad, vamos a descubrir quién es."
-      }
-    },
-    {
-      "id": "rol",
-      "duracion": 7.0,
-      "fondo": "portada",
-      "efecto": "retrato",
-      "hablante": "CIVITAS",
-      "retrato": "jugador",
-      "texto": "Tu papel en esta historia lo define tu rol.",
-      "por_rol": {
-        "ciudadano": "Eres un ciudadano de Ciudad Nova. Representas a la comunidad que sufre cada rumor: cada éxito tuyo refuerza la confianza vecinal.",
-        "periodista": "Eres periodista. Buscas evidencias para descubrir la verdad: al entrar a cada zona identificas una fuente extra.",
-        "influencer": "Eres influencer. Puedes amplificar cualquier información: lo que compartas sin verificar rebota más lejos.",
-        "candidato": "Eres candidato a la Alcaldía. Debes mantener la confianza mientras enfrentas rumores: cada error pesa más en tu reputación."
-      }
-    },
-    {
-      "id": "huella",
-      "duracion": 7.0,
-      "fondo": "portada",
-      "efecto": "paneo",
-      "hablante": "NARRADOR",
-      "texto": "Lo que publiques quedará contigo. La ciudad recordará a quién ayudaste, a quién señalaste y qué callaste. Tu nombre valdrá lo que valgan tus decisiones."
-    },
-    {
-      "id": "titulo",
-      "duracion": 5.0,
-      "fondo": "portada",
-      "efecto": "titulo",
-      "titulo": "CIVITAS: CÓDIGO NOVA",
-      "sonido": "mision",
-      "subtitulo": "Tus decisiones cambiarán el destino de Ciudad Nova."
+      "id": "prologo_umbral",
+      "nota": "Prólogo «La ciudad que perdió»: Ciudad Umbral cayó porque su defensor compartió sin verificar. Video y banda sonora producidos con Higgsfield (docs/ASSET_MANIFEST.md); tiempos en segundos, iguales a tools/montar_prologo.py.",
+      "duracion": 66.8,
+      "pelicula": true,
+      "video": "prologo_umbral",
+      "pista": "prologo_umbral",
+      "fondo": "umbral_colapso",
+      "efecto": "pelicula",
+      "rotulos": [
+        {
+          "inicio": 0.25,
+          "fin": 3.4,
+          "texto": "Espera. ¿Ya comprobaste si eso es verdad?",
+          "hablante": "LÍA",
+          "estilo": "subtitulo"
+        },
+        {
+          "inicio": 3.45,
+          "fin": 5.66,
+          "texto": "No tengo tiempo para eso.",
+          "hablante": "TEO",
+          "estilo": "subtitulo"
+        },
+        {
+          "inicio": 8.6,
+          "fin": 12.7,
+          "texto": "INVESTIGAR EL ORIGEN DEL RUMOR|Colegio · Hospital · Empresa de Medios|3 pruebas por recuperar|2 publicaciones por verificar",
+          "estilo": "mision",
+          "x": 0.6,
+          "y": 0.5
+        },
+        {
+          "inicio": 11.4,
+          "fin": 14.42,
+          "texto": "Seguro alguien más se encarga.",
+          "hablante": "TEO",
+          "estilo": "subtitulo"
+        },
+        {
+          "inicio": 12.8,
+          "fin": 14.2,
+          "texto": "MISIÓN DESCARTADA",
+          "estilo": "descartada",
+          "x": 0.6,
+          "y": 0.42
+        },
+        {
+          "inicio": 14.2,
+          "fin": 21.8,
+          "texto": "COLAPSO DE UMBRAL",
+          "estilo": "colapso",
+          "valor_desde": 18,
+          "valor_hasta": 94
+        },
+        {
+          "inicio": 14.4,
+          "fin": 16.4,
+          "texto": "DÍA 2 · Misión sin completar",
+          "estilo": "dia"
+        },
+        {
+          "inicio": 14.6,
+          "fin": 20.0,
+          "texto": "@UmbralAlerta|URGENTE: cierran el hospital hoy. ¡Compartan!",
+          "estilo": "post",
+          "x": 0.06,
+          "y": 0.24
+        },
+        {
+          "inicio": 16.5,
+          "fin": 19.0,
+          "texto": "DÍA 4 · 3 misiones sin completar",
+          "estilo": "dia"
+        },
+        {
+          "inicio": 16.9,
+          "fin": 21.4,
+          "texto": "@VozDeUmbral|El colegio oculta la verdad. ¡Difunde!",
+          "estilo": "post",
+          "x": 0.64,
+          "y": 0.62
+        },
+        {
+          "inicio": 19.0,
+          "fin": 21.8,
+          "texto": "DÍA 6 · Nadie verificó",
+          "estilo": "dia"
+        },
+        {
+          "inicio": 22.05,
+          "fin": 24.2,
+          "texto": "¡Podías haberlo detenido!",
+          "hablante": "CIUDADANA",
+          "estilo": "subtitulo"
+        },
+        {
+          "inicio": 24.25,
+          "fin": 27.05,
+          "texto": "Yo no sabía que iba a terminar así...",
+          "hablante": "TEO",
+          "estilo": "subtitulo"
+        },
+        {
+          "inicio": 27.1,
+          "fin": 31.06,
+          "texto": "¡Tuviste las pruebas! ¡Tuviste la oportunidad!",
+          "hablante": "CIUDADANA",
+          "estilo": "subtitulo"
+        },
+        {
+          "inicio": 34.0,
+          "fin": 36.8,
+          "texto": "MISIONES SIN COMPLETAR|Colegio · Hospital · Empresa de Medios|0 de 3 pruebas recuperadas",
+          "estilo": "mision",
+          "x": 0.6,
+          "y": 0.52
+        },
+        {
+          "inicio": 34.1,
+          "fin": 38.4,
+          "texto": "CIUDAD UMBRAL — COLAPSO TOTAL",
+          "estilo": "alerta"
+        },
+        {
+          "inicio": 34.4,
+          "fin": 36.53,
+          "texto": "Pude haber hecho algo...",
+          "hablante": "TEO",
+          "estilo": "subtitulo"
+        },
+        {
+          "inicio": 37.05,
+          "fin": 38.25,
+          "texto": "Y no lo hice.",
+          "hablante": "TEO",
+          "estilo": "subtitulo"
+        },
+        {
+          "inicio": 38.3,
+          "fin": 40.5,
+          "texto": "En Umbral hubo señales.",
+          "hablante": "NARRADOR",
+          "estilo": "subtitulo"
+        },
+        {
+          "inicio": 40.55,
+          "fin": 44.15,
+          "texto": "Hubo pruebas. Hubo oportunidades de detenerlo.",
+          "hablante": "NARRADOR",
+          "estilo": "subtitulo"
+        },
+        {
+          "inicio": 44.2,
+          "fin": 46.72,
+          "texto": "Pero nadie actuó a tiempo.",
+          "hablante": "NARRADOR",
+          "estilo": "subtitulo"
+        },
+        {
+          "inicio": 46.98,
+          "fin": 50.39,
+          "texto": "Ahora la misma amenaza está llegando a tu ciudad.",
+          "hablante": "NARRADOR",
+          "estilo": "subtitulo"
+        },
+        {
+          "inicio": 51.58,
+          "fin": 53.53,
+          "texto": "Tú puedes investigar.",
+          "hablante": "NARRADOR",
+          "estilo": "subtitulo"
+        },
+        {
+          "inicio": 51.68,
+          "fin": 53.53,
+          "texto": "COLEGIO",
+          "estilo": "lugar",
+          "x": 0.5,
+          "y": 0.2
+        },
+        {
+          "inicio": 53.58,
+          "fin": 55.47,
+          "texto": "Puedes descubrir la verdad.",
+          "hablante": "NARRADOR",
+          "estilo": "subtitulo"
+        },
+        {
+          "inicio": 53.68,
+          "fin": 55.48,
+          "texto": "HOSPITAL",
+          "estilo": "lugar",
+          "x": 0.5,
+          "y": 0.2
+        },
+        {
+          "inicio": 55.52,
+          "fin": 58.12,
+          "texto": "Puedes tomar decisiones diferentes.",
+          "hablante": "NARRADOR",
+          "estilo": "subtitulo"
+        },
+        {
+          "inicio": 55.62,
+          "fin": 57.92,
+          "texto": "EMPRESA DE MEDIOS",
+          "estilo": "lugar",
+          "x": 0.5,
+          "y": 0.2
+        },
+        {
+          "inicio": 58.28,
+          "fin": 60.73,
+          "texto": "Ellos tuvieron su oportunidad.",
+          "hablante": "NARRADOR",
+          "estilo": "subtitulo"
+        },
+        {
+          "inicio": 60.78,
+          "fin": 62.83,
+          "texto": "Esta es la tuya.",
+          "hablante": "NARRADOR",
+          "estilo": "subtitulo"
+        },
+        {
+          "inicio": 62.78,
+          "fin": 64.98,
+          "texto": "ERES LA ÚLTIMA ESPERANZA DE CIUDAD NOVA.",
+          "estilo": "lema",
+          "fila": 0
+        },
+        {
+          "inicio": 63.38,
+          "fin": 64.98,
+          "texto": "MAKE IT COUNT.",
+          "estilo": "lema",
+          "fila": 1
+        },
+        {
+          "inicio": 64.83,
+          "fin": 66.8,
+          "texto": "CIVITAS: CÓDIGO NOVA|¿Vas a cometer los mismos errores o vas a salvar Ciudad Nova?",
+          "estilo": "titulo"
+        }
+      ]
     }
   ],
   "objetivos_intro": [

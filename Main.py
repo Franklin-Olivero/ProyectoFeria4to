@@ -292,10 +292,25 @@ class _Sesion:
     id_impostor: object = None  # modo Online: id de red del jugador que sorteó el host
 
 
+def _arrancar_pista(cinematica, audio):
+    """Si empieza una toma con banda sonora (la película del prólogo), la
+    reproduce una vez, sin fundido, y reinicia el reloj de la toma: el video
+    arranca en el mismo instante que el audio aunque cargar la pista tarde."""
+    pista = cinematica.tomar_pista()
+    if pista is not None and audio is not None:
+        audio.musica(pista, bucle=False, fade_ms=0)
+        cinematica.reiniciar_reloj()
+
+
+def _musica_de_cinematica(cinematica):
+    """Pista que debe sonar mientras se ve esta cinemática."""
+    toma = cinematica.actual
+    return toma.pista if toma is not None and toma.pista else "misterio"
+
+
 def _reproducir_cinematica(pantalla, reloj, cinematica, preferencias, audio, presentar):
     """Reproduce una Cinematica sola (EXTRAS → ver la introducción).
     Enter avanza, Esc salta. Retorna SALIR si se cierra la ventana."""
-    audio.musica("misterio")
     pygame.mouse.set_visible(True)
     cinematica.configurar_lectura(CARACTERES_POR_SEGUNDO[preferencias.velocidad_texto], preferencias.avance_cinematicas)
     while not cinematica.terminada:
@@ -315,8 +330,10 @@ def _reproducir_cinematica(pantalla, reloj, cinematica, preferencias, audio, pre
                     cinematica.saltar()
         cinematica.actualizar(dt)
         audio.reproducir(cinematica.tomar_sonido())
+        _arrancar_pista(cinematica, audio)
         if cinematica.terminada:
             break
+        audio.musica(_musica_de_cinematica(cinematica))
         cinematica_render.dibujar_cinematica(pantalla, cinematica, dt, preferencias.reducir_movimiento)
         presentar()
     return None
@@ -1387,6 +1404,7 @@ def _jugar(pantalla, reloj, sesion, preferencias, presentar):
             dialogo.actualizar(dt)
         if isinstance(dialogo, Cinematica):
             sonar(dialogo.tomar_sonido())
+            _arrancar_pista(dialogo, audio)
             if dialogo.terminada:
                 siguiente_historia()
         if final_derrota is not None:
@@ -1465,7 +1483,8 @@ def _jugar(pantalla, reloj, sesion, preferencias, presentar):
             sonar("noticia")  # vuelve a la ciudad con un titular nuevo
         escena_previa = escena
         toma_actual = dialogo.actual if isinstance(dialogo, Cinematica) else None
-        musica(_pista_para(escena, toma_actual is not None, crisis_en_curso is not None,
+        musica(toma_actual.pista if toma_actual is not None and toma_actual.pista else
+               _pista_para(escena, toma_actual is not None, crisis_en_curso is not None,
                            campania.mision_de(indice_local) is not None or (toma_actual is not None and toma_actual.id.startswith("redencion")),
                            final_derrota is not None or final_pendiente is not None))
 

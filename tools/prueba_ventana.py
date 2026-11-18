@@ -44,6 +44,12 @@ def guion(c, _):
     yield from medir(c, "intro con video", 240)
     c.captura("ventana_intro_video")
     print("música sonando en la intro:", pygame.mixer.get_busy(), "| canales:", pygame.mixer.get_num_channels(), flush=True)
+    cine = c.locales()["dialogo"]
+    gestor = c.locales()["audio"]
+    print(f"prólogo: toma={cine.actual.id} t={cine.tiempo:.2f}s pista={getattr(gestor, '_pista_actual', None)} "
+          f"volumen aplicado={gestor.volumen_musica_aplicado():.2f} (música {gestor.ajustes.volumen_musica} %, "
+          f"general {gestor.ajustes.volumen_general} %, silencio {gestor.ajustes.silencio}) "
+          f"mezclador={pygame.mixer.get_init()}", flush=True)
     while c.locales()["dialogo"] is not None:
         c.tecla(pg.K_ESCAPE)
         yield 8

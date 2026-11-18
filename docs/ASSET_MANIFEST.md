@@ -105,6 +105,57 @@ pack comprado para el aula; la biblioteca y el laboratorio suman objetos generad
 (pack Backrooms) no se tocó. Sin los PNG, todo vuelve al pintado en código de `temas_mazmorra.py`.
 Capturas antes/después: `tools/capturas_mazmorras.py` → `docs/capturas/mazmorras/`.
 
+## Prólogo «La ciudad que perdió» (Higgsfield, 13 nov 2026, 133 créditos)
+
+Saldo 1099,5 → 966,47 (verificado con `balance`). Costos verificados con `get_cost` antes de
+generar: `nano_banana_2` 1,5 por imagen; `kling3_0` 5 s std 7,5 sin sonido, 10 con sonido,
+8,75 en modo pro; ElevenLabs v4 0,46 por línea; ElevenLabs Music v2.5 ≈ 8,7 por 60 s.
+
+| Qué | Modelo | Cantidad | Uso |
+|---|---|---|---|
+| Hoja de personaje de Teo (defensor de Ciudad Umbral) | nano_banana_2 (ref. retrato `periodista` + `portada`) | 1 | Referencia de todas las tomas con Teo |
+| Ciudad Umbral antes del colapso | nano_banana_2 (ref. `portada`) | 1 | Referencia de lugar y cuadro inicial de la transición |
+| Cuadros clave de cada toma | nano_banana_2 (ref. hoja de Teo + Umbral) | 15 (3 rehechas: dos teléfonos, logo parecido a una red real, bufanda que parecía una garra) | Cuadro inicial/final de cada clip |
+| Tomas animadas | kling3_0, 16:9 | 11 (1 descartada) | Ver tabla de tomas en `tools/montar_prologo.py` |
+| Voces en español (Lía, la panadera, Teo y el narrador) | elevenlabs_v4 | 9 líneas | Diálogos y narración |
+| Música de tensión (42 s) y heroica (20 s) | elevenlabs_music_v2_5, instrumental | 2 | Banda sonora |
+
+Efectos: los del juego (`notificacion`, `viral`, `glitch`, `transicion`) y el ambiente de
+multitud que Kling generó en 3 tomas. Ciudad Nova reutiliza los clips V01 (`intro_ciudad`) y
+V02 (`nova_aparicion`) de esta tabla, sin costo nuevo.
+
+Montaje: `tools/montar_prologo.py` (ffmpeg de `imageio-ffmpeg`, solo para producir) arma la
+lista de tomas, mezcla voces + música (la música baja sola cuando alguien habla) + efectos y
+escribe `assets/story/video/prologo_umbral/` (906 cuadros JPG de 960×540 a 15 fps, 55 MB,
+`"lineal": true`) y `assets/audio/musica/prologo_umbral.ogg` (60,5 s). Los subtítulos, la
+alerta «CIUDAD UMBRAL — COLAPSO TOTAL», el lema y el título los dibuja el juego
+(`content/campaign.json` → `rotulos`). `tools/exportar_prologo.py` renderiza el corto con el
+dibujo real del juego a MP4 y deja capturas en `docs/capturas/prologo/`.
+Fuentes completas (clips MP4, voces, música, cuadros clave, máster y video final) en
+`_packs/prologo_umbral/`, fuera de git. Respaldo sin video: `assets/story/umbral_colapso.png`.
+
+### Segunda versión (13 nov 2026, 45,4 créditos; saldo 921,1): audio, español y «tuvo opciones»
+
+- **Audio inaudible, causa real:** la banda sonora (con voces) sonaba por el volumen de
+  *música*; sin `ajustes_audio.json`, el juego rescataba `volumen_musica: 22` de un
+  `preferencias.json` viejo → 1,0 × 0,22 × 0,85 = 0,19. Ahora las pistas de
+  `assets.PISTAS_CINEMATICA` usan solo el volumen general (categoría `cinematica`, 1,0):
+  aplicado 1,00 medido en ventana real. El archivo además se masteriza a -16 LUFS,
+  pico verdadero -1,15 dBTP (antes -18,4 LUFS), cada voz normalizada por separado y la
+  música con ducking bajo los diálogos.
+- **Voces:** 17 líneas nuevas en español con `elevenlabs_v4` (Leo = Teo, Isabella = Lía,
+  Nora = la ciudadana, Sterling = narrador) con dirección «[Latin American Spanish accent]» y
+  de emoción (no se pronuncia: verificado con Whisper). Ninguna voz del catálogo es nativa en
+  español (sus muestras, transcritas, están en inglés): el acento hay que validarlo de oído.
+  Whisper reconoce las 17 líneas dentro de la mezcla final.
+- **Tomas nuevas** (kling3_0, desde los cuadros clave existentes): Teo en el balcón con las
+  balizas de misión sobre el Colegio, el Hospital y la Empresa de Medios; la misión en el
+  teléfono que él descarta; las tres entradas con las balizas apagándose; la réplica de la
+  confrontación (desde el último cuadro de la anterior, modo pro). 3 imágenes + 4 clips +
+  21 voces (17 + 4 de prueba de acento). Ciudad Nova suma las ilustraciones de capítulo.
+- Rótulos de juego dibujados por el motor: misión, «MISIÓN DESCARTADA», días, publicaciones
+  falsas, barra «COLAPSO DE UMBRAL» de 18 % a 94 %, lugares de Nova y la pregunta final.
+
 ## Pendiente (opcional, sin generar)
 
 | Id | Nombre lógico | Archivo esperado | Tamaño | Dónde se usaría | Fallback actual |

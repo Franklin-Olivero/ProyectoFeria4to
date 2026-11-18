@@ -107,9 +107,12 @@ def guardar(ajustes, ruta=None):
     return datos_usuario.guardar_json_atomico(texto, ruta or ruta_predeterminada())
 
 
-def volumen_efectivo(ajustes, es_musica, mezcla_categoria=1.0, ganancia=1.0, atenuacion=1.0):
-    """Volumen 0.0-1.0 con el que suena algo ahora mismo (nunca más de 1)."""
+def volumen_efectivo(ajustes, es_musica, mezcla_categoria=1.0, ganancia=1.0, atenuacion=1.0, solo_general=False):
+    """Volumen 0.0-1.0 con el que suena algo ahora mismo (nunca más de 1).
+    `solo_general`: la banda sonora de una cinemática (voces + música + efectos
+    ya mezclados) depende solo del volumen general, no del deslizador de música:
+    si no, bajar la música dejaba los diálogos inaudibles."""
     if ajustes.silencio:
         return 0.0
-    base = ajustes.volumen_general / 100 * ajustes.volumen_de(es_musica) / 100
+    base = ajustes.volumen_general / 100 * (1.0 if solo_general else ajustes.volumen_de(es_musica) / 100)
     return max(0.0, min(1.0, base * mezcla_categoria * ganancia * atenuacion))

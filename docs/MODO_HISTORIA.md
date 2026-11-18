@@ -12,7 +12,7 @@ hechos son inventados.
 
 | Momento | Qué se ve | Archivos |
 |---|---|---|
-| Partida nueva | **Cinemática de introducción** (≈40 s, 8 tomas + pantalla de objetivos): Ciudad Nova, la red Civitas con notificaciones, el caos de posts falsos multiplicándose, la amenaza de NOVA_404 con glitch, el mensaje urgente, el protagonista (retrato y línea por rol), tu papel según el rol, el título y «TU MISIÓN» con el botón COMENZAR MISIÓN. Enter pasa de toma, Esc salta a los objetivos. | `src/story/cinematica.py` (puro), `src/ui/cinematica_render.py`, `content/campaign.json` → `cinematica_intro`, `objetivos_intro`, `intro_rol` |
+| Partida nueva | **Prólogo «La ciudad que perdió»** (60 s de video con voces y música, luego «TU MISIÓN»): en la ficticia Ciudad Umbral, Teo comparte una publicación sin verificarla; el rumor se multiplica, los vecinos se enfrentan, una panadera lo acusa y la ciudad colapsa. Él comprende lo que causó («Yo pensé que estaba ayudando...»). Corte a Ciudad Nova, todavía viva, y al nuevo protagonista: «Ellos perdieron su ciudad. Tú todavía puedes salvar la tuya.» Esc salta a los objetivos (Enter no corta el video). | `src/story/cinematica.py` (toma `pelicula`, `Rotulo`), `src/ui/cinematica_render.py`, `src/ui/video_cuadros.py` (modo lineal), `content/campaign.json` → `cinematica_intro`, `objetivos_intro` |
 | EXTRAS (menú) | **Ver introducción** otra vez, sin tocar la partida. | `menu_principal.VER_INTRO`, `Main._reproducir_cinematica` |
 | Entrar a una zona | **Tarjeta de capítulo** («CAPÍTULO 1 · EL RUMOR») y luego el diálogo de siempre (con variante por rol en el cap. 1). | `Campania.presentacion_zona` |
 | Alcaldía | **Cinemática de entrada al jefe** (4 tomas, cambia con las pistas) en vez del diálogo. | `cinematica.guion_entrada_jefe` |
@@ -29,14 +29,13 @@ Validación visual: 57 capturas headless (SDL dummy) en `docs/capturas/historia/
 Las escenas con texto ya no se van solas: el jugador lee a su ritmo. Modo manual por defecto
 y automático opcional en Ajustes → Accesibilidad (150 palabras por minuto + 2 s, mínimo 7 s,
 nunca mientras se escribe). Los textos largos se paginan. Tarjetas de capítulo con número,
-nombre, ubicación, contexto y objetivo. Intro de 10 tomas con 2 clips de video; en
-automático dura unos 100 s.
+nombre, ubicación, contexto y objetivo. La intro es un prólogo en video de 60 s (ver `docs/ASSET_MANIFEST.md`).
 
 ## Qué se puede jugar
 
 | Paso | Qué pasa | Teclas |
 |---|---|---|
-| Partida nueva | **Cinemática de introducción**. El texto espera al jugador: Enter lo revela y otro Enter continúa. | Enter · Esc salta |
+| Partida nueva | **Prólogo en video** (60 s) y la pantalla de misión. | Esc salta · Enter comienza la misión |
 | Ciudad Nova | Caminar, ruta sugerida, mapa, **I** estado de la ciudad, **H** ayuda. Cintillo con eventos. | WASD · E · G · TAB · M · I · H |
 | Entrar a una zona | **Intro del capítulo** (una vez por zona). El Periodista recibe una prueba al entrar. | Enter / Esc |
 | Mazmorra | Combate de siempre, en un escenario propio del lugar. **Cada cuarto limpio deja una prueba en el suelo: hay que recogerla.** La 3.ª de cada zona es una **pista de NOVA_404**. | combate normal |

@@ -22,18 +22,16 @@ from src.core.preferencias import Preferencias  # noqa: E402
 # ----------------------------------------------------------------------
 
 
-def test_intro_tiene_las_escenas_del_guion_y_termina_en_objetivos():
+def test_intro_es_el_prologo_de_umbral_y_termina_en_objetivos():
     partida = Partida()
     c = partida.campania.cinematica_intro("periodista", "Periodista")
     ids = [t.id for t in c.tomas]
-    assert ids[:5] == ["ciudad", "civitas", "grieta", "caos", "amenaza"]
-    assert ids[-1] == "objetivos" and c.tomas[-1].espera and len(c.tomas[-1].objetivos) == 5
-    protagonista = next(t for t in c.tomas if t.id == "protagonista")
-    assert protagonista.hablante == "Periodista" and protagonista.retrato == "periodista"
-    assert "documentarlo" in protagonista.texto  # variante por rol
-    # En avance automático dura entre 75 y 110 s sin contar los objetivos.
-    c.configurar_lectura(modo=cine.MODO_AUTOMATICO)
-    assert 75 <= sum(c.duracion_efectiva(t) or 0 for t in c.tomas) <= 110
+    # La película «La ciudad que perdió» y la misión: sin la explicación de antes.
+    assert ids == ["prologo_umbral", "objetivos"]
+    pelicula = c.tomas[0]
+    assert pelicula.pelicula and pelicula.pista == "prologo_umbral" and pelicula.video == "prologo_umbral"
+    assert 50 <= pelicula.duracion <= 68
+    assert c.tomas[-1].espera and len(c.tomas[-1].objetivos) == 5
     # La intro cuenta como prólogo visto: ni se repite ni aparece el prólogo en texto.
     assert partida.campania.cinematica_intro() is None
     assert partida.campania.dialogo_prologo() is None
