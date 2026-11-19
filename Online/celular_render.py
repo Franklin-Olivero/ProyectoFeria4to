@@ -44,7 +44,7 @@ from dataclasses import dataclass, field
 
 import pygame
 
-from Online.celular import CHAT, FEED, Perfil, formatear_cifra
+from Online.celular import CHAT, DETALLE, FEED, Perfil, formatear_cifra
 from src.core import assets
 from src.ui import celular_render, dibujo, sprites
 from src.ui.fuentes import fuente
@@ -61,6 +61,9 @@ ENTRADA = "entrada"
 RESPUESTA = "respuesta"
 ME_GUSTA = "me_gusta"
 NUEVAS = "nuevas"
+COMPARTIR = "compartir"  # repost propio
+ABRIR = "abrir"  # abrir una publicación con todos sus comentarios
+VOLVER = "volver"  # de la publicación abierta al feed
 TECLA_BOTON = "C"
 
 # Tipos de mensaje del chat: los mismos valores que Online/chat_celular.py.
@@ -89,6 +92,10 @@ TEXTO_BANNER = "Civitas · ahora"
 TEXTO_TENDENCIA = "Tendencia"
 TEXTO_SIN_FEED = "Conectando con Civitas..."
 TEXTO_ESPERANDO_VIVO = "Esperando comentarios..."
+TEXTO_PUBLICACION = "Publicación"
+TEXTO_COMENTARIOS = "Comentarios"
+TEXTO_PISTA_COMENTARIO = "Escribe un comentario..."
+TEXTO_TU = "Tú"
 SUFIJO_FANTASMA = " · fantasma"
 CUENTA_OFICIAL = "@civitasoficial"  # su avatar es el retrato de Civitas (comparación sin mayúsculas)
 
@@ -108,6 +115,7 @@ COLOR_BANNER = (32, 32, 72)
 COLOR_BOTON_ABAJO = assets.COLOR_MARCO_CELULAR_ABAJO  # el botón tiene el degradado del canto del celular
 COLOR_ME_GUSTA = assets.COLOR_GRAVE  # corazón propio
 COLORES_CIFRA = (assets.COLOR_GRAVE, assets.COLOR_VERIFICADO, assets.COLOR_CIVITAS)  # me gusta, compartidos, comentarios
+COLORES_PROPIO = (COLOR_ME_GUSTA, assets.COLOR_VERIFICADO, assets.COLOR_CIVITAS)  # ícono marcado por esta PC
 COLORES_NOMBRES_VIVO = (assets.COLOR_VERIFICADO, assets.COLOR_ALERTA, assets.COLOR_CIVITAS, assets.COLOR_MAGENTA,
                         assets.COLOR_TEAL, assets.COLOR_TITULO_LUZ)
 COLOR_ETIQUETA = {  # chip de cada etiqueta de publicación
@@ -209,6 +217,9 @@ class DibujoCelular:
     entrada: pygame.Rect | None = None
     respuestas: list = field(default_factory=list)  # [(indice, rect)]
     corazones: list = field(default_factory=list)  # [(id_publicacion, rect)]
+    reposts: list = field(default_factory=list)  # [(id_publicacion, rect)] el ícono de compartir
+    publicaciones: list = field(default_factory=list)  # [(id_publicacion, rect)] clic en la tarjeta = abrirla
+    volver: pygame.Rect | None = None  # flecha de la publicación abierta
     nuevas: pygame.Rect | None = None  # píldora "Nuevas publicaciones" / "Nuevos mensajes"
     textos: list = field(default_factory=list)  # [(texto_dibujado, rect, caja_permitida)]
     alto_contenido: int = 0  # alto total de la lista de la app activa
@@ -813,6 +824,8 @@ def dibujar_celular(pantalla, rect_cuerpo, celular, feed, mensajes, perfil, id_l
         if celular.app == CHAT:
             _dibujar_chat(d, pantalla, s, arriba, celular, mensajes, perfiles, id_local, puede_escribir, respuestas,
                           segundos, reducir)
+        elif getattr(celular, "publicacion_abierta", None) is not None and feed is not None:
+            _dibujar_detalle(d, pantalla, s, arriba, celular, feed, segundos, reducir)
         else:
             _dibujar_feed(d, pantalla, s, arriba, celular, feed, segundos, reducir)
         celular_render.indicador_inicio(pantalla, s)
@@ -915,11 +928,12 @@ class _MedidasPost:
     lineas_comentario: tuple  # "Nombre: texto" partido (a lo sumo LINEAS_COMENTARIO)
 
 
-def _medir_post(pub, ancho):
-    """Alto de la tarjeta de una publicación (sin dibujarla)."""
+def _medir_post(pub, ancho, lineas_max=LINEAS_POST, con_comentario=True):
+    """Alto de la tarjeta de una publicación (sin dibujarla). Abierta: todo el
+    texto y sin el último comentario (abajo están todos)."""
     interior = ancho - 2 * RELLENO
-    lineas = _lineas(pub.texto, interior, T_TEXTO, False, LINEAS_POST)
-    comentarios = list(pub.comentarios or ())
+    lineas = _lineas(pub.texto, interior, T_TEXTO, False, lineas_max)
+    comentarios = list(pub.comentarios or ()) if con_comentario else []
     comentario = comentarios[-1] if comentarios else None
     lineas_comentario = ()
     if comentario is not None:
@@ -997,6 +1011,9 @@ def _dibujar_feed(d, pantalla, s, arriba, celular, feed, segundos, reducir):
     # Un clic sobre la píldora o el banner no es un "me gusta" de lo que hay debajo.
     tapan = [rect for rect in (d.nuevas, d.banner) if rect is not None]
     d.corazones = [(id_pub, rect) for id_pub, rect in d.corazones if not any(rect.colliderect(t) for t in tapan)]
+    d.reposts = [(id_pub, rect) for id_pub, rect in d.reposts if not any(rect.colliderect(t) for t in tapan)]
+    d.publicaciones = [(id_pub, rect) for id_pub, rect in d.publicaciones
+                       if not any(rect.colliderect(t) for t in tapan)]
 
 
 def _fondo_tarjeta(pantalla, rect):
@@ -1091,6 +1108,9 @@ def _dibujar_post(d, pantalla, rect, pub, medidas, celular, segundos, reducir, v
     X" y chips), texto, foto opcional, fila de estadísticas que suben en vivo
     y el último comentario."""
     _fondo_tarjeta(pantalla, rect)
+    tarjeta = rect.clip(visible)
+    if tarjeta.width > 0 and tarjeta.height > 0:
+        d.publicaciones.append((pub.id, tarjeta))  # clic en la tarjeta: se abre con todos sus comentarios
     x = rect.left + RELLENO
     interior = rect.width - 2 * RELLENO
     derecha = rect.right - RELLENO
@@ -1141,32 +1161,48 @@ def _fila_datos(d, pantalla, fila, tarjeta, pub, celular, segundos, visible):
     valores = [_entero(v) for v in tuple(pub.estadisticas(segundos))[:3]]
     valores += [0] * (3 - len(valores))
     propio = pub.id in celular.me_gusta
-    if propio:
-        valores[0] += 1
+    compartida = pub.id in getattr(celular, "reposts", ())
+    valores[0] += int(propio)
+    valores[1] += int(compartida)
+    valores[2] += len(getattr(celular, "comentarios_propios", {}).get(pub.id, ()))
+    marcados = (propio, compartida, False)
     paso = fila.width // 3
     for indice, valor in enumerate(valores):
         izquierda = fila.left + indice * paso
         centro = (izquierda + 10, fila.centery)
-        if indice == 0:
-            if propio:
-                celular_render.dibujar_icono(pantalla, "corazon", centro, 20, COLOR_ME_GUSTA, grosor=0)
-            else:
-                celular_render.dibujar_icono(pantalla, "corazon", centro, 20, assets.COLOR_TEXTO_SECUNDARIO)
-        elif indice == 1:
-            celular_render.dibujar_icono(pantalla, "compartir", centro, 18, assets.COLOR_TEXTO_SECUNDARIO)
-        else:
-            _icono_globo(pantalla, centro, 18, assets.COLOR_TEXTO_SECUNDARIO)
+        golpe = celular.golpe((pub.id, indice)) if indice < 2 and hasattr(celular, "golpe") else None
+        _icono_dato(pantalla, indice, centro, marcados[indice], golpe)
         animacion = celular.notar_cifra((pub.id, indice), valor)
-        base = COLOR_ME_GUSTA if indice == 0 and propio else assets.COLOR_TEXTO_SECUNDARIO
+        base = COLORES_PROPIO[indice] if marcados[indice] else assets.COLOR_TEXTO_SECUNDARIO
         color = _mezclar(base, COLORES_CIFRA[indice], animacion[1]) if animacion else base
         caja = pygame.Rect(izquierda + 24, fila.top, paso - 28, fila.height)
         numero = _texto(d, pantalla, formatear_cifra(valor), caja, color, T_CHICO, True, ancla="midleft", visible=visible)
         if animacion:
             _mas_n(d, pantalla, animacion, numero, tarjeta, COLORES_CIFRA[indice], visible)
-        if indice == 0:
-            golpe = pygame.Rect(izquierda - 4, fila.top, max(64, numero.right - izquierda + 10), fila.height).clip(visible)
-            if golpe.width > 0 and golpe.height > 0:
-                d.corazones.append((pub.id, golpe))
+        if indice < 2:
+            zona = pygame.Rect(izquierda - 4, fila.top, max(64, numero.right - izquierda + 10), fila.height).clip(visible)
+            if zona.width > 0 and zona.height > 0:
+                (d.corazones if indice == 0 else d.reposts).append((pub.id, zona))
+
+
+def _icono_dato(pantalla, indice, centro, marcado, golpe):
+    """Ícono de una estadística. Marcado (me gusta o repost propio): lleno y de
+    su color. Al tocarlo "salta": crece y vuelve, con un anillo que se abre y
+    se desvanece (golpe = avance 0..1 de esa animación)."""
+    tamanio = (20, 18, 18)[indice]
+    color = COLORES_PROPIO[indice] if marcado else assets.COLOR_TEXTO_SECUNDARIO
+    if golpe is not None:
+        tamanio = round(tamanio * (1 + 0.55 * math.sin(math.pi * golpe)))
+        radio = round(8 + 16 * golpe)
+        anillo = pygame.Surface((radio * 2 + 4, radio * 2 + 4), pygame.SRCALPHA)
+        pygame.draw.circle(anillo, (*_rgb(COLORES_PROPIO[indice]), round(200 * (1 - golpe))), (radio + 2, radio + 2), radio, 2)
+        pantalla.blit(anillo, anillo.get_rect(center=centro))
+    if indice == 0:
+        celular_render.dibujar_icono(pantalla, "corazon", centro, tamanio, color, grosor=0 if marcado else 2)
+    elif indice == 1:
+        celular_render.dibujar_icono(pantalla, "compartir", centro, tamanio, color, grosor=3 if marcado else 2)
+    else:
+        _icono_globo(pantalla, centro, tamanio, color)
 
 
 def _mas_n(d, pantalla, animacion, numero, tarjeta, color, visible):
@@ -1243,6 +1279,146 @@ def _banner(d, pantalla, s, feed, segundos, reducir):
                visible=visible)
     d.banner = visible
 
+
+# ----------------------------------------------------------------------
+# Publicación abierta: completa, con todos sus comentarios y para comentar
+# ----------------------------------------------------------------------
+ALTO_CABECERA_DETALLE = 36
+ALTO_TITULO_COMENTARIOS = 30
+RADIO_AVATAR_COMENTARIO = 13
+LINEAS_COMENTARIO_DETALLE = 4
+LINEAS_POST_DETALLE = 30
+
+
+@dataclass(frozen=True)
+class _FilaComentario:
+    autor: str
+    texto: str
+    segundos: float
+    propio: bool
+    lineas: tuple
+    alto: int
+
+
+def _comentarios_detalle(celular, feed, pub, ancho):
+    """Del más nuevo al más viejo: los propios y los que llegan en vivo, y
+    después los que ya tenía (feed.comentarios_anteriores, iguales en todas las PCs)."""
+    recientes = [(c.autor, c.texto, _float(c.segundos), False) for c in (pub.comentarios or ())]
+    recientes += [(TEXTO_TU, texto, _float(segundos), True)
+                  for texto, segundos in getattr(celular, "comentarios_propios", {}).get(pub.id, ())]
+    recientes.sort(key=lambda fila: fila[2], reverse=True)
+    anteriores = getattr(feed, "comentarios_anteriores", None)
+    viejos = [(c.autor, c.texto, _float(c.segundos), False) for c in (anteriores(pub) if callable(anteriores) else ())]
+    filas = []
+    interior = ancho - 2 * RELLENO - 2 * RADIO_AVATAR_COMENTARIO - 10
+    for autor, texto, segundos, propio in recientes + viejos:
+        lineas = _lineas(str(texto), interior, T_CHICO, False, LINEAS_COMENTARIO_DETALLE)
+        filas.append(_FilaComentario(str(autor), str(texto), segundos, propio, lineas,
+                                     8 + 17 + len(lineas) * ALTO_LINEA_COMENTARIO + 6))
+    return filas
+
+
+def _dibujar_detalle(d, pantalla, s, arriba, celular, feed, segundos, reducir):
+    """La publicación abierta: flecha para volver, la tarjeta completa (con me
+    gusta y repost), todos sus comentarios (los nuevos entran deslizándose) y
+    la caja para comentar."""
+    pub = next((p for p in (feed.publicaciones or ()) if p.id == celular.publicacion_abierta), None)
+    if pub is None:  # salió del feed (solo se guardan las últimas): de vuelta al feed
+        celular.cerrar_publicacion()
+        _dibujar_feed(d, pantalla, s, arriba, celular, feed, segundos, reducir)
+        return
+    cabecera = pygame.Rect(s.left, arriba, s.width, ALTO_CABECERA_DETALLE)
+    centro = (cabecera.left + 22, cabecera.centery)
+    pygame.draw.lines(pantalla, assets.COLOR_TEXTO_HUD, False,
+                      [(centro[0] + 5, centro[1] - 8), (centro[0] - 3, centro[1]), (centro[0] + 5, centro[1] + 8)], 3)
+    d.volver = pygame.Rect(cabecera.left, cabecera.top, 120, cabecera.height)
+    _texto(d, pantalla, TEXTO_PUBLICACION, pygame.Rect(cabecera.left + 40, cabecera.top, 160, cabecera.height),
+           assets.COLOR_TEXTO_HUD, T_TEXTO, True, ancla="midleft")
+    pygame.draw.line(pantalla, assets.COLOR_SEPARADOR_CELULAR, (s.left, cabecera.bottom - 1),
+                     (s.right - 1, cabecera.bottom - 1))
+
+    abajo = s.bottom - ALTO_ZONA_INICIO
+    entrada = pygame.Rect(s.left + MARGEN, abajo - ALTO_ENTRADA, s.width - 2 * MARGEN - DIAMETRO_ENVIAR - 8, ALTO_ENTRADA)
+    enviar = pygame.Rect(entrada.right + 8, entrada.centery - DIAMETRO_ENVIAR // 2, DIAMETRO_ENVIAR, DIAMETRO_ENVIAR)
+    contenido = pygame.Rect(s.left, cabecera.bottom, s.width, entrada.top - 8 - cabecera.bottom)
+    d.contenido = contenido
+    ancho = s.width - 2 * MARGEN
+    medidas = _medir_post(pub, ancho, LINEAS_POST_DETALLE, con_comentario=False)
+    filas = _comentarios_detalle(celular, feed, pub, ancho)
+    d.alto_contenido = SEPARACION + medidas.alto + ALTO_TITULO_COMENTARIOS + sum(f.alto for f in filas) + SEPARACION
+    celular.limitar_scroll(DETALLE, d.alto_contenido, contenido.height)
+    y = contenido.top + SEPARACION - round(celular.scroll_detalle)
+
+    anterior = _con_recorte(pantalla, contenido)
+    visible = pantalla.get_clip()
+    try:
+        tarjeta = pygame.Rect(s.left + MARGEN, y, ancho, medidas.alto)
+        if tarjeta.bottom > contenido.top:
+            _dibujar_post(d, pantalla, tarjeta, pub, medidas, celular, segundos, reducir, visible)
+        d.publicaciones = []  # ya está abierta: un clic en la tarjeta no hace nada
+        y = tarjeta.bottom
+        total = formatear_cifra(_entero(tuple(pub.estadisticas(segundos))[2])
+                                + len(celular.comentarios_propios.get(pub.id, ())))
+        _texto(d, pantalla, f"{TEXTO_COMENTARIOS} · {total}", pygame.Rect(s.left + MARGEN + 4, y + 8, ancho, 18),
+               assets.COLOR_TEXTO_HUD, T_TEXTO, True, visible=visible)
+        y += ALTO_TITULO_COMENTARIOS
+        for fila in filas:
+            if y >= contenido.bottom:
+                break
+            if y + fila.alto > contenido.top:
+                _dibujar_fila_comentario(d, pantalla, pygame.Rect(s.left + MARGEN, y, ancho, fila.alto), fila,
+                                         segundos, reducir, visible)
+            y += fila.alto
+    finally:
+        pantalla.set_clip(anterior)
+    pygame.draw.line(pantalla, assets.COLOR_SEPARADOR_CELULAR, (s.left, contenido.bottom + 3),
+                     (s.right - 1, contenido.bottom + 3))
+    _caja_texto(d, pantalla, entrada, enviar, celular, True, reducir, texto=celular.texto_comentario,
+                pista=TEXTO_PISTA_COMENTARIO)
+
+
+def _dibujar_fila_comentario(d, pantalla, rect, fila, segundos, reducir, visible):
+    """Avatar, nombre (el propio, "Tú" en violeta), "hace X" y el texto. El
+    comentario que acaba de llegar entra desde la derecha mientras aparece."""
+    desliz, alfa = 0, 255
+    edad = segundos - fila.segundos
+    if not reducir and 0 <= edad < DESLIZAR:
+        avance = _suave(edad / DESLIZAR)
+        desliz, alfa = round((1 - avance) * 40), 255 * avance
+    x = rect.left + RELLENO + desliz
+    centro = (x + RADIO_AVATAR_COMENTARIO, rect.top + 8 + RADIO_AVATAR_COMENTARIO)
+    if fila.propio:
+        pygame.draw.circle(pantalla, assets.COLOR_CIVITAS, centro, RADIO_AVATAR_COMENTARIO)
+        _texto(d, pantalla, "TÚ", pygame.Rect(centro[0] - 12, centro[1] - 8, 24, 16), assets.COLOR_TEXTO_HUD, T_MIN,
+               True, ancla="center", visible=visible, alfa=alfa)
+    else:
+        avatar = _avatar_cuenta(fila.autor, "", RADIO_AVATAR_COMENTARIO).copy()
+        avatar.set_alpha(round(alfa))
+        pantalla.blit(avatar, avatar.get_rect(center=centro))
+    izquierda = x + 2 * RADIO_AVATAR_COMENTARIO + 10
+    ancho = rect.right - RELLENO - izquierda
+    color_nombre = assets.COLOR_CIVITAS if fila.propio else assets.COLOR_TEXTO_HUD
+    nombre = _texto(d, pantalla, fila.autor, pygame.Rect(izquierda, rect.top + 6, ancho * 2 // 3, 17), color_nombre,
+                    T_CHICO, True, visible=visible, alfa=alfa)
+    _texto(d, pantalla, f"· {_hace_corto(segundos - fila.segundos)}",
+           pygame.Rect(nombre.right + 6, rect.top + 6, max(1, rect.right - RELLENO - nombre.right - 6), 17),
+           assets.COLOR_TEXTO_SECUNDARIO, T_CHIP, visible=visible, alfa=alfa)
+    color = assets.COLOR_TEXTO_HUD if fila.propio else assets.COLOR_TEXTO_SECUNDARIO
+    for numero, linea in enumerate(fila.lineas):
+        caja = pygame.Rect(izquierda, rect.top + 25 + numero * ALTO_LINEA_COMENTARIO, ancho, ALTO_LINEA_COMENTARIO)
+        _texto(d, pantalla, linea, caja, color, T_CHICO, visible=visible, alfa=alfa)
+    pygame.draw.line(pantalla, assets.COLOR_SEPARADOR_CELULAR, (rect.left + RELLENO, rect.bottom - 1),
+                     (rect.right - RELLENO, rect.bottom - 1))
+
+
+def _hace_corto(edad):
+    """"ahora", "3 min", "2 h" (al lado del nombre en cada comentario)."""
+    edad = max(0.0, _float(edad))
+    if edad < 60:
+        return "ahora"
+    if edad < 3600:
+        return f"{int(edad // 60)} min"
+    return f"{int(edad // 3600)} h"
 
 # ----------------------------------------------------------------------
 # Chat de la sala
@@ -1426,7 +1602,8 @@ def _respuestas_rapidas(d, pantalla, fila, respuestas, enfocada):
         x = rect.right + SEPARACION_RESPUESTAS
 
 
-def _caja_texto(d, pantalla, entrada, enviar, celular, puede_escribir, reducir):
+def _caja_texto(d, pantalla, entrada, enviar, celular, puede_escribir, reducir, texto=None,
+                pista=TEXTO_PISTA_ENTRADA):
     """La caja de texto: pista o lo escrito (se ve el final) con el cursor que
     parpadea, y el botón enviar. Al fantasma, apagada y sin enviar."""
     radio = entrada.height // 2
@@ -1441,7 +1618,7 @@ def _caja_texto(d, pantalla, entrada, enviar, celular, puede_escribir, reducir):
     pygame.draw.rect(pantalla, COLOR_ENTRADA, entrada, border_radius=radio)
     pygame.draw.rect(pantalla, assets.COLOR_CIVITAS, entrada, 1, border_radius=radio)
     d.entrada = entrada
-    texto = celular.texto
+    texto = celular.texto if texto is None else texto
     izquierda, derecha = entrada.left + 16, entrada.right - 14
     if len(texto) >= celular.largo_maximo - AVISO_LARGO:
         lleno = len(texto) >= celular.largo_maximo
@@ -1455,7 +1632,7 @@ def _caja_texto(d, pantalla, entrada, enviar, celular, puede_escribir, reducir):
                          T_TEXTO, ancla="midleft")
         cursor_x = escrito.right + 1
     else:
-        _texto(d, pantalla, TEXTO_PISTA_ENTRADA, caja, COLOR_PISTA_ENTRADA, T_TEXTO, ancla="midleft")
+        _texto(d, pantalla, pista, caja, COLOR_PISTA_ENTRADA, T_TEXTO, ancla="midleft")
         cursor_x = izquierda - 3
     if reducir or int(celular.reloj * 2) % 2 == 0:
         pygame.draw.line(pantalla, assets.COLOR_TEXTO_HUD, (cursor_x, entrada.centery - 9), (cursor_x, entrada.centery + 9), 2)
@@ -1504,9 +1681,17 @@ def objetivo_en(dibujado, posicion):
     for indice, rect in dibujado.respuestas:
         if rect.collidepoint(punto):
             return RESPUESTA, indice
+    if dibujado.volver is not None and dibujado.volver.collidepoint(punto):
+        return VOLVER, None
     for id_publicacion, rect in dibujado.corazones:
         if rect.collidepoint(punto):
             return ME_GUSTA, id_publicacion
+    for id_publicacion, rect in dibujado.reposts:
+        if rect.collidepoint(punto):
+            return COMPARTIR, id_publicacion
+    for id_publicacion, rect in dibujado.publicaciones:
+        if rect.collidepoint(punto):
+            return ABRIR, id_publicacion
     return DENTRO, None
 
 
@@ -1516,4 +1701,8 @@ def controles(celular, puede_escribir):
         if puede_escribir:
             return [("Enter", "enviar"), ("Tab", "inicio"), ("↑ ↓ / rueda", "desplazar"), ("Esc", "cerrar")]
         return [("Tab", "inicio"), ("↑ ↓ / rueda", "desplazar"), ("Esc", "cerrar")]
-    return [("Tab", "chat"), ("↑ ↓ / rueda", "desplazar"), ("Clic", "me gusta"), ("C / Esc", "cerrar")]
+    if getattr(celular, "publicacion_abierta", None) is not None:
+        return [("Enter", "comentar"), ("Clic", "me gusta / compartir"), ("↑ ↓ / rueda", "desplazar"),
+                ("Esc", "volver")]
+    return [("Clic", "abrir / me gusta / compartir"), ("↑ ↓ / rueda", "desplazar"), ("Tab", "chat"),
+            ("C / Esc", "cerrar")]

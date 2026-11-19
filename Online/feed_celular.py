@@ -64,6 +64,7 @@ RUTA_CAMPANIA = os.path.join(RAIZ, "content", "campaign.json")
 # --- Topes: cuánto se guarda (todo lo demás se olvida) ---
 MAX_PUBLICACIONES = 25
 MAX_COMENTARIOS_VISIBLES = 3
+MIN_COMENTARIOS_DETALLE, MAX_COMENTARIOS_DETALLE = 8, 14  # los "de antes" que se ven al abrir una publicación
 MAX_MENSAJES_VIVO = 6
 MAX_NOTIFICACIONES = 5
 
@@ -553,6 +554,28 @@ class FeedCelular:
             return
         publicacion.comentarios.append(Comentario(autor, texto, instante))
         del publicacion.comentarios[:-MAX_COMENTARIOS_VISIBLES]
+
+    def comentarios_anteriores(self, publicacion, cantidad=MAX_COMENTARIOS_DETALLE):
+        """Los comentarios que la publicación ya tenía antes de los que llegan en
+        vivo: se ven al abrirla. Usan su PROPIO azar (semilla del feed + id), así
+        no cambian la simulación y son iguales en todas las PCs y en cada
+        apertura. Del más nuevo al más viejo, escalonados hacia atrás desde el
+        primer comentario en vivo (o desde ahora). O(cantidad)."""
+        personas = list(self._contenido.get("personas") or ())
+        textos = list(self._contenido.get("comentarios_por_tipo", {}).get(publicacion.tipo) or ())
+        textos += list(self._contenido.get("comentarios") or ())
+        if not personas or not textos:
+            return []
+        azar = random.Random(self.semilla * 1009 + publicacion.id)
+        desde = publicacion.comentarios[0].segundos if publicacion.comentarios else self.t
+        cuantos = min(cantidad, azar.randint(MIN_COMENTARIOS_DETALLE, cantidad))
+        azar.shuffle(textos)
+        resultado = []
+        for indice in range(cuantos):
+            desde -= azar.uniform(8.0, 70.0)
+            autor = azar.choice([p for p in personas if p != publicacion.autor] or personas)
+            resultado.append(Comentario(autor, textos[indice % len(textos)], max(publicacion.creada, desde)))
+        return resultado
 
     def _mensaje_vivo(self, instante):
         apodos, textos = self._contenido.get("apodos"), self._contenido.get("mensajes_vivo")

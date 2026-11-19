@@ -194,3 +194,79 @@ def test_en_la_sala_c_abre_enter_envia_y_esc_no_sale(red_real):
     assert resultado == "siguió en la sala"
     assert [m.texto for m in servidor.celular.mensajes() if m.tipo == "jugador"] == ["listos"]
     assert _esperar(lambda: any(m.texto == "listos" for m in cliente.celular.mensajes()))
+
+
+# ----------------------------------------------------------------------
+# Repost, abrir una publicación y comentar
+# ----------------------------------------------------------------------
+
+def test_repost_y_me_gusta_tienen_su_animacion():
+    from Online.celular import DURACION_GOLPE, Celular
+    celular = Celular()
+    assert celular.alternar_repost(5) and celular.alternar_me_gusta(5)
+    assert celular.golpe((5, 1)) == 0.0 and celular.golpe((5, 0)) == 0.0
+    celular.actualizar(DURACION_GOLPE / 2)
+    assert 0.4 < celular.golpe((5, 1)) < 0.6
+    celular.actualizar(DURACION_GOLPE)
+    assert celular.golpe((5, 1)) is None
+    assert not celular.alternar_repost(5) and 5 not in celular.reposts
+
+
+def test_comentar_en_una_publicacion_abierta():
+    from Online.celular import CHAT, Celular
+    celular = Celular()
+    celular.abrir()
+    celular.abrir_publicacion(7)
+    celular.escribir("muy bueno")
+    assert celular.texto == "" and celular.texto_comentario == "muy bueno"  # no se mezcla con el chat
+    assert celular.comentar(12.0) == "muy bueno"
+    assert celular.comentarios_propios == {7: [("muy bueno", 12.0)]} and celular.texto_comentario == ""
+    celular.cambiar_app(CHAT)
+    celular.escribir("hola")
+    assert celular.texto == "hola"
+
+
+def test_los_comentarios_de_antes_son_iguales_en_todas_las_pcs():
+    from Online.feed_celular import MAX_COMENTARIOS_DETALLE, MIN_COMENTARIOS_DETALLE, FeedCelular
+    host, invitado = FeedCelular(99), FeedCelular(99)
+    host.avanzar(400)
+    for t in range(1, 401):
+        invitado.avanzar(t)
+    for a, b in zip(host.publicaciones, invitado.publicaciones):
+        uno, otro = host.comentarios_anteriores(a), invitado.comentarios_anteriores(b)
+        assert MIN_COMENTARIOS_DETALLE <= len(uno) <= MAX_COMENTARIOS_DETALLE
+        assert [(c.autor, c.texto) for c in uno] == [(c.autor, c.texto) for c in otro]
+        assert all(c.autor != a.autor for c in uno)
+
+
+def test_clic_abre_la_publicacion_comenta_y_esc_vuelve(correr, red_real):
+    servidor, _ = red_real
+    red = _red_con_servidor(servidor, cuando=10_000, espejo=False)
+    vistos = {}
+
+    def guion(n, loc):
+        celular = loc["celular"]
+        if n == 3:
+            _tecla(pygame.K_c)
+        if n == 12:
+            dibujo = celular._dibujado
+            _clic(dibujo.reposts[0][1].center)
+            vistos["id"] = dibujo.publicaciones[0][0]
+            _clic(dibujo.publicaciones[0][1].center)
+        if n == 15:
+            vistos["abierta"] = celular.estado.publicacion_abierta
+            vistos["repost"] = set(celular.estado.reposts)
+            _texto("cierto")
+            _tecla(pygame.K_c)  # al comentar, la C no cierra el celular
+            _tecla(pygame.K_RETURN)
+        if n == 18:
+            _tecla(pygame.K_ESCAPE)  # vuelve al feed, no cierra
+        if n == 20:
+            vistos["fin"] = (celular.abierto, celular.estado.publicacion_abierta, celular.estado.comentarios_propios)
+            return True
+        return False
+
+    correr(red, guion, id_local=0, preparar=_impostor_j2)
+    assert vistos["abierta"] == vistos["id"] and len(vistos["repost"]) == 1
+    assert vistos["fin"][:2] == (True, None)
+    assert [texto for texto, _ in vistos["fin"][2][vistos["id"]]] == ["cierto"]

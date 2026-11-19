@@ -312,11 +312,18 @@ class ControlCelular:
     def _tecla(self, evento):
         tecla = evento.key
         if tecla == pygame.K_ESCAPE:
-            self._cerrar()
+            if self.estado.comentando:
+                self.estado.cerrar_publicacion()  # de la publicación abierta, Esc vuelve al feed
+            else:
+                self._cerrar()
         elif tecla == pygame.K_TAB:
             self.estado.cambiar_app()
-        elif tecla == TECLA_CELULAR and self.estado.app == FEED:
-            self._cerrar()  # en el Chat la "c" se escribe (llega como TEXTINPUT)
+        elif self.estado.comentando and tecla == pygame.K_BACKSPACE:
+            self.estado.borrar()
+        elif self.estado.comentando and tecla in TECLAS_ENVIAR:
+            self._comentar()
+        elif tecla == TECLA_CELULAR and self.estado.app == FEED and not self.estado.comentando:
+            self._cerrar()  # en el Chat y al comentar la "c" se escribe (llega como TEXTINPUT)
         elif tecla == pygame.K_UP:
             self._desplazar_lista(-PASO_FLECHA)
         elif tecla == pygame.K_DOWN:
@@ -336,8 +343,14 @@ class ControlCelular:
     def _texto(self, texto):
         if self.estado.debe_ignorar_texto(texto):
             return  # la "c" con la que se abrió
-        if self.estado.app == CHAT and self._escribe():
+        if self.estado.comentando or (self.estado.app == CHAT and self._escribe()):
             self.estado.escribir(texto)
+
+    def _comentar(self):
+        """Comentario propio en la publicación abierta (solo en esta PC): sube
+        el contador de comentarios con su "+1" y entra arriba de la lista."""
+        if self.canal is not None:
+            self.estado.comentar(self.canal.segundos())
 
     def _clic(self, posicion):
         render = _render()
@@ -349,14 +362,23 @@ class ControlCelular:
         elif accion == render.PESTANA:
             self.estado.cambiar_app(dato)
         elif accion == render.ENVIAR:
-            self._enviar_lo_escrito()
+            if self.estado.comentando:
+                self._comentar()
+            else:
+                self._enviar_lo_escrito()
         elif accion == render.RESPUESTA:
             self._enviar_respuesta(dato)
         elif accion == render.ME_GUSTA:
             self.estado.alternar_me_gusta(dato)
+        elif accion == render.COMPARTIR:
+            self.estado.alternar_repost(dato)
+        elif accion == render.ABRIR:
+            self.estado.abrir_publicacion(dato)
+        elif accion == render.VOLVER:
+            self.estado.cerrar_publicacion()
         elif accion == render.NUEVAS:
             self.estado.ir_a_lo_nuevo()
-        elif accion == render.ENTRADA:
+        elif accion == render.ENTRADA and not self.estado.comentando:
             self.estado.cambiar_app(CHAT)
 
     def _boton_mando(self, boton):

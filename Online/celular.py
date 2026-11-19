@@ -33,6 +33,8 @@ APPS = (FEED, CHAT)
 
 DURACION_APERTURA = 0.22  # s de la animación de abrir/cerrar (deslizarse desde abajo)
 DURACION_CIFRA = 0.9  # s que dura el "+N" de una estadística que subió
+DURACION_GOLPE = 0.45  # s que "salta" el corazón o el repost al tocarlo
+DETALLE = "detalle"  # para limitar_scroll: la publicación abierta (no es una app, vive dentro de Inicio)
 VENTANA_TRAGAR_TECLA = 0.25  # s: el TEXTINPUT de la letra con que se abrió se ignora
 LARGO_MAXIMO_POR_DEFECTO = 80  # la fachada pasa chat_celular.MAX_LARGO_MENSAJE_CELULAR
 
@@ -126,6 +128,12 @@ class Celular:
         self.reloj = 0.0
         self.respuesta_rapida = 0
         self.me_gusta = set()
+        self.reposts = set()  # ids de publicaciones que esta PC compartió (repost)
+        self.golpes = {}  # (id, 0 me gusta / 1 repost) -> reloj del clic: animación del ícono que "salta"
+        self.publicacion_abierta = None  # id de la publicación abierta (vista con todos sus comentarios) o None
+        self.scroll_detalle = 0.0  # px desplazados desde arriba en esa vista
+        self.texto_comentario = ""  # lo que se está escribiendo como comentario
+        self.comentarios_propios = {}  # id -> [(texto, segundos del feed)] comentarios de esta PC
         self.publicaciones_vistas = 0
         self.mensajes_vistos = None
         self.ancla_feed = None
@@ -191,21 +199,34 @@ class Celular:
         self._letra_a_tragar = None
         return True
 
+    @property
+    def comentando(self):
+        """Hay una publicación abierta en Inicio: lo que se escribe es un comentario."""
+        return self.app == FEED and self.publicacion_abierta is not None
+
     def escribir(self, texto):
         """Agrega `texto` sin saltos de línea ni caracteres de control, sin
-        pasar de largo_maximo. True si se agregó algo."""
+        pasar de largo_maximo, a la caja que se ve (chat o comentario). True
+        si se agregó algo."""
         if not isinstance(texto, str):
             return False
         limpio = "".join(c for c in texto if c.isprintable())
-        espacio = self.largo_maximo - len(self.texto)
+        actual = self.texto_comentario if self.comentando else self.texto
+        espacio = self.largo_maximo - len(actual)
         if not limpio or espacio <= 0:
             return False
-        self.texto += limpio[:espacio]
+        if self.comentando:
+            self.texto_comentario += limpio[:espacio]
+        else:
+            self.texto += limpio[:espacio]
         return True
 
     def borrar(self):
-        """Retroceso: quita la última letra."""
-        self.texto = self.texto[:-1]
+        """Retroceso: quita la última letra de la caja que se ve."""
+        if self.comentando:
+            self.texto_comentario = self.texto_comentario[:-1]
+        else:
+            self.texto = self.texto[:-1]
 
     def tomar_mensaje(self):
         """Enter: devuelve lo escrito (sin espacios en los extremos) y vacía la
@@ -213,6 +234,52 @@ class Celular:
         mensaje = self.texto.strip()
         self.texto = ""
         return mensaje or None
+
+    # ------------------------------------------------------------------
+    # Publicación abierta, comentarios propios, repost y la animación del clic
+    # ------------------------------------------------------------------
+
+    def abrir_publicacion(self, id_publicacion):
+        """Abre la publicación: se ve completa con todos sus comentarios."""
+        self.app = FEED
+        self.publicacion_abierta = id_publicacion
+        self.scroll_detalle = 0.0
+
+    def cerrar_publicacion(self):
+        """Vuelve al feed (el borrador del comentario se conserva)."""
+        self.publicacion_abierta = None
+
+    def comentar(self, segundos):
+        """Enter con una publicación abierta: guarda el comentario propio con el
+        reloj del feed. Devuelve el texto, o None si la caja estaba vacía."""
+        texto = " ".join(self.texto_comentario.split())
+        if not texto or self.publicacion_abierta is None:
+            return None
+        self.texto_comentario = ""
+        self.comentarios_propios.setdefault(self.publicacion_abierta, []).append((texto, _numero(segundos)))
+        self.scroll_detalle = 0.0  # para ver el comentario recién puesto
+        return texto
+
+    def alternar_repost(self, id_publicacion):
+        """Compartir (repost) propio: pone o quita, con su animación. O(1)."""
+        if id_publicacion in self.reposts:
+            self.reposts.discard(id_publicacion)
+            return False
+        self.reposts.add(id_publicacion)
+        self.golpes[(id_publicacion, 1)] = self.reloj
+        return True
+
+    def golpe(self, clave):
+        """Animación del ícono tocado (me gusta o repost): fracción 0..1 que
+        avanza durante DURACION_GOLPE s, o None si no hay (o reducir_movimiento)."""
+        inicio = self.golpes.get(clave)
+        if inicio is None or self.reducir_movimiento:
+            return None
+        avance = (self.reloj - inicio) / DURACION_GOLPE
+        if avance >= 1.0:
+            del self.golpes[clave]
+            return None
+        return max(0.0, avance)
 
     # ------------------------------------------------------------------
     # Desplazamiento
@@ -223,7 +290,9 @@ class Celular:
         los mensajes viejos. Nunca queda negativo; el máximo lo pone
         limitar_scroll (lo llama el dibujo, que sabe cuánto mide la lista)."""
         delta = _numero(delta_px)
-        if self.app == CHAT:
+        if self.comentando:
+            self.scroll_detalle = max(0.0, self.scroll_detalle + delta)
+        elif self.app == CHAT:
             self.scroll_chat = max(0.0, self.scroll_chat + delta)
         else:
             self.scroll_feed = max(0.0, self.scroll_feed + delta)
@@ -231,7 +300,9 @@ class Celular:
     def limitar_scroll(self, app, alto_contenido, alto_visible):
         """Deja el desplazamiento de `app` entre 0 y lo que sobra de la lista."""
         maximo = max(0.0, _numero(alto_contenido) - _numero(alto_visible))
-        if app == CHAT:
+        if app == DETALLE:
+            self.scroll_detalle = min(max(0.0, self.scroll_detalle), maximo)
+        elif app == CHAT:
             self.scroll_chat = min(max(0.0, self.scroll_chat), maximo)
         elif app == FEED:
             self.scroll_feed = min(max(0.0, self.scroll_feed), maximo)
@@ -256,6 +327,7 @@ class Celular:
             self.me_gusta.discard(id_publicacion)
             return False
         self.me_gusta.add(id_publicacion)
+        self.golpes[(id_publicacion, 0)] = self.reloj
         return True
 
     def mover_respuesta(self, paso, cantidad):

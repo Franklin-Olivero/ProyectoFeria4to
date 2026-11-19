@@ -582,7 +582,9 @@ Tests: `tests/test_lobby_online_hotel.py` (sala, se llega a cada estación, arte
 ### Qué hace
 - Botón **CELULAR** (tecla **C**, clic, o **Share** en el control de PS4) en el modo Online: en la sala de espera y en la partida (ciudad, mazmorra y jefe). Con el celular cerrado, el botón muestra una **insignia roja** con los mensajes sin leer; cuando otro jugador escribe sale un **globo** junto al botón ("J2 · Candidato: hola") y suena `notificacion`.
 - Al abrirlo sale un celular (el mismo estilo que la terminal tipo celular) con la app **Civitas** y dos pestañas:
-  - **Inicio (feed en vivo):** arriba una **transmisión EN VIVO** (título, foto, "N mil viendo" que sube y un mini chat con mensajes aleatorios que van llegando). Debajo, publicaciones de ciudadanos, cuentas oficiales, rumores y campañas con **me gusta, compartidos y comentarios que suben en vivo**: el número salta cada fracción de segundo y sale un "+N" que sube y se desvanece. Bajo cada publicación, el último comentario. Arriba bajan banners de notificación ("Hugo Salas le dio me gusta a una publicación", "Tendencia en Ciudad Nova: #VerificaAntesDeCompartir"). Clic en el corazón = me gusta propio (solo en esta PC).
+  - **Inicio (feed en vivo):** arriba una **transmisión EN VIVO** (título, foto, "N mil viendo" que sube y un mini chat con mensajes aleatorios que van llegando). Debajo, publicaciones de ciudadanos, cuentas oficiales, rumores y campañas con **me gusta, compartidos y comentarios que suben en vivo**: el número salta cada fracción de segundo y sale un "+N" que sube y se desvanece. Bajo cada publicación, el último comentario. Arriba bajan banners de notificación ("Hugo Salas le dio me gusta a una publicación", "Tendencia en Ciudad Nova: #VerificaAntesDeCompartir").
+  - **Me gusta y repost propios:** clic en el corazón o en el ícono de compartir. El ícono se llena con su color (rojo / cian), "salta" (crece y vuelve, con un anillo que se abre) y su número sube con el "+1". Otro clic lo quita. Son solo de esta PC.
+  - **Abrir una publicación:** clic en la tarjeta. Se ve completa con **todos sus comentarios** (8 a 14 "de antes", más los que siguen llegando en vivo, que entran deslizándose) y abajo una caja **"Escribe un comentario..."**: Enter (o el botón) lo publica arriba de la lista como "Tú", y el contador de comentarios sube con su "+1". Esc o la flecha "<" vuelven al feed. Los comentarios propios se ven solo en esta PC.
   - **Chat:** chat de texto con los jugadores conectados, con su color y su muñeco vestido. Burbujas propias a la derecha (violeta), ajenas a la izquierda, avisos del sistema en gris ("J3 entró a la sala"). Respuestas rápidas clicables: ¡Hola!, ¡Vamos!, Ayuda, Cuidado. El **expulsado** por votación (fantasma) solo lee: el host además lo silencia.
 - **Con el celular abierto tu personaje se queda quieto** (no camina ni dispara), pero el mundo sigue: es Online, nadie pausa (en el host el combate de todos sigue corriendo). En la mazmorra y el jefe sale una franja ámbar: "Sigues en la mazmorra: tu personaje está quieto".
 - Se cierra solo si empieza una reunión, una publicación del sabotaje, un diálogo, la pausa o la terminal.
@@ -596,6 +598,8 @@ Tests: `tests/test_lobby_online_hotel.py` (sala, se llega a cada estación, arte
 | Desplazar | rueda, ↑ ↓, RePág / AvPág, Inicio/Fin = a lo nuevo | cruceta ↑ ↓ |
 | Escribir / enviar | teclas / Enter o clic en enviar, Retroceso borra | — |
 | Respuesta rápida | clic en el chip | cruceta ← → y ✕ |
+| Me gusta / repost | clic en el corazón / en compartir | — |
+| Abrir publicación / comentar / volver | clic en la tarjeta / escribir + Enter / Esc o "<" | — |
 
 La "c" con la que se abre no se escribe en el chat (se traga ese TEXTINPUT durante 0.25 s). Con el celular abierto, R, Q, E, Esc y Enter son del celular: no convocan, no sabotean, no entran, no pausan y en la sala no inician ni salen.
 
@@ -619,6 +623,8 @@ La "c" con la que se abre no se escribe en el chat (se traga ese TEXTINPUT duran
 - **MinHeap** (`src/structures/min_heap.py`) como **cola de prioridad de eventos** del feed (`Online/feed_celular.py`): cada evento (publicación nueva, comentario, mensaje en vivo, notificación, nueva transmisión) va con su instante; `avanzar(t)` saca en orden los que ya tocan, O(log n) cada uno. El azar solo se usa al procesar eventos, en orden fijo: por eso da igual llegar a `t` en un paso o en mil, y todas las PCs coinciden.
 - **Cola acotada** (`deque`) del chat ordenada por número + un **conjunto** de números: "¿ya lo tengo?" en O(1), descartar el más viejo en O(1) (`Online/chat_celular.py`).
 - **Conjuntos** de silenciados y de "me gusta" propios: O(1). **Diccionario** autor → último mensaje (anti-spam) y diccionario de cifras animadas usado como caché LRU (`Online/celular.py`).
+- **Comentarios "de antes"** de una publicación (`FeedCelular.comentarios_anteriores`): se generan con un `random.Random` propio sembrado con (semilla del feed, id de la publicación). No gastan el azar de la simulación, así el feed no cambia, y salen iguales en todas las PCs y cada vez que se abre. O(k) con k ≤ 14.
+- **Conjuntos** `me_gusta` y `reposts`, **diccionario** id → comentarios propios y diccionario de "golpes" (clave → instante del clic) para la animación del ícono (`Online/celular.py`).
 - Las estadísticas son una función pura y no decreciente del tiempo: `base + objetivo·(1 − e^(−edad/τ)) + goteo·tick`, por "ticks" de 0.35–0.9 s para que salten como en vivo.
 
 ### Archivos
