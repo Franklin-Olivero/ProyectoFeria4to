@@ -36,6 +36,9 @@ from Online import sala_hotel, sala_hotel_render
 from Online.personalizacion import PESTANAS, Vestidor
 from Online.personalizacion_render import CERRAR, FUERA, OPCION, PESTANA, dibujar_vestidor, objetivo_en
 from Online import firewall, registro_errores
+from Online.celular import Perfil
+from Online.celular_partida import ControlCelular
+from Online.disposicion_celular import SALA
 from Online.red_local import CONSEJOS, OTRO, InfoRed, MedidorInternet, formatear_ms
 from Online.protocolo import (
     ROLES, GrafoSala, ELEGIR_ROL, INICIAR, LOBBY, ESTADO, POSICION_LOBBY,
@@ -321,6 +324,9 @@ def pantalla_sala_espera(pantalla, reloj, presentar, clases_rol, es_host, conexi
     timer_pos_red = 0.0
     aviso_temporal = ""
     aviso_timer = 0.0
+    # Celular (Online/celular_partida.py): feed en vivo y chat de la sala.
+    celular = ControlCelular.para_sala(conexion, lambda jid: _perfil_sala(conexion.sala, jid),
+                                       reducir_movimiento=cargar_preferencias().reducir_movimiento)
 
     while True:
         dt = reloj.tick(FPS) / 1000
@@ -377,6 +383,10 @@ def pantalla_sala_espera(pantalla, reloj, presentar, clases_rol, es_host, conexi
                 elif accion == CERRAR_VESTIDOR:
                     pestana_vestidor = vestidor.pestana
                     vestidor = None
+                continue
+
+            # Con el celular abierto, el teclado y el ratón son suyos (Esc lo cierra, no sale de la sala).
+            if celular.manejar_evento(evento, vestidor is None and not modal_roles_abierto, SALA):
                 continue
 
             if evento.type == pygame.MOUSEBUTTONDOWN and evento.button == 1:
@@ -454,7 +464,8 @@ def pantalla_sala_espera(pantalla, reloj, presentar, clases_rol, es_host, conexi
                         _actualizar_rol(es_host, conexion, id_local, rol_local)
 
         # 3. Movimiento del jugador local
-        if not modal_roles_abierto and vestidor is None:
+        celular.actualizar(dt, vestidor is None and not modal_roles_abierto, SALA)
+        if not modal_roles_abierto and vestidor is None and not celular.abierto:
             teclas = pygame.key.get_pressed()
             dx, dy = 0.0, 0.0
             if teclas[pygame.K_w] or teclas[pygame.K_UP]:
@@ -550,7 +561,10 @@ def pantalla_sala_espera(pantalla, reloj, presentar, clases_rol, es_host, conexi
             if diagnostico is not None and diagnostico.firewall is not None \
                     and diagnostico.firewall.estado != firewall.NO_APLICA:
                 controles.insert(3, ("F", "firewall"))
+            controles.insert(-1, ("C", "celular"))
         hud.dibujar_barra_controles(pantalla, controles)
+        # El celular encima de todo (abierto, dibuja su propia barra de controles).
+        celular.dibujar(pantalla, vestidor is None and not modal_roles_abierto, SALA)
 
         presentar()
 
@@ -571,6 +585,14 @@ def _actualizar_apariencia(es_host, conexion, apariencia):
         conexion.enviar_a_todos(msg_lobby(conexion.sala.a_dict()))
     else:
         conexion.enviar_apariencia(apariencia)
+
+
+def _perfil_sala(sala, jid):
+    """Cómo se ve un jugador de la sala en el chat del celular: "J2 · Candidato"
+    con el color de su rol y la ropa de los vestidores."""
+    rol = sala.rol_de(jid) or "Ciudadano"
+    info = ROLES_INFO.get(rol, ROLES_INFO["Ciudadano"])
+    return Perfil(f"J{jid + 1} · {rol}", info["color"], info["rol"], sala.apariencia_de(jid))
 
 
 def _caja_cercana(x, y):
