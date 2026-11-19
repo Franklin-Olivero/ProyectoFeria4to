@@ -17,6 +17,7 @@ Tipos de mensaje (campo "tipo"):
     ESTADO        — snapshot del estado del juego (posiciones, vidas...)
     DESCONEXION   — un jugador se fue
     PING / PONG   — latencia
+    CELULAR       — celular: chat de la sala y semilla + reloj del feed en vivo (Online/chat_celular.py)
 
 La estructura de datos clave aquí es el **grafo de sala**: un grafo no
 dirigido donde cada nodo es un jugador conectado y cada arista indica
@@ -61,6 +62,7 @@ DECISION_NAV = "DECISION_NAV"
 HISTORIA = "HISTORIA"  # un invitado decide en su crisis: el host fija la reputación
 REUNION = "REUNION"  # reunión de emergencia: convocar, votar o escribir en el chat (Online/reunion.py)
 SABOTAJE = "SABOTAJE"  # el impostor aprieta SABOTEAR: publicación viral para todos (Online/post_sabotaje.py)
+CELULAR = "CELULAR"  # celular: "sync" al conectarse y "chat" de la sala (Online/chat_celular.py)
 
 # --- Roles (mismos nombres que las clases del juego) ---------------------
 
@@ -296,5 +298,11 @@ def msg_reunion(evento, id_jugador=None, **datos):
 
 def msg_sabotaje(id_jugador=None):
     return serializar(crear_mensaje(SABOTAJE, id=id_jugador))
+
+
+def msg_celular(evento, **datos):
+    """Celular: `evento` EVENTO_SYNC (host -> invitado: semilla, t, chat) o
+    EVENTO_CHAT (invitado -> host: texto; host -> todos: m)."""
+    return serializar(crear_mensaje(CELULAR, evento=evento, **datos))
 
 
