@@ -71,6 +71,7 @@ class Servidor:
         self._lock = threading.RLock()
         self._proximo_ping = 0.0
         self.celular = CanalCelular()  # celular: chat de la sala y semilla + reloj del feed (los lleva el host)
+        self._presentes_chat = set()  # ids con "entró a la sala" anunciado: su "salió" sale una sola vez
 
     def sortear_impostor(self):
         """Elige al impostor al azar entre los vértices del grafo de sala:
@@ -454,6 +455,72 @@ class Servidor:
                 pass
         self.mensajes_host.append({"tipo": DESCONEXION, "id": jid})
         self.mensajes_host.append({"tipo": LOBBY, "sala": self.sala.a_dict()})
+        if jid in self._presentes_chat:
+            # Celular: "J2 salió de la sala" a los que quedan, solo si se anunció
+            # que entró (y una vez: su desconexión puede notarse dos veces).
+            self._presentes_chat.discard(jid)
+            self._anunciar_en_chat(SISTEMA_SALIO, jid)
+
+    # ------------------------------------------------------------------
+    # Celular (Online/chat_celular.py): el chat de la sala lo lleva el host
+    # ------------------------------------------------------------------
+
+    def _publicar_chat(self, autor, texto):
+        """Publica en el chat del celular (CanalCelular.publicar limpia, aplica
+        el anti-spam y los silenciados y numera) y lo difunde a TODOS los
+        invitados, también a quien lo escribió: así cada uno lo ve en su
+        historial con el número que le dio el host. Publicar y difundir van
+        bajo el mismo lock: los mensajes salen por la red en el orden de sus
+        números aunque escriban a la vez el host (hilo de pygame) y un
+        invitado (hilo de red). Nunca lanza: el celular no rompe el servidor."""
+        try:
+            with self._lock:
+                mensaje = self.celular.publicar(autor, texto)
+                if mensaje is None:
+                    return False
+                self.enviar_a_todos(msg_celular(EVENTO_CHAT, m=mensaje.a_dict()))
+                return True
+        except Exception:
+            registro_errores.registrar("Servidor._publicar_chat")
+            return False
+
+    def _sincronizar_celular(self, sock, nuevo_id):
+        """Al conectarse un invitado (con el lock tomado): le manda el SYNC del
+        celular (semilla, reloj e historial del chat) y anuncia a todos que
+        entró. False si su socket falló: ya quedó desconectado, como cuando
+        falla la BIENVENIDA."""
+        try:
+            enviar_todo(sock, msg_celular(EVENTO_SYNC, **self.celular.a_sync()))
+        except OSError:
+            self._desconectar_cliente_interno(nuevo_id)
+            return False
+        except Exception:
+            registro_errores.registrar("Servidor._sincronizar_celular")  # sin celular, la conexión sigue
+        if self._anunciar_en_chat(SISTEMA_ENTRO, nuevo_id):
+            self._presentes_chat.add(nuevo_id)
+        return True
+
+    def _anunciar_en_chat(self, tipo, id_jugador):
+        """Mensaje del sistema del celular ("J2 entró / salió de la sala") en el
+        chat y a todos los conectados. Se llama con el lock tomado, en medio de
+        una conexión o de una desconexión: manda socket por socket ignorando
+        los errores (como el LOBBY de esas funciones) y NUNCA llama a
+        enviar_a_todos, que al fallar un envío desconectaría a otro dentro de
+        esta desconexión (anidadas). True si el mensaje se publicó."""
+        try:
+            mensaje = self.celular.publicar(id_jugador, "", tipo)
+            if mensaje is None:
+                return False
+            datos = msg_celular(EVENTO_CHAT, m=mensaje.a_dict())
+            for sock in list(self._clientes.values()):
+                try:
+                    enviar_todo(sock, datos)
+                except OSError:
+                    pass  # ese socket lo cierra después el bucle que lee
+            return True
+        except Exception:
+            registro_errores.registrar("Servidor._anunciar_en_chat")
+            return False
 
 
 def _ip_local():

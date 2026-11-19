@@ -87,7 +87,8 @@ from src.ui.pantalla_resultado import ResultadoMazmorra
 # Se sube cuando cambia lo que viaja por la red: el invitado la manda en su
 # INPUT y el host en el ESTADO; si no coinciden, Main avisa que hay PCs con
 # otro código (p. ej. una laptop sin actualizar).
-VERSION_ESTADO = 4  # 4: viaja la vida de las coberturas ("cob")
+# 4: viaja la vida de las coberturas ("cob").
+VERSION_ESTADO = 5  # 5: celular (mensaje CELULAR: chat de la sala y feed en vivo)
 INTERVALO_REPORTE_CIUDAD_S = 1 / 30  # el invitado avisa su posición en la ciudad ~30 veces por s
 REPETIR_PEDIDO_ZONA_S = 0.5  # no repetir el mismo pedido de entrada antes de esto
 MAX_PROYECTILES_RED = 120  # tope de proyectiles enemigos por estado (el jefe usa hasta 40)
@@ -639,7 +640,9 @@ class EntradaRed:
 
 class EntradaTecladoRed(EntradaTeclado):
     """Host: el teclado+mouse del J1 o control de PS4 si está conectado.
-    Guarda el último pedido y cuenta sus pulsos para mandárselo a los invitados."""
+    Guarda el último pedido y cuenta sus pulsos para mandárselo a los invitados.
+    Con `bloqueada` (celular abierto, Online/celular_partida.py) el pedido es
+    quieto: el personaje no camina ni dispara, pero el mundo sigue."""
 
     def __init__(self, mando=None):
         super().__init__()
@@ -649,6 +652,7 @@ class EntradaTecladoRed(EntradaTeclado):
         self.ultimo = None
         self.pulsos_habilidad = 0
         self.pulsos_dash = 0
+        self.bloqueada = False  # Online: con el celular abierto el teclado y el control son del celular
 
     def leer(self, teclas=None, botones_mouse=None, punto_mouse=None):
         if teclas is None:
@@ -676,6 +680,12 @@ class EntradaTecladoRed(EntradaTeclado):
             except Exception:
                 pass
 
+        if self.bloqueada:
+            # Online: celular abierto. Se leyó igual (los pulsos recuerdan qué
+            # está apretado: si al cerrarlo sigue abajo la F con que se escribió,
+            # no dispara la habilidad), pero el pedido de este frame es quieto.
+            pedido = InputJugador()
+
         self.ultimo = pedido
         self.pulsos_habilidad += bool(pedido.habilidad)
         self.pulsos_dash += bool(pedido.dash)
@@ -684,7 +694,8 @@ class EntradaTecladoRed(EntradaTeclado):
 
 class EntradaLocalCliente(EntradaTeclado):
     """Entrada del jugador local en la máquina invitada: lee teclado/mouse
-    o control de PS4, y en cada frame manda el pedido (y su posición) al host."""
+    o control de PS4, y en cada frame manda el pedido (y su posición) al host.
+    Con `bloqueada` (celular abierto) el pedido es quieto aquí y en el host."""
 
     def __init__(self, adaptador, id_jugador=1, mando=None):
         super().__init__()
@@ -695,6 +706,7 @@ class EntradaLocalCliente(EntradaTeclado):
         self._mando_lector = EntradaMando(self.mando) if (real_mando is not None and hasattr(real_mando, "attached")) else None
         self.pulsos_habilidad = 0
         self.pulsos_dash = 0
+        self.bloqueada = False  # Online: con el celular abierto el teclado y el control son del celular
 
     def leer(self, teclas=None, botones_mouse=None, punto_mouse=None):
         try:
@@ -719,6 +731,11 @@ class EntradaLocalCliente(EntradaTeclado):
                     pedido = pedido_mando
         except Exception:
             registro_errores.registrar("EntradaLocalCliente.leer")
+            pedido = InputJugador()
+
+        if self.bloqueada:
+            # Online: celular abierto. Quieto, y se le manda igual al host para
+            # que también lo vea quieto (no con el último pedido que le llegó).
             pedido = InputJugador()
 
         self.pulsos_habilidad += bool(pedido.habilidad)
@@ -1120,6 +1137,7 @@ class AdaptadorOnlineHost(_AdaptadorBase):
         try:
             self._escena = escena
             self.reuniones.actualizar(dt, self._es_impostor, len(jugadores or ()))
+            self._silenciar_expulsados_en_celular()
             cerrado = self.sabotajes.actualizar(0.0 if self.reuniones.en_curso else dt)
             if cerrado is not None:
                 self._aplicar_resultado_sabotaje(cerrado, partida)
@@ -1129,6 +1147,19 @@ class AdaptadorOnlineHost(_AdaptadorBase):
         except Exception:
             registro_errores.registrar("AdaptadorOnlineHost.actualizar")
             return escena, arena, mazmorra, fundido
+
+    def _silenciar_expulsados_en_celular(self):
+        """Celular: el expulsado por votación no escribe en el chat de la sala;
+        lo hace cumplir el host (CanalCelular.publicar rechaza a los
+        silenciados). Los expulsados son índices de `jugadores` y el chat usa
+        ids de red. Con su propio try: si fallara, el frame sigue igual."""
+        canal = getattr(self.servidor, "celular", None)
+        if canal is None:
+            return
+        try:
+            canal.silenciados = {self._id_de_indice(i) for i in self.reuniones.expulsados}
+        except Exception:
+            registro_errores.registrar("AdaptadorOnlineHost.celular")
 
     def _actualizar(self, escena, arena, mazmorra, fundido, sesion, partida, jugadores):
         self._preparar_frame(sesion, partida, jugadores)
