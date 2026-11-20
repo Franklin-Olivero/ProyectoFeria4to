@@ -43,18 +43,22 @@ from collections import deque
 from dataclasses import dataclass
 
 MAX_LARGO_MENSAJE_CELULAR = 80
-MAX_MENSAJES_CELULAR = 60
+MAX_MENSAJES_CELULAR = 200  # chats privados, el de la sala y los comentarios de las publicaciones
 INTERVALO_MINIMO_CHAT_S = 0.3  # anti-spam por autor: lo aplica el host
 
 # Tipos de mensaje del chat.
 JUGADOR = "jugador"  # lo escribió un jugador
 SISTEMA_ENTRO = "entro"  # "J3 entró a la sala" (autor = quien entró)
 SISTEMA_SALIO = "salio"  # "J3 salió de la sala" (autor = quien salió)
-TIPOS_MENSAJE = (JUGADOR, SISTEMA_ENTRO, SISTEMA_SALIO)
+COMENTARIO = "comentario"  # comentario de un jugador en una publicación del feed (lo ven todos)
+TIPOS_MENSAJE = (JUGADOR, SISTEMA_ENTRO, SISTEMA_SALIO, COMENTARIO)
+TIPOS_CON_TEXTO = (JUGADOR, COMENTARIO)
+SALA = "sala"  # la conversación de todos (un mensaje sin destino)
 
 # Eventos del mensaje CELULAR (campo "evento").
 EVENTO_SYNC = "sync"  # host -> invitado al conectarse: semilla, reloj e historial
-EVENTO_CHAT = "chat"  # invitado -> host: {"texto"}; host -> todos: {"m": dict del mensaje}
+EVENTO_CHAT = "chat"  # invitado -> host: {"texto", "para"?}; host -> todos (o los dos del privado): {"m"}
+EVENTO_COMENTARIO = "comentario"  # invitado -> host: {"pub", "texto"}; vuelve como EVENTO_CHAT a todos
 
 LIMITE_ID_RED = 16  # ids de red válidos: 0..15 (la sala usa 0..3; mismo margen que Online/reunion.py)
 # Un SYNC con un reloj mayor (más de un día de sala abierta) es basura: el
@@ -98,10 +102,32 @@ class MensajeChat:
     texto: str  # limpio ("" en los del sistema)
     segundos: float  # reloj del celular (CanalCelular.segundos()) cuando el host lo publicó
     tipo: str = JUGADOR
+    destino: int | None = None  # chat privado: id de red de quien lo recibe (None = toda la sala)
+    publicacion: int | None = None  # COMENTARIO: id de la publicación del feed (igual en todas las PCs)
 
     def a_dict(self):
         """Lo que viaja por la red (claves cortas, como el ESTADO)."""
-        return {"n": self.numero, "a": self.autor, "t": self.texto, "s": round(self.segundos, 2), "k": self.tipo}
+        datos = {"n": self.numero, "a": self.autor, "t": self.texto, "s": round(self.segundos, 2), "k": self.tipo}
+        if self.destino is not None:
+            datos["d"] = self.destino
+        if self.publicacion is not None:
+            datos["p"] = self.publicacion
+        return datos
+
+    def visible_para(self, id_red):
+        """¿Lo puede ver `id_red`? Los privados, solo sus dos jugadores."""
+        return self.destino is None or id_red in (self.autor, self.destino)
+
+    def conversacion(self, id_local):
+        """En qué chat de `id_local` va: SALA, el id del otro jugador (privado)
+        o None (no es suyo, o es un comentario de una publicación)."""
+        if self.tipo == COMENTARIO:
+            return None
+        if self.destino is None:
+            return SALA
+        if self.autor == id_local:
+            return self.destino
+        return self.autor if self.destino == id_local else None
 
     @staticmethod
     def de_dict(datos):
@@ -110,10 +136,11 @@ class MensajeChat:
         a limpiar."""
         if not isinstance(datos, dict):
             return None
-        return _crear_mensaje(datos.get("n"), datos.get("a"), datos.get("t"), datos.get("s"), datos.get("k"))
+        return _crear_mensaje(datos.get("n"), datos.get("a"), datos.get("t"), datos.get("s"), datos.get("k"),
+                              datos.get("d"), datos.get("p"))
 
 
-def _crear_mensaje(numero, autor, texto, segundos, tipo):
+def _crear_mensaje(numero, autor, texto, segundos, tipo, destino=None, publicacion=None):
     """El MensajeChat validado, o None. Un solo lugar con las reglas: lo usan
     el host al publicar y el invitado al recibir, así lo que publica uno el
     otro siempre lo acepta."""
@@ -123,10 +150,18 @@ def _crear_mensaje(numero, autor, texto, segundos, tipo):
         return None
     if not _es_numero_finito(segundos) or tipo not in TIPOS_MENSAJE:
         return None
-    texto = limpiar_texto(texto) if tipo == JUGADOR else ""
-    if tipo == JUGADOR and not texto:
+    if destino is not None and (tipo != JUGADOR or not _es_entero(destino) or not 0 <= destino < LIMITE_ID_RED
+                                or destino == autor):
         return None
-    return MensajeChat(numero, autor, texto, float(segundos), tipo)
+    if tipo == COMENTARIO:
+        if not _es_entero(publicacion) or publicacion < 1:
+            return None
+    else:
+        publicacion = None
+    texto = limpiar_texto(texto) if tipo in TIPOS_CON_TEXTO else ""
+    if tipo in TIPOS_CON_TEXTO and not texto:
+        return None
+    return MensajeChat(numero, autor, texto, float(segundos), tipo, destino, publicacion)
 
 
 class HistorialChat:
@@ -146,10 +181,10 @@ class HistorialChat:
         self._cola = deque()
         self._numeros = set()
 
-    def publicar(self, autor, texto, segundos, tipo=JUGADOR):
+    def publicar(self, autor, texto, segundos, tipo=JUGADOR, destino=None, publicacion=None):
         """Host: agrega un mensaje con el número siguiente al último. O(1).
         None si no es válido (texto vacío, autor o tipo raros): no gasta número."""
-        mensaje = _crear_mensaje(self.ultimo_numero() + 1, autor, texto, segundos, tipo)
+        mensaje = _crear_mensaje(self.ultimo_numero() + 1, autor, texto, segundos, tipo, destino, publicacion)
         if mensaje is not None:
             self._cola.append(mensaje)
             self._numeros.add(mensaje.numero)
@@ -197,23 +232,38 @@ class HistorialChat:
         """Número del mensaje más nuevo, o 0 si está vacío."""
         return self._cola[-1].numero if self._cola else 0
 
-    def no_leidos(self, leido_hasta, id_local):
+    def no_leidos(self, leido_hasta, id_local, leidos=None):
         """Mensajes de JUGADOR de OTROS autores con número > leido_hasta (la
         insignia roja del botón; los del sistema y los propios no cuentan).
         Recorre desde el más nuevo y para en el primero ya leído: O(k)."""
         if isinstance(leido_hasta, bool) or not isinstance(leido_hasta, (int, float)):
             leido_hasta = 0
+        leidos = leidos or {}
         cuenta = 0
         for mensaje in reversed(self._cola):
             if mensaje.numero <= leido_hasta:
                 break
-            if mensaje.tipo == JUGADOR and mensaje.autor != id_local:
+            conversacion = mensaje.conversacion(id_local)
+            if mensaje.tipo == JUGADOR and mensaje.autor != id_local and conversacion is not None \
+                    and mensaje.numero > leidos.get(conversacion, 0):
                 cuenta += 1
         return cuenta
 
-    def a_lista(self):
-        """[a_dict(), ...] del más viejo al más nuevo: el historial del SYNC."""
-        return [mensaje.a_dict() for mensaje in self._cola]
+    def no_leidos_por_conversacion(self, leido_hasta, id_local, leidos=None):
+        """{conversación: no leídos} de `id_local` (la insignia de cada chat). O(n)."""
+        leidos = leidos or {}
+        cuentas = {}
+        for mensaje in self._cola:
+            conversacion = mensaje.conversacion(id_local)
+            if mensaje.tipo == JUGADOR and mensaje.autor != id_local and conversacion is not None \
+                    and mensaje.numero > max(leido_hasta, leidos.get(conversacion, 0)):
+                cuentas[conversacion] = cuentas.get(conversacion, 0) + 1
+        return cuentas
+
+    def a_lista(self, para=None):
+        """[a_dict(), ...] del más viejo al más nuevo: el historial del SYNC.
+        Con `para`, sin los privados de otros (nadie recibe chats ajenos)."""
+        return [mensaje.a_dict() for mensaje in self._cola if para is None or mensaje.visible_para(para)]
 
     def __len__(self):
         return len(self._cola)
@@ -241,7 +291,8 @@ class CanalCelular:
         self._base = 0.0
         self._semilla = semilla if semilla is not None else random.randrange(1, 2**31)
         self.sincronizado = sincronizado  # host True; invitado False hasta el primer SYNC completo
-        self.leido_hasta = 0  # último número de chat que esta PC ya vio (lo mueve la interfaz)
+        self.leido_hasta = 0  # todo lo de este número o menos ya se vio (marcar_leidos sin conversación)
+        self.leidos = {}  # conversación (SALA o id del otro jugador) -> último número visto en ese chat
         self.silenciados = set()  # ids de red que no pueden escribir (host: los expulsados)
         self._historial = HistorialChat()
         self._ultimo_por_autor = {}  # anti-spam: autor -> segundos() de su último mensaje publicado
@@ -281,7 +332,7 @@ class CanalCelular:
             if semilla_valida and reloj_valido:
                 self.sincronizado = True
 
-    def publicar(self, autor, texto, tipo=JUGADOR):
+    def publicar(self, autor, texto, tipo=JUGADOR, destino=None, publicacion=None):
         """Host: publica un mensaje en el chat de la sala. Limpia el texto,
         aplica el anti-spam por autor (INTERVALO_MINIMO_CHAT_S, no a los del
         sistema), rechaza a los silenciados (solo JUGADOR), lo sella con
@@ -292,14 +343,14 @@ class CanalCelular:
             return None
         with self._lock:
             ahora = self._segundos()
-            if tipo == JUGADOR:
+            if tipo in TIPOS_CON_TEXTO:
                 if autor in self.silenciados:
                     return None
                 ultimo = self._ultimo_por_autor.get(autor)
                 if ultimo is not None and ahora - ultimo < INTERVALO_MINIMO_CHAT_S:
                     return None
-            mensaje = self._historial.publicar(autor, texto, ahora, tipo)
-            if mensaje is not None and tipo == JUGADOR:
+            mensaje = self._historial.publicar(autor, texto, ahora, tipo, destino, publicacion)
+            if mensaje is not None and tipo in TIPOS_CON_TEXTO:
                 self._ultimo_por_autor[autor] = ahora  # un mensaje rechazado no reinicia la espera
             return mensaje
 
@@ -322,17 +373,30 @@ class CanalCelular:
         with self._lock:
             return self._historial.ultimo_numero()
 
-    def no_leidos(self, id_local):
-        """Mensajes de otros jugadores que esta PC todavía no vio."""
+    def no_leidos(self, id_local, conversacion=None):
+        """Mensajes de otros jugadores que esta PC todavía no vio: en todos sus
+        chats, o solo en `conversacion` (SALA o el id del otro jugador)."""
         with self._lock:
-            return self._historial.no_leidos(self.leido_hasta, id_local)
+            if conversacion is None:
+                return self._historial.no_leidos(self.leido_hasta, id_local, self.leidos)
+            cuentas = self._historial.no_leidos_por_conversacion(self.leido_hasta, id_local, self.leidos)
+            return cuentas.get(conversacion, 0)
 
-    def marcar_leidos(self):
-        """La interfaz muestra el chat: todo lo que hay ya se vio."""
+    def no_leidos_por_conversacion(self, id_local):
         with self._lock:
-            self.leido_hasta = self._historial.ultimo_numero()
+            return self._historial.no_leidos_por_conversacion(self.leido_hasta, id_local, self.leidos)
 
-    def a_sync(self):
-        """Lo que el host le manda a un invitado al conectarse (evento SYNC)."""
+    def marcar_leidos(self, conversacion=None):
+        """La interfaz muestra un chat (sin `conversacion`: todos): lo que hay
+        ahí ya se vio."""
         with self._lock:
-            return {"semilla": self._semilla, "t": self._segundos(), "chat": self._historial.a_lista()}
+            if conversacion is None:
+                self.leido_hasta = self._historial.ultimo_numero()
+            else:
+                self.leidos[conversacion] = self._historial.ultimo_numero()
+
+    def a_sync(self, para=None):
+        """Lo que el host le manda a un invitado al conectarse (evento SYNC):
+        con `para`, sin los chats privados de otros."""
+        with self._lock:
+            return {"semilla": self._semilla, "t": self._segundos(), "chat": self._historial.a_lista(para)}

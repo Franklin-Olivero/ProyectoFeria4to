@@ -23,7 +23,7 @@ import threading
 import time
 
 from Online import red_local, registro_errores
-from Online.chat_celular import EVENTO_CHAT, EVENTO_SYNC, CanalCelular, limpiar_texto
+from Online.chat_celular import EVENTO_CHAT, EVENTO_COMENTARIO, EVENTO_SYNC, CanalCelular, limpiar_texto
 from Online.protocolo import (
     BIENVENIDA, DESCONEXION, ESTADO, GrafoSala, INICIAR, LOBBY, PING, PONG,
     POSICION_LOBBY, ENTRAR_MAZMORRA, CAMBIO_ESCENA, CAMBIO_CUARTO,
@@ -162,7 +162,7 @@ class Cliente:
         """Envía un ping para medir latencia (el host lo devuelve como PONG)."""
         self._enviar(msg_ping(ahora_ms()))
 
-    def escribir_chat(self, texto):
+    def escribir_chat(self, texto, destino=None):
         """Celular: le pide al host publicar `texto` en el chat de la sala.
         Aquí no se agrega nada al historial: el host pone el autor (el id de
         esta conexión), lo numera y lo devuelve a todos, también a esta PC.
@@ -170,8 +170,20 @@ class Cliente:
         texto = limpiar_texto(texto)
         if not texto or not self.conectado or self._socket is None:
             return False
-        self._enviar(msg_celular(EVENTO_CHAT, texto=texto))
+        if destino is None:
+            self._enviar(msg_celular(EVENTO_CHAT, texto=texto))
+        else:
+            self._enviar(msg_celular(EVENTO_CHAT, texto=texto, para=destino))  # privado con ese jugador
         return self.conectado  # False si el envío falló
+
+    def comentar(self, publicacion, texto):
+        """Celular: le pide al host publicar un comentario en la publicación
+        `publicacion` del feed (vuelve a todos, también a esta PC)."""
+        texto = limpiar_texto(texto)
+        if not texto or not self.conectado or self._socket is None:
+            return False
+        self._enviar(msg_celular(EVENTO_COMENTARIO, texto=texto, pub=publicacion))
+        return self.conectado
 
     def leer_mensajes(self):
         """Retorna y vacía la cola de mensajes recibidos."""

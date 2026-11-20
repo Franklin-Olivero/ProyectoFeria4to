@@ -63,7 +63,8 @@ ME_GUSTA = "me_gusta"
 NUEVAS = "nuevas"
 COMPARTIR = "compartir"  # repost propio
 ABRIR = "abrir"  # abrir una publicación con todos sus comentarios
-VOLVER = "volver"  # de la publicación abierta al feed
+VOLVER = "volver"  # de la publicación abierta al feed (o del chat a la lista de chats)
+CONTACTO = "contacto"  # abrir el chat con un jugador (o el de la sala)
 TECLA_BOTON = "C"
 
 # Tipos de mensaje del chat: los mismos valores que Online/chat_celular.py.
@@ -96,6 +97,10 @@ TEXTO_PUBLICACION = "Publicación"
 TEXTO_COMENTARIOS = "Comentarios"
 TEXTO_PISTA_COMENTARIO = "Escribe un comentario..."
 TEXTO_TU = "Tú"
+TEXTO_CHATS = "Chats"
+TEXTO_PRIVADO = "Chat privado"
+TEXTO_SALA_TODOS = "Todos los jugadores de la sala"
+TEXTO_SIN_CONTACTOS = "Cuando entre otro jugador a la sala, aparecerá aquí para hablar en privado."
 SUFIJO_FANTASMA = " · fantasma"
 CUENTA_OFICIAL = "@civitasoficial"  # su avatar es el retrato de Civitas (comparación sin mayúsculas)
 
@@ -219,7 +224,8 @@ class DibujoCelular:
     corazones: list = field(default_factory=list)  # [(id_publicacion, rect)]
     reposts: list = field(default_factory=list)  # [(id_publicacion, rect)] el ícono de compartir
     publicaciones: list = field(default_factory=list)  # [(id_publicacion, rect)] clic en la tarjeta = abrirla
-    volver: pygame.Rect | None = None  # flecha de la publicación abierta
+    volver: pygame.Rect | None = None  # flecha de la publicación abierta o del chat abierto
+    contactos: list = field(default_factory=list)  # [(conversación, rect)] filas de la lista de chats
     nuevas: pygame.Rect | None = None  # píldora "Nuevas publicaciones" / "Nuevos mensajes"
     textos: list = field(default_factory=list)  # [(texto_dibujado, rect, caja_permitida)]
     alto_contenido: int = 0  # alto total de la lista de la app activa
@@ -630,6 +636,11 @@ def _avatar_cuenta(nombre, usuario, radio):
     return _cachear(_cache_imagenes, ("cuenta", nombre, usuario, radio), MAX_CACHE_IMAGENES, crear)
 
 
+# rol -> recorte de la cara para la foto de perfil: el de las historias del feed,
+# más abajo y más abierto (ahí solo asoma el pelo; aquí se ve la cara completa).
+_RECORTES_RETRATO = {rol: (cx, cy + 0.10, lado * 1.6) for rol, _, (cx, cy, lado) in assets.HISTORIAS_CELULAR}
+
+
 def _avatar_jugador(perfil, diametro):
     """El muñeco del jugador (sprites.sprite_jugador a escala 2, con la ropa de
     los vestidores) recortado en un círculo con un anillo de su color. El
@@ -637,15 +648,20 @@ def _avatar_jugador(perfil, diametro):
     color = _rgb(perfil.color)
 
     def crear():
-        muneco = sprites.sprite_jugador(color, escala=2, rol=perfil.rol, apariencia=perfil.apariencia)
-        circulo = pygame.Surface((diametro, diametro), pygame.SRCALPHA)
         centro = (diametro // 2, diametro // 2)
-        pygame.draw.circle(circulo, assets.COLOR_FONDO_AVATAR_POST, centro, diametro // 2)
-        # El busto: la cabeza y los hombros quedan al centro del círculo.
-        circulo.blit(muneco, (round(centro[0] - muneco.get_width() * 0.45), round(centro[1] - muneco.get_height() * 0.36)))
-        mascara = pygame.Surface((diametro, diametro), pygame.SRCALPHA)
-        pygame.draw.circle(mascara, (255, 255, 255, 255), centro, diametro // 2)
-        circulo.blit(mascara, (0, 0), special_flags=pygame.BLEND_RGBA_MIN)
+        # Foto de perfil: el retrato del personaje que eligió (assets/sprites/retratos),
+        # con el mismo recorte de la cara que las historias del feed.
+        circulo = celular_render.retrato_redondo(perfil.rol, diametro, _RECORTES_RETRATO[perfil.rol]) \
+            if perfil.rol in _RECORTES_RETRATO else None
+        if circulo is None:  # sin retrato: el muñeco con la ropa de los vestidores
+            muneco = sprites.sprite_jugador(color, escala=2, rol=perfil.rol, apariencia=perfil.apariencia)
+            circulo = pygame.Surface((diametro, diametro), pygame.SRCALPHA)
+            pygame.draw.circle(circulo, assets.COLOR_FONDO_AVATAR_POST, centro, diametro // 2)
+            circulo.blit(muneco, (round(centro[0] - muneco.get_width() * 0.45),
+                                  round(centro[1] - muneco.get_height() * 0.36)))
+            mascara = pygame.Surface((diametro, diametro), pygame.SRCALPHA)
+            pygame.draw.circle(mascara, (255, 255, 255, 255), centro, diametro // 2)
+            circulo.blit(mascara, (0, 0), special_flags=pygame.BLEND_RGBA_MIN)
         superficie = pygame.Surface((diametro + 4, diametro + 4), pygame.SRCALPHA)
         superficie.blit(circulo, (2, 2))
         pygame.draw.circle(superficie, color, (diametro // 2 + 2, diametro // 2 + 2), diametro // 2 + 2, 2)
@@ -785,7 +801,7 @@ def _componer_globo(tamanio, perfil, texto):
 
 
 def dibujar_celular(pantalla, rect_cuerpo, celular, feed, mensajes, perfil, id_local, puede_escribir, respuestas,
-                    segundos, en_peligro=False, no_leidos=None):
+                    segundos, en_peligro=False, no_leidos=None, contactos=None):
     """Dibuja el celular abierto en `rect_cuerpo` (disposicion_celular.rect_celular
     da RECT_CELULAR_ABIERTO desplazado según la animación de abrir).
 
@@ -821,7 +837,12 @@ def dibujar_celular(pantalla, rect_cuerpo, celular, feed, mensajes, perfil, id_l
             franja = pygame.Rect(s.left, arriba, s.width, ALTO_FRANJA_PELIGRO)
             _franja_peligro(d, pantalla, franja)
             arriba = franja.bottom
-        if celular.app == CHAT:
+        if celular.app == CHAT and getattr(celular, "conversacion", None) is None and contactos is not None:
+            _dibujar_contactos(d, pantalla, s, arriba, contactos, segundos, celular.reloj, reducir)
+        elif celular.app == CHAT:
+            if contactos is not None:
+                contacto = next((c for c in contactos if c.conversacion == celular.conversacion), None)
+                arriba = _cabecera_chat(d, pantalla, s, arriba, contacto)
             _dibujar_chat(d, pantalla, s, arriba, celular, mensajes, perfiles, id_local, puede_escribir, respuestas,
                           segundos, reducir)
         elif getattr(celular, "publicacion_abierta", None) is not None and feed is not None:
@@ -1164,7 +1185,7 @@ def _fila_datos(d, pantalla, fila, tarjeta, pub, celular, segundos, visible):
     compartida = pub.id in getattr(celular, "reposts", ())
     valores[0] += int(propio)
     valores[1] += int(compartida)
-    valores[2] += len(getattr(celular, "comentarios_propios", {}).get(pub.id, ()))
+    valores[2] += len(getattr(celular, "comentarios_red", {}).get(pub.id, ()))
     marcados = (propio, compartida, False)
     paso = fila.width // 3
     for indice, valor in enumerate(valores):
@@ -1304,14 +1325,15 @@ def _comentarios_detalle(celular, feed, pub, ancho):
     """Del más nuevo al más viejo: los propios y los que llegan en vivo, y
     después los que ya tenía (feed.comentarios_anteriores, iguales en todas las PCs)."""
     recientes = [(c.autor, c.texto, _float(c.segundos), False) for c in (pub.comentarios or ())]
-    recientes += [(TEXTO_TU, texto, _float(segundos), True)
-                  for texto, segundos in getattr(celular, "comentarios_propios", {}).get(pub.id, ())]
+    for perfil, texto, segundos, propio in getattr(celular, "comentarios_red", {}).get(pub.id, ()):
+        recientes.append((TEXTO_TU if propio else perfil.etiqueta, texto, _float(segundos), perfil))
     recientes.sort(key=lambda fila: fila[2], reverse=True)
     anteriores = getattr(feed, "comentarios_anteriores", None)
     viejos = [(c.autor, c.texto, _float(c.segundos), False) for c in (anteriores(pub) if callable(anteriores) else ())]
     filas = []
     interior = ancho - 2 * RELLENO - 2 * RADIO_AVATAR_COMENTARIO - 10
     for autor, texto, segundos, propio in recientes + viejos:
+        # `propio`: False (ciudadano del feed), o el Perfil de un jugador (con .es_yo si es esta PC)
         lineas = _lineas(str(texto), interior, T_CHICO, False, LINEAS_COMENTARIO_DETALLE)
         filas.append(_FilaComentario(str(autor), str(texto), segundos, propio, lineas,
                                      8 + 17 + len(lineas) * ALTO_LINEA_COMENTARIO + 6))
@@ -1358,7 +1380,7 @@ def _dibujar_detalle(d, pantalla, s, arriba, celular, feed, segundos, reducir):
         d.publicaciones = []  # ya está abierta: un clic en la tarjeta no hace nada
         y = tarjeta.bottom
         total = formatear_cifra(_entero(tuple(pub.estadisticas(segundos))[2])
-                                + len(celular.comentarios_propios.get(pub.id, ())))
+                                + len(getattr(celular, "comentarios_red", {}).get(pub.id, ())))
         _texto(d, pantalla, f"{TEXTO_COMENTARIOS} · {total}", pygame.Rect(s.left + MARGEN + 4, y + 8, ancho, 18),
                assets.COLOR_TEXTO_HUD, T_TEXTO, True, visible=visible)
         y += ALTO_TITULO_COMENTARIOS
@@ -1387,17 +1409,19 @@ def _dibujar_fila_comentario(d, pantalla, rect, fila, segundos, reducir, visible
         desliz, alfa = round((1 - avance) * 40), 255 * avance
     x = rect.left + RELLENO + desliz
     centro = (x + RADIO_AVATAR_COMENTARIO, rect.top + 8 + RADIO_AVATAR_COMENTARIO)
-    if fila.propio:
-        pygame.draw.circle(pantalla, assets.COLOR_CIVITAS, centro, RADIO_AVATAR_COMENTARIO)
-        _texto(d, pantalla, "TÚ", pygame.Rect(centro[0] - 12, centro[1] - 8, 24, 16), assets.COLOR_TEXTO_HUD, T_MIN,
-               True, ancla="center", visible=visible, alfa=alfa)
+    if fila.propio:  # un jugador: su foto de perfil (el retrato de su personaje)
+        avatar = _avatar_jugador(fila.propio, 2 * RADIO_AVATAR_COMENTARIO).copy()
+        avatar.set_alpha(round(alfa))
+        pantalla.blit(avatar, avatar.get_rect(center=centro))
     else:
         avatar = _avatar_cuenta(fila.autor, "", RADIO_AVATAR_COMENTARIO).copy()
         avatar.set_alpha(round(alfa))
         pantalla.blit(avatar, avatar.get_rect(center=centro))
     izquierda = x + 2 * RADIO_AVATAR_COMENTARIO + 10
     ancho = rect.right - RELLENO - izquierda
-    color_nombre = assets.COLOR_CIVITAS if fila.propio else assets.COLOR_TEXTO_HUD
+    color_nombre = _rgb(fila.propio.color) if fila.propio else assets.COLOR_TEXTO_HUD
+    if fila.autor == TEXTO_TU:
+        color_nombre = assets.COLOR_CIVITAS
     nombre = _texto(d, pantalla, fila.autor, pygame.Rect(izquierda, rect.top + 6, ancho * 2 // 3, 17), color_nombre,
                     T_CHICO, True, visible=visible, alfa=alfa)
     _texto(d, pantalla, f"· {_hace_corto(segundos - fila.segundos)}",
@@ -1419,6 +1443,110 @@ def _hace_corto(edad):
     if edad < 3600:
         return f"{int(edad // 60)} min"
     return f"{int(edad // 3600)} h"
+
+# ----------------------------------------------------------------------
+# Lista de chats (privados y el de la sala) y la cabecera de un chat
+# ----------------------------------------------------------------------
+ALTO_FILA_CONTACTO = 66
+DIAMETRO_CONTACTO = 46
+ALTO_CABECERA_CHAT = 52
+DIAMETRO_CABECERA_CHAT = 34
+
+
+def _avatar_sala(diametro):
+    """La sala (todos): un círculo violeta con el globo de diálogo."""
+    def crear():
+        superficie = pygame.Surface((diametro + 4, diametro + 4), pygame.SRCALPHA)
+        centro = (diametro // 2 + 2, diametro // 2 + 2)
+        pygame.draw.circle(superficie, assets.COLOR_CIVITAS, centro, diametro // 2 + 2)
+        _icono_globo(superficie, centro, round(diametro * 0.5), assets.COLOR_TEXTO_HUD, 2)
+        return superficie
+    return _cachear(_cache_imagenes, ("sala", diametro), MAX_CACHE_IMAGENES, crear)
+
+
+def _avatar_contacto(contacto, diametro):
+    return _avatar_sala(diametro) if contacto is None or contacto.perfil is None else \
+        _avatar_jugador(contacto.perfil, diametro)
+
+
+def _dibujar_contactos(d, pantalla, s, arriba, contactos, segundos, reloj, reducir):
+    """Lista de chats como en un celular: la foto de perfil (el retrato del
+    personaje de cada jugador), "J2 · Candidato", el último mensaje, cuándo y
+    la insignia de no leídos. Primero la sala; después cada jugador conectado."""
+    contenido = pygame.Rect(s.left, arriba, s.width, s.bottom - ALTO_ZONA_INICIO - arriba)
+    d.contenido = contenido
+    _texto(d, pantalla, TEXTO_CHATS, pygame.Rect(s.left + MARGEN + 4, arriba + 8, 200, 22), assets.COLOR_TEXTO_HUD,
+           T_TEXTO + 2, True)
+    y = arriba + 36
+    pulso = None if reducir else (reloj * 0.9) % 1.0
+    anterior = _con_recorte(pantalla, contenido)
+    visible = pantalla.get_clip()
+    try:
+        for contacto in contactos:
+            fila = pygame.Rect(s.left + MARGEN, y, s.width - 2 * MARGEN, ALTO_FILA_CONTACTO)
+            if fila.top >= contenido.bottom:
+                break
+            if contacto.no_leidos:
+                pygame.draw.rect(pantalla, COLOR_TARJETA, fila, border_radius=RADIO_TARJETA)
+            avatar = _avatar_contacto(contacto, DIAMETRO_CONTACTO)
+            pantalla.blit(avatar, avatar.get_rect(center=(fila.left + 8 + DIAMETRO_CONTACTO // 2, fila.centery)))
+            x = fila.left + 18 + DIAMETRO_CONTACTO
+            derecha = fila.right - 10
+            cuando = ""
+            if contacto.segundos is not None:
+                cuando = _hace_corto(segundos - contacto.segundos)
+                hora = _texto(d, pantalla, cuando, pygame.Rect(derecha - 60, fila.top + 12, 60, 16),
+                              assets.COLOR_CIVITAS if contacto.no_leidos else assets.COLOR_TEXTO_SECUNDARIO, T_CHIP,
+                              ancla="topright", posicion=(derecha, fila.top + 12), visible=visible)
+                limite = hora.left - 6
+            else:
+                limite = derecha
+            perfil = contacto.perfil
+            color = _rgb(perfil.color) if perfil is not None else assets.COLOR_TEXTO_HUD
+            _texto(d, pantalla, contacto.etiqueta, pygame.Rect(x, fila.top + 11, limite - x, 18), color, T_TEXTO, True,
+                   visible=visible)
+            ancho_vista = derecha - x - (2 * RADIO_INSIGNIA + 8 if contacto.no_leidos else 0)
+            _texto(d, pantalla, contacto.vista_previa, pygame.Rect(x, fila.top + 34, ancho_vista, 18),
+                   assets.COLOR_TEXTO_HUD if contacto.no_leidos else assets.COLOR_TEXTO_SECUNDARIO, T_CHICO,
+                   visible=visible)
+            if contacto.no_leidos:
+                _insignia(pantalla, (derecha - RADIO_INSIGNIA, fila.top + 43), contacto.no_leidos, pulso=pulso)
+            pygame.draw.line(pantalla, assets.COLOR_SEPARADOR_CELULAR, (x, fila.bottom), (fila.right, fila.bottom))
+            golpe = fila.clip(visible)
+            if golpe.width > 0 and golpe.height > 0:
+                d.contactos.append((contacto.conversacion, golpe))
+            y = fila.bottom + 2
+        if len(contactos) <= 1:
+            lineas = _lineas(TEXTO_SIN_CONTACTOS, s.width - 70, T_CHICO, False, 4)
+            for numero, linea in enumerate(lineas):
+                _texto(d, pantalla, linea, pygame.Rect(s.left + 35, y + 24 + numero * 18, s.width - 70, 18),
+                       assets.COLOR_TEXTO_SECUNDARIO, T_CHICO, ancla="midtop", visible=visible)
+    finally:
+        pantalla.set_clip(anterior)
+    d.alto_contenido = y - arriba
+
+
+def _cabecera_chat(d, pantalla, s, arriba, contacto):
+    """Arriba del chat abierto: "<" para volver a la lista, la foto de perfil y
+    a quién se le escribe ("Chat privado" o la sala). Devuelve dónde sigue."""
+    rect = pygame.Rect(s.left, arriba, s.width, ALTO_CABECERA_CHAT)
+    centro = (rect.left + 20, rect.centery)
+    pygame.draw.lines(pantalla, assets.COLOR_TEXTO_HUD, False,
+                      [(centro[0] + 5, centro[1] - 8), (centro[0] - 3, centro[1]), (centro[0] + 5, centro[1] + 8)], 3)
+    d.volver = pygame.Rect(rect.left, rect.top, 64, rect.height)
+    avatar = _avatar_contacto(contacto, DIAMETRO_CABECERA_CHAT)
+    pantalla.blit(avatar, avatar.get_rect(center=(rect.left + 42 + DIAMETRO_CABECERA_CHAT // 2, rect.centery)))
+    x = rect.left + 50 + DIAMETRO_CABECERA_CHAT
+    etiqueta = contacto.etiqueta if contacto is not None else TEXTO_CHAT
+    perfil = contacto.perfil if contacto is not None else None
+    color = _rgb(perfil.color) if perfil is not None else assets.COLOR_TEXTO_HUD
+    _texto(d, pantalla, etiqueta, pygame.Rect(x, rect.top + 8, rect.right - x - 12, 18), color, T_TEXTO, True)
+    subtitulo = TEXTO_PRIVADO if perfil is not None else TEXTO_SALA_TODOS
+    _texto(d, pantalla, subtitulo, pygame.Rect(x, rect.top + 28, rect.right - x - 12, 16), assets.COLOR_TEXTO_SECUNDARIO,
+           T_CHIP)
+    pygame.draw.line(pantalla, assets.COLOR_SEPARADOR_CELULAR, (s.left, rect.bottom - 1), (s.right - 1, rect.bottom - 1))
+    return rect.bottom
+
 
 # ----------------------------------------------------------------------
 # Chat de la sala
@@ -1683,6 +1811,9 @@ def objetivo_en(dibujado, posicion):
             return RESPUESTA, indice
     if dibujado.volver is not None and dibujado.volver.collidepoint(punto):
         return VOLVER, None
+    for conversacion, rect in dibujado.contactos:
+        if rect.collidepoint(punto):
+            return CONTACTO, conversacion
     for id_publicacion, rect in dibujado.corazones:
         if rect.collidepoint(punto):
             return ME_GUSTA, id_publicacion
@@ -1697,8 +1828,11 @@ def objetivo_en(dibujado, posicion):
 
 def controles(celular, puede_escribir):
     """[(tecla, acción)] para hud.dibujar_barra_controles con el celular abierto."""
+    if celular.app == CHAT and getattr(celular, "conversacion", None) is None:
+        return [("Clic", "abrir chat"), ("Tab", "inicio"), ("Esc", "cerrar")]
     if celular.app == CHAT:
         if puede_escribir:
+            return [("Enter", "enviar"), ("Esc", "chats"), ("↑ ↓ / rueda", "desplazar"), ("Tab", "inicio")]
             return [("Enter", "enviar"), ("Tab", "inicio"), ("↑ ↓ / rueda", "desplazar"), ("Esc", "cerrar")]
         return [("Tab", "inicio"), ("↑ ↓ / rueda", "desplazar"), ("Esc", "cerrar")]
     if getattr(celular, "publicacion_abierta", None) is not None:

@@ -40,8 +40,8 @@ from src.core.escenas import Escena
 from src.ui import hud
 
 from Online import disposicion_celular, registro_errores
-from Online.celular import CHAT, FEED, Celular, Perfil
-from Online.chat_celular import JUGADOR, MAX_LARGO_MENSAJE_CELULAR
+from Online.celular import CHAT, FEED, Celular, Contacto, Perfil
+from Online.chat_celular import COMENTARIO, JUGADOR, MAX_LARGO_MENSAJE_CELULAR, SALA, SISTEMA_ENTRO, SISTEMA_SALIO
 
 TECLA_CELULAR = pygame.K_c  # abre el celular (y lo cierra desde Inicio: en el Chat la "c" se escribe)
 LETRA_CELULAR = "c"  # su TEXTINPUT, que se traga al abrir con la tecla (Online/celular.py)
@@ -314,6 +314,8 @@ class ControlCelular:
         if tecla == pygame.K_ESCAPE:
             if self.estado.comentando:
                 self.estado.cerrar_publicacion()  # de la publicación abierta, Esc vuelve al feed
+            elif self.estado.en_conversacion:
+                self.estado.cerrar_conversacion()  # de un chat, Esc vuelve a la lista de chats
             else:
                 self._cerrar()
         elif tecla == pygame.K_TAB:
@@ -334,7 +336,7 @@ class ControlCelular:
             self._desplazar_lista(PASO_PAGINA)
         elif tecla in (pygame.K_HOME, pygame.K_END):
             self.estado.ir_a_lo_nuevo()
-        elif self.estado.app == CHAT:
+        elif self.estado.en_conversacion:
             if tecla == pygame.K_BACKSPACE:
                 self.estado.borrar()
             elif tecla in TECLAS_ENVIAR:
@@ -343,14 +345,19 @@ class ControlCelular:
     def _texto(self, texto):
         if self.estado.debe_ignorar_texto(texto):
             return  # la "c" con la que se abrió
-        if self.estado.comentando or (self.estado.app == CHAT and self._escribe()):
+        if (self.estado.comentando or self.estado.en_conversacion) and self._escribe():
             self.estado.escribir(texto)
 
     def _comentar(self):
         """Comentario propio en la publicación abierta (solo en esta PC): sube
         el contador de comentarios con su "+1" y entra arriba de la lista."""
-        if self.canal is not None:
-            self.estado.comentar(self.canal.segundos())
+        id_publicacion = self.estado.publicacion_abierta
+        comentar = getattr(self.conexion, "comentar", None)
+        if self.canal is None or not callable(comentar) or not self._escribe():
+            return
+        texto = self.estado.comentar(self.canal.segundos())
+        if texto is not None and not comentar(id_publicacion, texto):
+            self.estado.texto_comentario = texto  # no salió (anti-spam o sin conexión): no se pierde
 
     def _clic(self, posicion):
         render = _render()
@@ -375,7 +382,12 @@ class ControlCelular:
         elif accion == render.ABRIR:
             self.estado.abrir_publicacion(dato)
         elif accion == render.VOLVER:
-            self.estado.cerrar_publicacion()
+            if self.estado.app == CHAT:
+                self.estado.cerrar_conversacion()
+            else:
+                self.estado.cerrar_publicacion()
+        elif accion == render.CONTACTO:
+            self.estado.abrir_conversacion(dato)
         elif accion == render.NUEVAS:
             self.estado.ir_a_lo_nuevo()
         elif accion == render.ENTRADA and not self.estado.comentando:
@@ -418,7 +430,12 @@ class ControlCelular:
     def _enviar(self, texto):
         if not self._escribe():
             return False
-        enviado = bool(self.conexion.escribir_chat(texto))
+        conversacion = self.estado.conversacion
+        if conversacion is None:
+            return False
+        destino = None if conversacion == SALA else conversacion
+        enviado = bool(self.conexion.escribir_chat(texto) if destino is None
+                       else self.conexion.escribir_chat(texto, destino=destino))
         if enviado:
             self.estado.ir_a_lo_nuevo()  # el chat baja hasta el mensaje propio
         return enviado
@@ -457,18 +474,19 @@ class ControlCelular:
     def _revisar_chat(self, dt):
         """Mensajes nuevos: con el Chat a la vista se dan por leídos; si no,
         el de otro jugador trae el globo (celular cerrado) y un sonido."""
-        chat_a_la_vista = self.estado.abierto and self.estado.app == CHAT
-        if chat_a_la_vista:
-            self.canal.marcar_leidos()
-            self._aviso = None
+        id_local = self.id_local()
+        en_pantalla = self.estado.conversacion if self.estado.abierto and self.estado.en_conversacion else None
+        if en_pantalla is not None:
+            self.canal.marcar_leidos(en_pantalla)  # solo el chat que se está viendo
         sonidos = []
         mensajes = self.canal.mensajes()
+        self._comentarios_de_jugadores(mensajes, id_local)
         nuevos = [m for m in mensajes if m.numero > self._ultimo_visto]
         if nuevos:
             self._ultimo_visto = nuevos[-1].numero
-            id_local = self.id_local()
-            ajenos = [m for m in nuevos if m.tipo == JUGADOR and m.autor != id_local]
-            if ajenos and not chat_a_la_vista:
+            ajenos = [m for m in nuevos if m.tipo == JUGADOR and m.autor != id_local
+                      and m.conversacion(id_local) not in (None, en_pantalla)]
+            if ajenos:
                 if not self.estado.abierto:
                     self._aviso = [ajenos[-1], DURACION_AVISO]
                 if self._espera_sonido <= 0.0:
@@ -479,6 +497,60 @@ class ControlCelular:
             if self._aviso[1] <= 0.0 or self.estado.abierto:
                 self._aviso = None
         return sonidos
+
+    def _comentarios_de_jugadores(self, mensajes, id_local):
+        """Los comentarios que los jugadores pusieron en las publicaciones (por
+        red, iguales en todas las PCs): id de la publicación -> [(Perfil, texto,
+        segundos, es de esta PC)]. Los dibuja la publicación abierta."""
+        comentarios = {}
+        for mensaje in mensajes:
+            if mensaje.tipo == COMENTARIO:
+                comentarios.setdefault(mensaje.publicacion, []).append(
+                    (self._perfil_seguro(mensaje.autor), mensaje.texto, mensaje.segundos, mensaje.autor == id_local))
+        self.estado.comentarios_red = comentarios
+
+    def contactos(self):
+        """La lista de chats: la sala (todos) y cada jugador conectado, cada uno
+        con su último mensaje y sus no leídos. O(n) en los mensajes."""
+        id_local = self.id_local()
+        sala = getattr(self.conexion, "sala", None)
+        try:
+            conectados = [j for j in sala.jugadores() if j != id_local] if sala is not None else []
+        except Exception:  # noqa: BLE001
+            conectados = []
+        ultimos = {}
+        for mensaje in self.canal.mensajes():
+            conversacion = mensaje.conversacion(id_local)
+            if conversacion is not None:
+                ultimos[conversacion] = mensaje
+        no_leidos = self.canal.no_leidos_por_conversacion(id_local)
+        filas = []
+        for conversacion in [SALA, *conectados]:
+            perfil = None if conversacion == SALA else self._perfil_seguro(conversacion)
+            etiqueta = "Sala (todos)" if perfil is None else perfil.etiqueta
+            ultimo = ultimos.get(conversacion)
+            filas.append(Contacto(conversacion, etiqueta, perfil, self._vista_previa(ultimo, id_local, perfil),
+                                  ultimo.segundos if ultimo is not None else None, no_leidos.get(conversacion, 0)))
+        return filas
+
+    def _vista_previa(self, mensaje, id_local, perfil):
+        if mensaje is None:
+            return "Escríbele en privado" if perfil is not None else "Habla con todos los de la sala"
+        if mensaje.tipo in (SISTEMA_ENTRO, SISTEMA_SALIO):
+            accion = "entró a la sala" if mensaje.tipo == SISTEMA_ENTRO else "salió de la sala"
+            return f"{self._perfil_seguro(mensaje.autor).etiqueta} {accion}"
+        if mensaje.autor == id_local:
+            return f"Tú: {mensaje.texto}"
+        if perfil is None:  # en la sala se ve quién lo dijo
+            return f"{self._perfil_seguro(mensaje.autor).etiqueta.split(' · ')[0]}: {mensaje.texto}"
+        return mensaje.texto
+
+    def _mensajes_en_pantalla(self):
+        """Los mensajes del chat abierto (el privado o el de la sala)."""
+        id_local = self.id_local()
+        conversacion = self.estado.conversacion
+        return tuple(m for m in self.canal.mensajes()
+                     if conversacion is not None and m.conversacion(id_local) == conversacion)
 
     def _actualizar_bloqueo(self, jugador, lugar):
         """Abierto: las entradas de esta PC quedan quietas. Al abrir en la
@@ -542,8 +614,9 @@ class ControlCelular:
             return
         cuerpo = disposicion_celular.rect_celular(self.estado.apertura)
         self._dibujado = render.dibujar_celular(
-            pantalla, cuerpo, self.estado, feed, self.canal.mensajes(), self._perfil_seguro, self.id_local(),
-            self._escribe(), self._respuestas(), self.canal.segundos(), en_peligro=lugar in ESCENAS_PELIGRO)
+            pantalla, cuerpo, self.estado, feed, self._mensajes_en_pantalla(), self._perfil_seguro, self.id_local(),
+            self._escribe(), self._respuestas(), self.canal.segundos(), en_peligro=lugar in ESCENAS_PELIGRO,
+            no_leidos=self.no_leidos(), contactos=self.contactos())
         if self.estado.abierto:
             hud.dibujar_barra_controles(pantalla, render.controles(self.estado, self._escribe()))
 

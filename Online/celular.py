@@ -55,6 +55,18 @@ class Perfil:
     fantasma: bool = False  # expulsado por votación: solo lee
 
 
+@dataclass(frozen=True)
+class Contacto:
+    """Una fila de la lista de chats: la sala (todos) o un jugador conectado."""
+
+    conversacion: object  # chat_celular.SALA o el id de red del otro jugador
+    etiqueta: str  # "J2 · Candidato" o "Sala (todos)"
+    perfil: Perfil | None  # None = la sala
+    vista_previa: str  # el último mensaje ("Tú: ...") o una invitación a escribir
+    segundos: float | None  # cuándo llegó ese último mensaje (None = nunca escribieron)
+    no_leidos: int = 0
+
+
 def formatear_cifra(n):
     """Una estadística como la muestran las redes: 987, "1.2 mil", "12 mil",
     "123 mil", "1.2 M", "12 M". Se trunca (nunca se redondea hacia arriba):
@@ -134,6 +146,8 @@ class Celular:
         self.scroll_detalle = 0.0  # px desplazados desde arriba en esa vista
         self.texto_comentario = ""  # lo que se está escribiendo como comentario
         self.comentarios_propios = {}  # id -> [(texto, segundos del feed)] comentarios de esta PC
+        self.comentarios_red = {}  # id -> [(Perfil, texto, segundos, propio)]: los de los jugadores (por red)
+        self.conversacion = None  # chat abierto: chat_celular.SALA o el id del otro jugador (None = la lista)
         self.publicaciones_vistas = 0
         self.mensajes_vistos = None
         self.ancla_feed = None
@@ -256,9 +270,28 @@ class Celular:
         if not texto or self.publicacion_abierta is None:
             return None
         self.texto_comentario = ""
-        self.comentarios_propios.setdefault(self.publicacion_abierta, []).append((texto, _numero(segundos)))
-        self.scroll_detalle = 0.0  # para ver el comentario recién puesto
+        self.scroll_detalle = 0.0  # para ver el comentario recién puesto (lo publica el host y vuelve a todos)
         return texto
+
+    # ------------------------------------------------------------------
+    # Chats privados
+    # ------------------------------------------------------------------
+
+    @property
+    def en_conversacion(self):
+        """Se ve un chat abierto (con la caja para escribir), no la lista."""
+        return self.app == CHAT and self.conversacion is not None
+
+    def abrir_conversacion(self, conversacion):
+        self.app = CHAT
+        self.conversacion = conversacion
+        self.scroll_chat = 0.0
+        self.ancla_chat = None
+        self.mensajes_vistos = None
+
+    def cerrar_conversacion(self):
+        """Vuelve a la lista de chats (el borrador se conserva)."""
+        self.conversacion = None
 
     def alternar_repost(self, id_publicacion):
         """Compartir (repost) propio: pone o quita, con su animación. O(1)."""

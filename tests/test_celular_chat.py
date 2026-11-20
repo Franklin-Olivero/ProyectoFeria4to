@@ -51,7 +51,7 @@ def test_modulo_no_importa_pygame():
 
 
 def test_las_constantes_del_contrato():
-    assert MAX_LARGO_MENSAJE_CELULAR == 80 and MAX_MENSAJES_CELULAR == 60 and INTERVALO_MINIMO_CHAT_S == 0.3
+    assert MAX_LARGO_MENSAJE_CELULAR == 80 and MAX_MENSAJES_CELULAR == 200 and INTERVALO_MINIMO_CHAT_S == 0.3
     assert (JUGADOR, SISTEMA_ENTRO, SISTEMA_SALIO) == ("jugador", "entro", "salio")
     assert (EVENTO_SYNC, EVENTO_CHAT) == ("sync", "chat")
 
@@ -141,9 +141,10 @@ def test_tope_descarta_los_mas_viejos():
     assert _numeros(historial.mensajes()) == [4, 5, 6, 7, 8] and historial.ultimo_numero() == 8
     assert historial.publicar(1, "otro", 9.0).numero == 9  # la numeración sigue aunque se descarten
     grande = HistorialChat()
-    for i in range(100):
+    for i in range(MAX_MENSAJES_CELULAR + 40):
         grande.publicar(i % 4, f"m{i}", float(i))
-    assert len(grande) == MAX_MENSAJES_CELULAR and _numeros(grande.mensajes()) == list(range(41, 101))
+    assert len(grande) == MAX_MENSAJES_CELULAR
+    assert _numeros(grande.mensajes()) == list(range(41, MAX_MENSAJES_CELULAR + 41))
 
 
 def test_recibir_sin_duplicar_y_desordenado():
@@ -355,7 +356,7 @@ def test_leidos_y_no_leidos_del_canal():
 
 def test_hilos_que_publican_a_la_vez_nunca_repiten_numero():
     canal = CanalCelular(reloj=count(0.0, 1.0).__next__)  # cada lectura del reloj avanza 1 s: sin anti-spam
-    por_hilo = 30
+    por_hilo = 60  # más que el tope entre los 4 hilos
 
     def escribir(autor):
         for i in range(por_hilo):
