@@ -116,6 +116,7 @@ from Online import disposicion_hud, reunion_render, sabotaje_render
 from Online.lobby import menu_online
 from Online.sesion_red import AdaptadorOnlineHost, EntradaRed
 from Online.sesion_red import cerrar_red_de_sesion, compartir_combate_con_sesion, normalizar_escena, proteger_partida_online
+from Online.celular_partida import ControlCelular
 
 TECLAS_CONFIRMAR = (pygame.K_RETURN, pygame.K_KP_ENTER)
 TECLA_SALIR = pygame.K_ESCAPE
@@ -950,6 +951,16 @@ def _jugar(pantalla, reloj, sesion, preferencias, presentar):
             reunion_render.dibujar_alerta_post(pantalla, tiempo_overlay)
             hud.dibujar_barra_controles(pantalla, hud.CONTROLES_TERMINAL)
 
+    # --- Online: celular con feed en vivo y chat de la sala (Online/celular_partida.py) ---
+    celular = ControlCelular.para_partida(sesion, adaptador_red, preferencias)  # None fuera de Online
+
+    def celular_disponible():
+        """Online: el celular se usa con el mundo en marcha, sin reunión ni otra
+        pantalla encima (la escena la decide Online/disposicion_celular.py)."""
+        return (celular is not None and dialogo is None and not pantalla_historia_abierta()
+                and indicador_rep is None and not evento_red_en_curso() and not pausa.abierta
+                and not (escena == Escena.CIUDAD and (mostrar_estado or mostrar_ayuda or mostrar_mapa_mundo)))
+
     def presentar():
         """Overlays de la historia encima de lo que dibujó la escena, en
         orden de capas (src/ui/layout.py): paneles, un único modal, avisos."""
@@ -991,6 +1002,9 @@ def _jugar(pantalla, reloj, sesion, preferencias, presentar):
         if indicador_rep is not None:
             reputacion_render.dibujar_indicador(pantalla, indicador_rep)
         _dibujar_capa_reunion(modal)
+        if celular is not None:
+            celular.dibujar(pantalla, celular_disponible() and modal is None, escena, len(jugadores),
+                            getattr(preferencias, "hud_detallado", False))
         presentar_frame()
 
     def pantalla_historia_abierta():
@@ -1111,6 +1125,8 @@ def _jugar(pantalla, reloj, sesion, preferencias, presentar):
         # Mouse: solo en combate y con un rol que apunta con él (no el
         # Candidato). Ahí se oculta el cursor del sistema y se dibuja la mira.
         pygame.mouse.set_visible(not _apunta_con_mouse(escena, jugador))
+        if celular is not None and celular.abierto:
+            pygame.mouse.set_visible(True)  # Online: con el celular abierto se usa el ratón
 
         # --- Input, según la escena ------------------------------------
         # El combate (mover, apuntar, disparar, habilidad, dash) no usa
@@ -1147,6 +1163,9 @@ def _jugar(pantalla, reloj, sesion, preferencias, presentar):
                 # Reunión de emergencia: se lleva el teclado, el ratón y el control.
                 manejar_evento_reunion(evento, vista_actual)
                 continue
+            if celular is not None and celular.manejar_evento(evento, celular_disponible(), escena, len(jugadores),
+                                                              getattr(preferencias, "hud_detallado", False)):
+                continue  # Online: el celular abierto se lleva el teclado, el ratón y el control
             if evento.type == pygame.MOUSEBUTTONDOWN and evento.button == 1 \
                     and reunion_render.en_boton(evento.pos, rects_botones()[0]) and reportar():
                 continue
@@ -1420,6 +1439,10 @@ def _jugar(pantalla, reloj, sesion, preferencias, presentar):
         en_dialogo = sesion.historia_ocupada
         # Online: en la reunión de emergencia (y su resultado) el mundo espera en todas las PCs.
         en_reunion = evento_red_en_curso()
+        if celular is not None:
+            for _sonido_celular in celular.actualizar(dt, celular_disponible(), escena, jugador, len(jugadores),
+                                                      getattr(preferencias, "hud_detallado", False)):
+                sonar(_sonido_celular)
         # Online, en combate: el mundo también espera a quien siga leyendo en
         # otra PC (la tarjeta del capítulo, la cinemática del jefe...), así a
         # nadie lo atacan mientras lee.
@@ -1489,7 +1512,7 @@ def _jugar(pantalla, reloj, sesion, preferencias, presentar):
                            final_derrota is not None or final_pendiente is not None))
 
         if escena == Escena.CIUDAD and not mostrar_mapa_mundo and not en_dialogo and not mostrar_estado and not mostrar_ayuda \
-                and not en_reunion:
+                and not en_reunion and not (celular is not None and celular.abierto):
             jugador.caminar_en_ciudad(pygame.key.get_pressed(), dt, partida.es_solida)
             if hasattr(sesion, "adaptador_red") and sesion.adaptador_red is not None:
                 sesion.adaptador_red.actualizar_ciudad(dt, partida, jugadores, jugador)
@@ -1768,7 +1791,7 @@ def _jugar(pantalla, reloj, sesion, preferencias, presentar):
                 hud.dibujar_panel_jugador(pantalla, j, numero)
         if escena == Escena.VICTORIA:
             dibujar_victoria(pantalla)
-        if _apunta_con_mouse(escena, jugador) and jugador in en_combate:
+        if _apunta_con_mouse(escena, jugador) and jugador in en_combate and not (celular is not None and celular.abierto):
             combate_render.dibujar_mira(pantalla, jugador, sacudida)
         ciudad_render.dibujar_fundido(pantalla, fundido)
         presentar()

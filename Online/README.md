@@ -43,6 +43,7 @@ Define las reglas de comunicación y la serialización de datos:
   - `INPUT`: Envío de teclas, dirección y botones del jugador invitado hacia el host.
   - `ESTADO`: Snapshot con posiciones y vidas enviado desde el host al invitado.
   - `DESCONEXION`: Notificación de desconexión limpia.
+  - `CELULAR`: el celular (sección 14): `sync` (host → invitado al conectarse: semilla y reloj del feed + historial del chat) y `chat` (invitado → host: texto; host → todos: el mensaje numerado).
 - **Clase `GrafoSala`:** Implementación orientada a grafos para gestionar jugadores, adyacencias y estados de confirmación. Cada nodo guarda además la `Apariencia` de su jugador (`elegir_apariencia`, `apariencia_de`).
 
 ### 📄 `Online/servidor.py`
@@ -573,3 +574,70 @@ A la derecha estaban tapando el feed de Civitas (los comentarios de los ciudadan
 3. En la ciudad, el botón REPORTAR está abajo a la izquierda y ya no tapa el feed de la derecha.
 
 Tests: `tests/test_lobby_online_hotel.py` (sala, se llega a cada estación, arte existente, botones sin tapar nada, HAIR/SHIRT/PANTS y el recoloreado) y los de `tests/test_fin_y_sabotaje_online.py` (2 jugadores).
+
+---
+
+## 14. Celular: feed en vivo y chat de la sala
+
+### Qué hace
+- Botón **CELULAR** (tecla **C**, clic, o **Share** en el control de PS4) en el modo Online: en la sala de espera y en la partida (ciudad, mazmorra y jefe). Con el celular cerrado, el botón muestra una **insignia roja** con los mensajes sin leer; cuando otro jugador escribe sale un **globo** junto al botón ("J2 · Candidato: hola") y suena `notificacion`.
+- Al abrirlo sale un celular (el mismo estilo que la terminal tipo celular) con la app **Civitas** y dos pestañas:
+  - **Inicio (feed en vivo):** arriba una **transmisión EN VIVO** (título, foto, "N mil viendo" que sube y un mini chat con mensajes aleatorios que van llegando). Debajo, publicaciones de ciudadanos, cuentas oficiales, rumores y campañas con **me gusta, compartidos y comentarios que suben en vivo**: el número salta cada fracción de segundo y sale un "+N" que sube y se desvanece. Bajo cada publicación, el último comentario. Arriba bajan banners de notificación ("Hugo Salas le dio me gusta a una publicación", "Tendencia en Ciudad Nova: #VerificaAntesDeCompartir").
+  - **Me gusta y repost propios:** clic en el corazón o en el ícono de compartir. El ícono se llena con su color (rojo / cian), "salta" (crece y vuelve, con un anillo que se abre) y su número sube con el "+1". Otro clic lo quita. Son solo de esta PC.
+  - **Abrir una publicación:** clic en la tarjeta. Se ve completa con **todos sus comentarios** (8 a 14 "de antes", más los que siguen llegando en vivo, que entran deslizándose) y abajo una caja **"Escribe un comentario..."**: Enter (o el botón) lo publica arriba de la lista. **Los comentarios de los jugadores viajan por la red y los ven todos**, con su foto de perfil y "J2 · Candidato" (el propio como "Tú"); el contador de comentarios sube con su "+1" en todas las PCs. Esc o la flecha "<" vuelven al feed.
+  - **Chat (privados):** primero se ve la **lista de chats**, como en un celular: **Sala (todos)** y una fila por **cada jugador conectado**, con su **foto de perfil** (el retrato del personaje que eligió, recortado en la cara, con un anillo de su color), "J2 · Candidato", el último mensaje, cuándo llegó y la insignia de no leídos. Clic en un jugador abre el **chat privado** con él ("Chat privado" bajo su nombre): solo lo leen ustedes dos. Burbujas propias a la derecha (violeta), ajenas a la izquierda; en la sala, además, los avisos "J3 entró a la sala". Respuestas rápidas clicables: ¡Hola!, ¡Vamos!, Ayuda, Cuidado. Esc o "<" vuelven a la lista. El **expulsado** por votación (fantasma) solo lee: el host además lo silencia.
+- **Con el celular abierto tu personaje se queda quieto** (no camina ni dispara), pero el mundo sigue: es Online, nadie pausa (en el host el combate de todos sigue corriendo). En la mazmorra y el jefe sale una franja ámbar: "Sigues en la mazmorra: tu personaje está quieto".
+- Se cierra solo si empieza una reunión, una publicación del sabotaje, un diálogo, la pausa o la terminal.
+
+### Controles (celular abierto)
+| Acción | Teclado / ratón | Control |
+|---|---|---|
+| Abrir / cerrar | C (cerrar con C solo en Inicio), clic en el botón | Share |
+| Cerrar | Esc, clic fuera del celular o en la flecha de arriba | ○ |
+| Cambiar de app | Tab, clic en la pestaña | L1 / R1 |
+| Desplazar | rueda, ↑ ↓, RePág / AvPág, Inicio/Fin = a lo nuevo | cruceta ↑ ↓ |
+| Escribir / enviar | teclas / Enter o clic en enviar, Retroceso borra | — |
+| Respuesta rápida | clic en el chip | cruceta ← → y ✕ |
+| Me gusta / repost | clic en el corazón / en compartir | — |
+| Abrir publicación / comentar / volver | clic en la tarjeta / escribir + Enter / Esc o "<" | — |
+
+La "c" con la que se abre no se escribe en el chat (se traga ese TEXTINPUT durante 0.25 s). Con el celular abierto, R, Q, E, Esc y Enter son del celular: no convocan, no sabotean, no entran, no pausan y en la sala no inician ni salen.
+
+### Dónde está el botón (`Online/disposicion_celular.py`)
+| Lugar | Dónde |
+|---|---|
+| Sala de espera | píldora arriba a la derecha, sobre ROOM SETTINGS |
+| Ciudad | abajo a la derecha, sobre el aviso "Civitas · Te mencionan" |
+| Mazmorra o jefe, 2-3 jugadores | margen derecho bajo el panel de J2 (espejo de REPORTAR) |
+| Mazmorra o jefe, 4 jugadores | rincón inferior derecho del cuarto |
+| Terminal, resultados y finales | no hay celular |
+
+### Cómo viaja por la red (host autoritativo)
+- Mensaje nuevo **`CELULAR`** (`Online/protocolo.py`, `msg_celular`). El Servidor y el Cliente tienen un `CanalCelular` (`conexion.celular`) y `escribir_chat(texto)`.
+- **`sync`:** al conectarse un invitado, el host le manda la semilla del feed, su reloj (segundos desde que abrió la sala) y el historial del chat. Luego anuncia "J2 entró a la sala"; al desconectarse, "salió".
+- **`chat`:** el invitado manda el texto (y `para`: el id del destinatario si es privado); el host lo limpia, le pone como autor el **id de la conexión** (nadie escribe por otro), aplica el anti-spam (0.3 s por autor) y los silenciados (expulsados) y le da el número siguiente. Si es de la sala lo difunde a todos; si es **privado, solo se lo manda a sus dos jugadores** (y el SYNC de quien entra tampoco trae privados ajenos). Cada invitado lo inserta por número sin duplicar. CELULAR no pasa por la cola de mensajes del lobby ni por el ESTADO.
+- **`comentario`:** el invitado manda `pub` (id de la publicación) y el texto; el host lo publica como mensaje de tipo `comentario` y lo difunde a todos. Como el feed es el mismo en todas las PCs, el id de la publicación también: el comentario cae en la misma publicación en cada pantalla.
+- Cada mensaje lleva `d` (destinatario, solo los privados) y `p` (publicación, solo los comentarios). Los no leídos se cuentan **por chat** (`CanalCelular.leidos`: chat -> último número visto).
+- **Todas las PCs ven el mismo feed sin mandarlo por la red:** el feed es una simulación determinista de (semilla, instante). Como todas usan la semilla y el reloj del host, a la misma hora muestran las mismas publicaciones con los mismos números.
+- `VERSION_ESTADO = 5`: si una PC tiene el código viejo, sale el aviso "otra versión del juego".
+
+### Estructuras de datos (para la exposición)
+- **MinHeap** (`src/structures/min_heap.py`) como **cola de prioridad de eventos** del feed (`Online/feed_celular.py`): cada evento (publicación nueva, comentario, mensaje en vivo, notificación, nueva transmisión) va con su instante; `avanzar(t)` saca en orden los que ya tocan, O(log n) cada uno. El azar solo se usa al procesar eventos, en orden fijo: por eso da igual llegar a `t` en un paso o en mil, y todas las PCs coinciden.
+- **Cola acotada** (`deque`) del chat ordenada por número + un **conjunto** de números: "¿ya lo tengo?" en O(1), descartar el más viejo en O(1) (`Online/chat_celular.py`).
+- **Conjuntos** de silenciados y de "me gusta" propios: O(1). **Diccionario** autor → último mensaje (anti-spam) y diccionario de cifras animadas usado como caché LRU (`Online/celular.py`).
+- **Comentarios "de antes"** de una publicación (`FeedCelular.comentarios_anteriores`): se generan con un `random.Random` propio sembrado con (semilla del feed, id de la publicación). No gastan el azar de la simulación, así el feed no cambia, y salen iguales en todas las PCs y cada vez que se abre. O(k) con k ≤ 14.
+- **Conjuntos** `me_gusta` y `reposts`, **diccionario** id → comentarios propios y diccionario de "golpes" (clave → instante del clic) para la animación del ícono (`Online/celular.py`).
+- Las estadísticas son una función pura y no decreciente del tiempo: `base + objetivo·(1 − e^(−edad/τ)) + goteo·tick`, por "ticks" de 0.35–0.9 s para que salten como en vivo.
+
+### Archivos
+- Nuevos (todos en `Online/`): `chat_celular.py` (chat y reloj compartido), `feed_celular.py` (feed en vivo), `datos/celular.json` (textos: publicaciones, comentarios, mensajes en vivo, transmisiones, notificaciones, hashtags y respuestas rápidas; también reutiliza ciudadanos, candidatos, cuentas y publicaciones de `content/campaign.json`), `celular.py` (estado de la interfaz), `disposicion_celular.py` (dónde va cada cosa), `celular_render.py` (dibujo y ratón; sin arte nuevo: primitivas, `src/ui/celular_render.py` y las ilustraciones de `assets/story/`), `celular_partida.py` (fachada `ControlCelular`, lo único que conocen Main y la sala).
+- Modificados en `Online/` (solo agregados): `protocolo.py`, `servidor.py`, `cliente.py`, `sesion_red.py` (`VERSION_ESTADO`, `bloqueada` en las entradas locales, silenciados) y `lobby.py` (el celular en la sala).
+- **Fuera de `Online/`, solo `Main.py`, con 8 agregados:** el import, crear el celular y `celular_disponible()`, dibujarlo al final de `presentar()`, mostrar el ratón con el celular abierto, pasarle los eventos (después de la reunión), actualizarlo cada cuadro, no caminar por la ciudad con el celular abierto y no dibujar la mira con el celular abierto. Sin conexión Online, `celular` es `None` y todo funciona como antes.
+
+### Cómo probarlo
+1. Las dos PCs con el **mismo código**: commit y `git pull` en las dos antes de probar.
+2. Crear sala y unirse. En la sala, C (o el botón de arriba a la derecha) → pestaña Chat → escribir y Enter: el otro lo ve al instante. En Inicio, los números de las publicaciones suben y son los mismos en las dos pantallas.
+3. Iniciar la partida: el chat sigue. Con el celular cerrado, un mensaje del otro trae el globo, el sonido y la insignia.
+4. Abrirlo en una mazmorra: tu personaje se queda quieto (franja ámbar) y los enemigos siguen.
+
+Tests: `tests/test_celular_chat.py`, `tests/test_celular_red.py` (red real en 127.0.0.1) y `tests/test_celular_partida.py` (loop real de Main y la sala: C abre, la "c" no se escribe, R no convoca, Esc no pausa ni sale de la sala, el clic en el botón abre en el Chat si hay no leídos, el sonido, la entrada local quieta y el cierre automático).

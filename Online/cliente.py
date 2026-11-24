@@ -11,6 +11,9 @@ Flujo:
     3. Elige rol (ELEGIR_ROL) → recibe LOBBY actualizado.
     4. Recibe INICIAR → la partida empieza.
     5. Cada frame envía INPUT y recibe ESTADO.
+    6. Celular (Online/chat_celular.py): al conectarse recibe el SYNC
+       (semilla, reloj e historial del chat) y después cada mensaje del
+       chat de la sala; los guarda `celular`, no la cola de mensajes.
 
 La lectura del socket es no bloqueante para no pausar el loop de Pygame.
 """
@@ -19,13 +22,14 @@ import socket
 import threading
 import time
 
-from Online import red_local
+from Online import red_local, registro_errores
+from Online.chat_celular import EVENTO_CHAT, EVENTO_COMENTARIO, EVENTO_SYNC, CanalCelular, limpiar_texto
 from Online.protocolo import (
     BIENVENIDA, DESCONEXION, ESTADO, GrafoSala, INICIAR, LOBBY, PING, PONG,
     POSICION_LOBBY, ENTRAR_MAZMORRA, CAMBIO_ESCENA, CAMBIO_CUARTO,
     deserializar_buffer, msg_elegir_apariencia, msg_elegir_rol, msg_hola, msg_input, msg_ping,
     msg_pong, msg_posicion_lobby, msg_entrar_mazmorra, msg_decision_nav, msg_historia, msg_reunion,
-    msg_sabotaje,
+    msg_sabotaje, CELULAR, msg_celular,
 )
 from Online.red_local import (
     ahora_ms, clasificar_error_conexion, enviar_todo, sin_retraso, suavizar,
@@ -49,6 +53,8 @@ class Cliente:
         mensajes    — cola de mensajes recibidos (list)
         latencia_ms — ping con el host (ms, promedio móvil)
         ping_medido — True desde que llegó el primer PONG
+        celular     — CanalCelular: chat de la sala y semilla + reloj del feed
+                      (Online/chat_celular.py); se sincroniza con el SYNC del host
     """
 
     def __init__(self):
@@ -74,6 +80,7 @@ class Cliente:
         self._rtt = None
         self._proximo_ping = 0.0
         self.puerto = None
+        self.celular = CanalCelular(sincronizado=False)  # celular: lo llena el host (SYNC y chat)
 
     # ------------------------------------------------------------------
     # API pública
@@ -154,6 +161,29 @@ class Cliente:
     def enviar_ping(self):
         """Envía un ping para medir latencia (el host lo devuelve como PONG)."""
         self._enviar(msg_ping(ahora_ms()))
+
+    def escribir_chat(self, texto, destino=None):
+        """Celular: le pide al host publicar `texto` en el chat de la sala.
+        Aquí no se agrega nada al historial: el host pone el autor (el id de
+        esta conexión), lo numera y lo devuelve a todos, también a esta PC.
+        False si el texto quedó vacío o no hay conexión."""
+        texto = limpiar_texto(texto)
+        if not texto or not self.conectado or self._socket is None:
+            return False
+        if destino is None:
+            self._enviar(msg_celular(EVENTO_CHAT, texto=texto))
+        else:
+            self._enviar(msg_celular(EVENTO_CHAT, texto=texto, para=destino))  # privado con ese jugador
+        return self.conectado  # False si el envío falló
+
+    def comentar(self, publicacion, texto):
+        """Celular: le pide al host publicar un comentario en la publicación
+        `publicacion` del feed (vuelve a todos, también a esta PC)."""
+        texto = limpiar_texto(texto)
+        if not texto or not self.conectado or self._socket is None:
+            return False
+        self._enviar(msg_celular(EVENTO_COMENTARIO, texto=texto, pub=publicacion))
+        return self.conectado
 
     def leer_mensajes(self):
         """Retorna y vacía la cola de mensajes recibidos."""
@@ -266,6 +296,18 @@ class Cliente:
 
         elif tipo == PONG:
             self._registrar_rtt(msg.get("t", 0))
+            return
+
+        elif tipo == CELULAR:
+            # Celular: lo guarda el canal, no la cola de mensajes (el lobby y
+            # el adaptador nunca lo ven). Un dato roto no corta la lectura.
+            try:
+                if msg.get("evento") == EVENTO_SYNC:
+                    self.celular.sincronizar(msg.get("semilla"), msg.get("t"), msg.get("chat"))
+                elif msg.get("evento") == EVENTO_CHAT:
+                    self.celular.recibir(msg.get("m"))
+            except Exception:
+                registro_errores.registrar("Cliente.celular")
             return
 
         elif tipo == POSICION_LOBBY:

@@ -16,6 +16,10 @@ Flujo:
        sortea al impostor entre los conectados y lo difunde en INICIAR.
     5. Durante la partida: los inputs de los clientes se envían al host,
        y los estados del juego se difunden a todos los clientes.
+    6. Celular (Online/chat_celular.py): al conectarse, cada invitado recibe
+       la semilla, el reloj y el chat de la sala (CELULAR "sync"); el host
+       numera cada mensaje del chat, le pone como autor el id de la conexión
+       por la que llegó y lo difunde a todos (CELULAR "chat").
 """
 
 import random
@@ -23,14 +27,17 @@ import socket
 import threading
 import time
 
-from Online import red_local
+from Online import red_local, registro_errores
+from Online.chat_celular import (
+    COMENTARIO, EVENTO_CHAT, EVENTO_COMENTARIO, EVENTO_SYNC, JUGADOR, SISTEMA_ENTRO, SISTEMA_SALIO, CanalCelular,
+)
 from Online.protocolo import (
     BIENVENIDA, DESCONEXION, ELEGIR_APARIENCIA, ELEGIR_ROL, ESTADO, HOLA, INICIAR, INPUT,
     LOBBY, PING, PONG, POSICION_LOBBY, ENTRAR_MAZMORRA, CAMBIO_ESCENA,
     CAMBIO_CUARTO, DECISION_NAV, HISTORIA, REUNION, SABOTAJE, GrafoSala, deserializar_buffer, msg_bienvenida,
     msg_desconexion, msg_lobby, msg_ping, msg_pong, msg_posicion_lobby,
     msg_entrar_mazmorra, msg_cambio_escena, msg_cambio_cuarto, msg_iniciar,
-    serializar, crear_mensaje,
+    serializar, crear_mensaje, CELULAR, msg_celular,
 )
 from Online.red_local import ahora_ms, enviar_todo, sin_retraso, suavizar
 
@@ -65,6 +72,8 @@ class Servidor:
         self._cancelar = threading.Event()
         self._lock = threading.RLock()
         self._proximo_ping = 0.0
+        self.celular = CanalCelular()  # celular: chat de la sala y semilla + reloj del feed (los lleva el host)
+        self._presentes_chat = set()  # ids con "entró a la sala" anunciado: su "salió" sale una sola vez
 
     def sortear_impostor(self):
         """Elige al impostor al azar entre los vértices del grafo de sala:
@@ -209,6 +218,18 @@ class Servidor:
             valores = [self.latencias[jid] for jid in self._clientes if jid in self.latencias]
         return sum(valores) / len(valores) if valores else None
 
+    def escribir_chat(self, texto, destino=None):
+        """Celular: el host (autor 0) escribe en el chat de la sala o, con
+        `destino`, en el privado con ese jugador. True si se publicó y se
+        difundió; False si quedó vacío, fue muy seguido (anti-spam) o el host
+        está silenciado (expulsado por votación)."""
+        return self._publicar_chat(0, texto, destino=destino)
+
+    def comentar(self, publicacion, texto):
+        """Celular: el host comenta la publicación `publicacion` del feed (la
+        ven todos: el feed es el mismo en todas las PCs)."""
+        return self._publicar_chat(0, texto, tipo=COMENTARIO, publicacion=publicacion)
+
     @property
     def puerto(self):
         if self._socket:
@@ -315,6 +336,11 @@ class Servidor:
                     return
                 self.mensajes_host.append({"tipo": "RECONEXION", "id": nuevo_id})
 
+            # Celular: el recién llegado copia la semilla, el reloj y el chat
+            # de la sala (SYNC) y todos ven "J2 entró a la sala".
+            if not self._sincronizar_celular(sock, nuevo_id):
+                return
+
             # Broadcast del lobby actualizado a todos.
             lobby_bytes = msg_lobby(self.sala.a_dict())
             for cid, s in self._clientes.items():
@@ -408,6 +434,14 @@ class Servidor:
                 self.latencias[jid] = suavizar(self.latencias.get(jid), rtt)
                 self.sala.actualizar_latencia(0, jid, round(self.latencias[jid]))
 
+        elif tipo == CELULAR:
+            # Celular: el autor es el id de la CONEXIÓN, nunca el que diga el
+            # mensaje (nadie escribe por otro). Los demás eventos se ignoran.
+            if msg.get("evento") == EVENTO_CHAT:
+                self._publicar_chat(jid, msg.get("texto"), destino=msg.get("para"))
+            elif msg.get("evento") == EVENTO_COMENTARIO:
+                self._publicar_chat(jid, msg.get("texto"), tipo=COMENTARIO, publicacion=msg.get("pub"))
+
     def _desconectar_cliente(self, jid):
         with self._lock:
             self._desconectar_cliente_interno(jid)
@@ -431,6 +465,81 @@ class Servidor:
                 pass
         self.mensajes_host.append({"tipo": DESCONEXION, "id": jid})
         self.mensajes_host.append({"tipo": LOBBY, "sala": self.sala.a_dict()})
+        if jid in self._presentes_chat:
+            # Celular: "J2 salió de la sala" a los que quedan, solo si se anunció
+            # que entró (y una vez: su desconexión puede notarse dos veces).
+            self._presentes_chat.discard(jid)
+            self._anunciar_en_chat(SISTEMA_SALIO, jid)
+
+    # ------------------------------------------------------------------
+    # Celular (Online/chat_celular.py): el chat de la sala lo lleva el host
+    # ------------------------------------------------------------------
+
+    def _publicar_chat(self, autor, texto, tipo=JUGADOR, destino=None, publicacion=None):
+        """Publica en el chat del celular (CanalCelular.publicar limpia, aplica
+        el anti-spam y los silenciados y numera) y lo difunde a TODOS los
+        invitados, también a quien lo escribió: así cada uno lo ve en su
+        historial con el número que le dio el host. Publicar y difundir van
+        bajo el mismo lock: los mensajes salen por la red en el orden de sus
+        números aunque escriban a la vez el host (hilo de pygame) y un
+        invitado (hilo de red). Nunca lanza: el celular no rompe el servidor."""
+        try:
+            with self._lock:
+                if destino is not None and destino not in self.sala.jugadores():
+                    return False  # privado a alguien que no está en la sala
+                mensaje = self.celular.publicar(autor, texto, tipo, destino, publicacion)
+                if mensaje is None:
+                    return False
+                datos = msg_celular(EVENTO_CHAT, m=mensaje.a_dict())
+                if mensaje.destino is None:
+                    self.enviar_a_todos(datos)
+                else:
+                    # Privado: solo a sus dos jugadores (el host, si es uno de
+                    # ellos, ya lo tiene en su canal).
+                    for jid in {mensaje.autor, mensaje.destino} - {0}:
+                        self.enviar_a_cliente(jid, datos)
+                return True
+        except Exception:
+            registro_errores.registrar("Servidor._publicar_chat")
+            return False
+
+    def _sincronizar_celular(self, sock, nuevo_id):
+        """Al conectarse un invitado (con el lock tomado): le manda el SYNC del
+        celular (semilla, reloj e historial del chat) y anuncia a todos que
+        entró. False si su socket falló: ya quedó desconectado, como cuando
+        falla la BIENVENIDA."""
+        try:
+            enviar_todo(sock, msg_celular(EVENTO_SYNC, **self.celular.a_sync(para=nuevo_id)))
+        except OSError:
+            self._desconectar_cliente_interno(nuevo_id)
+            return False
+        except Exception:
+            registro_errores.registrar("Servidor._sincronizar_celular")  # sin celular, la conexión sigue
+        if self._anunciar_en_chat(SISTEMA_ENTRO, nuevo_id):
+            self._presentes_chat.add(nuevo_id)
+        return True
+
+    def _anunciar_en_chat(self, tipo, id_jugador):
+        """Mensaje del sistema del celular ("J2 entró / salió de la sala") en el
+        chat y a todos los conectados. Se llama con el lock tomado, en medio de
+        una conexión o de una desconexión: manda socket por socket ignorando
+        los errores (como el LOBBY de esas funciones) y NUNCA llama a
+        enviar_a_todos, que al fallar un envío desconectaría a otro dentro de
+        esta desconexión (anidadas). True si el mensaje se publicó."""
+        try:
+            mensaje = self.celular.publicar(id_jugador, "", tipo)
+            if mensaje is None:
+                return False
+            datos = msg_celular(EVENTO_CHAT, m=mensaje.a_dict())
+            for sock in list(self._clientes.values()):
+                try:
+                    enviar_todo(sock, datos)
+                except OSError:
+                    pass  # ese socket lo cierra después el bucle que lee
+            return True
+        except Exception:
+            registro_errores.registrar("Servidor._anunciar_en_chat")
+            return False
 
 
 def _ip_local():
