@@ -397,6 +397,7 @@ class JugadorBase:
             self.COLOR, rol=self.rol, tiempo=ahora,
             caminando=caminando, dash=self.dash.activo,
             apariencia=self.apariencia,
+            mirando_izquierda=self.direccion_mirada.x < -assets.UMBRAL_GIRO_APUNTADO,  # mira hacia donde apunta
         )
         # Vida del personaje, solo visual: rebote al caminar, retroceso al
         # disparar y destello blanco al recibir un golpe. La posición de

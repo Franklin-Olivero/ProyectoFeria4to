@@ -222,7 +222,8 @@ def dibujar_ciudad(pantalla, partida, jugador, tiempo, ruta=None):
         if jugador.invulnerabilidad.visible:
             imagen = sprites.sprite_jugador(jugador.COLOR, rol=jugador.rol, tiempo=tiempo,
                                             caminando=jugador.caminando_en_ciudad,
-                                            apariencia=getattr(jugador, "apariencia", None))
+                                            apariencia=getattr(jugador, "apariencia", None),
+                                            mirando_izquierda=sprites.mira_izquierda(jugador, posicion[0]))
             sprites.dibujar_centrado(pantalla, imagen, (round(posicion[0] + dx), round(posicion[1] + dy - 6)))
 
     # Farolas, árboles, bancas y el jugador, ordenados por su base (Y).

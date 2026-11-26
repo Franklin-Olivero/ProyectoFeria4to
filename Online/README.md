@@ -704,3 +704,28 @@ Con un control conectado, la barra de controles de las pantallas del Online mues
 - **El bug:** en `Main._jugar`, la ✕ (o □) en la ciudad llamaba a `partida.entrada_cercana(...)` y `campania.zona_desbloqueada(...)`, que **no existen**. El error lo atrapaba la protección del Online (`proteger_partida_online`) y la partida volvía al menú: parecía que el control "te sacaba". Lo dejó `Online/errores_online.log` (`AttributeError: 'Partida' object has no attribute 'entrada_cercana'`).
 - **La corrección:** la ✕ en la ciudad ahora postea la tecla E, así hace exactamente lo mismo que el teclado: la baliza de la misión, la Alcaldía sellada, el fantasma y, en el invitado, pedirle la entrada al host.
 - **Para que no vuelva a pasar:** `tests/test_mando_online.py` aprieta **todos los botones y ejes del control** en el loop real de Main (ciudad, mazmorra y terminal; como host y como invitado; con el celular y la reunión activos), en la pausa y en la sala de espera, y falla si algo se atrapa como error o la partida se cierra. También prueba que la ✕ frente a la puerta del Colegio entra a la mazmorra.
+
+---
+
+## 17. Personajes animados (caminar, respirar, parpadear y darse vuelta)
+
+### Qué cambió
+Antes cada personaje de Higgsfield tenía 4 cuadros (quieto, paso_a, paso_b, dash): al caminar solo cambiaban los pies y quieto era una foto. Ahora, en todo el juego (sala de espera, ciudad, mazmorras, jefe; Online y local):
+- **Caminar (8 cuadros):** en cada pisada el cuerpo baja un píxel y la cabeza lo sigue con un cuadro de retraso, y entre pisadas sube: un rebote con peso. Mismo ritmo de paso de antes (600 ms).
+- **Quieto:** respira (los hombros bajan y suben despacio) y **parpadea** cada tanto (a veces dos veces seguidas). Al Periodista no lo hace parpadear: sus lentes confunden la búsqueda de los ojos y es mejor ojos abiertos que una mancha.
+- **Dash:** el cuerpo se agacha (impulso).
+- **Se da vuelta:** en combate mira hacia donde apunta; en la ciudad y en la sala, hacia donde caminó por última vez. En la sala, los jugadores de las otras PCs también animan el paso cuando se mueven (antes se deslizaban quietos).
+
+### Sin arte nuevo
+`src/ui/animacion_jugador.py` (puro) arma los ciclos desde los 4 cuadros con el **mapa de partes** de cada hoja:
+- `zonas`: el cuello (primer renglón con ropa) y la cadera (primer renglón con pantalón).
+- `bajar`: corre hacia abajo lo que está arriba de un renglón (el cuerpo sobre la cadera, o la cabeza sobre el cuello) dejando fijas las piernas.
+- `ojos` / `parpadear`: los ojos son píxeles sin parte encerrados por piel en la franja de la cara (agrupados con BFS); al cerrar, se tapan con la piel de al lado y su renglón de abajo queda como párpado. Solo si encuentra dos ojos parecidos a la misma altura.
+- `ciclos`: caminar, respirar y dash, cada cuadro con su duración.
+Se arma una vez por personaje, colores y escala (caché en `src/ui/sprites.py`, ~0.15 s para los 4 personajes), y funciona igual con los vestidores (colores, HAT y SKIN).
+
+### Archivos (fuera de `Online/`, porque el dibujo del jugador es de todo el juego)
+- Nuevo: `src/ui/animacion_jugador.py` y `tests/test_animacion_jugador.py`.
+- `src/ui/sprites.py`: la hoja de cada personaje sale de los ciclos; `sprite_jugador(..., mirando_izquierda=)` y `mira_izquierda(dueño, x)`.
+- `src/entities/player.py` (combate), `src/ui/ciudad_render.py` y `Main.py` (los otros jugadores en la ciudad): pasan hacia dónde mira. `src/core/assets.py`: `UMBRAL_GIRO_JUGADOR` y `UMBRAL_GIRO_APUNTADO`.
+- En `Online/`: `lobby.py` (cada jugador de la sala mira hacia donde camina y los remotos animan el paso).

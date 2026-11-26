@@ -2036,7 +2036,8 @@ def _dibujar_ciudad(pantalla, partida, jugador, destino, tiempo, mostrar_ruta, m
                     _dx, _dy = _rect_v.x - _cam[0], _rect_v.y - _cam[1]
                     _img = sprites.sprite_jugador(_j_otro.COLOR, rol=_j_otro.rol, tiempo=tiempo,
                                                   caminando=getattr(_j_otro, "caminando_en_ciudad", False),
-                                                  apariencia=getattr(_j_otro, "apariencia", None))
+                                                  apariencia=getattr(_j_otro, "apariencia", None),
+                                                  mirando_izquierda=sprites.mira_izquierda(_j_otro, _j_otro.posicion.x))
                     sprites.dibujar_centrado(pantalla, _img, (round(_j_otro.posicion.x + _dx), round(_j_otro.posicion.y + _dy - 6)))
         titulo = assets.TITULO_CIUDAD
     # La toxicidad de cada lugar se lee cerca de su puerta (y en el mapa del mundo).

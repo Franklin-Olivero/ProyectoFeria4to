@@ -17,7 +17,7 @@ import pygame
 
 from src.core import assets, balance
 from src.core.apariencia import PREDETERMINADA
-from src.ui import mezcla_jugador, tinte_jugador
+from src.ui import animacion_jugador, mezcla_jugador, tinte_jugador
 from src.ui.ruta_sprites import (
     cuadros_de_atlas,
     cuadros_por_nombre,
@@ -527,23 +527,46 @@ def escala_hd(escala):
 
 
 def sprite_jugador(color_rol, escala=assets.ESCALA_PIXEL, rol=None, tiempo=0.0,
-                   caminando=False, dash=False, apariencia=None):
+                   caminando=False, dash=False, apariencia=None, mirando_izquierda=False):
     """Imagen del jugador. Con `rol` (clave de STATS_POR_ROL) y su hoja en
     assets/sprites/jugadores/<rol>.png (el personaje de Higgsfield) devuelve
     el cuadro de "caminar" para `tiempo` (quieto = primer cuadro) o el de
     "dash", a escala_hd(escala); sin hoja, el muñeco dibujado en código
     teñido con `color_rol`. Con una `apariencia` (src/core/apariencia.py)
-    que cambie algún color, la hoja sale teñida (_hoja_vestida)."""
+    que cambie algún color, la hoja sale teñida (_hoja_vestida).
+
+    Animación (src/ui/animacion_jugador.py): los personajes de Higgsfield
+    caminan con rebote (el cuerpo baja en cada pisada y la cabeza lo sigue) y,
+    quietos, respiran y parpadean según `tiempo`. `mirando_izquierda` voltea
+    el dibujo para que mire hacia donde camina o apunta."""
     hoja = None
-    if rol and (tinte_jugador.objetivos(apariencia) or _mezcla(rol, apariencia)):
+    if rol in assets.ROLES_APARIENCIA:
         hoja = _hoja_vestida(rol, apariencia, escala_hd(escala))
     if hoja is None and rol:
         hoja = _cargar_hoja(ruta_sprite(rol, assets.RUTA_SPRITES_JUGADORES), escala_hd(escala))
     if hoja is None:
         return sprite(JUGADOR, {**PALETA_JUGADOR, "c": color_rol}, escala)
     if dash and assets.ANIMACION_DASH in hoja:
-        return cuadro_de_hoja(hoja, assets.ANIMACION_DASH, 0.0)
-    return cuadro_de_hoja(hoja, assets.ANIMACION_CAMINAR, tiempo if caminando else 0.0)
+        imagen = cuadro_de_hoja(hoja, assets.ANIMACION_DASH, 0.0)
+    elif caminando or animacion_jugador.ANIMACION_RESPIRAR not in hoja:
+        imagen = cuadro_de_hoja(hoja, assets.ANIMACION_CAMINAR, tiempo if caminando else 0.0)
+    else:
+        imagen = cuadro_de_hoja(hoja, animacion_jugador.ANIMACION_RESPIRAR, tiempo)
+    return _volteado(imagen) if mirando_izquierda else imagen
+
+
+_cache_volteados = {}  # id del cuadro -> (cuadro, cuadro volteado)
+
+
+def _volteado(imagen):
+    """El cuadro espejado (mirando a la izquierda), calculado una vez por cuadro."""
+    guardado = _cache_volteados.get(id(imagen))
+    if guardado is None or guardado[0] is not imagen:
+        if len(_cache_volteados) > 2048:
+            _cache_volteados.clear()
+        guardado = (imagen, pygame.transform.flip(imagen, True, False))
+        _cache_volteados[id(imagen)] = guardado
+    return guardado[1]
 
 
 # --- Jugador vestido (vestidores) ---------------------------------------
@@ -683,14 +706,17 @@ def _hoja_vestida(rol, apariencia, escala):
         if datos is None:
             return None
         elegidos = tinte_jugador.objetivos(apariencia)
-        teñidos = {}
+        teñidos = {nombre: _cuadro_teñido(datos, nombre, elegidos) for nombre in datos["cuadros"]}
+        # Ciclos con más vida armados desde los 4 cuadros (src/ui/animacion_jugador.py).
         hoja = {}
-        for animacion, (nombres, duraciones) in datos["animaciones"].items():
-            superficies = []
-            for nombre in nombres:
-                if nombre not in teñidos:
-                    teñidos[nombre] = _superficie_pixeles(_cuadro_teñido(datos, nombre, elegidos), escala)
-                superficies.append(teñidos[nombre])
+        superficies_de = {}
+        for animacion, cuadros in animacion_jugador.ciclos(teñidos, datos["partes"]).items():
+            superficies, duraciones = [], []
+            for cuadro, _, ms in cuadros:
+                if id(cuadro) not in superficies_de:
+                    superficies_de[id(cuadro)] = (cuadro, _superficie_pixeles(cuadro, escala))
+                superficies.append(superficies_de[id(cuadro)][1])
+                duraciones.append(ms)
             hoja[animacion] = (superficies, duraciones)
         return hoja
     return _recordar(_cache_vestidos, (rol, _mezcla(rol, apariencia), _colores(apariencia), escala), crear)
@@ -1018,3 +1044,15 @@ def fondo_historia(nombre, tamanio=None):
             imagen = pygame.transform.smoothscale(imagen, tamanio)
         _cache_fondos[clave] = imagen
     return _cache_fondos[clave]
+
+
+def mira_izquierda(dueno, x):
+    """¿El personaje mira a la izquierda? Según su último movimiento
+    horizontal (se guarda en `dueno`: un jugador o cualquier objeto/dict que
+    sirva de memoria). Quieto, sigue mirando hacia donde iba."""
+    memoria = dueno if isinstance(dueno, dict) else dueno.__dict__
+    antes = memoria.get("_x_para_mirar")
+    if antes is not None and abs(x - antes) > assets.UMBRAL_GIRO_JUGADOR:
+        memoria["_mirando_izquierda"] = x < antes
+    memoria["_x_para_mirar"] = x
+    return memoria.get("_mirando_izquierda", False)

@@ -844,6 +844,9 @@ def _dibujar_escenario_lobby(pantalla, tiempo, cerca_laptop, caja_cercana=None):
                     COLOR_FONDO_AVISO, COLOR_ONLINE, assets.TAMANIO_FUENTE_PEQUENA, ancla="center", alto=26)
 
 
+_MEMORIA_SALA = {}  # jid -> {pos, quieto_desde, hacia dónde mira}: solo para animar a cada jugador
+
+
 def _dibujar_jugadores_lobby(pantalla, sala, posiciones, id_local,
                              tiempo, caminando, rol_local, local_x, local_y,
                              apariencia_local=PREDETERMINADA):
@@ -872,8 +875,18 @@ def _dibujar_jugadores_lobby(pantalla, sala, posiciones, id_local,
         dibujo.panel_alfa(pantalla, sombra_rect, (0, 0, 0, 110), radio=7)
 
         # Muñeco animado
+        # Cada jugador mira hacia donde camina; los de las otras PCs también
+        # animan el paso cuando se mueven (antes se deslizaban quietos).
+        memoria = _MEMORIA_SALA.setdefault(jid, {})
+        antes = memoria.get("pos")
+        memoria["pos"] = (px, py)
+        if jid != id_local:
+            if antes is not None and (abs(px - antes[0]) > 0.3 or abs(py - antes[1]) > 0.3):
+                memoria["quieto_desde"] = tiempo
+            anim_cam = tiempo - memoria.get("quieto_desde", -1.0) < 0.15
         img = sprites.sprite_jugador(color_rol, escala=4, rol=rol_clave,
-                                     tiempo=tiempo, caminando=anim_cam, apariencia=apariencia)
+                                     tiempo=tiempo, caminando=anim_cam, apariencia=apariencia,
+                                     mirando_izquierda=sprites.mira_izquierda(memoria, px))
         img_rect = img.get_rect(center=(int(px), int(py)))
         pantalla.blit(img, img_rect)
 
