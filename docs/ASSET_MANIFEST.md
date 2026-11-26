@@ -8,7 +8,11 @@ no se inventan aquí.
 ## Lo que ya se dibuja en código o con hojas existentes (reutilizado)
 - Retratos de los 4 roles (`assets/sprites/retratos/<rol>.png`, 512 px, Higgsfield,
   ya existentes) → diálogos y selección.
-- Hojas de sprites de roles, enemigos, jefe, cuarto, puertas, charco (Pixelbolt).
+- Hojas del jugador (`assets/sprites/jugadores/<rol>.png`, 40 px de alto): salen de los
+  retratos de Higgsfield con `tools/generar_jugadores_higgsfield.py`, junto a su mapa de
+  partes (`<rol>.partes.png` y `retratos/<rol>.partes.png`) para teñir piel, cabello,
+  camisa, pantalón y zapatos en el vestidor. No se editan a mano: se regeneran.
+- Hojas de sprites de enemigos, jefe, cuarto, puertas, charco (Pixelbolt).
 - Ciudad Nova, HUD, terminal, tarjetas, paneles, grafo social, elecciones: Pygame.
 - Iconos de Civitas y NOVA_404 en los diálogos: dibujados en código
   (`dialogo_render._icono_sistema`).
@@ -88,7 +92,7 @@ pitidos. **Nadie las ha escuchado aún:** ver `docs/QA_VISUAL.md`.
 
 16 imágenes con `nano_banana_2` (1k, 1,5 cr c/u = **24 créditos**; saldo 1099,5), todas con
 el pack escolar comprado (`assets/colegio/props.png`) como `image_references` para heredar su
-pixel art 3/4 frontal. Prompts en `prompts/higgsfield_mazmorras.md`. Ninguna se usa entera
+pixel art 3/4 frontal. Ninguna se usa entera
 como fondo: `tools/procesar_higgsfield.py` las convierte en piezas (croma verde, separación
 por islas, reducción a la rejilla nativa ~8 px, paleta corta, contorno, bordes repetibles).
 

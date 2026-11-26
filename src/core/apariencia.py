@@ -1,22 +1,23 @@
-"""Apariencia de un jugador del modo Online: piel, cabeza, traje y colores.
+"""Apariencia de un jugador: tono de piel y colores de su personaje.
 
-Es lo que se elige en los vestidores del lobby (estilo Among Us). Lógica
-pura (sin pygame), para probarse en aislado. Cada campo en None significa
-"lo de su rol": quien nunca pasó por un vestidor se ve exactamente como
-la hoja de su rol (assets/sprites/jugadores/<rol>.png).
+Es lo que se elige en los vestidores (estilo Among Us). Lógica pura (sin
+pygame), para probarse en aislado. Cada campo en None significa "lo del
+dibujo": quien nunca pasó por un vestidor se ve exactamente como el
+personaje de Higgsfield de su rol (assets/sprites/jugadores/<rol>.png).
 
-    piel      índice en assets.TONOS_PIEL; None = la piel original de la
-              cabeza que lleva puesta (pestaña COLOR).
-    cabeza    rol (assets.ROLES_APARIENCIA) del que sale la cabeza (HAT).
-    traje     rol del que salen el torso y las piernas (SKIN).
-    pelo      índice en assets.TONOS_PELO: color del pelo (HAIR).
+    piel      índice en assets.TONOS_PIEL (pestaña COLOR).
+    pelo      índice en assets.TONOS_PELO: color del cabello (HAIR).
     ropa      índice en assets.COLORES_ROPA: color de la camisa (SHIRT).
     pantalon  índice en assets.COLORES_PANTALON (PANTS).
-              Los tres últimos recolorean el arte de las recetas
-              (src/ui/receta_jugador.py); None = el color original.
+    zapatos   índice en assets.COLORES_ZAPATOS (SHOES).
+              Cada uno tiñe esa parte del dibujo (src/ui/tinte_jugador.py).
+    cabeza    rol del que salía la cabeza en el vestidor viejo (HAT) y
+    traje     rol del que salía el traje (SKIN). Se conservan para leer
+              apariencias de versiones viejas por red, pero el arte de
+              Higgsfield no se mezcla entre personajes: no cambian el dibujo.
 
 Es inmutable (frozen): cambiar un campo crea otra Apariencia, y por eso
-sirve de clave para cachear el sprite armado (src/ui/sprites.py).
+sirve de clave para cachear el sprite teñido (src/ui/sprites.py).
 
 Viaja por red como dict (a_dict / de_dict) dentro de cada nodo del
 GrafoSala (Online/protocolo.py). de_dict valida campo por campo: un dato
@@ -37,6 +38,7 @@ class Apariencia:
     pelo: int | None = None
     ropa: int | None = None
     pantalon: int | None = None
+    zapatos: int | None = None
 
     def es_predeterminada(self):
         """True si no cambia nada respecto a la hoja del rol."""
@@ -44,7 +46,7 @@ class Apariencia:
 
     def con(self, campo, valor):
         """Copia con `campo` ("piel", "cabeza", "traje", "pelo", "ropa" o
-        "pantalon") cambiado a `valor`."""
+        "pantalon" o "zapatos") cambiado a `valor`."""
         return replace(self, **{campo: valor})
 
     def cabeza_para(self, rol):
@@ -58,7 +60,8 @@ class Apariencia:
     def a_dict(self):
         """Para mandarla por red (JSON)."""
         return {"piel": self.piel, "cabeza": self.cabeza, "traje": self.traje,
-                "pelo": self.pelo, "ropa": self.ropa, "pantalon": self.pantalon}
+                "pelo": self.pelo, "ropa": self.ropa, "pantalon": self.pantalon,
+                "zapatos": self.zapatos}
 
     @classmethod
     def de_dict(cls, datos):
@@ -73,6 +76,7 @@ class Apariencia:
             pelo=_indice_valido(datos.get("pelo"), assets.TONOS_PELO),
             ropa=_indice_valido(datos.get("ropa"), assets.COLORES_ROPA),
             pantalon=_indice_valido(datos.get("pantalon"), assets.COLORES_PANTALON),
+            zapatos=_indice_valido(datos.get("zapatos"), assets.COLORES_ZAPATOS),
         )
 
 

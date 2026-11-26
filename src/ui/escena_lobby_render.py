@@ -160,7 +160,7 @@ class EscenaLobby:
             superficie.blit(copia, copia.get_rect(center=self._en_pantalla(luz["x"], luz["y"])))
 
     def dibujar(self, pantalla, roles, t, reducir_movimiento=False):
-        """`roles`: por puesto, (clase de rol, resaltada, confirmada)."""
+        """`roles`: por puesto, (clase de rol, resaltada, confirmada[, apariencia del vestidor])."""
         t_luz = 0.0 if reducir_movimiento else t
         pantalla.blit(self.fondo, self.desplazamiento)
         for indice, obj in self.dinamicos_detras:
@@ -176,7 +176,8 @@ class EscenaLobby:
     def _puestos(self, superficie, roles, t):
         pool = cargador_backrooms.light_pool(self.grade, self.plantilla["luz_puesto"], self.escala) \
             if self.plantilla.get("luz_puesto") else None
-        for (x, y), (clase, resaltada, confirmada) in zip(self.plantilla["puestos"], roles):
+        for (x, y), (clase, resaltada, confirmada, *resto) in zip(self.plantilla["puestos"], roles):
+            apariencia = resto[0] if resto else None
             pie = self._en_pantalla(x, y)
             if pool is not None:
                 copia = pool.copy()
@@ -187,8 +188,17 @@ class EscenaLobby:
             pygame.draw.ellipse(halo, (*clase.COLOR, min(255, alfa)), halo.get_rect())
             superficie.blit(halo, halo.get_rect(center=pie))
             respiro = round(2 * math.sin(t * 2.4 + x))
-            imagen = sprites.sprite_jugador(clase.COLOR, escala=assets.ESCALA_SPRITE_PUESTO, rol=clase.rol,
-                                            tiempo=t, caminando=resaltada and not confirmada)
+            # El personaje de Higgsfield (decidido cuando lo señalan, teñido
+            # si quien lo señala se personalizó); sin retrato, el sprite del rol.
+            if apariencia is not None and not apariencia.es_predeterminada():
+                imagen = sprites.retrato_rol(clase.rol, assets.ALTO_RETRATO_PUESTO, apariencia)
+            else:
+                imagen = sprites.retrato_rol(f"{clase.rol}_decidido" if resaltada else clase.rol,
+                                             assets.ALTO_RETRATO_PUESTO)
+            if imagen is None:
+                imagen = sprites.sprite_jugador(clase.COLOR, escala=assets.ESCALA_SPRITE_PUESTO, rol=clase.rol,
+                                                tiempo=t, caminando=resaltada and not confirmada,
+                                                apariencia=apariencia)
             superficie.blit(imagen, imagen.get_rect(midbottom=(pie[0], pie[1] + 4 + respiro)))
 
     def _polvo(self, superficie, t):

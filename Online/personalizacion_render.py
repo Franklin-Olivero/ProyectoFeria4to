@@ -1,15 +1,14 @@
 """Dibujo y ratón del vestidor del lobby online (estilo Among Us).
 
 Modal sobre la sala, con el estilo de ahora del juego (vidrio oscuro y el
-morado de Civitas, como el lobby del hotel): botón X para cerrar, las seis
-pestañas COLOR / HAT / SKIN / HAIR / SHIRT / PANTS arriba, a la izquierda
-el jugador en grande con lo que lleva puesto y a la derecha la cuadrícula de
-opciones de la pestaña (la equipada, resaltada). Cada casilla muestra la
-parte real que se pondría, armada desde las recetas de Pixelbolt
-(sprites.sprite_parte_jugador): la cabeza con ese tono de piel (COLOR) o
-color de pelo (HAIR), la cabeza de ese rol (HAT), su torso y piernas (SKIN)
-o el traje con esa camisa (SHIRT) o ese pantalón (PANTS). Qué opciones hay
-y qué se equipa lo decide Online/personalizacion.py.
+morado de Civitas, como el lobby del hotel): botón X para cerrar, las
+pestañas COLOR / HAIR / SHIRT / PANTS / SHOES arriba, a la izquierda el
+jugador en grande con lo que lleva puesto y a la derecha la cuadrícula de
+colores de la pestaña (el equipado, resaltado). Cada casilla muestra la
+parte real teñida con ese color (sprites.sprite_parte_jugador): la mitad de
+arriba del personaje para la piel y el cabello, la de abajo para la camisa,
+el pantalón y los zapatos. Qué opciones hay y qué se equipa lo decide
+Online/personalizacion.py.
 """
 
 import math
@@ -20,7 +19,7 @@ from src.core import assets
 from src.ui import dibujo, kit, layout, sprites
 
 from Online.personalizacion import (
-    COLOR, COLUMNAS, HAIR, HAT, PANTS, PESTANAS, SHIRT, SKIN, color_de_opcion, etiqueta_opcion, nombre_rol, opciones,
+    CAMPO_DE_PESTANA, COLOR, COLUMNAS, HAIR, PANTS, PESTANAS, SHIRT, SHOES, color_de_opcion, etiqueta_opcion, nombre_rol, opciones,
     texto_opcion,
 )
 
@@ -44,19 +43,18 @@ RECT_OPCIONES = pygame.Rect(RECT_VISTA.right + 20, RECT_VISTA.top,
 LADO_CASILLA = 100
 SEPARACION_CASILLAS = 10
 MARGEN_CUADRICULA = 20  # entre el borde del panel de opciones y la primera fila
-ESCALA_VISTA = 11  # jugador de la vista previa: 176x220 px (distinta de la revelación del rol)
-ESCALA_CASILLA = 5  # parte de cada casilla: 80x50 px
+ESCALA_VISTA = 9  # jugador de la vista previa: hoja de 40 px a x5 = 200 px de alto (distinta de la revelación)
+ESCALA_CASILLA = 4  # parte de cada casilla si falta el retrato: media hoja a x2 (~88x40 px)
+ALTO_RETRATO_VISTA = 220  # el personaje de Higgsfield, teñido, en la vista previa
+ALTO_RETRATO_CASILLA = 118  # retrato del que sale la mitad de cada casilla
 RADIO_MUESTRA_TONO = 8
 
 AYUDA_PESTANA = {
-    COLOR: "Tono de piel de la cara y las manos. AUTO deja el tono original de la cabeza que lleves.",
-    HAT: "La parte de arriba (pelo, cara y lentes) de cualquier personaje. AUTO usa la de tu rol "
-         "y cambia sola si eliges otro rol en la recepción.",
-    SKIN: "El traje (camisa, pantalón y zapatos) de cualquier personaje. Tu accesorio "
-          "(megáfono, micrófono...) siempre es el de tu rol.",
-    HAIR: "Color del pelo de la cabeza que lleves, con sus sombras. AUTO deja el color original.",
-    SHIRT: "Color de la camisa o chaqueta del traje que lleves. El cuello y la corbata no cambian.",
-    PANTS: "Color del pantalón del traje que lleves. Los zapatos no cambian.",
+    COLOR: "Tono de piel de la cara y las manos, con sus sombras. AUTO deja el tono del dibujo.",
+    HAIR: "Color del cabello (y las cejas), con sus sombras y brillos. AUTO deja el color del dibujo.",
+    SHIRT: "Color de la camisa, sudadera, bata o saco. Los blancos, la corbata y los accesorios no cambian.",
+    PANTS: "Color del pantalón, con sus sombras.",
+    SHOES: "Color de los zapatos. Las suelas blancas no cambian.",
 }
 
 # Qué hay bajo el ratón (objetivo_en).
@@ -98,8 +96,14 @@ def objetivo_en(vestidor, posicion):
     return DENTRO, None
 
 
-def dibujar_vestidor(pantalla, vestidor, rol, color_rol, posicion_mouse):
-    """Modal completo para un jugador de rol `rol` (clave de sprite)."""
+AYUDA_TECLADO = "[E] o [Esc] cierra  ·  Tab o 1-5 cambian de pestaña"
+AYUDA_MANDO = "○ cierra  ·  L1 / R1 cambian de pestaña  ·  cruceta elige"
+
+
+def dibujar_vestidor(pantalla, vestidor, rol, color_rol, posicion_mouse, subtitulo="Todos ven tus cambios",
+                     ayuda=AYUDA_TECLADO):
+    """Modal completo para un jugador de rol `rol` (clave de sprite).
+    `subtitulo` va bajo el título VESTIDOR; `ayuda`, al pie."""
     dibujo.panel_alfa(pantalla, pantalla.get_rect(), assets.COLOR_FONDO_MODAL_ALFA, radio=0)
     kit.panel(pantalla, RECT_MODAL, COLOR_ACENTO, alfa=246, radio=16)
     pygame.draw.rect(pantalla, COLOR_ACENTO, RECT_MODAL, 2, border_radius=16)
@@ -108,11 +112,11 @@ def dibujar_vestidor(pantalla, vestidor, rol, color_rol, posicion_mouse):
     _dibujar_pestanas(pantalla, vestidor, indice if objetivo == PESTANA else None)
     dibujo.texto(pantalla, "VESTIDOR", (RECT_MODAL.right - 24, RECT_MODAL.top + 14), COLOR_ACENTO,
                  assets.TAMANIO_FUENTE_TITULO, negrita=True, ancla="topright")
-    dibujo.texto(pantalla, "Todos ven tus cambios", (RECT_MODAL.right - 24, RECT_MODAL.top + 42),
+    dibujo.texto(pantalla, subtitulo, (RECT_MODAL.right - 24, RECT_MODAL.top + 42),
                  assets.COLOR_TEXTO_SECUNDARIO, assets.TAMANIO_FUENTE_MINI, ancla="topright")
     _dibujar_vista(pantalla, vestidor, rol, color_rol)
     _dibujar_opciones(pantalla, vestidor, rol, indice if objetivo == OPCION else None)
-    dibujo.texto(pantalla, "[E] o [Esc] cierra  ·  Tab o 1-6 cambian de pestaña",
+    dibujo.texto(pantalla, ayuda,
                  (RECT_MODAL.centerx, RECT_MODAL.bottom - 18), assets.COLOR_TEXTO_APAGADO,
                  assets.TAMANIO_FUENTE_PEQUENA, ancla="center")
 
@@ -156,7 +160,9 @@ def _dibujar_vista(pantalla, vestidor, rol, color_rol):
     sombra = pygame.Rect(0, 0, 150, 22)
     sombra.center = pies
     dibujo.panel_alfa(pantalla, sombra, assets.COLOR_SOMBRA_VESTIDOR, radio=11)
-    imagen = sprites.sprite_jugador(color_rol, escala=ESCALA_VISTA, rol=rol, apariencia=vestidor.apariencia)
+    imagen = _retrato(rol, ALTO_RETRATO_VISTA, vestidor.apariencia)
+    if imagen is None:
+        imagen = sprites.sprite_jugador(color_rol, escala=ESCALA_VISTA, rol=rol, apariencia=vestidor.apariencia)
     pantalla.blit(imagen, imagen.get_rect(midbottom=(pies[0], pies[1] + 6)))
     dibujo.chip(pantalla, f"Rol: {nombre_rol(rol)}", (RECT_VISTA.centerx, RECT_VISTA.top + 296), color_rol,
                 assets.COLOR_FONDO, color_rol, assets.TAMANIO_FUENTE_PEQUENA, ancla="center")
@@ -218,20 +224,22 @@ def _dibujar_casilla(pantalla, rect, vestidor, rol, valor, elegida, resaltada):
 
 
 def _imagen_opcion(vestidor, rol, valor):
-    """La parte que se vería con esa opción, con la piel y los colores que tendría."""
+    """La parte que se vería con esa opción, con los demás colores que ya lleva."""
     apariencia = vestidor.apariencia
     pestana = vestidor.pestana
-    piel = None if apariencia.piel is None else assets.TONOS_PIEL[apariencia.piel]
-    if pestana == COLOR:
-        piel = None if valor is None else assets.TONOS_PIEL[valor]
-        return sprites.sprite_parte_jugador(assets.SIMBOLOS_CABEZA, apariencia.cabeza_para(rol), piel,
-                                            ESCALA_CASILLA, apariencia)
-    if pestana == HAIR:
-        return sprites.sprite_parte_jugador(assets.SIMBOLOS_CABEZA, apariencia.cabeza_para(rol), piel,
-                                            ESCALA_CASILLA, apariencia.con("pelo", valor))
-    if pestana in (SHIRT, PANTS):
-        campo = "ropa" if pestana == SHIRT else "pantalon"
-        return sprites.sprite_parte_jugador(assets.SIMBOLOS_TRAJE, apariencia.traje_para(rol), piel,
-                                            ESCALA_CASILLA, apariencia.con(campo, valor))
-    simbolos = assets.SIMBOLOS_CABEZA if pestana == HAT else assets.SIMBOLOS_TRAJE
-    return sprites.sprite_parte_jugador(simbolos, valor or rol, piel, ESCALA_CASILLA, apariencia)
+    probada = apariencia.con(CAMPO_DE_PESTANA[pestana], valor)
+    arriba = pestana in (COLOR, HAIR)
+    retrato = _retrato(rol, ALTO_RETRATO_CASILLA, probada)
+    if retrato is not None:
+        corte = round(retrato.get_height() * assets.CORTE_CABEZA_JUGADOR)
+        rect = (0, 0, retrato.get_width(), corte) if arriba else (0, corte, retrato.get_width(),
+                                                                   retrato.get_height() - corte)
+        return retrato.subsurface(rect)
+    simbolos = assets.SIMBOLOS_CABEZA if arriba else assets.SIMBOLOS_TRAJE
+    return sprites.sprite_parte_jugador(simbolos, rol, None, ESCALA_CASILLA, probada)
+
+
+def _retrato(rol, alto, apariencia):
+    """El personaje de Higgsfield del rol a `alto` px, teñido con los
+    colores de `apariencia` (o tal cual si no cambia ninguno)."""
+    return sprites.retrato_rol(rol, alto, apariencia)

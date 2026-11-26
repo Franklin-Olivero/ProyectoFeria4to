@@ -54,7 +54,7 @@ def test_rangos_salen_de_los_4_roles():
 
 
 def test_en_la_escala_ningun_rol_domina_a_otro():
-    """La regla de balance de CLAUDE.md, vista en la tarjeta: ningún rol
+    """La regla de balance del proyecto, vista en la tarjeta: ningún rol
     tiene puntaje >= que otro en todas las estadísticas."""
     for a in STATS_POR_ROL:
         for b in STATS_POR_ROL:

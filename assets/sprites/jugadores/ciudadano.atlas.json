@@ -4,83 +4,83 @@
       "frame": {
         "x": 0,
         "y": 0,
-        "w": 16,
-        "h": 20
+        "w": 44,
+        "h": 40
       },
       "rotated": false,
       "trimmed": false,
       "spriteSourceSize": {
         "x": 0,
         "y": 0,
-        "w": 16,
-        "h": 20
+        "w": 44,
+        "h": 40
       },
       "sourceSize": {
-        "w": 16,
-        "h": 20
+        "w": 44,
+        "h": 40
       },
       "duration": 150
     },
     "paso_a": {
       "frame": {
-        "x": 16,
+        "x": 44,
         "y": 0,
-        "w": 16,
-        "h": 20
+        "w": 44,
+        "h": 40
       },
       "rotated": false,
       "trimmed": false,
       "spriteSourceSize": {
         "x": 0,
         "y": 0,
-        "w": 16,
-        "h": 20
+        "w": 44,
+        "h": 40
       },
       "sourceSize": {
-        "w": 16,
-        "h": 20
+        "w": 44,
+        "h": 40
       },
       "duration": 150
     },
     "paso_b": {
       "frame": {
-        "x": 32,
+        "x": 88,
         "y": 0,
-        "w": 16,
-        "h": 20
+        "w": 44,
+        "h": 40
       },
       "rotated": false,
       "trimmed": false,
       "spriteSourceSize": {
         "x": 0,
         "y": 0,
-        "w": 16,
-        "h": 20
+        "w": 44,
+        "h": 40
       },
       "sourceSize": {
-        "w": 16,
-        "h": 20
+        "w": 44,
+        "h": 40
       },
       "duration": 150
     },
     "dash": {
       "frame": {
-        "x": 48,
+        "x": 132,
         "y": 0,
-        "w": 16,
-        "h": 20
+        "w": 44,
+        "h": 40
       },
       "rotated": false,
       "trimmed": false,
       "spriteSourceSize": {
         "x": 0,
         "y": 0,
-        "w": 16,
-        "h": 20
+        "w": 44,
+        "h": 40
       },
       "sourceSize": {
-        "w": 16,
-        "h": 20
+        "w": 44,
+        "h": 40
       },
       "duration": 120
     }
@@ -105,13 +105,13 @@
     }
   },
   "meta": {
-    "app": "Pixelbolt",
+    "app": "Higgsfield + tools/generar_jugadores_higgsfield.py",
     "version": "1",
     "image": "ciudadano.png",
     "format": "RGBA8888",
     "size": {
-      "w": 64,
-      "h": 20
+      "w": 176,
+      "h": 40
     },
     "scale": "1"
   }

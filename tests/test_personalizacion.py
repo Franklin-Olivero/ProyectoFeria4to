@@ -1,5 +1,5 @@
-"""Vestidor del lobby online: lógica pura de las pestañas COLOR / HAT /
-SKIN, clics del modal y cómo el lobby lo abre, lo usa y lo sincroniza."""
+"""Vestidor: lógica pura de las pestañas COLOR / HAIR / SHIRT / PANTS /
+SHOES, clics del modal y cómo el lobby lo abre, lo usa y lo sincroniza."""
 
 import os
 
@@ -12,7 +12,7 @@ from src.core import assets  # noqa: E402
 from src.core.apariencia import PREDETERMINADA, Apariencia  # noqa: E402
 from Online import lobby, personalizacion_render  # noqa: E402
 from Online.personalizacion import (  # noqa: E402
-    COLOR, COLUMNAS, HAT, PESTANAS, SKIN, Vestidor, etiqueta_opcion, opciones, texto_opcion,
+    COLOR, COLUMNAS, HAIR, PANTS, PESTANAS, SHIRT, SHOES, Vestidor, etiqueta_opcion, opciones, texto_opcion,
 )
 from Online.personalizacion_render import (  # noqa: E402
     CENTRO_CERRAR, CERRAR, DENTRO, FUERA, OPCION, PESTANA, RECT_MODAL, RECT_OPCIONES,
@@ -24,31 +24,31 @@ from Online.protocolo import LOBBY, GrafoSala, deserializar_buffer  # noqa: E402
 # --- Lógica pura ----------------------------------------------------------
 
 def test_cada_pestana_empieza_con_auto():
+    assert PESTANAS == (COLOR, HAIR, SHIRT, PANTS, SHOES)
     assert opciones(COLOR) == (None, *range(len(assets.TONOS_PIEL)))
-    assert opciones(HAT) == (None, *assets.ROLES_APARIENCIA)
-    assert opciones(SKIN) == (None, *assets.ROLES_APARIENCIA)
+    assert opciones(SHOES) == (None, *range(len(assets.COLORES_ZAPATOS)))
 
 
 def test_vestidor_nuevo_tiene_todo_en_auto():
     vestidor = Vestidor()
     assert vestidor.pestana == COLOR
     assert vestidor.apariencia == PREDETERMINADA
-    assert [vestidor.indice_elegido(p) for p in PESTANAS] == [0] * len(PESTANAS) and len(PESTANAS) == 6
-    assert Vestidor(pestana="PET").pestana == COLOR  # no hay pestaña de mascotas
+    assert [vestidor.indice_elegido(p) for p in PESTANAS] == [0] * len(PESTANAS) and len(PESTANAS) == 5
+    assert Vestidor(pestana="HAT").pestana == COLOR  # ya no hay cabezas prestadas
 
 
 def test_elegir_equipa_el_campo_de_la_pestana_visible():
     vestidor = Vestidor()
     assert vestidor.elegir(3) is True
     assert vestidor.apariencia == Apariencia(piel=2)
-    vestidor.ir_a_pestana(1)
-    assert vestidor.elegir(3) is True
-    assert vestidor.apariencia == Apariencia(piel=2, cabeza=assets.ROLES_APARIENCIA[2])
-    vestidor.ir_a_pestana(2)
+    vestidor.ir_a_pestana(PESTANAS.index(HAIR))
     assert vestidor.elegir(4) is True
-    assert vestidor.apariencia.traje == assets.ROLES_APARIENCIA[3]
-    assert vestidor.elegir(0) is True  # AUTO vuelve al traje del rol
-    assert vestidor.apariencia.traje is None
+    assert vestidor.apariencia == Apariencia(piel=2, pelo=3)
+    vestidor.ir_a_pestana(PESTANAS.index(SHOES))
+    assert vestidor.elegir(2) is True
+    assert vestidor.apariencia.zapatos == 1
+    assert vestidor.elegir(0) is True  # AUTO vuelve al color del dibujo
+    assert vestidor.apariencia.zapatos is None
 
 
 def test_elegir_lo_mismo_o_fuera_de_rango_no_cambia():
@@ -60,12 +60,12 @@ def test_elegir_lo_mismo_o_fuera_de_rango_no_cambia():
 
 
 def test_izquierda_y_derecha_recorren_en_ciclo():
-    vestidor = Vestidor(pestana=HAT)
+    vestidor = Vestidor(pestana=SHIRT)
     assert vestidor.mover(-1, 0) is True
-    assert vestidor.indice_elegido() == len(opciones(HAT)) - 1
+    assert vestidor.indice_elegido() == len(opciones(SHIRT)) - 1
     assert vestidor.mover(1, 0) is True
     assert vestidor.indice_elegido() == 0
-    assert vestidor.apariencia.cabeza is None
+    assert vestidor.apariencia.ropa is None
 
 
 def test_arriba_y_abajo_cambian_de_fila():
@@ -79,15 +79,9 @@ def test_arriba_y_abajo_cambian_de_fila():
     assert vestidor.mover(0, 1) is False  # ya está en la última fila
 
 
-def test_abajo_no_hace_nada_con_una_sola_fila():
-    vestidor = Vestidor(Apariencia(traje="influencer"), pestana=SKIN)
-    assert vestidor.mover(0, 1) is False
-    assert vestidor.apariencia.traje == "influencer"
-
-
 def test_pestanas_en_ciclo_sin_tocar_la_apariencia():
     vestidor = Vestidor(Apariencia(piel=1))
-    assert vestidor.pestana_siguiente(-1) is True and vestidor.pestana == PESTANAS[-1]  # la última: PANTS
+    assert vestidor.pestana_siguiente(-1) is True and vestidor.pestana == PESTANAS[-1] == SHOES
     assert vestidor.pestana_siguiente() is True and vestidor.pestana == COLOR
     assert vestidor.ir_a_pestana(0) is False  # ya estaba
     assert vestidor.ir_a_pestana(len(PESTANAS)) is False
@@ -102,11 +96,11 @@ def test_valor_desconocido_se_muestra_como_auto():
 def test_textos_de_las_opciones():
     assert texto_opcion(COLOR, None, "periodista") == "Auto: piel original"
     assert texto_opcion(COLOR, 0, "periodista") == "Tono 1"
-    assert texto_opcion(HAT, None, "periodista") == "Auto: cabeza de tu rol (Periodista)"
-    assert texto_opcion(SKIN, "candidato", "periodista") == "Traje de Candidato"
-    assert etiqueta_opcion(HAT, None) == "AUTO"
+    assert texto_opcion(HAIR, None, "periodista") == "Auto: cabello original (Periodista)"
+    assert texto_opcion(SHOES, 1, "periodista") == "Zapatos: Negro"
+    assert etiqueta_opcion(HAIR, None) == "AUTO"
     assert etiqueta_opcion(COLOR, 7) == "Tono 8"
-    assert etiqueta_opcion(SKIN, "ciudadano") == "Ciudadano"
+    assert etiqueta_opcion(PANTS, 0) == "Mezclilla"
 
 
 # --- Modal: geometría y clics ---------------------------------------------
@@ -120,14 +114,14 @@ def test_las_casillas_caben_en_su_panel_sin_pisarse():
 
 
 def test_objetivo_bajo_el_raton():
-    vestidor = Vestidor(pestana=HAT)
+    vestidor = Vestidor()
     assert objetivo_en(vestidor, CENTRO_CERRAR) == (CERRAR, None)
     assert objetivo_en(vestidor, rect_pestana(2).center) == (PESTANA, 2)
     assert objetivo_en(vestidor, rect_casilla(4).center) == (OPCION, 4)
-    # HAT tiene 5 casillas: donde COLOR tendría la sexta no hay nada.
-    assert objetivo_en(vestidor, rect_casilla(5).center) == (DENTRO, None)
-    vestidor.ir_a_pestana(0)
-    assert objetivo_en(vestidor, rect_casilla(5).center) == (OPCION, 5)
+    # COLOR tiene 9 casillas: donde HAIR tiene la décima no hay nada.
+    assert objetivo_en(vestidor, rect_casilla(9).center) == (DENTRO, None)
+    vestidor.ir_a_pestana(PESTANAS.index(HAIR))
+    assert objetivo_en(vestidor, rect_casilla(9).center) == (OPCION, 9)
     assert objetivo_en(vestidor, (RECT_MODAL.left - 5, RECT_MODAL.centery)) == (FUERA, None)
 
 
@@ -135,7 +129,7 @@ def test_objetivo_bajo_el_raton():
 def test_el_modal_se_dibuja_en_cada_pestana(pestana):
     pygame.font.init()
     pantalla = pygame.Surface((1280, 720))
-    vestidor = Vestidor(Apariencia(piel=6, cabeza="candidato", traje="influencer"), pestana)
+    vestidor = Vestidor(Apariencia(piel=6, pelo=2, ropa=4, pantalon=1, zapatos=3), pestana)
     dibujar_vestidor(pantalla, vestidor, "periodista", assets.COLOR_PERIODISTA, rect_casilla(1).center)
     # La casilla equipada lleva el borde de acento.
     elegida = rect_casilla(vestidor.indice_elegido())
@@ -166,14 +160,16 @@ def test_teclado_en_el_vestidor():
     assert lobby._evento_vestidor(_tecla(pygame.K_RIGHT), vestidor) == lobby.CAMBIO_VESTIDOR
     assert vestidor.apariencia == Apariencia(piel=0)
     assert lobby._evento_vestidor(_tecla(pygame.K_2), vestidor) is None
-    assert vestidor.pestana == HAT
+    assert vestidor.pestana == HAIR
     assert lobby._evento_vestidor(_tecla(pygame.K_TAB), vestidor) is None
-    assert vestidor.pestana == SKIN
+    assert vestidor.pestana == SHIRT
     assert lobby._evento_vestidor(_tecla(pygame.K_TAB, pygame.KMOD_LSHIFT), vestidor) is None
-    assert vestidor.pestana == HAT
+    assert vestidor.pestana == HAIR
     assert lobby._evento_vestidor(_tecla(pygame.K_d), vestidor) == lobby.CAMBIO_VESTIDOR
-    assert vestidor.apariencia == Apariencia(piel=0, cabeza=assets.ROLES_APARIENCIA[0])
-    assert lobby._evento_vestidor(_tecla(pygame.K_w), vestidor) is None  # una sola fila
+    assert vestidor.apariencia == Apariencia(piel=0, pelo=0)
+    assert lobby._evento_vestidor(_tecla(pygame.K_w), vestidor) is None  # ya está en la primera fila
+    assert lobby._evento_vestidor(_tecla(pygame.K_5), vestidor) is None
+    assert vestidor.pestana == SHOES
     for tecla in (pygame.K_e, pygame.K_ESCAPE, pygame.K_RETURN):
         assert lobby._evento_vestidor(_tecla(tecla), vestidor) == lobby.CERRAR_VESTIDOR
 
@@ -181,9 +177,9 @@ def test_teclado_en_el_vestidor():
 def test_raton_en_el_vestidor():
     vestidor = Vestidor()
     assert lobby._evento_vestidor(_clic(rect_pestana(2).center), vestidor) is None
-    assert vestidor.pestana == SKIN
+    assert vestidor.pestana == SHIRT
     assert lobby._evento_vestidor(_clic(rect_casilla(3).center), vestidor) == lobby.CAMBIO_VESTIDOR
-    assert vestidor.apariencia.traje == assets.ROLES_APARIENCIA[2]
+    assert vestidor.apariencia.ropa == 2
     assert lobby._evento_vestidor(_clic(rect_casilla(3).center), vestidor) is None  # ya la tenía
     assert lobby._evento_vestidor(_clic(CENTRO_CERRAR), vestidor) == lobby.CERRAR_VESTIDOR
     assert lobby._evento_vestidor(_clic((5, 5)), vestidor) == lobby.CERRAR_VESTIDOR
@@ -210,7 +206,7 @@ class _InvitadoFalso:
 
 def test_el_host_guarda_su_apariencia_y_avisa_a_la_sala():
     host = _HostFalso()
-    apariencia = Apariencia(piel=5, traje="candidato")
+    apariencia = Apariencia(piel=5, ropa=2)
     lobby._actualizar_apariencia(True, host, apariencia)
     assert host.sala.apariencia_de(0) == apariencia
     mensajes, _ = deserializar_buffer(b"".join(host.enviados))
@@ -222,6 +218,6 @@ def test_el_host_guarda_su_apariencia_y_avisa_a_la_sala():
 
 def test_el_invitado_la_manda_al_host():
     invitado = _InvitadoFalso()
-    apariencia = Apariencia(cabeza="periodista")
+    apariencia = Apariencia(zapatos=4)
     lobby._actualizar_apariencia(False, invitado, apariencia)
     assert invitado.apariencias == [apariencia]

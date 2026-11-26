@@ -70,6 +70,17 @@ class VistaSeleccion:
         self.salida = None  # s desde que todos confirmaron (fundido de salida)
         self.escena = escena
         self.tablero = list(tablero)
+        # Lo que cada jugador (0 = J1) eligió en el vestidor: el personaje
+        # que señala posa con esos colores.
+        self.apariencias = []
+
+    def apariencia_en(self, indice, seleccion):
+        """Apariencia del primer jugador cuyo cursor está en la tarjeta
+        `indice`, o None (el dibujo original)."""
+        for numero, cursor in enumerate(seleccion.cursores):
+            if cursor.indice == indice and numero < len(self.apariencias):
+                return self.apariencias[numero]
+        return None
 
     @property
     def hotel(self):
@@ -111,7 +122,8 @@ class VistaSeleccion:
 
         for indice, clase in enumerate(clases_rol):
             encima = [(n, cursor.confirmado) for n, cursor in enumerate(seleccion.cursores) if cursor.indice == indice]
-            _dibujar_tarjeta(pantalla, indice, clase, encima, puntajes(clase.rol), self.elevacion[indice], t)
+            _dibujar_tarjeta(pantalla, indice, clase, encima, puntajes(clase.rol), self.elevacion[indice], t,
+                             self.apariencia_en(indice, seleccion))
 
         roles = [clases_rol[cursor.indice].rol for cursor in seleccion.cursores]
         _dibujar_resumen(pantalla, seleccion, clases_rol, roles, volumen, silenciado)
@@ -122,7 +134,8 @@ class VistaSeleccion:
         posan = []
         for indice, clase in enumerate(clases_rol):
             encima = [c for c in seleccion.cursores if c.indice == indice]
-            posan.append((clase, bool(encima), any(c.confirmado for c in encima)))
+            posan.append((clase, bool(encima), any(c.confirmado for c in encima),
+                          self.apariencia_en(indice, seleccion)))
         self.escena.dibujar(pantalla, posan, self.tiempo, reducir_movimiento)
 
         dos = len(seleccion.cursores) > 1
@@ -225,7 +238,15 @@ def _dibujar_arboles(pantalla, t):
         pantalla.blit(figura, figura.get_rect(midbottom=(round(ancho * x_relativa + deriva), alto)))
 
 
-def _dibujar_tarjeta(pantalla, indice, clase, encima, puntajes_rol, elevacion, t):
+def _retrato_que_posa(clase, resaltada, alto, apariencia=None):
+    """El personaje de Higgsfield: teñido con la apariencia de quien lo
+    señala, o la versión "decidido" cuando está señalado sin colores."""
+    if apariencia is not None and not apariencia.es_predeterminada():
+        return sprites.retrato_rol(clase.rol, alto, apariencia)
+    return sprites.retrato_rol(f"{clase.rol}_decidido" if resaltada else clase.rol, alto)
+
+
+def _dibujar_tarjeta(pantalla, indice, clase, encima, puntajes_rol, elevacion, t, apariencia=None):
     resaltada = bool(encima)
     confirmada = any(confirmado for _, confirmado in encima)
     tarjeta = rect_tarjeta(indice).move(0, -round(elevacion))
@@ -249,8 +270,10 @@ def _dibujar_tarjeta(pantalla, indice, clase, encima, puntajes_rol, elevacion, t
     pygame.draw.ellipse(halo, (*clase.COLOR, 70 if resaltada else 35), halo.get_rect())
     pantalla.blit(halo, halo.get_rect(center=(base[0], base[1] - 4)))
     respiro = round(2 * math.sin(t * 2.4 + indice))
-    imagen = sprites.sprite_jugador(clase.COLOR, escala=assets.ESCALA_SPRITE_LOBBY, rol=clase.rol,
-                                    tiempo=t, caminando=resaltada)
+    imagen = _retrato_que_posa(clase, resaltada, assets.ALTO_RETRATO_SELECCION, apariencia)
+    if imagen is None:
+        imagen = sprites.sprite_jugador(clase.COLOR, escala=assets.ESCALA_SPRITE_LOBBY, rol=clase.rol,
+                                        tiempo=t, caminando=resaltada, apariencia=apariencia)
     pantalla.blit(imagen, imagen.get_rect(midbottom=(base[0], base[1] + respiro)))
 
     y = tarjeta.top + 172

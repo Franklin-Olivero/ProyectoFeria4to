@@ -17,7 +17,7 @@ import pygame
 
 from src.core import assets, balance
 from src.core.apariencia import PREDETERMINADA
-from src.ui import receta_jugador
+from src.ui import tinte_jugador
 from src.ui.ruta_sprites import (
     cuadros_de_atlas,
     cuadros_por_nombre,
@@ -440,7 +440,8 @@ def limpiar_cache_hojas():
     _cache_cuadros.clear()
     _cache_enemigos.clear()
     _cache_retratos.clear()
-    _cache_recetas.clear()
+    _cache_pixeles.clear()
+    _cache_retratos_vestidos.clear()
     _cache_vestidos.clear()
     _cache_partes.clear()
 
@@ -517,20 +518,27 @@ def sprite_proyectil(color, tamanio, plantilla=None):
     return sprite(filas, paleta, ESCALA_PROYECTIL)
 
 
+def escala_hd(escala):
+    """Escala para las hojas del jugador hechas desde Higgsfield (cuadros de
+    assets.ALTO_JUGADOR_HF = 40 px, el doble que las viejas de 16x20): la
+    mitad de `escala`, redondeando hacia arriba. Así cada llamador sigue
+    pidiendo la escala de siempre y los píxeles quedan enteros."""
+    return max(1, -(-int(escala) // 2))
+
+
 def sprite_jugador(color_rol, escala=assets.ESCALA_PIXEL, rol=None, tiempo=0.0,
                    caminando=False, dash=False, apariencia=None):
     """Imagen del jugador. Con `rol` (clave de STATS_POR_ROL) y su hoja en
-    assets/sprites/jugadores/<rol>.png devuelve el cuadro de "caminar"
-    para `tiempo` (quieto = primer cuadro) o el de "dash"; sin hoja, el
-    muñeco dibujado en código teñido con `color_rol`. Con una `apariencia`
-    (src/core/apariencia.py) que cambie algo, los cuadros salen del
-    jugador armado por partes (_hoja_vestida); si faltan sus recetas,
-    la hoja de siempre."""
+    assets/sprites/jugadores/<rol>.png (el personaje de Higgsfield) devuelve
+    el cuadro de "caminar" para `tiempo` (quieto = primer cuadro) o el de
+    "dash", a escala_hd(escala); sin hoja, el muñeco dibujado en código
+    teñido con `color_rol`. Con una `apariencia` (src/core/apariencia.py)
+    que cambie algún color, la hoja sale teñida (_hoja_vestida)."""
     hoja = None
-    if rol and apariencia is not None and not apariencia.es_predeterminada():
-        hoja = _hoja_vestida(rol, apariencia, escala)
+    if rol and tinte_jugador.objetivos(apariencia):
+        hoja = _hoja_vestida(rol, apariencia, escala_hd(escala))
     if hoja is None and rol:
-        hoja = _cargar_hoja(ruta_sprite(rol, assets.RUTA_SPRITES_JUGADORES), escala)
+        hoja = _cargar_hoja(ruta_sprite(rol, assets.RUTA_SPRITES_JUGADORES), escala_hd(escala))
     if hoja is None:
         return sprite(JUGADOR, {**PALETA_JUGADOR, "c": color_rol}, escala)
     if dash and assets.ANIMACION_DASH in hoja:
@@ -538,55 +546,134 @@ def sprite_jugador(color_rol, escala=assets.ESCALA_PIXEL, rol=None, tiempo=0.0,
     return cuadro_de_hoja(hoja, assets.ANIMACION_CAMINAR, tiempo if caminando else 0.0)
 
 
-# --- Jugador vestido (vestidores del lobby online) ----------------------
+# --- Jugador vestido (vestidores) ---------------------------------------
 #
-# Las recetas de Pixelbolt se leen una vez; cada combinación de rol,
-# apariencia y escala se arma una sola vez (la Apariencia es inmutable y
-# sirve de clave) y queda con la misma forma que una hoja cargada. Probar
-# combinaciones en el vestidor crea hojas nuevas: se guardan a lo sumo
-# MAX_HOJAS_VESTIDAS y al pasarse se olvida la más vieja.
+# La hoja del rol y su mapa de partes (<rol>.partes.png) se leen una vez
+# como cuadros de píxeles; cada combinación de rol, colores y escala se
+# tiñe una sola vez (src/ui/tinte_jugador.py) y queda con la misma forma
+# que una hoja cargada. Probar colores en el vestidor crea hojas nuevas:
+# se guardan a lo sumo MAX_HOJAS_VESTIDAS y al pasarse se olvida la más vieja.
 
 MAX_HOJAS_VESTIDAS = 64
-_cache_recetas = {}  # rol -> receta (o None si falta)
-_cache_vestidos = {}  # (rol, apariencia, escala) -> hoja armada (o None), en orden de creación
-_cache_partes = {}  # (simbolos, rol, piel, escala) -> Surface (o None)
+_cache_pixeles = {}  # rol -> datos de la hoja en píxeles (o None si falta algo)
+_cache_vestidos = {}  # (rol, colores, escala) -> hoja teñida (o None)
+_cache_partes = {}  # (simbolos, rol, colores, escala) -> Surface (o None)
 
 
-def _recetas():
-    """Recetas de los roles que prestan partes, leídas una sola vez."""
-    for rol in assets.ROLES_APARIENCIA:
-        if rol not in _cache_recetas:
-            _cache_recetas[rol] = receta_jugador.leer_receta(rol)
-    return _cache_recetas
+def _pixeles_de(superficie, rect):
+    x0, y0, w, h = rect
+    return tuple(
+        tuple(_rgba_o_none(superficie.get_at((x0 + x, y0 + y))) for x in range(w))
+        for y in range(h))
+
+
+def _rgba_o_none(pixel):
+    return None if pixel.a == 0 else (pixel.r, pixel.g, pixel.b, pixel.a)
+
+
+def _datos_hoja(rol):
+    """{"cuadros": {nombre: píxeles}, "partes": {nombre: [[parte]]},
+    "animaciones": {anim: ([nombre], [ms])}, "refs": {parte: RGB}} del rol,
+    leídos una vez; None si falta la hoja, su atlas o su mapa de partes."""
+    if rol not in _cache_pixeles:
+        _cache_pixeles[rol] = _leer_datos_hoja(rol)
+    return _cache_pixeles[rol]
+
+
+def _leer_datos_hoja(rol):
+    ruta = ruta_sprite(rol, assets.RUTA_SPRITES_JUGADORES)
+    if ruta is None:
+        return None
+    imagen = _cargar_png(ruta)
+    mapa = _cargar_png(os.path.join(assets.RUTA_SPRITES_JUGADORES, f"{rol}.partes.png"))
+    if imagen is None or mapa is None or mapa.get_size() != imagen.get_size():
+        return None
+    try:
+        with open(ruta_atlas(ruta), encoding="utf-8") as archivo:
+            atlas = json.load(archivo)
+        por_nombre = cuadros_por_nombre(atlas)
+        animaciones = {nombre: ([_nombre_de(atlas, rect) for rect, _ in lista], [ms for _, ms in lista])
+                       for nombre, lista in cuadros_de_atlas(atlas).items()}
+    except (OSError, ValueError, KeyError):
+        return None
+    cuadros = {nombre: _pixeles_de(imagen, rect) for nombre, (rect, _) in por_nombre.items()}
+    partes = {nombre: [[tinte_jugador.parte_de(c) for c in fila] for fila in _pixeles_de(mapa, rect)]
+              for nombre, (rect, _) in por_nombre.items()}
+    primero = "quieto" if "quieto" in cuadros else next(iter(cuadros))
+    return {"cuadros": cuadros, "partes": partes, "animaciones": animaciones,
+            "refs": tinte_jugador.referencias(cuadros[primero], partes[primero]), "primero": primero}
+
+
+def _nombre_de(atlas, rect):
+    """Nombre del cuadro del atlas que ocupa `rect`."""
+    for nombre, (otro, _) in cuadros_por_nombre(atlas).items():
+        if tuple(otro) == tuple(rect):
+            return nombre
+    raise KeyError(rect)
+
+
+def _colores(apariencia):
+    """Clave de caché: solo los colores importan (cabeza y traje no aplican al arte de Higgsfield)."""
+    return tuple(sorted(tinte_jugador.objetivos(apariencia).items()))
+
+
+def _recordar(cache, clave, crear):
+    if clave not in cache:
+        if len(cache) >= MAX_HOJAS_VESTIDAS:
+            del cache[next(iter(cache))]  # los dict guardan el orden de inserción
+        cache[clave] = crear()
+    return cache[clave]
+
+
+def _cuadro_teñido(datos, nombre, elegidos):
+    return tinte_jugador.teñir_cuadro(datos["cuadros"][nombre], datos["partes"][nombre], datos["refs"], elegidos)
 
 
 def _hoja_vestida(rol, apariencia, escala):
-    """Hoja del jugador de rol `rol` con `apariencia`, o None sin recetas."""
-    clave = (rol, apariencia, escala)
-    if clave not in _cache_vestidos:
-        if len(_cache_vestidos) >= MAX_HOJAS_VESTIDAS:
-            del _cache_vestidos[next(iter(_cache_vestidos))]  # los dict guardan el orden de inserción
-        animaciones = receta_jugador.armar_animaciones(_recetas(), rol, apariencia)
-        _cache_vestidos[clave] = None if animaciones is None else {
-            nombre: ([_superficie_pixeles(p, escala) for p in cuadros], duraciones)
-            for nombre, (cuadros, duraciones) in animaciones.items()
-        }
-    return _cache_vestidos[clave]
+    """Hoja del rol teñida con los colores de `apariencia` (escala ya HD), o None."""
+    def crear():
+        datos = _datos_hoja(rol)
+        if datos is None:
+            return None
+        elegidos = tinte_jugador.objetivos(apariencia)
+        teñidos = {}
+        hoja = {}
+        for animacion, (nombres, duraciones) in datos["animaciones"].items():
+            superficies = []
+            for nombre in nombres:
+                if nombre not in teñidos:
+                    teñidos[nombre] = _superficie_pixeles(_cuadro_teñido(datos, nombre, elegidos), escala)
+                superficies.append(teñidos[nombre])
+            hoja[animacion] = (superficies, duraciones)
+        return hoja
+    return _recordar(_cache_vestidos, (rol, _colores(apariencia), escala), crear)
 
 
 def sprite_parte_jugador(simbolos, rol_fuente, piel=None, escala=assets.ESCALA_PIXEL, colores=None):
-    """Vista previa de una parte para el vestidor: la cabeza
-    (assets.SIMBOLOS_CABEZA) o el traje (SIMBOLOS_TRAJE) de la receta de
-    `rol_fuente`, con la piel de color `piel` (None = la de su receta) y
-    los colores de pelo, camisa y pantalón de `colores` (una Apariencia;
-    None = los de la receta). None si no hay receta."""
-    piel = tuple(piel) if piel is not None else None
-    colores = colores or PREDETERMINADA
-    clave = (simbolos, rol_fuente, piel, escala, colores.pelo, colores.ropa, colores.pantalon)
-    if clave not in _cache_partes:
-        pixeles = receta_jugador.armar_parte(_recetas(), rol_fuente, simbolos, piel, colores)
-        _cache_partes[clave] = None if pixeles is None else _superficie_pixeles(pixeles, escala)
-    return _cache_partes[clave]
+    """Vista previa de una parte para el vestidor: la mitad de arriba
+    (assets.SIMBOLOS_CABEZA: pelo y cara) o la de abajo (SIMBOLOS_TRAJE:
+    ropa, pantalón y zapatos) del personaje de `rol_fuente`, con la piel
+    `piel` (un RGB de assets.TONOS_PIEL; None = la del dibujo) y los
+    colores de `colores` (una Apariencia; None = los del dibujo). None si
+    no hay hoja. Escala como la de sprite_jugador."""
+    apariencia = colores or PREDETERMINADA
+    if piel is not None and tuple(piel) in [tuple(t) for t in assets.TONOS_PIEL]:
+        apariencia = apariencia.con("piel", [tuple(t) for t in assets.TONOS_PIEL].index(tuple(piel)))
+    clave = (tuple(simbolos), rol_fuente, _colores(apariencia), escala)
+
+    def crear():
+        datos = _datos_hoja(rol_fuente)
+        if datos is None:
+            return None
+        cuadro = _cuadro_teñido(datos, datos["primero"], tinte_jugador.objetivos(apariencia))
+        alto = len(cuadro)
+        corte = round(alto * assets.CORTE_CABEZA_JUGADOR)
+        filas = cuadro[:corte] if tuple(simbolos) == tuple(assets.SIMBOLOS_CABEZA) else cuadro[corte:]
+        ocupadas = [y for y, fila in enumerate(filas) if any(c is not None for c in fila)]
+        if not ocupadas:
+            return None
+        return _superficie_pixeles(filas[ocupadas[0]:ocupadas[-1] + 1], escala_hd(escala))
+    return _recordar(_cache_partes, clave, crear)
 
 
 def _superficie_pixeles(pixeles, escala):
@@ -643,10 +730,18 @@ def dibujar_sombra(pantalla, centro, ancho):
     pantalla.blit(_cache_sombras[ancho], _cache_sombras[ancho].get_rect(center=centro))
 
 
-def retrato_rol(rol, alto):
+def retrato_rol(rol, alto, apariencia=None):
     """Ilustración grande del rol (assets/sprites/retratos/<rol>.png)
     escalada a `alto` px, o None si no existe: el que llama decide el
-    fallback (normalmente sprite_jugador a escala grande)."""
+    fallback (normalmente sprite_jugador a escala grande). Con una
+    `apariencia` que cambie colores, el retrato base del rol sale teñido
+    con su mapa de partes (<rol>.partes.png); sin mapa, sin teñir."""
+    elegidos = tinte_jugador.objetivos(apariencia)
+    if elegidos:
+        base = str(rol).split("_")[0]
+        clave = (base, alto, _colores(apariencia))
+        return _recordar(_cache_retratos_vestidos, clave,
+                         lambda: _retrato_teñido(base, alto, elegidos) or retrato_rol(base, alto))
     if (rol, alto) not in _cache_retratos:
         imagen = _cargar_png(ruta_sprite(rol, assets.RUTA_SPRITES_RETRATOS))
         if imagen is None and "_" in str(rol):
@@ -660,6 +755,25 @@ def retrato_rol(rol, alto):
             imagen = pygame.transform.smoothscale(imagen, (ancho, alto))
         _cache_retratos[(rol, alto)] = imagen
     return _cache_retratos[(rol, alto)]
+
+
+_cache_retratos_vestidos = {}  # (rol, alto, colores) -> Surface teñida
+
+
+def _retrato_teñido(rol, alto, elegidos):
+    """Retrato del rol a `alto` px con `elegidos` ({parte: RGB}) teñidos, o None."""
+    imagen = _cargar_png(ruta_sprite(rol, assets.RUTA_SPRITES_RETRATOS))
+    mapa = _cargar_png(os.path.join(assets.RUTA_SPRITES_RETRATOS, f"{rol}.partes.png"))
+    if imagen is None or mapa is None or mapa.get_size() != imagen.get_size():
+        return None
+    ancho = max(1, round(imagen.get_width() * alto / imagen.get_height()))
+    imagen = pygame.transform.smoothscale(imagen, (ancho, alto))
+    mapa = pygame.transform.scale(mapa, (ancho, alto))  # sin mezclar: cada píxel conserva su parte
+    rect = (0, 0, ancho, alto)
+    cuadro = _pixeles_de(imagen, rect)
+    partes = [[tinte_jugador.parte_de(c) for c in fila] for fila in _pixeles_de(mapa, rect)]
+    teñido = tinte_jugador.teñir_cuadro(cuadro, partes, tinte_jugador.referencias(cuadro, partes), elegidos)
+    return _superficie_pixeles(teñido, 1)
 
 
 _cache_enemigos = {}

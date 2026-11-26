@@ -11,8 +11,8 @@ Características:
     7. La sala es un salón del hotel Backrooms (Online/sala_hotel.py y
        sala_hotel_render.py), con el estilo del lobby del juego: la recepción
        elige el rol y los 4 carritos de equipaje son vestidores (estilo Among
-       Us): de cerca, [E] o clic abre el modal COLOR / HAT / SKIN / HAIR /
-       SHIRT / PANTS y toda la sala ve el cambio al instante. Sin el arte
+       Us): de cerca, [E] o clic abre el modal COLOR / HAIR / SHIRT /
+       PANTS / SHOES y toda la sala ve el cambio al instante. Sin el arte
        Backrooms, vuelve la sala neón de antes.
     8. Al iniciar, el host sortea al impostor y cada jugador ve su rol, vestido
        como eligió, en la pantalla de revelación (Online/pantalla_rol.py).
@@ -23,6 +23,7 @@ import time
 import pygame
 
 from src.core import assets
+from src.core import apariencias_guardadas
 from src.core.apariencia import PREDETERMINADA
 from src.core.config import FPS
 from src.core.preferencias import cargar as cargar_preferencias
@@ -91,7 +92,7 @@ else:  # sin el archivo: la sala neón de antes
     SPAWNS = [(505, 360), (610, 360), (430, 430), (680, 430)]
 RECT_BOTON_INICIO = pygame.Rect(SALA_RECT.centerx - 185, SALA_RECT.bottom - 52, 370, 50)
 ALCANCE_VESTIDOR = 95  # px del centro del jugador al centro de la caja (igual que la laptop)
-# Con el vestidor abierto: flechas/WASD eligen, Tab o 1-3 cambian de pestaña.
+# Con el vestidor abierto: flechas/WASD eligen, Tab o 1-5 cambian de pestaña.
 TECLAS_MOVER_VESTIDOR = {
     pygame.K_LEFT: (-1, 0), pygame.K_a: (-1, 0),
     pygame.K_RIGHT: (1, 0), pygame.K_d: (1, 0),
@@ -99,12 +100,20 @@ TECLAS_MOVER_VESTIDOR = {
     pygame.K_DOWN: (0, 1), pygame.K_s: (0, 1),
 }
 TECLAS_PESTANA_VESTIDOR = {
-    pygame.K_1: 0, pygame.K_2: 1, pygame.K_3: 2, pygame.K_4: 3, pygame.K_5: 4, pygame.K_6: 5,
-    pygame.K_KP1: 0, pygame.K_KP2: 1, pygame.K_KP3: 2, pygame.K_KP4: 3, pygame.K_KP5: 4, pygame.K_KP6: 5,
+    pygame.K_1: 0, pygame.K_2: 1, pygame.K_3: 2, pygame.K_4: 3, pygame.K_5: 4,
+    pygame.K_KP1: 0, pygame.K_KP2: 1, pygame.K_KP3: 2, pygame.K_KP4: 3, pygame.K_KP5: 4,
 }
 TECLAS_CERRAR_VESTIDOR = (pygame.K_ESCAPE, pygame.K_e, pygame.K_RETURN, pygame.K_KP_ENTER)
 CAMBIO_VESTIDOR = "cambio"
 CERRAR_VESTIDOR = "cerrar"
+# El vestidor con un control (J2 en la selección de roles local): la
+# cruceta elige, L1 / R1 cambian de pestaña y ○, ✕ o △ lo cierran.
+BOTONES_MOVER_VESTIDOR = {
+    pygame.CONTROLLER_BUTTON_DPAD_LEFT: (-1, 0), pygame.CONTROLLER_BUTTON_DPAD_RIGHT: (1, 0),
+    pygame.CONTROLLER_BUTTON_DPAD_UP: (0, -1), pygame.CONTROLLER_BUTTON_DPAD_DOWN: (0, 1),
+}
+BOTONES_PESTANA_VESTIDOR = {pygame.CONTROLLER_BUTTON_LEFTSHOULDER: -1, pygame.CONTROLLER_BUTTON_RIGHTSHOULDER: 1}
+BOTONES_CERRAR_VESTIDOR = (pygame.CONTROLLER_BUTTON_A, pygame.CONTROLLER_BUTTON_B, pygame.CONTROLLER_BUTTON_Y)
 
 
 def pantalla_elegir_modo_online(pantalla, reloj, presentar):
@@ -309,7 +318,8 @@ def pantalla_sala_espera(pantalla, reloj, presentar, clases_rol, es_host, conexi
     rol_local = "Ciudadano"  # Por defecto el primer rol
     modal_roles_abierto = False
     indice_rol_selector = 0
-    apariencia_local = PREDETERMINADA  # lo elegido en los vestidores
+    # Lo elegido en los vestidores: se entra con lo de la última vez (J1).
+    apariencia_local = apariencias_guardadas.cargar()[0]
     vestidor = None  # Vestidor abierto o None
     pestana_vestidor = PESTANAS[0]  # al reabrir, vuelve a la última pestaña usada
 
@@ -320,6 +330,8 @@ def pantalla_sala_espera(pantalla, reloj, presentar, clases_rol, es_host, conexi
     else:
         conexion.enviar_rol(rol_local)
         conexion.enviar_posicion_lobby(pos_x, pos_y)
+    if apariencia_local != PREDETERMINADA:
+        _actualizar_apariencia(es_host, conexion, apariencia_local)
 
     timer_pos_red = 0.0
     aviso_temporal = ""
@@ -376,13 +388,14 @@ def pantalla_sala_espera(pantalla, reloj, presentar, clases_rol, es_host, conexi
 
             # Con el vestidor abierto, el teclado y el ratón son solo suyos.
             if vestidor is not None:
-                accion = _evento_vestidor(evento, vestidor)
+                accion = evento_vestidor(evento, vestidor)
                 if accion == CAMBIO_VESTIDOR:
                     apariencia_local = vestidor.apariencia
                     _actualizar_apariencia(es_host, conexion, apariencia_local)
                 elif accion == CERRAR_VESTIDOR:
                     pestana_vestidor = vestidor.pestana
                     vestidor = None
+                    apariencias_guardadas.guardar_puesto(0, apariencia_local)
                 continue
 
             # Con el celular abierto, el teclado y el ratón son suyos (Esc lo cierra, no sale de la sala).
@@ -547,7 +560,7 @@ def pantalla_sala_espera(pantalla, reloj, presentar, clases_rol, es_host, conexi
         if vestidor is not None:
             controles = [
                 ("Flechas / WASD", "elegir"),
-                ("Tab / 1-6", "pestaña"),
+                ("Tab / 1-5", "pestaña"),
                 ("Clic", "elegir"),
                 ("E / Esc", "cerrar"),
             ]
@@ -602,7 +615,20 @@ def _caja_cercana(x, y):
     return indice if distancia < ALCANCE_VESTIDOR else None
 
 
-def _evento_vestidor(evento, vestidor):
+def evento_vestidor_mando(evento, vestidor):
+    """Como evento_vestidor, pero con los botones de un control."""
+    if evento.type != pygame.CONTROLLERBUTTONDOWN:
+        return None
+    if evento.button in BOTONES_CERRAR_VESTIDOR:
+        return CERRAR_VESTIDOR
+    if evento.button in BOTONES_PESTANA_VESTIDOR:
+        vestidor.pestana_siguiente(BOTONES_PESTANA_VESTIDOR[evento.button])
+    elif evento.button in BOTONES_MOVER_VESTIDOR and vestidor.mover(*BOTONES_MOVER_VESTIDOR[evento.button]):
+        return CAMBIO_VESTIDOR
+    return None
+
+
+def evento_vestidor(evento, vestidor):
     """Aplica un evento al vestidor abierto. Retorna CAMBIO_VESTIDOR si la
     apariencia cambió, CERRAR_VESTIDOR si hay que cerrarlo, o None."""
     if evento.type == pygame.KEYDOWN:
@@ -623,6 +649,9 @@ def _evento_vestidor(evento, vestidor):
         elif objetivo == OPCION and vestidor.elegir(indice):
             return CAMBIO_VESTIDOR
     return None
+
+
+_evento_vestidor = evento_vestidor  # nombre viejo
 
 
 def _armar_clases_partida(sala, clases_rol, ids=None):

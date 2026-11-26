@@ -106,8 +106,8 @@ Responsabilidad y límites de cada carpeta, según el código real:
   N-ario, grafo y min-heap). No importa `pygame`; solo `graph` importa a
   `min_heap`.
 - **`src/ai/`** — el behavior tree genérico, igual de puro que
-  `structures/`. No estaba en la lista original de carpetas de
-  `CLAUDE.md`; hoy sí está documentada allí.
+  `structures/`. No estaba en la lista original de carpetas del
+  proyecto; hoy sí está documentada.
 - **`src/entities/`** — jugadores, enemigos, jefe y proyectiles, cada uno
   con su estado y su `dibujar()`. El jefe y la invulnerabilidad son
   lógica pura; el resto usa `pygame.Rect`/`Vector2`.
@@ -968,7 +968,7 @@ aunque tenga `agro_permanente`.
 ## 5. Convenciones actuales
 
 Reglas que ya están aplicadas en el código, no solo declaradas en
-`CLAUDE.md`:
+las reglas del proyecto:
 
 - **Lo visual en `assets.py`, el balance en `balance.py`.** Ningún
   módulo define un color suelto: también los muros/puertas del cuarto y
