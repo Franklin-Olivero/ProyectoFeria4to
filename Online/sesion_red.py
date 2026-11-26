@@ -1709,20 +1709,39 @@ class AdaptadorOnlineJoin(_AdaptadorBase):
             self._lugar_actual = ["CIUDAD", None, None]
             return escena, arena, mazmorra, fundido
 
-        self._avisar_lectura()
-        escena, arena, mazmorra = self._deshacer_entrada_local(escena, arena, mazmorra)
+        # Cada paso con su propio try: si uno falla en esta PC, los demás
+        # siguen (antes un error al converger cortaba el frame antes de anotar
+        # a los otros jugadores y esta PC solo se veía a sí misma, con los
+        # botones de REPORTAR/SABOTEAR congelados).
+        if partida is not None and not hasattr(partida, "jugadores_online"):
+            partida.jugadores_online = list(jugadores)  # hasta el primer estado del host
+        self._paso("avisar_lectura", self._avisar_lectura)
+        escena, arena, mazmorra = self._paso(
+            "deshacer_entrada", self._deshacer_entrada_local, escena, arena, mazmorra,
+            por_defecto=(escena, arena, mazmorra))
         estado = self._ultimo_estado
         if estado is not None and self._estado_nuevo:
             self._estado_nuevo = False
-            escena, arena, mazmorra, fundido = self._converger(
-                estado, escena, arena, mazmorra, fundido, partida, jugadores, jugador)
-            self._aplicar(estado, escena, arena, mazmorra, partida, jugadores)
+            escena, arena, mazmorra, fundido = self._paso(
+                "converger", self._converger, estado, escena, arena, mazmorra, fundido, partida, jugadores,
+                jugador, por_defecto=(escena, arena, mazmorra, fundido))
+            self._paso("aplicar", self._aplicar, estado, escena, arena, mazmorra, partida, jugadores)
         if mazmorra is not None and mazmorra is self._mazmorra_propia:
             _congelar_cuarto(mazmorra.cuarto)  # la terminal que el cuarto acaba de crear, por ejemplo
         if estado is not None:
-            self._marcar_ausentes(estado, partida, jugadores)
+            self._paso("marcar_ausentes", self._marcar_ausentes, estado, partida, jugadores)
         self._lugar_actual = self._lugar(escena, arena, mazmorra)
         return escena, arena, mazmorra, fundido
+
+    @staticmethod
+    def _paso(nombre, funcion, *args, por_defecto=None):
+        """Corre un paso del frame del invitado; si falla lo anota en
+        errores_online.log y devuelve `por_defecto` (el frame sigue)."""
+        try:
+            return funcion(*args)
+        except Exception:
+            registro_errores.registrar(f"AdaptadorOnlineJoin.{nombre}")
+            return por_defecto
 
     def actualizar_ciudad(self, dt, partida, jugadores, jugador):
         """En la ciudad: avisa la posición propia al host y, con E junto a

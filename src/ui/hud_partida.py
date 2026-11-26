@@ -67,7 +67,13 @@ def dibujar_hud(pantalla, bloques, ctx):
         reputacion_render.dibujar_chip_reputacion(pantalla, ctx.reputacion)
     if ctx.mision is not None:
         if v.MISION in bloques:
-            bloque_mision(pantalla, ctx.mision, ctx.transcurrido_mision, compacto=v.MISION_LINEA not in bloques)
+            panel = bloque_mision(pantalla, ctx.mision, ctx.transcurrido_mision, compacto=v.MISION_LINEA not in bloques)
+            if v.MISION_LINEA in bloques and panel is not None:
+                # Abierto con el mouse: la zona sigue siendo la de la línea más el
+                # panel; si no, al abrirse dejaba de haber zona, se cerraba al
+                # cuadro siguiente y volvía a abrirse (titilaba).
+                rect_mision = pygame.Rect(assets.POSICION_LINEA_MISION,
+                                          (assets.ANCHO_MAXIMO_LINEA_MISION, assets.ALTO_LINEA_MISION)).union(panel)
         elif v.MISION_LINEA in bloques:
             rect_mision = bloque_mision_linea(pantalla, ctx.mision)
     if v.AVISO in bloques and ctx.aviso is not None:
@@ -158,7 +164,7 @@ def bloque_mision_linea(pantalla, mision):
 def bloque_mision(pantalla, mision, transcurrido, compacto):
     """Panel completo de la misión (mouse, Tab o HUD detallado)."""
     rect = assets.RECT_PANEL_MISION_COMBATE if compacto else assets.RECT_PANEL_MISION_CIUDAD
-    mision_render.dibujar_panel_mision(pantalla, mision, rect, transcurrido, compacto=compacto)
+    return mision_render.dibujar_panel_mision(pantalla, mision, rect, transcurrido, compacto=compacto)
 
 
 def bloque_cintillo(pantalla, titulares, tiempo):
