@@ -783,8 +783,13 @@ def retrato_rol(rol, alto, apariencia=None):
     fallback (normalmente sprite_jugador a escala grande). Con una
     `apariencia` que cambie colores, el retrato base del rol sale teñido
     con su mapa de partes (<rol>.partes.png); sin mapa, sin teñir."""
-    if _mezcla(str(rol).split("_")[0], apariencia) is not None:
-        return None  # cabeza y cuerpo de personajes distintos: no hay retrato así; el que llama usa sprite_jugador
+    mezcla = _mezcla(str(rol).split("_")[0], apariencia)
+    if mezcla is not None:
+        # Cabeza y cuerpo de personajes distintos: los retratos de los dos se
+        # mezclan igual que las hojas (src/ui/mezcla_jugador.py) y se tiñen.
+        elegidos = tinte_jugador.objetivos(apariencia)
+        clave = (mezcla, alto, _colores(apariencia))
+        return _recordar(_cache_retratos_vestidos, clave, lambda: _retrato_mezclado(*mezcla, alto, elegidos))
     elegidos = tinte_jugador.objetivos(apariencia)
     if elegidos:
         base = str(rol).split("_")[0]
@@ -807,6 +812,34 @@ def retrato_rol(rol, alto, apariencia=None):
 
 
 _cache_retratos_vestidos = {}  # (rol, alto, colores) -> Surface teñida
+
+
+def _pixeles_retrato(rol, alto):
+    """(cuadro, partes) del retrato de Higgsfield del rol a `alto` px, o None
+    si falta el retrato o su mapa de partes."""
+    imagen = _cargar_png(ruta_sprite(rol, assets.RUTA_SPRITES_RETRATOS))
+    mapa = _cargar_png(os.path.join(assets.RUTA_SPRITES_RETRATOS, f"{rol}.partes.png"))
+    if imagen is None or mapa is None or mapa.get_size() != imagen.get_size():
+        return None
+    ancho = max(1, round(imagen.get_width() * alto / imagen.get_height()))
+    imagen = pygame.transform.smoothscale(imagen, (ancho, alto))
+    mapa = pygame.transform.scale(mapa, (ancho, alto))  # sin mezclar: cada píxel conserva su parte
+    rect = (0, 0, ancho, alto)
+    partes = tuple(tuple(tinte_jugador.parte_de(c) for c in fila) for fila in _pixeles_de(mapa, rect))
+    return _pixeles_de(imagen, rect), partes
+
+
+def _retrato_mezclado(cabeza, cuerpo, alto, elegidos):
+    """Retrato con la cabeza del de `cabeza` sobre el cuerpo del de `cuerpo`,
+    teñido con `elegidos`; None si falta alguno (el que llama usa el sprite)."""
+    de_cabeza, de_cuerpo = _pixeles_retrato(cabeza, alto), _pixeles_retrato(cuerpo, alto)
+    if de_cabeza is None or de_cuerpo is None:
+        return None
+    escala = alto / assets.ALTO_JUGADOR_HF  # el retrato es tantas veces más alto que una hoja de 40 px
+    cuadro, partes = mezcla_jugador.componer(*de_cabeza, *de_cuerpo, escala=escala)
+    if elegidos:
+        cuadro = tinte_jugador.teñir_cuadro(cuadro, partes, tinte_jugador.referencias(cuadro, partes), elegidos)
+    return _superficie_pixeles(cuadro, 1)
 
 
 def _retrato_teñido(rol, alto, elegidos):

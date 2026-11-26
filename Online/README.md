@@ -658,7 +658,13 @@ Tests: `tests/test_celular_chat.py`, `tests/test_celular_red.py` (red real en 12
 1. **Cuello** = primer renglón con ropa; **columnas de la cabeza** = las del pelo por encima del cuello (así las manos levantadas no cuentan).
 2. Del cuadro del cuerpo se borra su cabeza y se pega la elegida, alineada por el centro del pelo y el cuello: pelo, cara, los contornos que los tocan y la melena que cae por debajo. Las manos y el accesorio del otro personaje no se copian.
 3. El mapa de partes se compone igual, así la mezcla se tiñe como una hoja original.
-Se hace una vez por combinación y por cuadro (`quieto`, `paso_a`, `paso_b`, `dash`) y queda en caché (`src/ui/sprites.py`: `_datos_de`, `_componer_datos`). Con una mezcla no hay retrato de Higgsfield que coincida: `retrato_rol` devuelve None y quien lo llama dibuja el sprite.
+Se hace una vez por combinación y por cuadro (`quieto`, `paso_a`, `paso_b`, `dash`) y queda en caché (`src/ui/sprites.py`: `_datos_de`, `_componer_datos`).
+Los **retratos grandes de Higgsfield** (vista previa del vestidor, selección de roles, lobby) también tienen mapa de partes y se mezclan igual (`_retrato_mezclado`), así se ven **nítidos** y no el sprite pixelado. Como son mucho más grandes, los márgenes del corte crecen con `escala` (alto del retrato / 40). Para que no se cuelen pedazos del otro personaje:
+- de los píxeles sin parte solo se copia el contorno oscuro y lo que queda encerrado entre pelo o cara (ojos, lentes): el cartel y el aro de luz, que son claros, no;
+- junto al cuello, solo el contorno con cara justo encima (la barbilla), no el del cuello de la camisa;
+- se borra la melena del cuerpo que caía sobre los hombros;
+- al final se queda solo la pieza conectada más grande (BFS), que es la cabeza: lo que quedó suelto se descarta.
+Pueden quedar uno o dos trazos finos junto al cuello en algunas combinaciones.
 
 ### Archivos
 - Nuevo: `src/ui/mezcla_jugador.py`.

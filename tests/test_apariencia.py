@@ -339,6 +339,11 @@ def test_las_16_combinaciones_se_dibujan_caminan_y_se_tiñen(cabeza, cuerpo):
     assert _leer_surface(quieto) != _leer_surface(original)  # pelo y camisa teñidos
 
 
-def test_con_mezcla_no_hay_retrato_y_se_usa_el_sprite():
-    assert sprites.retrato_rol("periodista", 200, Apariencia(cabeza="candidato")) is None
-    assert sprites.retrato_rol("periodista", 200, Apariencia(cabeza="periodista", ropa=1)) is not None
+def test_con_mezcla_el_retrato_tambien_se_mezcla():
+    """Nítido como el de Higgsfield: los dos retratos mezclados, no el sprite pixelado."""
+    solo = sprites.retrato_rol("periodista", 200)
+    mezclado = sprites.retrato_rol("periodista", 200, Apariencia(cabeza="candidato"))
+    assert mezclado is not None and mezclado.get_height() == 200 and mezclado.get_width() == solo.get_width()
+    assert sprites.retrato_rol("periodista", 200, Apariencia(cabeza="candidato")) is mezclado  # cacheado
+    teñido = sprites.retrato_rol("periodista", 200, Apariencia(cabeza="candidato", ropa=3))
+    assert _leer_surface(teñido) != _leer_surface(mezclado)
