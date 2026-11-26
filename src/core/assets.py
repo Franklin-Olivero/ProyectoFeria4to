@@ -207,7 +207,7 @@ DESPLAZAMIENTO_GLOBO = (64, -84)  # desde el centro del enemigo (hacia un lado y
 # Habilidad del Ciudadano: Burbuja Comunitaria
 COLOR_BURBUJA = COLOR_TEAL
 GROSOR_BURBUJA = 2
-RADIO_BURBUJA = 70  # píxeles
+RADIO_BURBUJA = 110  # píxeles: entra el equipo cerca (antes 70, cuando la burbuja aún no hacía nada)
 DURACION_BURBUJA = 4.0  # segundos
 
 # ----------------------------------------------------------------------

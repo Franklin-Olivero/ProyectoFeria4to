@@ -29,6 +29,7 @@ import random
 
 from src.audio import eventos_sonido
 from src.core import assets
+from src.dungeon.clasificador_toxicidad import enemigos_para_equipo
 from src.core.equipo import jugadores_en_combate
 from src.dungeon.cuarto import HACIA_ADENTRO, Cuarto, punto_llegada
 from src.dungeon.gracia_entrada import GraciaEntrada
@@ -47,6 +48,9 @@ class MazmorraJugable:
         self.duracion_terminal = duracion_terminal
         self.cuartos = {}  # id de cuarto -> Cuarto ya creado
         self.usos_variantes = {}  # variante de enemigo -> veces que apareció en la mazmorra
+        # Jugadores del equipo: con 2 a 4, cada cuarto nuevo trae más enemigos
+        # según su toxicidad (enemigos_para_equipo). Lo fija colocar_en_entrada.
+        self.cantidad_jugadores = 1
         # True el frame en que se cambia de cuarto (Main.py limpia los
         # proyectiles del jugador que quedaron en el cuarto anterior).
         self.cambio_de_cuarto = False
@@ -79,6 +83,7 @@ class MazmorraJugable:
         return self.cuarto.coberturas
 
     def colocar_en_entrada(self, jugadores):
+        self.cantidad_jugadores = max(1, len(jugadores))
         ubicar_en_fila(jugadores, self.cuarto.rect.center, (1, 0))
         self._sacar_de_muebles(jugadores)
 
@@ -96,7 +101,8 @@ class MazmorraJugable:
             semilla_visual=id_cuarto,
             direcciones_puertas=tuple(m.puertas(id_cuarto)),
             nivel_toxicidad=m.toxicidad[id_cuarto],
-            dificultad=m.dificultad[id_cuarto],
+            dificultad=enemigos_para_equipo(m.dificultad[id_cuarto], m.toxicidad[id_cuarto],
+                                            self.cantidad_jugadores),
             es_final=id_cuarto == m.cuarto_final,
             permitir_decision=m.puede_iniciar_decision,
             punto_entrada=punto_entrada,

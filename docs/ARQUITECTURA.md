@@ -318,7 +318,7 @@ y no la reinicia), `visible` (parpadeo), `reiniciar()`.
   `actualizar_invulnerabilidad`, `dibujar`. Interfaz a sobreescribir:
   `ataque_basico()` y `usar_habilidad(enemigos, proyectiles_salida)`.
 - **`Ciudadano(JugadorBase)`** — abanico de 3 proyectiles / Burbuja
-  Comunitaria (flag con duración; todavía sin frenar proyectiles ni curar).
+  Comunitaria (domo con duración: frena balas enemigas y cura adentro, ver `burbuja.py`).
 
 *Depende de:* `pygame`, `assets`, `apuntado`, `balance`, `invulnerabilidad`, `projectile`,
 `dungeon/ciudad_mapa` (`mover_con_colision`).

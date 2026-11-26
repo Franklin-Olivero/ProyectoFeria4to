@@ -26,6 +26,7 @@ import pygame
 from src.core import assets
 from src.core.balance import DANIO_PROYECTIL_JEFE, UMBRAL_FASE_2, UMBRAL_FASE_3
 from src.core.equipo import jugador_mas_cercano
+from src.dungeon.clasificador_toxicidad import reforzar_con_toxicidad
 from src.dungeon.gracia_entrada import GraciaEntrada
 from src.dungeon.mazmorra_final import EN_COMBATE, VICTORIA, MazmorraFinal
 from src.dungeon.mazmorra_jugable import ubicar_en_fila
@@ -173,6 +174,7 @@ class ArenaJefe:
                 tipo, self.jefe.x + lado * assets.SEPARACION_INVOCACION, self.jefe.y, velocidad,
                 agro_permanente=True, variante=variante,
             )
+            reforzar_con_toxicidad(subdito, self.mazmorra.nivel_toxicidad)  # toxicidad 100: x2.5 de vida
             subdito.mantener_dentro(self.rect)
             self.coberturas.sacar(subdito)
             self.subditos.append(subdito)

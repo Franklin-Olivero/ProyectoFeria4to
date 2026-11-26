@@ -46,6 +46,7 @@ from src.dungeon.clasificador_toxicidad import (
     calcular_nivel_toxicidad,
     construir_arbol_reportes,
     nivel_a_dificultad,
+    reforzar_con_toxicidad,
 )
 from src.dungeon.spawn import posiciones_spawn
 from src.dungeon.zona_coberturas import ZonaCoberturas
@@ -222,7 +223,8 @@ class Cuarto:
         al final: así los curanderos quedan detrás de los demás.
 
         La velocidad base es la de assets por el `multiplicador_velocidad`
-        de la dificultad; cada tipo la multiplica por la suya.
+        de la dificultad; cada tipo la multiplica por la suya. La vida, la
+        del tipo por el multiplicador de la toxicidad del cuarto.
         """
         tipos = composicion_cuarto(self.dificultad, self.es_final, rng, es_cuarto_inicial)
         r = self.rect
@@ -236,7 +238,9 @@ class Cuarto:
                                       libre=libre)
         velocidad = assets.VELOCIDAD_ENEMIGO * self.dificultad["multiplicador_velocidad"]
         variantes = elegir_variantes(tipos, rng, self.usos_variantes)
-        enemigos = [crear_enemigo(tipo, x, y, velocidad, variante=variante)
+        # La vida de cada uno crece con la toxicidad del cuarto (vida_por_toxicidad).
+        enemigos = [reforzar_con_toxicidad(crear_enemigo(tipo, x, y, velocidad, variante=variante),
+                                           self.nivel_toxicidad)
                     for tipo, variante, (x, y) in zip(tipos, variantes, posiciones)]
         for enemigo in enemigos:
             self.coberturas.sacar(enemigo)

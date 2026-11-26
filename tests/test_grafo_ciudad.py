@@ -333,8 +333,9 @@ def test_cada_zona_tiene_su_gravedad_promedio():
         reportes = GrafoCiudad.reportes(zona)
         return nivel_a_dificultad(calcular_nivel_toxicidad(construir_arbol_reportes(reportes, zona)))
 
-    assert dificultad(ZONA_COLEGIO) == DIFICULTAD_ALTA
+    # Los capítulos van del más fácil al más difícil: 1 Colegio, 2 Hospital, 3 Medios.
+    assert dificultad(ZONA_COLEGIO) == DIFICULTAD_BAJA
     assert dificultad(ZONA_HOSPITAL) == DIFICULTAD_MEDIA
-    assert dificultad(ZONA_EMPRESA_MEDIOS) == DIFICULTAD_BAJA
+    assert dificultad(ZONA_EMPRESA_MEDIOS) == DIFICULTAD_ALTA
     assert not GrafoCiudad.tiene_mazmorra_normal(ZONA_ALCALDIA)
     assert not GrafoCiudad.tiene_mazmorra_normal(ZONA_PLAZA)

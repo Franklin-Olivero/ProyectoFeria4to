@@ -729,3 +729,123 @@ Se arma una vez por personaje, colores y escala (caché en `src/ui/sprites.py`, 
 - `src/ui/sprites.py`: la hoja de cada personaje sale de los ciclos; `sprite_jugador(..., mirando_izquierda=)` y `mira_izquierda(dueño, x)`.
 - `src/entities/player.py` (combate), `src/ui/ciudad_render.py` y `Main.py` (los otros jugadores en la ciudad): pasan hacia dónde mira. `src/core/assets.py`: `UMBRAL_GIRO_JUGADOR` y `UMBRAL_GIRO_APUNTADO`.
 - En `Online/`: `lobby.py` (cada jugador de la sala mira hacia donde camina y los remotos animan el paso).
+
+---
+
+## 18. Mazmorras más difíciles con 2 a 4 jugadores
+
+### Qué cambió
+Antes cada cuarto sacaba siempre 2, 3 o 5 enemigos según su toxicidad, jugara uno o cuatro. Ahora **cada jugador además del primero suma enemigos a cada cuarto, en proporción a su toxicidad**: a toxicidad 0 suma 0.4 de enemigo por jugador y a toxicidad 100, 1.0 (redondeado). Vale en el Online y en el cooperativo local.
+
+| Toxicidad del cuarto | 1 jugador | 2 | 3 | 4 |
+|---|---|---|---|---|
+| baja (ej. 20) | 2 | 3 | 3 | 4 |
+| media (ej. 50) | 3 | 4 | 4 | 5 |
+| alta (ej. 90) | 5 | 6 | 7 | 8 |
+
+- **Solo cambia la cantidad.** La velocidad, los tipos (perseguidor / tirador / curandero, con las mismas proporciones de `composicion_cuarto`), el jefe, la entrada (sigue sin enemigos) y el juego en solitario quedan igual.
+- **Sin saturar:** ningún cuarto pasa de `MAX_ENEMIGOS_CUARTO = 8`. Un cuarto (1000x560) admite 10 enemigos separados al menos 80 px, así que con 8 siguen apareciendo separados (`SEPARACION_MIN_SPAWN_ENEMIGOS`) y lejos de la puerta por donde entra el equipo.
+- En el Online la cuenta la hace el host (el invitado copia sus enemigos por id), así todas las PCs ven los mismos.
+
+### Archivos (fuera de `Online/`: el combate es de todo el juego)
+- `src/core/balance.py`: `EXTRA_ENEMIGOS_JUGADOR_SIN_TOXICIDAD = 0.4`, `EXTRA_ENEMIGOS_JUGADOR_TOXICIDAD_MAXIMA = 1.0` y `MAX_ENEMIGOS_CUARTO = 8` (para ajustar la dificultad se cambian solo estos números).
+- `src/dungeon/clasificador_toxicidad.py`: `enemigos_para_equipo(dificultad, toxicidad, jugadores)` (pura, O(1)).
+- `src/dungeon/mazmorra_jugable.py`: guarda cuántos juegan (`colocar_en_entrada`) y cada cuarto nuevo usa `enemigos_para_equipo`.
+- Tests: `tests/test_enemigos_por_equipo.py` (la tabla, que crece con la toxicidad y los jugadores, el tope, la entrada y el solitario sin cambios, y una mazmorra real con 1 y con 4 jugadores, con los enemigos separados).
+
+---
+
+## 19. Habilidades especiales: la Burbuja del Ciudadano ya funciona
+
+### Cómo estaban
+Se probó cada habilidad (F / L1, con la barra llena) en un cuarto real:
+- **Influencer** (atrae a los enemigos): ya funcionaba, fuerza el aggro de los enemigos cercanos.
+- **Periodista** (rayo perforante): ya funcionaba, atraviesa enemigos y rompe el escudo del jefe.
+- **Candidato** (proyectiles rebotantes): ya funcionaba, dispara 3 balas que rebotan.
+- **Ciudadano** (Burbuja Comunitaria): **no hacía nada**. Solo prendía un flag y dibujaba el domo, pero las balas lo atravesaban y no curaba.
+
+### Qué hace ahora la Burbuja Comunitaria
+Durante `DURACION_BURBUJA = 4 s`, alrededor del Ciudadano:
+- **Frena las balas enemigas** (también las del jefe) que entran al domo. Se deshacen con unas partículas del color de la burbuja.
+- **Cura a los aliados que estén adentro**, incluido el Ciudadano: `CURACION_BURBUJA_POR_S = 0.5` de vida por segundo (2 de vida en los 4 s), sin pasar de la vida máxima.
+- A un caído no lo levanta (para eso está revivir). Al expulsado (fantasma) no lo toca. Si el Ciudadano cae, el domo deja de proteger.
+- El radio pasó de 70 a `RADIO_BURBUJA = 110` px, para que entren uno o dos compañeros.
+
+### En el Online
+- El host decide (frena las balas y cura). La vida y las balas llegan a todos en el ESTADO, como siempre.
+- **Nuevo:** el ESTADO manda también cuánto le queda a la burbuja (`"bur"` en los extras de cada jugador). Así todas las PCs ven el domo del Ciudadano, no solo la suya.
+- Es un campo agregado. Si falta, no se toca nada.
+
+### Archivos (fuera de `Online/`, porque el combate es de todo el juego)
+- Nuevo: `src/entities/burbuja.py` (`aplicar_burbujas(jugadores, proyectiles_enemigos, dt)`, pura y O(b·(p+j))).
+- `Main.py` (`_frame_de_combate`): la llama justo después de mover las balas enemigas. Es una línea más; lo demás queda igual.
+- `src/core/balance.py`: `CURACION_BURBUJA_POR_S = 0.5`. `src/core/assets.py`: `RADIO_BURBUJA` 70 a 110.
+- `src/entities/player.py`: solo el docstring del Ciudadano. `docs/ARQUITECTURA.md`: la línea del Ciudadano.
+- En `Online/`: `sesion_red.py` (`_datos_extra` manda `"bur"` y el invitado lo aplica en `_aplicar_jugadores`).
+- Tests: `tests/test_burbuja.py`:
+  - frena las balas de adentro y deja las de afuera;
+  - cura sin pasar el máximo;
+  - no levanta caídos ni toca fantasmas;
+  - se apaga con el tiempo;
+  - el frame de combate real: la bala no le llega al Ciudadano y este se cura;
+  - el domo viaja por la red.
+
+---
+
+## 20. Capítulos del más fácil al más difícil y mobs con más vida
+
+### El problema
+La dificultad de cada mazmorra sale de su toxicidad, y estaba al revés:
+- el **Capítulo 1 (Colegio)** era el más tóxico (85, tramo alto: 5 enemigos rápidos);
+- el **Capítulo 3 (Empresa de Medios)** era el menos tóxico (15, tramo bajo).
+
+Además los mobs morían en 1 a 3 segundos.
+
+### 1. Orden de los capítulos
+Se **intercambiaron los reportes** de toxicidad del Colegio y de la Empresa de Medios (`REPORTES_POR_ZONA` en `src/core/balance.py`). Son los mismos reportes, cambiados de zona. El Hospital no se tocó.
+
+| Capítulo | Zona | Toxicidad | Tramo (enemigos y velocidad) |
+|---|---|---|---|
+| 1 | Colegio | 15 | bajo: 2 enemigos, x0.8 |
+| 2 | Hospital | 50 | medio: 3, x1.0 (igual que antes) |
+| 3 | Empresa de Medios | 85 | alto: 5, x1.3 |
+| 4 | Alcaldía (jefe) | 100 | máxima (igual que antes) |
+
+La historia, los diálogos y el orden en que se juegan los capítulos no cambian. Lo que acompaña a la toxicidad de cada zona la sigue, como siempre:
+- el color y el texto "Toxicidad N" del mapa;
+- la dificultad que dicen las instrucciones antes de entrar;
+- los titulares del cintillo;
+- la cantidad de grafitis de los cuartos.
+
+### 2. Vida de los mobs según la toxicidad
+Cada mob nace con la vida de su tipo o variante **multiplicada por la toxicidad del cuarto** donde aparece. La toxicidad es la de ese cuarto, con la propagación incluida. El multiplicador va de x1.5 (toxicidad 0) a x2.5 (toxicidad 100), redondeado y nunca menos que la vida base.
+
+| Vida base | Cap. 1 (15) | Cap. 2 (50) | Cap. 3 (85) | Súbditos del jefe (100) |
+|---|---|---|---|---|
+| 2 (tiradores, curanderos, ...) | 3 | 4 | 5 | 5 |
+| 3 (Hellhound, Demon_A, ...) | 5 | 6 | 7 | 8 |
+| 5 (Minotaur) | 8 | 10 | 12 | 13 |
+| 6 (Black Knight_C) | 10 | 12 | 14 | 15 |
+
+- Lo único que cambia es la vida. La cantidad de enemigos, su velocidad, el daño, los tipos y el jefe (`VIDA_JEFE = 120`) quedan igual.
+- La cura del curandero sigue siendo una fracción de la vida máxima (`FRACCION_CURA`), así que cura en proporción.
+- Se suma con la sección 18: con 2 a 4 jugadores, además, hay más mobs por cuarto.
+- **En el Online** los mobs los crea el host. El ESTADO ya mandaba `vida` y `vmax` de cada enemigo y súbdito, así que el invitado ve las mismas barras de vida sin cambiar nada de la red.
+
+### Archivos (fuera de `Online/`: el combate es de todo el juego)
+- `src/core/balance.py`:
+  - `REPORTES_POR_ZONA`: Colegio y Medios intercambiados.
+  - Nuevos `VIDA_ENEMIGO_MULT_SIN_TOXICIDAD = 1.5` y `VIDA_ENEMIGO_MULT_TOXICIDAD_MAXIMA = 2.5`. Para ajustar la vida se cambian solo estos dos números.
+- `src/dungeon/clasificador_toxicidad.py`: nuevas `vida_por_toxicidad(vida_base, toxicidad)` y `reforzar_con_toxicidad(enemigo, toxicidad)`, puras y O(1).
+- `src/dungeon/cuarto.py`: los mobs de cada cuarto nacen con `reforzar_con_toxicidad`.
+- `src/dungeon/arena_jefe.py`: los súbditos del jefe, igual, con toxicidad 100.
+- Tests:
+  - `tests/test_grafo_ciudad.py`: el test del orden ahora espera Colegio bajo, Hospital medio y Medios alto.
+  - Nuevo `tests/test_dificultad_capitulos.py`:
+    - la toxicidad sube con el número de capítulo;
+    - solo se intercambiaron los reportes;
+    - la tabla de vida, que crece con la toxicidad;
+    - los mobs de mazmorras reales traen la vida de su cuarto;
+    - la velocidad y la cantidad no cambian;
+    - el enemigo suelto y el jefe no cambian, y los súbditos se refuerzan.
+- Verificado: suite completa en verde (1904) y la campaña completa de principio a fin (`test_campania_completa`, corrida con UTF-8) también.

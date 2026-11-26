@@ -91,3 +91,64 @@ def nivel_a_dificultad(nivel):
     if nivel < LIMITE_TRAMO_MEDIO:
         return dict(DIFICULTAD_MEDIA)
     return dict(DIFICULTAD_ALTA)
+
+
+def enemigos_para_equipo(dificultad, nivel_toxicidad, cantidad_jugadores):
+    """La dificultad de un cuarto con más enemigos si juegan varios (2 a 4,
+    cooperativo u Online), en proporción a su toxicidad.
+
+    Cada jugador además del primero suma round(fracción) enemigos, con la
+    fracción de EXTRA_ENEMIGOS_JUGADOR_SIN_TOXICIDAD (toxicidad 0) a
+    EXTRA_ENEMIGOS_JUGADOR_TOXICIDAD_MAXIMA (toxicidad 100). Tope:
+    MAX_ENEMIGOS_CUARTO (el cuarto no se satura). Un cuarto sin enemigos (la
+    entrada) sigue sin enemigos y con 1 jugador nada cambia. Solo cambia la
+    cantidad: la velocidad y los tipos siguen saliendo de la toxicidad.
+
+        toxicidad   1 jugador  2   3   4
+        baja (20)       2      3   3   4
+        media (50)      3      4   4   5
+        alta (90)       5      6   7   8
+
+    Retorna un dict nuevo. O(1)."""
+    from src.core.balance import (
+        EXTRA_ENEMIGOS_JUGADOR_SIN_TOXICIDAD, EXTRA_ENEMIGOS_JUGADOR_TOXICIDAD_MAXIMA, MAX_ENEMIGOS_CUARTO,
+    )
+    resultado = dict(dificultad)
+    base = resultado.get("cantidad_enemigos", 0)
+    otros = max(0, int(cantidad_jugadores) - 1)
+    if base <= 0 or otros == 0:
+        return resultado
+    toxicidad = max(0.0, min(100.0, float(nivel_toxicidad)))
+    fraccion = EXTRA_ENEMIGOS_JUGADOR_SIN_TOXICIDAD + (
+        EXTRA_ENEMIGOS_JUGADOR_TOXICIDAD_MAXIMA - EXTRA_ENEMIGOS_JUGADOR_SIN_TOXICIDAD) * toxicidad / 100.0
+    extra = int(otros * fraccion + 0.5)  # redondeo hacia arriba en .5 (round de Python redondea a par)
+    resultado["cantidad_enemigos"] = max(base, min(base + extra, MAX_ENEMIGOS_CUARTO))
+    return resultado
+
+
+def vida_por_toxicidad(vida_base, nivel_toxicidad):
+    """Vida de un enemigo que aparece en un cuarto con `nivel_toxicidad`:
+    `vida_base` (la de su tipo o variante) por un multiplicador lineal de
+    VIDA_ENEMIGO_MULT_SIN_TOXICIDAD (toxicidad 0) a
+    VIDA_ENEMIGO_MULT_TOXICIDAD_MAXIMA (toxicidad 100), redondeado (.5 hacia
+    arriba) y nunca menos que `vida_base`.
+
+        vida base   tox 15   tox 50   tox 85   tox 100
+            2          3        4        5        5
+            3          5        6        7        8
+            5          8       10       12       13
+
+    O(1)."""
+    from src.core.balance import VIDA_ENEMIGO_MULT_SIN_TOXICIDAD, VIDA_ENEMIGO_MULT_TOXICIDAD_MAXIMA
+    toxicidad = max(0.0, min(100.0, float(nivel_toxicidad)))
+    multiplicador = VIDA_ENEMIGO_MULT_SIN_TOXICIDAD + (
+        VIDA_ENEMIGO_MULT_TOXICIDAD_MAXIMA - VIDA_ENEMIGO_MULT_SIN_TOXICIDAD) * toxicidad / 100.0
+    return max(vida_base, int(vida_base * multiplicador + 0.5))
+
+
+def reforzar_con_toxicidad(enemigo, nivel_toxicidad):
+    """Le pone a `enemigo` (recién creado, con la vida de su tipo) la vida que
+    le toca por la toxicidad. Devuelve el mismo enemigo."""
+    enemigo.vida_maxima = vida_por_toxicidad(enemigo.vida_maxima, nivel_toxicidad)
+    enemigo.vida = enemigo.vida_maxima
+    return enemigo

@@ -305,12 +305,15 @@ def _datos_jugador(jugador):
 def _datos_extra(jugador):
     """Lo que el HUD y el dibujo del otro necesitan además de posición y vida."""
     mirada = jugador.direccion_mirada
-    return {
+    datos = {
         "carga": round(float(jugador.carga_habilidad), 3),
         "mx": round(mirada.x, 3),
         "my": round(mirada.y, 3),
         "inv": round(jugador.invulnerabilidad.tiempo_restante, 3),
     }
+    if hasattr(jugador, "burbuja_activa"):  # Ciudadano: el domo se ve en todas las PCs
+        datos["bur"] = round(jugador.tiempo_burbuja, 3) if jugador.burbuja_activa else 0
+    return datos
 
 
 def _datos_enemigo(enemigo, indice):
@@ -1977,6 +1980,10 @@ class AdaptadorOnlineJoin(_AdaptadorBase):
             carga = _numero(extra.get("carga"), 0.0, 1000.0)
             if carga is not None:
                 jugador.carga_habilidad = carga
+            burbuja = _numero(extra.get("bur"), 0.0, 60.0)
+            if burbuja is not None and hasattr(jugador, "burbuja_activa"):
+                jugador.tiempo_burbuja = burbuja
+                jugador.burbuja_activa = burbuja > 0
             if indice == self.id_local or not mismo_lugar:
                 continue  # la posición propia la manda esta PC
             invulnerable = _numero(extra.get("inv"), 0.0, 60.0)

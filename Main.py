@@ -119,6 +119,7 @@ from Online.personalizacion_render import AYUDA_MANDO, dibujar_vestidor
 from Online.sesion_red import AdaptadorOnlineHost, EntradaRed
 from Online.sesion_red import cerrar_red_de_sesion, compartir_combate_con_sesion, normalizar_escena, proteger_partida_online
 from Online.sesion_red import mando_local_online
+from src.entities.burbuja import aplicar_burbujas
 from Online.mando_online import ESCENAS_TECLA_DE_BOTON_ONLINE, tecla_de_boton_online
 from Online.celular_partida import ControlCelular
 
@@ -1863,6 +1864,9 @@ def _frame_de_combate(
     for proyectiles in proyectiles_por_jugador:
         _actualizar_proyectiles(proyectiles, dt, escenario.rect)
     _actualizar_proyectiles(proyectiles_enemigos, dt, escenario.rect)
+    # Burbuja Comunitaria del Ciudadano: frena balas enemigas y cura adentro.
+    for punto_frenado in aplicar_burbujas(jugadores, proyectiles_enemigos, dt):
+        particulas.emitir(punto_frenado, assets.COLOR_BURBUJA)
 
     # Primero los muebles: una bala que da en una cobertura no llega a nadie.
     if coberturas:

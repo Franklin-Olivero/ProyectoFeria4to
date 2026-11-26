@@ -272,16 +272,17 @@ DESBLOQUEO_PESO = 6
 COLAPSO_TITULAR_ALTO = 50.0  # desde este colapso hay titular de alarma
 
 # Reportes de toxicidad de cada zona con mazmorra (la Alcaldía es la
-# mazmorra final y no usa reportes). Gravedad promedio -> nivel:
-#   Colegio 4.4 -> 85.0 (tramo alto), Hospital 3.0 -> 50.0 (medio),
-#   Empresa de Medios 1.6 -> 15.0 (bajo).
+# mazmorra final y no usa reportes). Los capítulos van del más fácil al
+# más difícil. Gravedad promedio -> nivel:
+#   Cap. 1 Colegio 1.6 -> 15.0 (tramo bajo), Cap. 2 Hospital 3.0 -> 50.0 (medio),
+#   Cap. 3 Empresa de Medios 4.4 -> 85.0 (alto), Cap. 4 Alcaldía: 100 (NIVEL_TOXICIDAD_FINAL).
 REPORTES_POR_ZONA = {
     ZONA_COLEGIO: [
-        {"id": 1, "tipo": "comentario", "gravedad": 4},
-        {"id": 2, "tipo": "publicacion_viral", "gravedad": 5},
-        {"id": 3, "tipo": "denuncia", "gravedad": 5},
-        {"id": 4, "tipo": "comentario", "gravedad": 3},
-        {"id": 5, "tipo": "publicacion_viral", "gravedad": 5},
+        {"id": 1, "tipo": "comentario", "gravedad": 1},
+        {"id": 2, "tipo": "publicacion_viral", "gravedad": 2},
+        {"id": 3, "tipo": "comentario", "gravedad": 1},
+        {"id": 4, "tipo": "denuncia", "gravedad": 2},
+        {"id": 5, "tipo": "comentario", "gravedad": 2},
     ],
     ZONA_HOSPITAL: [
         {"id": 1, "tipo": "comentario", "gravedad": 2},
@@ -290,11 +291,11 @@ REPORTES_POR_ZONA = {
         {"id": 4, "tipo": "comentario", "gravedad": 3},
     ],
     ZONA_EMPRESA_MEDIOS: [
-        {"id": 1, "tipo": "comentario", "gravedad": 1},
-        {"id": 2, "tipo": "publicacion_viral", "gravedad": 2},
-        {"id": 3, "tipo": "comentario", "gravedad": 1},
-        {"id": 4, "tipo": "denuncia", "gravedad": 2},
-        {"id": 5, "tipo": "comentario", "gravedad": 2},
+        {"id": 1, "tipo": "comentario", "gravedad": 4},
+        {"id": 2, "tipo": "publicacion_viral", "gravedad": 5},
+        {"id": 3, "tipo": "denuncia", "gravedad": 5},
+        {"id": 4, "tipo": "comentario", "gravedad": 3},
+        {"id": 5, "tipo": "publicacion_viral", "gravedad": 5},
     ],
 }
 
@@ -413,6 +414,24 @@ RADIO_CURA = 280  # px
 MAX_CURAS_POR_ALIADO = 2  # por aliado y por cuarto: nadie es inmatable
 DURACION_EFECTO_CURA_S = 0.4  # s que se ve el rayo de cura
 PANICO_CURANDERO_S = 6.0  # s siendo el único vivo antes de entrar en pánico
+
+# Más jugadores, más enemigos (cooperativo local y Online, de 2 a 4):
+# cada jugador además del primero suma a cada cuarto con enemigos una fracción
+# de enemigo que crece con la toxicidad del cuarto (0.4 a toxicidad 0, 1.0 a
+# toxicidad 100), redondeado. Ningún cuarto pasa de MAX_ENEMIGOS_CUARTO: caben
+# 10 bien separados (src/dungeon/spawn.py), así que no se satura.
+# (enemigos_para_equipo en src/dungeon/clasificador_toxicidad.py)
+EXTRA_ENEMIGOS_JUGADOR_SIN_TOXICIDAD = 0.4
+EXTRA_ENEMIGOS_JUGADOR_TOXICIDAD_MAXIMA = 1.0
+MAX_ENEMIGOS_CUARTO = 8
+
+# Vida de los enemigos según la toxicidad del cuarto donde aparecen
+# (vida_por_toxicidad en src/dungeon/clasificador_toxicidad.py): la vida
+# del tipo/variante por un multiplicador que va de x1.5 (toxicidad 0) a
+# x2.5 (toxicidad 100), redondeado. Vale para los cuartos de las mazmorras
+# y los súbditos del jefe (toxicidad 100). El jefe no cambia (VIDA_JEFE).
+VIDA_ENEMIGO_MULT_SIN_TOXICIDAD = 1.5
+VIDA_ENEMIGO_MULT_TOXICIDAD_MAXIMA = 2.5
 
 # Composición de cada cuarto según el tramo de toxicidad
 # (composicion_cuarto en src/entities/tipos_enemigo.py). Los totales
@@ -791,3 +810,7 @@ NAV_CELDA = 24  # px por celda
 NAV_HOLGURA = 22  # px que se le suma a cada cobertura (medio enemigo típico)
 NAV_PASOS_VISTA = 6  # celdas del camino que se intentan saltar en línea recta
 NAV_MAX_RUTAS = 12  # BFS guardados (uno por celda de jugador reciente)
+
+# Burbuja Comunitaria del Ciudadano (src/entities/burbuja.py): frena los
+# proyectiles enemigos que entran al domo y cura a los aliados de adentro.
+CURACION_BURBUJA_POR_S = 0.5  # vida por segundo (en 4 s de burbuja: 2 de vida)

@@ -426,8 +426,9 @@ class JugadorBase:
 
 class Ciudadano(JugadorBase):
     """Ataque: abanico frontal de 3 proyectiles.
-    Habilidad: Burbuja Comunitaria. Por ahora solo activa un flag con
-    duración y radio; las colisiones del domo se conectan más adelante.
+    Habilidad: Burbuja Comunitaria: durante DURACION_BURBUJA un domo de
+    RADIO_BURBUJA frena los proyectiles enemigos que entran y cura a los
+    aliados de adentro (src/entities/burbuja.py, lo aplica el frame de combate).
     """
 
     rol = "ciudadano"
