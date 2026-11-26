@@ -1206,17 +1206,12 @@ def _jugar(pantalla, reloj, sesion, preferencias, presentar):
                     # El mismo camino que el teclado: bloqueo del impostor y envío al host.
                     navegar_terminal(1 if len(jugadores) > 1 and adaptador_red is None else indice_local, direccion_mando)
                 elif escena == Escena.CIUDAD and evento.button in (BOTON_CONFIRMAR, pygame.CONTROLLER_BUTTON_X):
-                    if getattr(jugador, "expulsado", False):
-                        if audio is not None:
-                            audio.sonar(assets.SONIDO_DENEGADO)
-                    elif not mostrar_mapa_mundo:
-                        entrada = partida.entrada_cercana(jugador.rect.center)
-                        if entrada is not None:
-                            zona = entrada.nombre_zona
-                            if campania.zona_desbloqueada(zona, partida.colapso):
-                                entrar_a_zona(zona)
-                            elif audio is not None:
-                                audio.sonar(assets.SONIDO_DENEGADO)
+                    # ✕ hace exactamente lo de la E (la baliza de la misión, la
+                    # Alcaldía sellada, el fantasma y, en el invitado, pedirle
+                    # la entrada al host): se postea la tecla. Antes llamaba a
+                    # partida.entrada_cercana, que no existe, y cerraba la partida.
+                    pygame.event.post(pygame.event.Event(pygame.KEYDOWN, key=TECLA_ENTRAR, mod=0, unicode="",
+                                                         scancode=0))
                 elif evento.button == pygame.CONTROLLER_BUTTON_Y and dialogo is None:
                     sabotear()
                 elif evento.button in (pygame.CONTROLLER_BUTTON_RIGHTSHOULDER, pygame.CONTROLLER_BUTTON_X) and dialogo is None:

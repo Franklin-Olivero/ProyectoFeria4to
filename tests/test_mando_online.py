@@ -14,7 +14,7 @@ import pytest  # noqa: E402
 from Online import lobby, mando_online, sesion_red  # noqa: E402
 from Online.servidor import Servidor  # noqa: E402
 from src.core.escenas import Escena  # noqa: E402
-from tests.test_presentacion_online import _Fin, _Reloj  # noqa: E402
+from tests.test_presentacion_online import _Fin, _Reloj, correr  # noqa: E402,F401
 
 
 def _boton(boton):
@@ -191,3 +191,118 @@ def test_las_pantallas_de_resultado_se_pasan_con_la_x():
     assert mando_online.tecla_de_boton_online(pygame.CONTROLLER_BUTTON_DPAD_RIGHT).key == pygame.K_RIGHT
     assert mando_online.tecla_de_boton_online(pygame.CONTROLLER_BUTTON_B) is None  # Esc cerraría el juego
 
+
+
+# ----------------------------------------------------------------------
+# Ningún botón del control cierra la partida (el bug de la ✕ en la ciudad)
+# ----------------------------------------------------------------------
+
+BOTONES = (
+    pygame.CONTROLLER_BUTTON_A, pygame.CONTROLLER_BUTTON_B, pygame.CONTROLLER_BUTTON_X, pygame.CONTROLLER_BUTTON_Y,
+    pygame.CONTROLLER_BUTTON_BACK, pygame.CONTROLLER_BUTTON_GUIDE, pygame.CONTROLLER_BUTTON_LEFTSTICK,
+    pygame.CONTROLLER_BUTTON_RIGHTSTICK, pygame.CONTROLLER_BUTTON_LEFTSHOULDER, pygame.CONTROLLER_BUTTON_RIGHTSHOULDER,
+    pygame.CONTROLLER_BUTTON_DPAD_UP, pygame.CONTROLLER_BUTTON_DPAD_DOWN, pygame.CONTROLLER_BUTTON_DPAD_LEFT,
+    pygame.CONTROLLER_BUTTON_DPAD_RIGHT,
+)
+EJES = (pygame.CONTROLLER_AXIS_LEFTX, pygame.CONTROLLER_AXIS_LEFTY, pygame.CONTROLLER_AXIS_RIGHTX,
+        pygame.CONTROLLER_AXIS_RIGHTY, pygame.CONTROLLER_AXIS_TRIGGERLEFT, pygame.CONTROLLER_AXIS_TRIGGERRIGHT)
+
+
+@pytest.fixture
+def errores(monkeypatch):
+    """Todo lo que el Online atrapa y anota (si algo falla, la partida se cerraba)."""
+    from Online import registro_errores
+    anotados = []
+    monkeypatch.setattr(registro_errores, "registrar", lambda contexto, error=None: anotados.append(contexto))
+    return anotados
+
+
+def _apretar_todo(boton_inicial):
+    """Cada botón (salvo START: la pausa tiene su propia prueba) y cada eje, desde `boton_inicial`."""
+    for boton in BOTONES[boton_inicial:]:
+        pygame.event.post(pygame.event.Event(pygame.CONTROLLERBUTTONDOWN, button=boton, instance_id=0))
+        pygame.event.post(pygame.event.Event(pygame.CONTROLLERBUTTONUP, button=boton, instance_id=0))
+    for eje in EJES:
+        for valor in (32767, -32768, 0):
+            pygame.event.post(_stick(eje, valor))
+
+
+@pytest.mark.parametrize("espejo", [False, True], ids=["host", "invitado"])
+@pytest.mark.parametrize("lugar", ["ciudad", "mazmorra", "terminal"])
+def test_ningun_boton_del_control_cierra_la_partida(correr, errores, lugar, espejo):
+    from Online.servidor import Servidor as _Servidor
+    from tests.test_reunion_online import _RedReunion, _impostor_j2
+    servidor = _Servidor()
+    servidor.iniciar(0, interfaz="127.0.0.1")
+    try:
+        red = _RedReunion(cuando=10_000 if lugar == "ciudad" else 3, espejo=espejo, en_decision=lugar == "terminal")
+        red.servidor = servidor  # con celular
+        vistos = {}
+
+        def guion(n, loc):
+            if n in (8, 14, 20, 26):  # varias veces: con el celular abierto, en sus pestañas, cerrado...
+                _apretar_todo(0)
+            if n == 32:
+                vistos["llego"] = True
+                return True
+            return False
+
+        _, cuadros = correr(red, guion, id_local=1 if espejo else 0, preparar=_impostor_j2)
+        assert vistos.get("llego"), f"la partida terminó en el cuadro {cuadros}"
+        assert not [e for e in errores if e.startswith("Main._jugar")], errores
+        assert not [e for e in errores if "Celular" in e or "celular" in e], errores
+    finally:
+        servidor.detener()
+
+
+def test_x_en_la_ciudad_entra_como_la_e(correr, errores):
+    """El bug: ✕ frente a una puerta cerraba la partida. Ahora entra, como la E."""
+    from src.dungeon import ciudad_mapa
+    from tests.test_reunion_online import _RedReunion, _impostor_j2
+    red = _RedReunion(cuando=10_000, espejo=False)
+    vistos = {}
+
+    def guion(n, loc):
+        if n == 3:
+            loc["jugador"].colocar_en(ciudad_mapa.centro_casilla(*ciudad_mapa.ENTRADAS["Colegio"]))
+            _boton(pygame.CONTROLLER_BUTTON_A)
+        if n == 8:
+            vistos["escena"] = loc["escena"]
+            return True
+        return False
+
+    correr(red, guion, id_local=0, preparar=_impostor_j2)
+    assert not [e for e in errores if e.startswith("Main._jugar")], errores
+    assert vistos["escena"] == Escena.MAZMORRA
+
+
+def test_ningun_boton_cierra_la_sala_de_espera(pantalla, errores):
+    servidor = Servidor()
+    servidor.iniciar(0, interfaz="127.0.0.1")
+    try:
+        def guion(n):
+            if n in (3, 9, 15):
+                _apretar_todo(0)
+
+        resultado = _correr(lobby.pantalla_sala_espera, guion, pantalla, [None] * 4, True, servidor, "127.0.0.1",
+                            maximo=22)
+        assert resultado == "siguió"  # ningún botón saca de la sala ni la cierra
+        assert not errores, errores
+    finally:
+        servidor.detener()
+
+
+def test_la_pausa_con_el_control_no_rompe_nada(correr, errores):
+    """START abre la pausa; con todos los botones adentro puede elegirse "Salir al
+    menú" (eso sí vale), pero nada debe fallar."""
+    from tests.test_reunion_online import _RedReunion, _impostor_j2
+
+    def guion(n, loc):
+        if n == 4:
+            _boton(pygame.CONTROLLER_BUTTON_START)
+        if n in (6, 10):
+            _apretar_todo(0)
+        return n >= 16
+
+    correr(_RedReunion(cuando=10_000, espejo=False), guion, id_local=0, preparar=_impostor_j2)
+    assert not [e for e in errores if e.startswith("Main._jugar")], errores
