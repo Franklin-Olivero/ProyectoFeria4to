@@ -163,10 +163,10 @@ PALETAS = ((HAIR, assets.TONOS_PELO), (SHIRT, assets.COLORES_ROPA), (PANTS, asse
 
 
 def test_cada_pestana_de_color_tiene_nombre():
-    assert PESTANAS[1:] == (HAIR, SHIRT, PANTS, SHOES)
+    assert PESTANAS[-4:] == (HAIR, SHIRT, PANTS, SHOES)
     for pestana, paleta in PALETAS:
         valores = opciones(pestana)
-        assert valores[0] is None and len(valores) == len(paleta) + 1 <= 10  # entra en 2 filas de 5
+        assert valores[0] is None and len(valores) == len(paleta) + 1 <= 15  # entra en 3 filas de 5
         assert etiqueta_opcion(pestana, None) == "AUTO" and color_de_opcion(pestana, None) is None
         for valor in valores[1:]:
             assert etiqueta_opcion(pestana, valor) and color_de_opcion(pestana, valor) == paleta[valor]
@@ -187,7 +187,7 @@ def test_elegir_un_color_lo_equipa_y_viaja_por_red():
 
 
 @pytest.mark.parametrize("datos", [{"pelo": 99}, {"ropa": -1}, {"pantalon": True}, {"pelo": "rubio"},
-                                   {"zapatos": 9}, {}])
+                                   {"zapatos": 99}, {}])
 def test_un_color_roto_o_de_una_version_vieja_queda_en_auto(datos):
     apariencia = Apariencia.de_dict({"piel": 1, **datos})
     assert apariencia.piel == 1 and apariencia.pelo is None and apariencia.ropa is None

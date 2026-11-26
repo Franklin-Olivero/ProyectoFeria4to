@@ -17,7 +17,7 @@ import pygame
 
 from src.core import assets, balance
 from src.core.apariencia import PREDETERMINADA
-from src.ui import tinte_jugador
+from src.ui import mezcla_jugador, tinte_jugador
 from src.ui.ruta_sprites import (
     cuadros_de_atlas,
     cuadros_por_nombre,
@@ -535,7 +535,7 @@ def sprite_jugador(color_rol, escala=assets.ESCALA_PIXEL, rol=None, tiempo=0.0,
     teñido con `color_rol`. Con una `apariencia` (src/core/apariencia.py)
     que cambie algún color, la hoja sale teñida (_hoja_vestida)."""
     hoja = None
-    if rol and tinte_jugador.objetivos(apariencia):
+    if rol and (tinte_jugador.objetivos(apariencia) or _mezcla(rol, apariencia)):
         hoja = _hoja_vestida(rol, apariencia, escala_hd(escala))
     if hoja is None and rol:
         hoja = _cargar_hoja(ruta_sprite(rol, assets.RUTA_SPRITES_JUGADORES), escala_hd(escala))
@@ -613,8 +613,54 @@ def _nombre_de(atlas, rect):
 
 
 def _colores(apariencia):
-    """Clave de caché: solo los colores importan (cabeza y traje no aplican al arte de Higgsfield)."""
+    """Clave de caché de los colores de una apariencia."""
     return tuple(sorted(tinte_jugador.objetivos(apariencia).items()))
+
+
+def _mezcla(rol, apariencia):
+    """(cabeza, cuerpo) si la apariencia mezcla personajes (pestañas HAT y
+    SKIN del vestidor), o None si el jugador es su propio personaje. Solo
+    cuentan los personajes con hoja de Higgsfield (assets.ROLES_APARIENCIA)."""
+    if apariencia is None or rol not in assets.ROLES_APARIENCIA:
+        return None
+    cabeza = apariencia.cabeza_para(rol)
+    cuerpo = apariencia.traje_para(rol)
+    if cabeza not in assets.ROLES_APARIENCIA:
+        cabeza = rol
+    if cuerpo not in assets.ROLES_APARIENCIA:
+        cuerpo = rol
+    return None if cabeza == cuerpo == rol else (cabeza, cuerpo)
+
+
+_cache_mezclas = {}  # (cabeza, cuerpo) -> datos de la hoja mezclada (o None)
+
+
+def _datos_de(rol, apariencia):
+    """Los datos en píxeles del personaje que se dibuja: la hoja del rol o,
+    si la apariencia mezcla cabeza y cuerpo, la hoja compuesta."""
+    mezcla = _mezcla(rol, apariencia)
+    if mezcla is None:
+        return _datos_hoja(rol)
+    if mezcla not in _cache_mezclas:
+        _cache_mezclas[mezcla] = _componer_datos(*mezcla)
+    return _cache_mezclas[mezcla]
+
+
+def _componer_datos(cabeza, cuerpo):
+    """Como _datos_hoja, pero cada cuadro del CUERPO con la cabeza de otro
+    personaje (src/ui/mezcla_jugador.py). El cuerpo pone los cuadros, las
+    animaciones y el accesorio."""
+    datos_c, datos_t = _datos_hoja(cabeza), _datos_hoja(cuerpo)
+    if datos_c is None or datos_t is None:
+        return datos_t
+    cuadros, partes = {}, {}
+    for nombre in datos_t["cuadros"]:
+        fuente = nombre if nombre in datos_c["cuadros"] else datos_c["primero"]
+        cuadros[nombre], partes[nombre] = mezcla_jugador.componer(
+            datos_c["cuadros"][fuente], datos_c["partes"][fuente], datos_t["cuadros"][nombre], datos_t["partes"][nombre])
+    primero = datos_t["primero"]
+    return {"cuadros": cuadros, "partes": partes, "animaciones": datos_t["animaciones"],
+            "refs": tinte_jugador.referencias(cuadros[primero], partes[primero]), "primero": primero}
 
 
 def _recordar(cache, clave, crear):
@@ -630,9 +676,10 @@ def _cuadro_teñido(datos, nombre, elegidos):
 
 
 def _hoja_vestida(rol, apariencia, escala):
-    """Hoja del rol teñida con los colores de `apariencia` (escala ya HD), o None."""
+    """Hoja del rol (o la mezcla de cabeza y cuerpo) teñida con los colores
+    de `apariencia` (escala ya HD), o None."""
     def crear():
-        datos = _datos_hoja(rol)
+        datos = _datos_de(rol, apariencia)
         if datos is None:
             return None
         elegidos = tinte_jugador.objetivos(apariencia)
@@ -646,7 +693,7 @@ def _hoja_vestida(rol, apariencia, escala):
                 superficies.append(teñidos[nombre])
             hoja[animacion] = (superficies, duraciones)
         return hoja
-    return _recordar(_cache_vestidos, (rol, _colores(apariencia), escala), crear)
+    return _recordar(_cache_vestidos, (rol, _mezcla(rol, apariencia), _colores(apariencia), escala), crear)
 
 
 def sprite_parte_jugador(simbolos, rol_fuente, piel=None, escala=assets.ESCALA_PIXEL, colores=None):
@@ -736,6 +783,8 @@ def retrato_rol(rol, alto, apariencia=None):
     fallback (normalmente sprite_jugador a escala grande). Con una
     `apariencia` que cambie colores, el retrato base del rol sale teñido
     con su mapa de partes (<rol>.partes.png); sin mapa, sin teñir."""
+    if _mezcla(str(rol).split("_")[0], apariencia) is not None:
+        return None  # cabeza y cuerpo de personajes distintos: no hay retrato así; el que llama usa sprite_jugador
     elegidos = tinte_jugador.objetivos(apariencia)
     if elegidos:
         base = str(rol).split("_")[0]

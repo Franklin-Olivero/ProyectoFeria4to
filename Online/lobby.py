@@ -92,7 +92,7 @@ else:  # sin el archivo: la sala neón de antes
     SPAWNS = [(505, 360), (610, 360), (430, 430), (680, 430)]
 RECT_BOTON_INICIO = pygame.Rect(SALA_RECT.centerx - 185, SALA_RECT.bottom - 52, 370, 50)
 ALCANCE_VESTIDOR = 95  # px del centro del jugador al centro de la caja (igual que la laptop)
-# Con el vestidor abierto: flechas/WASD eligen, Tab o 1-5 cambian de pestaña.
+# Con el vestidor abierto: flechas/WASD eligen, Tab o 1-7 cambian de pestaña.
 TECLAS_MOVER_VESTIDOR = {
     pygame.K_LEFT: (-1, 0), pygame.K_a: (-1, 0),
     pygame.K_RIGHT: (1, 0), pygame.K_d: (1, 0),
@@ -100,8 +100,9 @@ TECLAS_MOVER_VESTIDOR = {
     pygame.K_DOWN: (0, 1), pygame.K_s: (0, 1),
 }
 TECLAS_PESTANA_VESTIDOR = {
-    pygame.K_1: 0, pygame.K_2: 1, pygame.K_3: 2, pygame.K_4: 3, pygame.K_5: 4,
-    pygame.K_KP1: 0, pygame.K_KP2: 1, pygame.K_KP3: 2, pygame.K_KP4: 3, pygame.K_KP5: 4,
+    pygame.K_1: 0, pygame.K_2: 1, pygame.K_3: 2, pygame.K_4: 3, pygame.K_5: 4, pygame.K_6: 5, pygame.K_7: 6,
+    pygame.K_KP1: 0, pygame.K_KP2: 1, pygame.K_KP3: 2, pygame.K_KP4: 3, pygame.K_KP5: 4, pygame.K_KP6: 5,
+    pygame.K_KP7: 6,
 }
 TECLAS_CERRAR_VESTIDOR = (pygame.K_ESCAPE, pygame.K_e, pygame.K_RETURN, pygame.K_KP_ENTER)
 CAMBIO_VESTIDOR = "cambio"
@@ -560,7 +561,7 @@ def pantalla_sala_espera(pantalla, reloj, presentar, clases_rol, es_host, conexi
         if vestidor is not None:
             controles = [
                 ("Flechas / WASD", "elegir"),
-                ("Tab / 1-5", "pestaña"),
+                ("Tab / 1-7", "pestaña"),
                 ("Clic", "elegir"),
                 ("E / Esc", "cerrar"),
             ]

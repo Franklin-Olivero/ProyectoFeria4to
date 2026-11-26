@@ -641,3 +641,27 @@ La "c" con la que se abre no se escribe en el chat (se traga ese TEXTINPUT duran
 4. Abrirlo en una mazmorra: tu personaje se queda quieto (franja ámbar) y los enemigos siguen.
 
 Tests: `tests/test_celular_chat.py`, `tests/test_celular_red.py` (red real en 127.0.0.1) y `tests/test_celular_partida.py` (loop real de Main y la sala: C abre, la "c" no se escribe, R no convoca, Esc no pausa ni sale de la sala, el clic en el botón abre en el Chat si hay no leídos, el sonido, la entrada local quieta y el cierre automático).
+
+---
+
+## 15. Vestidor ampliado: los 4 personajes se mezclan y 14 colores por parte
+
+### Qué hace
+- El vestidor (sala Online, y en local con V / △) tiene **7 pestañas**: **COLOR** (piel), **HAT** (cabeza), **SKIN** (cuerpo), **HAIR**, **SHIRT**, **PANTS** y **SHOES**. Teclas 1-7 o Tab.
+- **HAT:** el peinado y la cara de cualquiera de los 4 personajes de Higgsfield (Ciudadano, Influencer, Periodista, Candidato). **SKIN:** el cuerpo de cualquiera de los 4, con su ropa, su pose y su accesorio (cartel, aro de luz, micrófono...). Con eso hay **16 personajes base**, y cada uno se tiñe con los colores de las demás pestañas.
+- **Tu rol y tu habilidad no cambian**: el vestidor solo cambia cómo te ves.
+- **Paletas de 14 colores** en COLOR, HAIR, SHIRT, PANTS y SHOES (antes 8-9), en 3 filas de 5 con AUTO. Los colores nuevos van al final de cada paleta: lo que alguien ya tenía guardado (`apariencias.json`) o manda una PC con la versión vieja sigue siendo el mismo color.
+- Se ve en la sala, la selección de roles, la revelación del rol, la ciudad, las mazmorras, la reunión y la foto de perfil del celular (que usa la cara elegida en HAT).
+
+### Sin arte nuevo: se recombinan las hojas que ya existen
+`src/ui/mezcla_jugador.py` (puro) usa el **mapa de partes** de cada hoja (`assets/sprites/jugadores/<rol>.partes.png`):
+1. **Cuello** = primer renglón con ropa; **columnas de la cabeza** = las del pelo por encima del cuello (así las manos levantadas no cuentan).
+2. Del cuadro del cuerpo se borra su cabeza y se pega la elegida, alineada por el centro del pelo y el cuello: pelo, cara, los contornos que los tocan y la melena que cae por debajo. Las manos y el accesorio del otro personaje no se copian.
+3. El mapa de partes se compone igual, así la mezcla se tiñe como una hoja original.
+Se hace una vez por combinación y por cuadro (`quieto`, `paso_a`, `paso_b`, `dash`) y queda en caché (`src/ui/sprites.py`: `_datos_de`, `_componer_datos`). Con una mezcla no hay retrato de Higgsfield que coincida: `retrato_rol` devuelve None y quien lo llama dibuja el sprite.
+
+### Archivos
+- Nuevo: `src/ui/mezcla_jugador.py`.
+- Agregados fuera de `Online/` (obligatorios: el dibujo del jugador se usa en todo el juego): `src/ui/sprites.py` (la hoja mezclada), `src/core/assets.py` (colores nuevos al final de cada paleta) y el texto de ayuda "1-7" del vestidor local en `Main.py`.
+- En `Online/`: `personalizacion.py` (HAT, SKIN y los nombres de los colores nuevos), `personalizacion_render.py` (7 pestañas, casillas de 84 px, vistas de HAT y SKIN), `lobby.py` (teclas 1-7) y `celular_render.py` (la foto de perfil con la cara elegida).
+- Tests: `tests/test_apariencia.py` (las 16 combinaciones, la mezcla y el retrato) y los del vestidor actualizados.

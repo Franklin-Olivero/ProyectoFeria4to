@@ -651,8 +651,9 @@ def _avatar_jugador(perfil, diametro):
         centro = (diametro // 2, diametro // 2)
         # Foto de perfil: el retrato del personaje que eligió (assets/sprites/retratos),
         # con el mismo recorte de la cara que las historias del feed.
-        circulo = celular_render.retrato_redondo(perfil.rol, diametro, _RECORTES_RETRATO[perfil.rol]) \
-            if perfil.rol in _RECORTES_RETRATO else None
+        cara = getattr(perfil.apariencia, "cabeza", None) or perfil.rol  # la cabeza elegida en el vestidor (HAT)
+        circulo = celular_render.retrato_redondo(cara, diametro, _RECORTES_RETRATO[cara]) \
+            if cara in _RECORTES_RETRATO else None
         if circulo is None:  # sin retrato: el muñeco con la ropa de los vestidores
             muneco = sprites.sprite_jugador(color, escala=2, rol=perfil.rol, apariencia=perfil.apariencia)
             circulo = pygame.Surface((diametro, diametro), pygame.SRCALPHA)

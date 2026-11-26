@@ -153,7 +153,7 @@ BOTON_CANCELAR = pygame.CONTROLLER_BUTTON_B  # ○
 # Vestidor en la selección de roles local: V (J1) o △ (J2).
 TECLA_VESTIDOR = pygame.K_v
 BOTON_VESTIDOR = pygame.CONTROLLER_BUTTON_Y  # △
-AYUDA_VESTIDOR_LOCAL = "[E] o [Esc] cierra  ·  Tab o 1-5 cambian de pestaña  ·  se guarda para la próxima"
+AYUDA_VESTIDOR_LOCAL = "[E] o [Esc] cierra  ·  Tab o 1-7 cambian de pestaña  ·  se guarda para la próxima"
 UMBRAL_STICK_MENU = 0.6  # fracción del eje: más inclinado = un paso en el menú
 
 VOLVER = "volver"  # Esc en modo o roles: un paso atrás

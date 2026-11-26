@@ -374,7 +374,7 @@ def test_el_avatar_se_ve_con_la_ropa_de_los_vestidores(monkeypatch, es_impostor)
             color = vestido.get_at((x, y))
             if color.a == 255:
                 assert imagen.get_at((rect.x + x, rect.y + y))[:3] == color[:3]
-            if color != sin_ropa.get_at((x, y)):
+            if x >= sin_ropa.get_width() or y >= sin_ropa.get_height() or color != sin_ropa.get_at((x, y)):
                 distintos_a_sin_ropa += 1
     assert distintos_a_sin_ropa > 0  # la ropa cambia el sprite: la comparación sí distingue
 

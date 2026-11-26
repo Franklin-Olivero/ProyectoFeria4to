@@ -246,7 +246,8 @@ def test_sprite_jugador_vestido_es_la_hoja_teñida():
 def test_sin_colores_es_la_misma_surface_de_la_hoja():
     for opciones in ({}, {"tiempo": 0.16, "caminando": True}, {"dash": True}):
         hoja = sprites.sprite_jugador(COLOR, rol="periodista", **opciones)
-        for apariencia in (PREDETERMINADA, Apariencia(cabeza="candidato", traje="ciudadano")):
+        # Su propia cabeza y su propio cuerpo = sin mezcla: la misma hoja.
+        for apariencia in (PREDETERMINADA, Apariencia(cabeza="periodista", traje="periodista")):
             assert sprites.sprite_jugador(COLOR, rol="periodista", apariencia=apariencia, **opciones) is hoja
 
 
@@ -261,9 +262,11 @@ def test_sprite_jugador_vestido_camina_y_hace_dash():
 def test_se_tiñe_una_vez_por_combinacion_de_colores():
     vestido = sprites.sprite_jugador(COLOR, rol="ciudadano", apariencia=Apariencia(piel=2, ropa=1))
     assert sprites.sprite_jugador(COLOR, rol="ciudadano", apariencia=Apariencia(piel=2, ropa=1)) is vestido
-    # cabeza / traje (de versiones viejas) no cambian el dibujo: la misma hoja teñida.
+    # Con otro cuerpo (SKIN) es otro dibujo, cacheado aparte.
+    mezclado = sprites.sprite_jugador(COLOR, rol="ciudadano", apariencia=Apariencia(piel=2, ropa=1, traje="candidato"))
+    assert mezclado is not vestido
     assert sprites.sprite_jugador(COLOR, rol="ciudadano", apariencia=Apariencia(piel=2, ropa=1, traje="candidato")) \
-        is vestido
+        is mezclado
     assert sprites.sprite_jugador(COLOR, rol="ciudadano", apariencia=Apariencia(piel=3, ropa=1)) is not vestido
 
 
@@ -299,3 +302,43 @@ def test_limpiar_cache_hojas_olvida_pixeles_vestidos_y_partes():
     assert sprites._cache_pixeles and sprites._cache_vestidos and sprites._cache_partes
     sprites.limpiar_cache_hojas()
     assert not sprites._cache_pixeles and not sprites._cache_vestidos and not sprites._cache_partes
+
+
+# ----------------------------------------------------------------------
+# HAT y SKIN: la cabeza de un personaje sobre el cuerpo de otro
+# ----------------------------------------------------------------------
+
+def test_la_mezcla_pone_la_cabeza_de_uno_sobre_el_cuerpo_del_otro():
+    from src.ui import mezcla_jugador
+    cabeza, cuerpo = sprites._datos_hoja("candidato"), sprites._datos_hoja("ciudadano")
+    cuadro, partes = mezcla_jugador.componer(cabeza["cuadros"]["quieto"], cabeza["partes"]["quieto"],
+                                             cuerpo["cuadros"]["quieto"], cuerpo["partes"]["quieto"])
+    # Del tamaño del cuerpo (con su accesorio) y su ropa intacta debajo del cuello.
+    assert len(cuadro) == len(cuerpo["cuadros"]["quieto"]) and len(cuadro[0]) == len(cuerpo["cuadros"]["quieto"][0])
+    cuello, _, _ = mezcla_jugador.zona_cabeza(cuerpo["partes"]["quieto"])
+    for y in range(cuello + 2, len(cuadro)):
+        for x, parte in enumerate(cuerpo["partes"]["quieto"][y]):
+            if parte in ("ropa", "pantalon", "zapatos"):
+                assert cuadro[y][x] == cuerpo["cuadros"]["quieto"][y][x]
+    # Arriba del cuello está el pelo del candidato (canoso), no el del ciudadano.
+    pelos = {cuadro[y][x][:3] for y in range(cuello) for x, p in enumerate(partes[y]) if p == "pelo"}
+    pelos_candidato = {c[:3] for fila, fp in zip(cabeza["cuadros"]["quieto"], cabeza["partes"]["quieto"])
+                       for c, p in zip(fila, fp) if p == "pelo"}
+    assert pelos and pelos <= pelos_candidato
+
+
+@pytest.mark.parametrize("cabeza", assets.ROLES_APARIENCIA)
+@pytest.mark.parametrize("cuerpo", assets.ROLES_APARIENCIA)
+def test_las_16_combinaciones_se_dibujan_caminan_y_se_tiñen(cabeza, cuerpo):
+    apariencia = Apariencia(cabeza=cabeza, traje=cuerpo, ropa=3, pelo=10)
+    quieto = sprites.sprite_jugador(COLOR, 1, rol="periodista", apariencia=apariencia)
+    paso = sprites.sprite_jugador(COLOR, 1, rol="periodista", apariencia=apariencia, tiempo=0.16, caminando=True)
+    dash = sprites.sprite_jugador(COLOR, 1, rol="periodista", apariencia=apariencia, dash=True)
+    original = sprites.sprite_jugador(COLOR, 1, rol=cuerpo)
+    assert quieto.get_size() == paso.get_size() == dash.get_size() == original.get_size()  # el cuerpo manda
+    assert _leer_surface(quieto) != _leer_surface(original)  # pelo y camisa teñidos
+
+
+def test_con_mezcla_no_hay_retrato_y_se_usa_el_sprite():
+    assert sprites.retrato_rol("periodista", 200, Apariencia(cabeza="candidato")) is None
+    assert sprites.retrato_rol("periodista", 200, Apariencia(cabeza="periodista", ropa=1)) is not None

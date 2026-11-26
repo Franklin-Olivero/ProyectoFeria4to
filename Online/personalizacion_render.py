@@ -2,7 +2,7 @@
 
 Modal sobre la sala, con el estilo de ahora del juego (vidrio oscuro y el
 morado de Civitas, como el lobby del hotel): botón X para cerrar, las
-pestañas COLOR / HAIR / SHIRT / PANTS / SHOES arriba, a la izquierda el
+pestañas COLOR / HAT / SKIN / HAIR / SHIRT / PANTS / SHOES arriba, a la izquierda el
 jugador en grande con lo que lleva puesto y a la derecha la cuadrícula de
 colores de la pestaña (el equipado, resaltado). Cada casilla muestra la
 parte real teñida con ese color (sprites.sprite_parte_jugador): la mitad de
@@ -12,6 +12,7 @@ Online/personalizacion.py.
 """
 
 import math
+from dataclasses import replace
 
 import pygame
 
@@ -19,8 +20,8 @@ from src.core import assets
 from src.ui import dibujo, kit, layout, sprites
 
 from Online.personalizacion import (
-    CAMPO_DE_PESTANA, COLOR, COLUMNAS, HAIR, PANTS, PESTANAS, SHIRT, SHOES, color_de_opcion, etiqueta_opcion, nombre_rol, opciones,
-    texto_opcion,
+    CAMPO_DE_PESTANA, COLOR, COLUMNAS, HAIR, HAT, PANTS, PESTANAS, SHIRT, SHOES, SKIN, color_de_opcion, etiqueta_opcion,
+    nombre_rol, opciones, texto_opcion,
 )
 
 COLOR_ACENTO = assets.COLOR_CIVITAS  # el morado de Civitas (antes, neón cian)
@@ -34,23 +35,25 @@ CENTRO_CERRAR = (RECT_MODAL.left + 34, RECT_MODAL.top + 34)
 RADIO_CERRAR = 20
 X_PESTANAS = RECT_MODAL.left + 72
 Y_PESTANAS = RECT_MODAL.top + 12
-ANCHO_PESTANA = 100
+ANCHO_PESTANA = 84  # 7 pestañas antes del título VESTIDOR
 ALTO_PESTANA = 44
 SEPARACION_PESTANAS = 8
 RECT_VISTA = pygame.Rect(RECT_MODAL.left + 20, RECT_MODAL.top + 72, 300, 420)
 RECT_OPCIONES = pygame.Rect(RECT_VISTA.right + 20, RECT_VISTA.top,
                             RECT_MODAL.right - RECT_VISTA.right - 40, RECT_VISTA.height)
-LADO_CASILLA = 100
-SEPARACION_CASILLAS = 10
+LADO_CASILLA = 84  # 3 filas de 5: AUTO + 14 colores
+SEPARACION_CASILLAS = 8
 MARGEN_CUADRICULA = 20  # entre el borde del panel de opciones y la primera fila
 ESCALA_VISTA = 9  # jugador de la vista previa: hoja de 40 px a x5 = 200 px de alto (distinta de la revelación)
 ESCALA_CASILLA = 4  # parte de cada casilla si falta el retrato: media hoja a x2 (~88x40 px)
 ALTO_RETRATO_VISTA = 220  # el personaje de Higgsfield, teñido, en la vista previa
-ALTO_RETRATO_CASILLA = 118  # retrato del que sale la mitad de cada casilla
+ALTO_RETRATO_CASILLA = 98  # retrato del que sale la mitad de cada casilla
 RADIO_MUESTRA_TONO = 8
 
 AYUDA_PESTANA = {
     COLOR: "Tono de piel de la cara y las manos, con sus sombras. AUTO deja el tono del dibujo.",
+    HAT: "La cabeza (peinado y cara) de cualquiera de los 4 personajes, sobre tu cuerpo. Tu rol no cambia.",
+    SKIN: "El cuerpo de cualquiera de los 4 personajes: ropa, pose y accesorio. Tu rol y tu habilidad no cambian.",
     HAIR: "Color del cabello (y las cejas), con sus sombras y brillos. AUTO deja el color del dibujo.",
     SHIRT: "Color de la camisa, sudadera, bata o saco. Los blancos, la corbata y los accesorios no cambian.",
     PANTS: "Color del pantalón, con sus sombras.",
@@ -96,7 +99,7 @@ def objetivo_en(vestidor, posicion):
     return DENTRO, None
 
 
-AYUDA_TECLADO = "[E] o [Esc] cierra  ·  Tab o 1-5 cambian de pestaña"
+AYUDA_TECLADO = "[E] o [Esc] cierra  ·  Tab o 1-7 cambian de pestaña"
 AYUDA_MANDO = "○ cierra  ·  L1 / R1 cambian de pestaña  ·  cruceta elige"
 
 
@@ -168,7 +171,7 @@ def _dibujar_vista(pantalla, vestidor, rol, color_rol):
                 assets.COLOR_FONDO, color_rol, assets.TAMANIO_FUENTE_PEQUENA, ancla="center")
     # Lo que lleva en cada pestaña, en dos columnas de tres.
     for indice, pestana in enumerate(PESTANAS):
-        columna, fila = divmod(indice, 3)
+        columna, fila = divmod(indice, 4)
         x = RECT_VISTA.left + 18 + columna * 142
         y = RECT_VISTA.top + 324 + fila * 24
         activa = pestana == vestidor.pestana
@@ -228,15 +231,24 @@ def _imagen_opcion(vestidor, rol, valor):
     apariencia = vestidor.apariencia
     pestana = vestidor.pestana
     probada = apariencia.con(CAMPO_DE_PESTANA[pestana], valor)
-    arriba = pestana in (COLOR, HAIR)
-    retrato = _retrato(rol, ALTO_RETRATO_CASILLA, probada)
+    # La mitad de arriba sale del personaje de la cabeza y la de abajo, del
+    # cuerpo (HAT y SKIN muestran el personaje de esa casilla), teñidas con
+    # los colores que se están probando.
+    if pestana in (HAT, SKIN):
+        arriba = pestana == HAT
+        fuente = valor or rol
+    else:
+        arriba = pestana in (COLOR, HAIR)
+        fuente = probada.cabeza_para(rol) if arriba else probada.traje_para(rol)
+    colores = replace(probada, cabeza=None, traje=None)
+    retrato = _retrato(fuente, ALTO_RETRATO_CASILLA, colores)
     if retrato is not None:
         corte = round(retrato.get_height() * assets.CORTE_CABEZA_JUGADOR)
         rect = (0, 0, retrato.get_width(), corte) if arriba else (0, corte, retrato.get_width(),
                                                                    retrato.get_height() - corte)
         return retrato.subsurface(rect)
     simbolos = assets.SIMBOLOS_CABEZA if arriba else assets.SIMBOLOS_TRAJE
-    return sprites.sprite_parte_jugador(simbolos, rol, None, ESCALA_CASILLA, probada)
+    return sprites.sprite_parte_jugador(simbolos, fuente, None, ESCALA_CASILLA, colores)
 
 
 def _retrato(rol, alto, apariencia):
