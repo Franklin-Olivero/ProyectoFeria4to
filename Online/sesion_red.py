@@ -638,6 +638,39 @@ class EntradaRed:
             return InputJugador()
 
 
+CUADROS_ENTRE_BUSQUEDAS_DE_MANDO = 60  # ~1 s: cada cuánto se busca un control nuevo (abrir uno cuesta)
+
+
+def _revisar_mando(entrada):
+    """Control de PS4 en caliente para las entradas locales del Online: si se
+    desconecta, se sigue con el teclado; si se conecta a mitad de la partida,
+    se empieza a usar sin reiniciar. Se busca uno cada ~1 s, no cada cuadro."""
+    try:
+        if entrada._mando_lector is not None and entrada.mando.attached():
+            return  # hay control y está conectado (si se desconecta, leer() ya sigue con el teclado)
+        entrada._cuadros_sin_mando = getattr(entrada, "_cuadros_sin_mando", 0) + 1
+        if entrada._cuadros_sin_mando < CUADROS_ENTRE_BUSQUEDAS_DE_MANDO:
+            return
+        entrada._cuadros_sin_mando = 0
+        nuevo = _detectar_mando()
+        if nuevo is not None:
+            entrada.mando, entrada._mando_lector = nuevo, EntradaMando(nuevo)
+    except Exception:
+        registro_errores.registrar("_revisar_mando")
+
+
+def mando_local_online(sesion):
+    """El control de PS4 de esta PC en una partida Online (para caminar por la
+    ciudad con el stick), o None: sin control, o en una partida local (ahí el
+    control es del J2)."""
+    if getattr(sesion, "adaptador_red", None) is None:
+        return None
+    for entrada in getattr(sesion, "entradas", None) or ():
+        if isinstance(entrada, (EntradaTecladoRed, EntradaLocalCliente)) and entrada._mando_lector is not None:
+            return entrada.mando
+    return None
+
+
 class EntradaTecladoRed(EntradaTeclado):
     """Host: el teclado+mouse del J1 o control de PS4 si está conectado.
     Guarda el último pedido y cuenta sus pulsos para mandárselo a los invitados.
@@ -655,6 +688,7 @@ class EntradaTecladoRed(EntradaTeclado):
         self.bloqueada = False  # Online: con el celular abierto el teclado y el control son del celular
 
     def leer(self, teclas=None, botones_mouse=None, punto_mouse=None):
+        _revisar_mando(self)  # teclado y control a la vez; el control se puede conectar en cualquier momento
         if teclas is None:
             teclas = pygame.key.get_pressed()
         if botones_mouse is None:
@@ -709,6 +743,7 @@ class EntradaLocalCliente(EntradaTeclado):
         self.bloqueada = False  # Online: con el celular abierto el teclado y el control son del celular
 
     def leer(self, teclas=None, botones_mouse=None, punto_mouse=None):
+        _revisar_mando(self)  # teclado y control a la vez; el control se puede conectar en cualquier momento
         try:
             if teclas is None:
                 teclas = pygame.key.get_pressed()

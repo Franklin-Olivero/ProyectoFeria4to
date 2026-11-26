@@ -118,6 +118,8 @@ from Online.personalizacion import Vestidor
 from Online.personalizacion_render import AYUDA_MANDO, dibujar_vestidor
 from Online.sesion_red import AdaptadorOnlineHost, EntradaRed
 from Online.sesion_red import cerrar_red_de_sesion, compartir_combate_con_sesion, normalizar_escena, proteger_partida_online
+from Online.sesion_red import mando_local_online
+from Online.mando_online import ESCENAS_TECLA_DE_BOTON_ONLINE, tecla_de_boton_online
 from Online.celular_partida import ControlCelular
 
 TECLAS_CONFIRMAR = (pygame.K_RETURN, pygame.K_KP_ENTER)
@@ -1221,6 +1223,13 @@ def _jugar(pantalla, reloj, sesion, preferencias, presentar):
                     reportar()
                 elif evento.button == pygame.CONTROLLER_BUTTON_START and dialogo is None:
                     abrir_pausa()
+                elif adaptador_red is not None and escena in ESCENAS_TECLA_DE_BOTON_ONLINE:
+                    # Online: quien juega solo con el control también pasa el
+                    # resultado, la investigación, la victoria y la derrota
+                    # (esas pantallas esperan Enter, flechas o Esc).
+                    tecla_online = tecla_de_boton_online(evento.button)
+                    if tecla_online is not None:
+                        pygame.event.post(tecla_online)
                 continue
             if evento.type != pygame.KEYDOWN:
                 continue
@@ -1525,7 +1534,8 @@ def _jugar(pantalla, reloj, sesion, preferencias, presentar):
 
         if escena == Escena.CIUDAD and not mostrar_mapa_mundo and not en_dialogo and not mostrar_estado and not mostrar_ayuda \
                 and not en_reunion and not (celular is not None and celular.abierto):
-            jugador.caminar_en_ciudad(pygame.key.get_pressed(), dt, partida.es_solida)
+            jugador.caminar_en_ciudad(pygame.key.get_pressed(), dt, partida.es_solida,
+                                      mando=mando_local_online(sesion))  # Online: también el stick del PS4
             if hasattr(sesion, "adaptador_red") and sesion.adaptador_red is not None:
                 sesion.adaptador_red.actualizar_ciudad(dt, partida, jugadores, jugador)
         elif escena in ESCENAS_DE_COMBATE and not en_dialogo and not espera_equipo and not en_reunion:

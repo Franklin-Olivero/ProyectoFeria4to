@@ -671,3 +671,31 @@ Pueden quedar uno o dos trazos finos junto al cuello en algunas combinaciones.
 - Agregados fuera de `Online/` (obligatorios: el dibujo del jugador se usa en todo el juego): `src/ui/sprites.py` (la hoja mezclada), `src/core/assets.py` (colores nuevos al final de cada paleta) y el texto de ayuda "1-7" del vestidor local en `Main.py`.
 - En `Online/`: `personalizacion.py` (HAT, SKIN y los nombres de los colores nuevos), `personalizacion_render.py` (7 pestañas, casillas de 84 px, vistas de HAT y SKIN), `lobby.py` (teclas 1-7) y `celular_render.py` (la foto de perfil con la cara elegida).
 - Tests: `tests/test_apariencia.py` (las 16 combinaciones, la mezcla y el retrato) y los del vestidor actualizados.
+
+---
+
+## 16. Jugar el Online con el PC y con el control de PS4
+
+### Qué hace
+En cada PC se puede jugar **con teclado y ratón, con el control de PS4 o con los dos a la vez**, en todo el modo Online. El control se detecta solo, y si se conecta (o se desconecta) a mitad de la partida, el juego lo toma sin reiniciar.
+
+| Pantalla | Control de PS4 |
+|---|---|
+| Crear o unirse | cruceta o stick ← → eligen, ✕ confirma, ○ vuelve |
+| Código de sala | ↑ ↓ eligen la letra (se ve en una cajita al lado), ✕ o → la agregan, △ o ← borran, START conecta, ○ vuelve |
+| Error de conexión | ✕ u ○ vuelven |
+| Sala de espera | stick o cruceta caminan, ✕ = E (vestidor cerca de un carrito, si no la recepción de roles), cruceta ← → cambian de rol, START inicia (host), Share abre el celular, ○ cierra la recepción (nunca sale de la sala: eso es Esc) |
+| Vestidor | cruceta elige, L1 / R1 cambian de pestaña, ✕ / ○ / △ cierran |
+| Ciudad | el **stick izquierdo camina** (antes solo WASD), ✕ entra al edificio, □ o R1 REPORTAR, △ SABOTEAR, Share el celular, START la pausa |
+| Combate | stick izquierdo mueve, stick derecho apunta, R2 dispara, L1 habilidad, ✕ dash (lo de siempre) |
+| Terminal, reunión, publicación del sabotaje, diálogos | cruceta y ✕ (lo de siempre) |
+| Resultado de la mazmorra, investigación, victoria y derrota | ✕ = Enter y la cruceta = flechas (antes esperaban el teclado). ○ no se traduce a Esc: en la victoria Esc cierra el juego |
+
+Con un control conectado, la barra de controles de las pantallas del Online muestra los botones del control.
+
+### Cómo está hecho
+- **Nuevo `Online/mando_online.py`:** abre el control con la API GameController de SDL (la misma del resto del juego) y **traduce cada botón a la tecla que ya hace lo mismo** (`como_tecla`, con una tabla por pantalla: `MENU`, `SALA`). Así las pantallas del lobby no duplican su lógica. El stick como flecha da una pulsación por inclinación. `direccion()` suma el stick (con zona muerta) y la cruceta para caminar por la sala.
+- **`Online/lobby.py`:** cada pantalla pasa sus eventos por `como_tecla`; el código de sala tiene su selector de letras; la sala camina con `direccion()` si no hay teclas y usa `evento_vestidor_mando` con el vestidor abierto.
+- **`Online/sesion_red.py`:** `_revisar_mando` (en `EntradaTecladoRed` y `EntradaLocalCliente`) busca un control cada ~1 s mientras no hay uno conectado; `mando_local_online(sesion)` da el control de esta PC para caminar por la ciudad.
+- **Fuera de `Online/`, solo `Main.py` (agregados):** el import, `mando=mando_local_online(sesion)` al caminar por la ciudad (en una partida local es None: el control es del J2) y, en las pantallas de resultado del Online, postear la tecla equivalente al botón.
+- Tests: `tests/test_mando_online.py` (traducción, stick, cada pantalla del lobby con eventos del control, la sala, el control en caliente y las pantallas de resultado).

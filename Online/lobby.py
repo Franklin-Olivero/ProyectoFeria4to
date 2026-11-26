@@ -31,12 +31,12 @@ from src.ui import dibujo, hud, kit, sprites
 
 from Online.servidor import Servidor, PUERTO_DEFAULT, PUERTOS_CANDIDATOS, MAX_JUGADORES
 from Online.cliente import Cliente
-from Online.codigo_sala import generar_codigo, resolver_entrada, ip_local
+from Online.codigo_sala import ALFABETO, generar_codigo, resolver_entrada, ip_local
 from Online.pantalla_rol import mostrar_pantalla_revelacion_rol
 from Online import sala_hotel, sala_hotel_render
 from Online.personalizacion import PESTANAS, Vestidor
 from Online.personalizacion_render import CERRAR, FUERA, OPCION, PESTANA, dibujar_vestidor, objetivo_en
-from Online import firewall, registro_errores
+from Online import firewall, mando_online, registro_errores
 from Online.celular import Perfil
 from Online.celular_partida import ControlCelular
 from Online.disposicion_celular import SALA
@@ -121,10 +121,12 @@ def pantalla_elegir_modo_online(pantalla, reloj, presentar):
     """Sub-pantalla donde se elige HOST (Crear sala) o JOIN (Unirse)."""
     opciones = ["host", "join"]
     indice = 0
+    mando_online.mando()  # abre el control de PS4 si hay uno: ✕ elige, ○ vuelve
     while True:
         for evento in pygame.event.get():
             if evento.type == pygame.QUIT:
                 return None
+            evento = mando_online.como_tecla(evento)
             if evento.type == pygame.KEYDOWN:
                 if evento.key == pygame.K_ESCAPE:
                     return "volver"
@@ -185,7 +187,7 @@ def pantalla_elegir_modo_online(pantalla, reloj, presentar):
         dibujo.texto(pantalla, "Espera a que el anfitrión inicie", (rect_join.centerx, rect_join.top + 292),
                      assets.COLOR_TEXTO_APAGADO, assets.TAMANIO_FUENTE_PEQUENA, ancla="center")
 
-        hud.dibujar_barra_controles(pantalla,
+        hud.dibujar_barra_controles(pantalla, mando_online.CONTROLES_MENU if mando_online.hay_mando() else
                                     [("← →", "elegir"), ("1-2", "directo"),
                                      ("Enter", "confirmar"), ("Esc", "volver")])
         presentar()
@@ -197,6 +199,7 @@ def _pantalla_ingresar_ip(pantalla, reloj, presentar, info_red=None):
     ip_texto = ""
     cursor_visible = True
     cursor_timer = 0.0
+    letra = 0  # con el control: la letra de ALFABETO que ↑ ↓ eligen y ✕ agrega
     while True:
         dt = reloj.tick(FPS) / 1000
         cursor_timer += dt
@@ -207,6 +210,22 @@ def _pantalla_ingresar_ip(pantalla, reloj, presentar, info_red=None):
         for evento in pygame.event.get():
             if evento.type == pygame.QUIT:
                 return None
+            if evento.type == pygame.CONTROLLERBUTTONDOWN:
+                # El código con el control (sin teclado): ↑ ↓ eligen la letra,
+                # ✕ o → la agregan, △ o ← borran, START conecta, ○ vuelve.
+                boton = evento.button
+                if boton == pygame.CONTROLLER_BUTTON_B:
+                    return "volver"
+                if boton == pygame.CONTROLLER_BUTTON_START and ip_texto.strip():
+                    return ip_texto.strip()
+                if boton in (pygame.CONTROLLER_BUTTON_DPAD_UP, pygame.CONTROLLER_BUTTON_DPAD_DOWN):
+                    letra = (letra + (-1 if boton == pygame.CONTROLLER_BUTTON_DPAD_UP else 1)) % len(ALFABETO)
+                elif boton in (pygame.CONTROLLER_BUTTON_A, pygame.CONTROLLER_BUTTON_DPAD_RIGHT) and len(ip_texto) < 21:
+                    ip_texto += ALFABETO[letra]
+                elif boton in (pygame.CONTROLLER_BUTTON_Y, pygame.CONTROLLER_BUTTON_DPAD_LEFT):
+                    ip_texto = ip_texto[:-1]
+                continue
+            evento = mando_online.como_tecla(evento, {})  # solo conectar/desconectar el control
             if evento.type == pygame.KEYDOWN:
                 if evento.key == pygame.K_ESCAPE:
                     return "volver"
@@ -238,6 +257,16 @@ def _pantalla_ingresar_ip(pantalla, reloj, presentar, info_red=None):
                      (rect_input.left + 18, rect_input.centery),
                      color_texto, assets.TAMANIO_FUENTE_TITULO, ancla="midleft")
 
+        if mando_online.hay_mando():
+            # La letra que agregaría ✕, con flechas arriba y abajo, junto al código.
+            caja = pygame.Rect(rect_input.right + 16, rect_input.top, 56, rect_input.height)
+            dibujo.panel(pantalla, caja, assets.COLOR_FONDO_PANEL, assets.COLOR_AMARILLO, 2, radio=8)
+            dibujo.texto(pantalla, ALFABETO[letra], caja.center, assets.COLOR_AMARILLO, assets.TAMANIO_FUENTE_TITULO,
+                         negrita=True, ancla="center")
+            dibujo.texto(pantalla, "↑", (caja.centerx, caja.top - 10), assets.COLOR_TEXTO_SECUNDARIO,
+                         assets.TAMANIO_FUENTE_PEQUENA, ancla="center")
+            dibujo.texto(pantalla, "↓", (caja.centerx, caja.bottom + 10), assets.COLOR_TEXTO_SECUNDARIO,
+                         assets.TAMANIO_FUENTE_PEQUENA, ancla="center")
         dibujo.texto(pantalla, "El código aparece en ROOM SETTINGS del Host (también vale una IP)",
                      (640, 400), assets.COLOR_TEAL, assets.TAMANIO_FUENTE_NORMAL, ancla="center")
         dibujo.texto(pantalla, "Presiona Enter para conectar", (640, 434),
@@ -247,7 +276,7 @@ def _pantalla_ingresar_ip(pantalla, reloj, presentar, info_red=None):
                          (640, 480), assets.COLOR_TEXTO_APAGADO, assets.TAMANIO_FUENTE_PEQUENA,
                          ancla="center")
 
-        hud.dibujar_barra_controles(pantalla,
+        hud.dibujar_barra_controles(pantalla, mando_online.CONTROLES_CODIGO if mando_online.hay_mando() else
                                     [("A-Z 0-9", "escribir código"), ("Enter", "conectar"), ("Esc", "volver")])
         presentar()
 
@@ -259,6 +288,7 @@ def _pantalla_error(pantalla, reloj, presentar, mensaje, consejos=()):
         for evento in pygame.event.get():
             if evento.type == pygame.QUIT:
                 return None
+            evento = mando_online.como_tecla(evento)  # ✕ u ○ también vuelven
             if evento.type == pygame.KEYDOWN:
                 if evento.key in (pygame.K_RETURN, pygame.K_KP_ENTER, pygame.K_ESCAPE):
                     return "volver"
@@ -274,7 +304,7 @@ def _pantalla_error(pantalla, reloj, presentar, mensaje, consejos=()):
             dibujo.texto(pantalla, consejo, (640, y), color, assets.TAMANIO_FUENTE_NORMAL,
                          negrita=(i == 0), ancla="center")
             y += 30
-        dibujo.texto(pantalla, "Presiona Enter o Esc para volver", (640, max(420, y + 30)),
+        dibujo.texto(pantalla, "Presiona Enter o Esc (✕ u ○ en el control) para volver", (640, max(420, y + 30)),
                      assets.COLOR_TEXTO_APAGADO, assets.TAMANIO_FUENTE_NORMAL, ancla="center")
         presentar()
         reloj.tick(FPS)
@@ -387,9 +417,12 @@ def pantalla_sala_espera(pantalla, reloj, presentar, clases_rol, es_host, conexi
                 conexion.detener()
                 return None
 
-            # Con el vestidor abierto, el teclado y el ratón son solo suyos.
+            # Con el vestidor abierto, el teclado, el ratón y el control son solo suyos.
             if vestidor is not None:
-                accion = evento_vestidor(evento, vestidor)
+                if evento.type == pygame.CONTROLLERBUTTONDOWN:
+                    accion = evento_vestidor_mando(evento, vestidor)
+                else:
+                    accion = evento_vestidor(evento, vestidor)
                 if accion == CAMBIO_VESTIDOR:
                     apariencia_local = vestidor.apariencia
                     _actualizar_apariencia(es_host, conexion, apariencia_local)
@@ -402,6 +435,13 @@ def pantalla_sala_espera(pantalla, reloj, presentar, clases_rol, es_host, conexi
             # Con el celular abierto, el teclado y el ratón son suyos (Esc lo cierra, no sale de la sala).
             if celular.manejar_evento(evento, vestidor is None and not modal_roles_abierto, SALA):
                 continue
+
+            # Control de PS4: ○ cierra la recepción (nunca sale de la sala: eso
+            # es Esc); los demás botones hacen lo de su tecla (mando_online.SALA).
+            if evento.type == pygame.CONTROLLERBUTTONDOWN and evento.button == pygame.CONTROLLER_BUTTON_B:
+                modal_roles_abierto = False
+                continue
+            evento = mando_online.como_tecla(evento, mando_online.SALA)
 
             if evento.type == pygame.MOUSEBUTTONDOWN and evento.button == 1:
                 # Clic en botón de inicio
@@ -490,6 +530,8 @@ def pantalla_sala_espera(pantalla, reloj, presentar, clases_rol, es_host, conexi
                 dx -= 1.0
             if teclas[pygame.K_d] or teclas[pygame.K_RIGHT]:
                 dx += 1.0
+            if dx == 0 and dy == 0:  # sin teclas: el stick izquierdo o la cruceta del control
+                dx, dy = mando_online.direccion()
 
             if dx != 0 or dy != 0:
                 dist = math.hypot(dx, dy)
@@ -576,6 +618,8 @@ def pantalla_sala_espera(pantalla, reloj, presentar, clases_rol, es_host, conexi
                     and diagnostico.firewall.estado != firewall.NO_APLICA:
                 controles.insert(3, ("F", "firewall"))
             controles.insert(-1, ("C", "celular"))
+            if mando_online.hay_mando():
+                controles = mando_online.CONTROLES_SALA
         hud.dibujar_barra_controles(pantalla, controles)
         # El celular encima de todo (abierto, dibuja su propia barra de controles).
         celular.dibujar(pantalla, vestidor is None and not modal_roles_abierto, SALA)
