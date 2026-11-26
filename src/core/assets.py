@@ -1013,7 +1013,21 @@ CANALES_MEZCLADOR = 32  # canales simultáneos de pygame.mixer
 # Si falta el PNG se usa el pixel art dibujado en código (sprites.py).
 # Las recetas editables viven en assets/sprites/fuentes/<id>.pixel.json.
 # ----------------------------------------------------------------------
-RUTA_SPRITES_JUGADORES = os.path.join("assets", "sprites", "jugadores")  # <rol>.png, 16x20
+RUTA_SPRITES_JUGADORES = os.path.join("assets", "sprites", "jugadores")  # <rol>.png (arte de Higgsfield)
+# Hojas del jugador hechas desde los personajes de Higgsfield
+# (tools/generar_jugadores_higgsfield.py): cuadros de ALTO_JUGADOR_HF px de
+# alto, el doble que las hojas viejas de 16x20, por eso sprites.sprite_jugador
+# las dibuja a la mitad de la escala pedida (redondeando hacia arriba).
+# <rol>.partes.png marca con estos colores qué píxel es de qué parte.
+ALTO_JUGADOR_HF = 40
+CORTE_CABEZA_JUGADOR = 0.5  # vista previa del vestidor: arriba (pelo y cara) / abajo (ropa)
+COLOR_PARTE_JUGADOR = {
+    "piel": (255, 0, 0),
+    "pelo": (0, 255, 0),
+    "ropa": (0, 0, 255),
+    "pantalon": (255, 255, 0),
+    "zapatos": (255, 0, 255),
+}
 RUTA_SPRITES_JEFE = os.path.join("assets", "sprites", "jefe")
 ID_SPRITE_JEFE = "servidor_central"  # 24x24
 RUTA_SPRITES_RETRATOS = os.path.join("assets", "sprites", "retratos")  # <rol>.png (ilustración grande)
@@ -1183,21 +1197,17 @@ ANIMACION_CHARCO_ACTIVO = "activo"
 ALFA_CHARCO_SPRITE = 215  # el charco dibujado deja ver un poco el piso
 
 # ----------------------------------------------------------------------
-# Personalización del jugador (vestidores del lobby online). Sin arte
-# nuevo: el personaje se arma por partes con las recetas de Pixelbolt de
-# los 4 roles. La cabeza ("HAT") y el traje ("SKIN") pueden salir de la
-# receta de cualquier rol; el accesorio (megáfono, palo selfie, micrófono,
-# mano) siempre es el del rol, porque identifica su habilidad. Lógica en
-# src/core/apariencia.py y src/ui/receta_jugador.py.
+# Personalización del jugador (vestidores). El personaje es el arte de
+# Higgsfield de su rol; el vestidor tiñe su piel, cabello, camisa,
+# pantalón y zapatos (src/ui/tinte_jugador.py). SIMBOLOS_CABEZA y
+# SIMBOLOS_TRAJE eligen la mitad de arriba o la de abajo en las vistas
+# previas (sprites.sprite_parte_jugador).
 # ----------------------------------------------------------------------
 RUTA_RECETAS_SPRITES = os.path.join("assets", "sprites", "fuentes")  # <id>.pixel.json
-ROLES_APARIENCIA = ("ciudadano", "influencer", "periodista", "candidato")  # recetas que prestan partes
+ROLES_APARIENCIA = ("ciudadano", "influencer", "periodista", "candidato")  # roles con personaje de Higgsfield
 SIMBOLOS_CABEZA = ("cabeza",)
 SIMBOLOS_TRAJE = ("torso", "piernas_rest", "piernas_a", "piernas_b", "dash")
-SIMBOLO_PIEL = "s"  # letra de la piel en la paleta de cada receta
-CUADRO_VISTA_PREVIA = "quieto"  # cuadro del que salen las vistas previas de una parte
-# Pestaña COLOR. Incluye los tonos de las hojas: (242, 200, 160) del
-# Influencer, Periodista y Candidato y (200, 144, 90) del Ciudadano.
+# Pestaña COLOR (tonos de piel, de claro a oscuro).
 TONOS_PIEL = (
     (255, 226, 200),
     (242, 200, 160),
@@ -1208,9 +1218,8 @@ TONOS_PIEL = (
     (110, 66, 40),
     (80, 48, 32),
 )
-# Vestidores del lobby Online, pestañas HAIR / SHIRT / PANTS: se recolorea el
-# pelo, la camisa y el pantalón de las recetas que ya existen (sin arte nuevo,
-# src/ui/receta_jugador.py). Los nombres de cada color están en Online/personalizacion.py.
+# Pestañas HAIR / SHIRT / PANTS (y SHOES, más abajo): colores que tiñen esa
+# parte del personaje. Los nombres están en Online/personalizacion.py.
 TONOS_PELO = (
     (24, 22, 34), (74, 46, 28), (128, 84, 50), (226, 186, 92), (186, 74, 40),
     (168, 168, 180), (70, 120, 230), (240, 110, 190), (150, 96, 230),
@@ -1222,6 +1231,11 @@ COLORES_ROPA = (
 COLORES_PANTALON = (
     (52, 84, 150), (34, 32, 46), (104, 104, 122), (98, 66, 44), (84, 96, 52),
     (190, 170, 128), (112, 36, 52), (92, 64, 160), (220, 220, 232),
+)
+# Pestaña SHOES: color de los zapatos.
+COLORES_ZAPATOS = (
+    (232, 70, 96), (34, 32, 46), (240, 240, 248), (70, 120, 230), (250, 206, 60),
+    (70, 180, 90), (150, 96, 230), (120, 80, 50), (246, 140, 52),
 )
 # Modal del vestidor (Online/personalizacion_render.py).
 COLOR_ACENTO_VESTIDOR = COLOR_CIAN_NEON
@@ -1769,7 +1783,8 @@ ORIGEN_COLUMNAS_HOTEL = (70, 270)
 ALTO_TARJETA_HOTEL = 258
 RECT_PANEL_RESUMEN_HOTEL = (70, 540, 1140, 96)
 POSICION_TITULO_HOTEL = (640, 40)
-ESCALA_SPRITE_PUESTO = 4  # rol posando en su puesto
+ESCALA_SPRITE_PUESTO = 4  # rol posando en su puesto (si falta su retrato)
+ALTO_RETRATO_PUESTO = 120  # el personaje de Higgsfield posando en su puesto del hotel
 ALFA_TARJETA_HOTEL = 226
 RECT_TABLERO_MAZMORRAS = (966, 10, 306, 150)  # cartelera colgada en la pared del fondo
 COLOR_TABLERO = (34, 24, 20)

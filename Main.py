@@ -49,7 +49,7 @@ from dataclasses import dataclass, replace
 import pygame
 from pygame._sdl2 import controller
 
-from src.core import assets
+from src.core import apariencias_guardadas, assets
 from src.audio.gestor_audio import Audio
 from src.core.config import FPS, crear_pantalla, crear_reloj
 from src.audio import eventos_sonido
@@ -113,7 +113,9 @@ from src.ui.terminal_decision import CONFIRMAR, DERECHA, DETONACION, IZQUIERDA, 
 from src.ui.terminal_decision_render import dibujar_terminal
 
 from Online import disposicion_hud, reunion_render, sabotaje_render
-from Online.lobby import menu_online
+from Online.lobby import CAMBIO_VESTIDOR, CERRAR_VESTIDOR, evento_vestidor, evento_vestidor_mando, menu_online
+from Online.personalizacion import Vestidor
+from Online.personalizacion_render import AYUDA_MANDO, dibujar_vestidor
 from Online.sesion_red import AdaptadorOnlineHost, EntradaRed
 from Online.sesion_red import cerrar_red_de_sesion, compartir_combate_con_sesion, normalizar_escena, proteger_partida_online
 
@@ -147,6 +149,10 @@ BOTONES_MENU_J2 = {
 }
 BOTON_CONFIRMAR = pygame.CONTROLLER_BUTTON_A  # ✕
 BOTON_CANCELAR = pygame.CONTROLLER_BUTTON_B  # ○
+# Vestidor en la selección de roles local: V (J1) o △ (J2).
+TECLA_VESTIDOR = pygame.K_v
+BOTON_VESTIDOR = pygame.CONTROLLER_BUTTON_Y  # △
+AYUDA_VESTIDOR_LOCAL = "[E] o [Esc] cierra  ·  Tab o 1-5 cambian de pestaña  ·  se guarda para la próxima"
 UMBRAL_STICK_MENU = 0.6  # fracción del eje: más inclinado = un paso en el menú
 
 VOLVER = "volver"  # Esc en modo o roles: un paso atrás
@@ -265,7 +271,10 @@ def main():
             if eleccion == VOLVER:
                 continue
             clases, mando, entrada_extra = eleccion
-            sesion = _nueva_sesion(clases, mando, entrada_extra)
+            # En local cada jugador sale con lo que eligió en el vestidor; en
+            # Online la apariencia llega por la sala (sesion_red).
+            apariencias = apariencias_guardadas.cargar() if entrada_extra is None else None
+            sesion = _nueva_sesion(clases, mando, entrada_extra, apariencias)
             if hasattr(entrada_extra, "configurar_sesion"):
                 sesion = entrada_extra.configurar_sesion(sesion)
             sesion.audio = audio
@@ -339,7 +348,7 @@ def _reproducir_cinematica(pantalla, reloj, cinematica, preferencias, audio, pre
     return None
 
 
-def _nueva_sesion(clases, mando, entrada_extra=None):
+def _nueva_sesion(clases, mando, entrada_extra=None, apariencias=None):
     # J1 (jugadores[0]) es el del teclado: su HUD va arriba, maneja la
     # terminal de decisión y apunta con la mira del mouse.
     entradas = [EntradaTeclado()]
@@ -350,7 +359,10 @@ def _nueva_sesion(clases, mando, entrada_extra=None):
             entradas.append(entrada_extra)
     elif len(clases) > 1:
         entradas.append(EntradaMando(mando))
-    return _Sesion(Partida(), [clase(0, 0) for clase in clases], entradas)
+    jugadores = [clase(0, 0) for clase in clases]
+    for jugador, apariencia in zip(jugadores, apariencias or ()):
+        jugador.apariencia = apariencias_guardadas.para_jugador(apariencia)
+    return _Sesion(Partida(), jugadores, entradas)
 
 
 def _jugar(pantalla, reloj, sesion, preferencias, presentar):
@@ -2194,11 +2206,20 @@ def _elegir_roles(pantalla, reloj, modo, mando, presentar, audio=None, preferenc
     partida empieza cuando todos confirmaron (tras un fundido corto). J1:
     flechas o A/D, Enter o Espacio, 1-4 directo, Retroceso para cambiar, o
     el ratón (señalar y clic). J2: cruceta o stick, ✕ confirma, ○ para
-    cambiar. N silencia y - / + cambian el volumen general. Retorna la
-    lista de clases elegidas, VOLVER con Esc, o None si se cierra."""
+    cambiar. V (J1) o △ (J2) abren el vestidor (piel, cabello, camisa,
+    pantalón y zapatos) con el personaje que tengan señalado; lo elegido
+    se guarda (apariencias_guardadas), se ve en el personaje que posa y
+    luego en toda la partida. N silencia y - / + cambian el volumen
+    general. Retorna la lista de clases elegidas, VOLVER con Esc, o None
+    si se cierra."""
     cantidad = 1 if modo == UN_JUGADOR else 2
     seleccion = SeleccionRoles(cantidad, len(CLASES_ROL))
     vista = VistaSeleccion(len(CLASES_ROL), escena_lobby_render.crear(), _tablero_mazmorras())
+    apariencias = apariencias_guardadas.cargar()
+    vista.apariencias = apariencias[:cantidad]
+    vestidor = None  # Vestidor abierto o None
+    dueno = 0  # quién lo abrió (0 = J1 con teclado y ratón, 1 = J2 con el control)
+    pestanas = [None] * cantidad  # al reabrir, cada uno vuelve a su última pestaña
     j1 = seleccion.cursores[0]
     j2 = seleccion.cursores[1] if cantidad > 1 else None
     stick = _StickMenu()
@@ -2219,6 +2240,32 @@ def _elegir_roles(pantalla, reloj, modo, mando, presentar, audio=None, preferenc
                 return None
             if vista.salida is not None:
                 continue  # ya eligieron todos: solo queda el fundido
+            if vestidor is not None:
+                # Con el vestidor abierto solo responde quien lo abrió.
+                accion = evento_vestidor(evento, vestidor) if dueno == 0 else evento_vestidor_mando(evento, vestidor)
+                if dueno == 1 and evento.type == pygame.KEYDOWN and evento.key == TECLA_SALIR:
+                    accion = CERRAR_VESTIDOR
+                if accion in (CAMBIO_VESTIDOR, CERRAR_VESTIDOR):
+                    apariencias[dueno] = vestidor.apariencia
+                    vista.apariencias = apariencias[:cantidad]
+                if accion == CAMBIO_VESTIDOR:
+                    sonar(navegacion.SONIDO_NAVEGAR)
+                elif accion == CERRAR_VESTIDOR:
+                    pestanas[dueno] = vestidor.pestana
+                    apariencias_guardadas.guardar(apariencias)
+                    vestidor = None
+                    sonar(navegacion.SONIDO_VOLVER)
+                continue
+            abre = None
+            if evento.type == pygame.KEYDOWN and evento.key == TECLA_VESTIDOR:
+                abre = 0
+            elif j2 is not None and evento.type == pygame.CONTROLLERBUTTONDOWN and evento.button == BOTON_VESTIDOR:
+                abre = 1
+            if abre is not None:
+                dueno = abre
+                vestidor = Vestidor(apariencias[dueno], pestanas[dueno] or Vestidor().pestana)
+                sonar(navegacion.SONIDO_CONFIRMAR)
+                continue
             if evento.type == pygame.KEYDOWN:
                 if evento.key == TECLA_SALIR:
                     sonar(navegacion.SONIDO_VOLVER)
@@ -2266,7 +2313,15 @@ def _elegir_roles(pantalla, reloj, modo, mando, presentar, audio=None, preferenc
         silenciado = audio.silenciado if audio is not None else False
         reducir = preferencias.reducir_movimiento if preferencias is not None else False
         vista.dibujar(pantalla, CLASES_ROL, seleccion, volumen, silenciado, reducir)
-        hud.dibujar_barra_controles(pantalla, hud.CONTROLES_SELECCION_DOS if j2 else hud.CONTROLES_SELECCION)
+        if vestidor is not None:
+            clase = CLASES_ROL[seleccion.cursores[dueno].indice]
+            dibujar_vestidor(pantalla, vestidor, clase.rol, clase.COLOR, pygame.mouse.get_pos(),
+                             subtitulo=f"J{dueno + 1} · {clase.NOMBRE}",
+                             ayuda=AYUDA_VESTIDOR_LOCAL if dueno == 0 else AYUDA_MANDO)
+            hud.dibujar_barra_controles(pantalla, hud.CONTROLES_VESTIDOR_LOCAL if dueno == 0
+                                        else hud.CONTROLES_VESTIDOR_MANDO)
+        else:
+            hud.dibujar_barra_controles(pantalla, hud.CONTROLES_SELECCION_DOS if j2 else hud.CONTROLES_SELECCION)
         presentar()
         if vista.salida_terminada:
             return [CLASES_ROL[indice] for indice in seleccion.indices()]

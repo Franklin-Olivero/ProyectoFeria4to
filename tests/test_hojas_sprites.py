@@ -77,7 +77,9 @@ def test_sprite_jugador_usa_la_hoja_del_rol_y_escala(tmp_path, monkeypatch):
     monkeypatch.setattr(assets, "RUTA_SPRITES_JUGADORES", str(tmp_path))
     _guardar_hoja(tmp_path, "influencer")
     quieto = sprites.sprite_jugador((1, 2, 3), rol="influencer")
-    assert quieto.get_size() == (16 * assets.ESCALA_PIXEL, 20 * assets.ESCALA_PIXEL)
+    # Las hojas del jugador (arte de Higgsfield, 40 px) se dibujan a escala_hd.
+    escala = sprites.escala_hd(assets.ESCALA_PIXEL)
+    assert quieto.get_size() == (16 * escala, 20 * escala)
     assert quieto.get_at((0, 0))[:3] == (255, 0, 0)
     # Caminando, en el segundo cuadro; quieto siempre el primero.
     paso = sprites.sprite_jugador((1, 2, 3), rol="influencer", tiempo=0.16, caminando=True)

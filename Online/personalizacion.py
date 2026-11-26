@@ -1,59 +1,54 @@
-"""Vestidor del lobby online: pestañas COLOR, HAT, SKIN, HAIR, SHIRT y PANTS (lógica pura).
+"""Vestidor: pestañas COLOR, HAIR, SHIRT, PANTS y SHOES (lógica pura).
 
 Estilo Among Us: cada pestaña es una cuadrícula de opciones y la primera
-siempre es AUTO (lo del rol). Moverse por la cuadrícula equipa al
-instante, como las flechas en la laptop de roles: la vista previa y los
-demás jugadores ven el cambio en el momento. Sin pygame, para probarse en
-aislado; el dibujo y el ratón viven en Online/personalizacion_render.py.
+siempre es AUTO (el color del dibujo). Moverse por la cuadrícula equipa al
+instante: la vista previa y los demás jugadores ven el cambio en el
+momento. Sin pygame, para probarse en aislado; el dibujo y el ratón viven
+en Online/personalizacion_render.py.
 
-    COLOR  AUTO + assets.TONOS_PIEL        -> Apariencia.piel
-    HAT    AUTO + assets.ROLES_APARIENCIA  -> Apariencia.cabeza
-    SKIN   AUTO + assets.ROLES_APARIENCIA  -> Apariencia.traje
-    HAIR   AUTO + assets.TONOS_PELO        -> Apariencia.pelo      (color del pelo)
+    COLOR  AUTO + assets.TONOS_PIEL        -> Apariencia.piel      (tono de piel)
+    HAIR   AUTO + assets.TONOS_PELO        -> Apariencia.pelo      (color del cabello)
     SHIRT  AUTO + assets.COLORES_ROPA      -> Apariencia.ropa      (color de la camisa)
     PANTS  AUTO + assets.COLORES_PANTALON  -> Apariencia.pantalon  (color del pantalón)
+    SHOES  AUTO + assets.COLORES_ZAPATOS   -> Apariencia.zapatos   (color de los zapatos)
 
-Las tres últimas recolorean el arte que ya existe (src/ui/receta_jugador.py):
-no hay sprites nuevos.
-
-Navegar, cambiar de pestaña y elegir son O(1) (las listas de opciones
-tienen a lo sumo 9 elementos).
+Cada color tiñe esa parte del personaje de Higgsfield conservando sus
+sombras (src/ui/tinte_jugador.py). Navegar, cambiar de pestaña y elegir
+son O(1) (las listas de opciones tienen a lo sumo 10 elementos).
 """
 
 from src.core import assets
 from src.core.apariencia import PREDETERMINADA
 
 COLOR = "COLOR"
-HAT = "HAT"
-SKIN = "SKIN"
 HAIR = "HAIR"
 SHIRT = "SHIRT"
 PANTS = "PANTS"
-PESTANAS = (COLOR, HAT, SKIN, HAIR, SHIRT, PANTS)
-CAMPO_DE_PESTANA = {COLOR: "piel", HAT: "cabeza", SKIN: "traje", HAIR: "pelo", SHIRT: "ropa", PANTS: "pantalon"}
+SHOES = "SHOES"
+PESTANAS = (COLOR, HAIR, SHIRT, PANTS, SHOES)
+CAMPO_DE_PESTANA = {COLOR: "piel", HAIR: "pelo", SHIRT: "ropa", PANTS: "pantalon", SHOES: "zapatos"}
 COLUMNAS = 5  # opciones por fila de la cuadrícula
 
-# Pestañas de color (recolorean una parte) y su paleta, en el orden de assets.
+# Paleta de cada pestaña, en el orden de assets.
 PALETA_DE_PESTANA = {COLOR: assets.TONOS_PIEL, HAIR: assets.TONOS_PELO, SHIRT: assets.COLORES_ROPA,
-                     PANTS: assets.COLORES_PANTALON}
+                     PANTS: assets.COLORES_PANTALON, SHOES: assets.COLORES_ZAPATOS}
 NOMBRES_COLOR = {
     HAIR: ("Negro", "Castaño", "Café claro", "Rubio", "Pelirrojo", "Canoso", "Azul", "Rosa", "Morado"),
     SHIRT: ("Morado Civitas", "Rojo", "Naranja", "Amarillo", "Verde", "Turquesa", "Celeste", "Rosa", "Negro"),
     PANTS: ("Mezclilla", "Negro", "Gris", "Café", "Verde oliva", "Beige", "Vino", "Morado", "Blanco"),
+    SHOES: ("Rojo", "Negro", "Blanco", "Azul", "Amarillo", "Verde", "Morado", "Café", "Naranja"),
 }
-PARTE_DE_PESTANA = {HAIR: "Pelo", SHIRT: "Camisa", PANTS: "Pantalón"}
+PARTE_DE_PESTANA = {HAIR: "Cabello", SHIRT: "Camisa", PANTS: "Pantalón", SHOES: "Zapatos"}
 
 
 def opciones(pestana):
     """Valores que ofrece `pestana`, en orden; el primero (None) es AUTO."""
-    if pestana in PALETA_DE_PESTANA:
-        return (None, *range(len(PALETA_DE_PESTANA[pestana])))
-    return (None, *assets.ROLES_APARIENCIA)
+    return (None, *range(len(PALETA_DE_PESTANA[pestana])))
 
 
 def color_de_opcion(pestana, valor):
-    """RGB de la muestra de una opción de color (None para AUTO o HAT/SKIN)."""
-    if valor is None or pestana not in PALETA_DE_PESTANA:
+    """RGB de la muestra de una opción (None para AUTO)."""
+    if valor is None:
         return None
     return PALETA_DE_PESTANA[pestana][valor]
 
@@ -67,13 +62,10 @@ def texto_opcion(pestana, valor, rol):
     """Qué es la opción `valor` de `pestana` para un jugador de rol `rol`."""
     if pestana == COLOR:
         return "Auto: piel original" if valor is None else f"Tono {valor + 1}"
-    if pestana in NOMBRES_COLOR:
-        parte = PARTE_DE_PESTANA[pestana]
-        return f"Auto: {parte.lower()} original" if valor is None else f"{parte}: {NOMBRES_COLOR[pestana][valor]}"
-    parte = "Cabeza" if pestana == HAT else "Traje"
+    parte = PARTE_DE_PESTANA[pestana]
     if valor is None:
-        return f"Auto: {parte.lower()} de tu rol ({nombre_rol(rol)})"
-    return f"{parte} de {nombre_rol(valor)}"
+        return f"Auto: {parte.lower()} original ({nombre_rol(rol)})"
+    return f"{parte}: {NOMBRES_COLOR[pestana][valor]}"
 
 
 def etiqueta_opcion(pestana, valor):
@@ -82,7 +74,7 @@ def etiqueta_opcion(pestana, valor):
         return "AUTO"
     if pestana in NOMBRES_COLOR:
         return NOMBRES_COLOR[pestana][valor]
-    return f"Tono {valor + 1}" if pestana == COLOR else nombre_rol(valor)
+    return f"Tono {valor + 1}"
 
 
 class Vestidor:

@@ -124,7 +124,7 @@ def test_el_jugador_vestido_se_ve_distinto_en_el_lienzo_de_combate():
 
     # La predeterminada es la hoja del rol, igual que una partida local.
     assert lienzo_con(PREDETERMINADA) == lienzo_con(None)
-    assert lienzo_con(Apariencia(cabeza="candidato")) != lienzo_con(None)
+    assert lienzo_con(Apariencia(ropa=1)) != lienzo_con(None)
 
 
 # ----------------------------------------------------------------------

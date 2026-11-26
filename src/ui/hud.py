@@ -63,15 +63,20 @@ CONTROLES_AJUSTES = [
     ("Enter / ✕", "activar"),
     ("Esc / ○", "cerrar"),
 ]
-CONTROLES_SELECCION = [("← →", "elegir"), ("Enter", "confirmar"), ("1-4", "directo"), ("Esc", "volver")]
+CONTROLES_SELECCION = [("← →", "elegir"), ("Enter", "confirmar"), ("1-4", "directo"), ("V", "personalizar"),
+                       ("Esc", "volver")]
 CONTROLES_SELECCION_DOS = [
     ("A D", "J1 elige"),
     ("Enter", "J1 confirma"),
     ("Cruceta", "J2 elige"),
     ("✕", "J2 confirma"),
     ("Retroceso / ○", "cambiar"),
+    ("V / △", "personalizar"),
     ("Esc", "volver"),
 ]
+CONTROLES_VESTIDOR_LOCAL = [("← → ↑ ↓", "elegir"), ("Tab / 1-5", "pestaña"), ("Clic", "elegir"),
+                            ("E / Esc", "listo")]
+CONTROLES_VESTIDOR_MANDO = [("Cruceta", "elegir"), ("L1 / R1", "pestaña"), ("○ / ✕ / △", "listo")]
 # Paneles laterales del cooperativo, por número de jugador (0 = J1):
 # tecla de habilidad (rotula su barra) y controles clave.
 TECLA_HABILIDAD_PANEL = ("F", "L1")
